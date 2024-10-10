@@ -1,10 +1,10 @@
 from collections import defaultdict, deque
-from ..Parser.SolidityParser import SolidityParser
-from ..Parser.SolidityVisitor import SolidityVisitor
-from ..Utils.Interval import IntegerInterval
-from ..Utils.cfg import *
-from ..Utils.util import * # Expression, Variables class
-from ..Analyzers import ContractAnalyzer
+from Parser.SolidityParser import SolidityParser
+from Parser.SolidityVisitor import SolidityVisitor
+from Utils.Interval import IntegerInterval
+from Utils.cfg import *
+from Utils.util import * # Expression, Variables class
+from Analyzer import ContractAnalyzer
 import re
 
 class EnhancedSolidityVisitor(SolidityVisitor):
