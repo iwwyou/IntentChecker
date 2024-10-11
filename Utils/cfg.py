@@ -1,9 +1,8 @@
 # SolidityGuardian/Utils/CFG.py
 import networkx as nx
 import re
-from Interval import *
-from util import *
-
+from Utils.util import *
+from Utils.Interval import *
 
 class CFGNode:
     def __init__(self, name,
@@ -110,7 +109,7 @@ class ContractCFG(CFG):
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
-    def add_state_variable(self, var_name, var_type_info):
+    def add_state_variable(self, variable, expr=None):
         # 상태 변수 노드가 없는 경우 생성
         if not self.state_variable_node:
             self.state_variable_node = CFGNode('State_Variable')
@@ -125,49 +124,16 @@ class ContractCFG(CFG):
             # 새로운 state variable node를 entry node의 successor로 설정
             self.graph.add_edge(self.entry_node, self.state_variable_node)
 
-        # 타입별로 상태 변수 정보를 추가
-        state_variable_info = {
-            'type': var_type_info["type"],
-            'expression': None,  # 나중에 초기화 값이 있으면 추가될 부분
-            'value': None,  # 초기화 값이 있는 경우 interval이 저장될 부분
-            'isConstant': False  # 초기값은 기본적으로 False
-        }
-
-        # int 또는 uint 타입의 경우 length 정보 추가
-        if var_type_info["type"] in ["int", "uint"]:
-            state_variable_info['length'] = var_type_info.get('length', 256)
-
-        # mapping 타입의 경우 key_type과 value_type 추가
-        elif var_type_info["type"] == "mapping":
-            state_variable_info['key_type'] = var_type_info.get('key_type')
-            state_variable_info['value_type'] = var_type_info.get('value_type')
-
         # 상태 변수 정보를 노드에 추가
-        self.state_variable_node.variables[var_name] = state_variable_info
+        self.state_variable_node.variables[variable.identifier] = {'variable' : variable, 'expression' : expr}
 
-    def add_constant_variable(self, var_name, var_type_info):
+    def add_constant_variable(self, variable, expr=None):
         if not self.state_variable_node:
             self.state_variable_node = CFGNode('State_Variable')
             self.graph.add_node(self.state_variable_node)
 
-        # 상수 변수 정보를 추가
-        constant_variable_info = {
-            'type': var_type_info["type"],
-            'value': None,  # 초기화 값이 나중에 추가될 부분
-            'isConstant': True  # 상수 변수임을 표시
-        }
-
-        # int 또는 uint 타입의 경우 length 정보 추가
-        if "int" in var_type_info["type"] :
-            constant_variable_info['length'] = var_type_info.get('length', 256)
-
-        # mapping 타입의 경우 key_type과 value_type 추가
-        elif var_type_info["type"] == "mapping":
-            constant_variable_info['key_type'] = var_type_info.get('key_type')
-            constant_variable_info['value_type'] = var_type_info.get('value_type')
-
         # 상수 변수 정보를 노드에 추가
-        self.state_variable_node.variables[var_name] = constant_variable_info
+        self.state_variable_node.variables[variable.identifier] = {'variable' : variable, 'expression' : expr}
 
     def add_constructor_to_cfg(self, constructor_cfg):
         # 1. 상태변수 노드의 successor가 생성자가 되도록 설정

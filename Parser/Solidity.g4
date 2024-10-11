@@ -186,11 +186,12 @@ variableDeclarationTuple
   ')' ;
 
 typeName
-  : elementaryTypeName
-  | functionTypeName
-  | mapping
-  | identifierPath
-  | typeName '[' expression? ']' ;
+  : elementaryTypeName # BasicType
+  | functionTypeName # FunctionType
+  | mapping # MapType
+  | identifierPath # StructType
+  | typeName '[' expression? ']' # ArrayType
+  ;
 
 mapping
   : 'mapping' '(' mappingKeyType (identifier)? '=>' typeName (identifier)? ')' ;

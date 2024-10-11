@@ -39,29 +39,41 @@ class Expression:
 
 
 class Variables:
-    def __init__(self, identifier, metaType, var_type=None, intTypeLength=None, arrayLength=None, isDynamic=False,
-                 structName=None, enumName=None, value=None, isConstant=False, scope=None, mappingKeyType=None,
+    def __init__(self, identifier=None, metaType=None, varType=None,
+                 intTypeLength=None, arrayLength=None, isDynamic=False,
+                 structName=None, enumName=None, value=None,
+                 isConstant=False, scope=None, mappingKeyType=None,
                  mappingValueType=None):
         # 기본 속성
         self.identifier = identifier  # 변수명
         self.metaType = metaType  # 변수 메타타입: elementary, struct, array, mapping, enum 등
+        self.scope = scope  # 변수의 스코프 (local, state 등)
+        self.isConstant = isConstant  # 상수 여부
 
         # 타입 정보
-        self.var_type = var_type  # 기본 타입 (예: int, uint)
+        self.varType = varType  # 타입 이름 (ex. uint256)
         self.intTypeLength = intTypeLength  # int, uint 타입의 경우 길이
-        self.arrayLength = arrayLength  # 배열의 길이 (None for dynamic arrays)
-        self.isDynamic = isDynamic  # 동적 배열 여부
-        self.structName = structName  # 구조체 이름 (struct인 경우)
-        self.enumName = enumName  # enum 이름 (enum인 경우)
-
-        # 값 정보
-        self.value = value  # 기본 값, 배열(list), 구조체(dict), mapping(dict) 등
-        self.isConstant = isConstant  # 상수 여부
-        self.scope = scope  # 변수의 스코프 (local, state 등)
 
         # Mapping 관련 정보
         self.mappingKeyType = mappingKeyType  # mapping key의 타입 (없으면 None)
         self.mappingValueType = mappingValueType  # mapping value의 타입 (없으면 None)
+
+        # 배열 타입 관련 속성
+        self.arrayLength = arrayLength  # 배열 크기
+        self.isDynamic = isDynamic  # 동적 배열 여부
+
+        # 구조체 이름
+        self.structName = structName  # 구조체 이름 (struct인 경우)
+
+        # enum 이름
+        self.enumName = enumName  # enum 이름 (enum인 경우)
+
+        # 값 정보
+        self.value = value  # interval
+
+
+
+
 
         # 변경 이력
         self.history = []  # 변수의 변경 이력을 저장하는 리스트 (block number, line number, value)

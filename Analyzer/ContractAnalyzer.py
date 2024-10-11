@@ -1,7 +1,7 @@
 # SolidityGuardian/Analyzers/ContractAnalyzer.py
-from ..Utils.Interval import IntegerInterval
-from ..Utils.cfg import *
-from ..Utils.util import *
+from Utils.Interval import *
+from Utils.cfg import *
+from Utils.util import *
 from solcx import compile_source, install_solc
 import solcx
 import re
@@ -63,7 +63,7 @@ class ContractAnalyzer:
         #self.compile_check()
 
         # 새로 추가된 코드에 대한 컨텍스트를 분석
-        self.analyze_context(start_line, end_line, new_code)
+        self.analyze_context(start_line, new_code)
 
     def compile_check(self):
         try:
@@ -120,6 +120,9 @@ class ContractAnalyzer:
 
         elif '{' in stripped_code: # definition 및 block 관련
             self.current_context_type = self.determine_top_level_context(new_code)
+
+            if self.current_context_type == "contract" :
+                return
 
             # 수정 필요할수도 있음
             self.current_target_contract = self.find_contract_context(start_line)
@@ -313,7 +316,7 @@ class ContractAnalyzer:
         variable_obj.value = interval_result
 
         # 4. 상태 변수를 ContractCFG에 추가
-        contract_cfg.add_state_variable(variable_obj.identifier, variable_obj)
+        contract_cfg.add_state_variable(variable_obj, init_expr)
 
         # 5. ContractCFG에 있는 모든 FunctionCFG에 상태 변수 추가
         for function_cfg in contract_cfg.functions.values():
@@ -345,11 +348,11 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Constant variable {variable_obj.identifier} must have an initializer.")
 
-        # 3. 상태 변수를 ContractCFG에 추가
-        contract_cfg.add_state_variable(variable_obj.identifier, variable_obj)
-
         # 4. 상수임을 표시
         variable_obj.isConstant = True
+
+        # 3. 상태 변수를 ContractCFG에 추가
+        contract_cfg.add_state_variable(variable_obj.identifier, variable_obj)
 
         # 5. brace_count 업데이트
         self.brace_count[self.current_start_line]['cfg_node'] = contract_cfg.state_variable_node
