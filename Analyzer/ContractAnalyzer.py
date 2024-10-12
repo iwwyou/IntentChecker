@@ -62,8 +62,9 @@ class ContractAnalyzer:
         # modifier 때문에 약간 애매하네
         #self.compile_check()
 
-        # 새로 추가된 코드에 대한 컨텍스트를 분석
-        self.analyze_context(start_line, new_code)
+        if new_code != "\n" :
+            # 새로 추가된 코드에 대한 컨텍스트를 분석
+            self.analyze_context(start_line, new_code)
 
     def compile_check(self):
         try:
@@ -78,11 +79,20 @@ class ContractAnalyzer:
         open_braces = code.count('{')
         close_braces = code.count('}')
 
-        # brace_count 업데이트
+        # 이전 줄까지의 전체 brace 차이를 계산하는 "context 파악기"
+        context_difference = 0
+
+        # 현재 줄부터 위로 거슬러 올라가면서 brace 개수 계산
+        for line in range(line_number - 1, 0, -1):
+            if line in self.brace_count:
+                context_difference += self.brace_count[line]['open'] - self.brace_count[line]['close']
+
+        # 현재 줄에 대한 brace_count 업데이트
         self.brace_count[line_number] = {
             'open': open_braces,
             'close': close_braces,
-            'cfg_node': None
+            'cfg_node': None,
+            'context_difference': context_difference + (open_braces - close_braces)  # 현재 줄까지의 전체 차이 계산
         }
 
     def analyze_context(self, start_line, new_code):
@@ -316,6 +326,16 @@ class ContractAnalyzer:
         # 3. Variables 객체에 interval 값 추가
         variable_obj.value = interval_result
 
+        # [추가된 코드] self.analysis_result에 interval 값 저장 (vscode에 전송할 정보)
+        self.analysis_results = {
+            "line": self.current_start_line,
+            "variable": variable_obj.identifier,
+            "interval": {
+                "min": interval_result.min_value,
+                "max": interval_result.max_value
+            }
+        }
+
         # 4. 상태 변수를 ContractCFG에 추가
         contract_cfg.add_state_variable(variable_obj, init_expr)
 
@@ -323,14 +343,12 @@ class ContractAnalyzer:
         for function_cfg in contract_cfg.functions.values():
             function_cfg.add_related_variable(variable_obj.identifier, variable_obj)
 
-        # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
-
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 6. brace_count 업데이트
         self.brace_count[self.current_start_line]['cfg_node'] = contract_cfg.state_variable_node
+
 
     def process_constant_variable(self, variable_obj, init_expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
@@ -452,8 +470,8 @@ class ContractAnalyzer:
         function_cfg = FunctionCFG(function_type='function', function_name=function_name)
 
         # 3. 파라미터 추가
-        for var_name, var_type_info in parameters.items():
-            function_cfg.add_related_variable(var_name, var_type_info)
+        for variable in parameters:
+            function_cfg.add_related_variable(variable)
 
         # 4. Modifier 처리 및 CFG 통합
         for modifier_name in modifiers:
@@ -461,13 +479,13 @@ class ContractAnalyzer:
 
         # 5. 반환 타입 처리 (있다면)
         if returns:
-            for var_name, var_type_info in returns.items():
-                function_cfg.add_related_variable(var_name, var_type_info)
+            for variable in returns:
+                function_cfg.add_related_variable(variable)
 
         # 현재 state_variable_node에서 상태 변수를 가져와 related_variables에 추가
         if contract_cfg.state_variable_node:
-            for var_name, var_info in contract_cfg.state_variable_node.variables.items():
-                function_cfg.add_related_variable(var_name, var_info)
+            for var_name, variable in contract_cfg.state_variable_node.variables.items():
+                function_cfg.add_related_variable(variable)
 
         # 9. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = function_cfg

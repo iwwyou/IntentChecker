@@ -10,7 +10,7 @@ class Interval:
         return self.min_value >= intended_interval.min_value and self.max_value <= intended_interval.max_value
 
 class IntegerInterval(Interval):
-    def __init__(self, min_value, max_value, type_length):
+    def __init__(self, min_value=None, max_value=None, type_length=None):
         super().__init__(min_value, max_value)
         self.type_length = type_length
 
@@ -360,7 +360,7 @@ class IntegerInterval(Interval):
         return self.right_shift(shift_interval)
 
 class UnsignedIntegerInterval(Interval):
-    def __init__(self, min_value, max_value, type_length):
+    def __init__(self, min_value=None, max_value=None, type_length=None):
         super().__init__(min_value, max_value)
         self.type_length = type_length
 
@@ -530,7 +530,7 @@ class UnsignedIntegerInterval(Interval):
         return BoolInterval(0, 1)
 
 class BoolInterval(Interval):
-    def __init__(self, min_value, max_value):
+    def __init__(self, min_value=None, max_value=None):
         super().__init__(min_value, max_value)
 
     def initialize_range(self):

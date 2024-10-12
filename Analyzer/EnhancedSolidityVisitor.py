@@ -213,24 +213,33 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
         var_name = ctx.identifier().getText()
 
-        # 1. 기본 metaType 설정 (일단 elementary로 가정)
-        variable_obj = Variables(identifier=var_name, scope="state")
+        # 1. 기본 Variables 객체 생성 (초기에는 타입을 모름)
+        variable_obj = None
 
         # 2. 타입 분석
         type_ctx = ctx.typeName()
         type_obj = SolType()
-        type_obj = self.visitTypeName(type_ctx, type_obj)
+        type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
 
-        variable_obj.typeInfo = type_obj
+        # 3. 변수 객체 생성 (타입에 따라 다름)
+        if type_obj.typeCategory == 'array':
+            variable_obj = ArrayVariable(identifier=var_name, base_type=type_obj.arrayBaseType,
+                                         array_length=type_obj.arrayLength, is_dynamic=type_obj.isDynamicArray,
+                                         scope='state')
+        elif type_obj.typeCategory == 'struct':
+            variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName, scope='state')
+        else:
+            variable_obj = Variables(identifier=var_name, scope='state')
+            variable_obj.typeInfo = type_obj
 
-        # 3. 초기값 처리 (있을 경우)
+        # 4. 초기값 처리 (있을 경우)
         if ctx.expression():
             init_expr_ctx = ctx.expression()
             init_expr = self.visitExpression(init_expr_ctx)  # Expression 객체 반환
         else:
             init_expr = None
 
-        # 4. ContractAnalyzer 호출 (processStateVariable)
+        # 5. ContractAnalyzer 호출 (processStateVariable)
         self.contract_analyzer.process_state_variable(variable_obj, init_expr)
 
     # Visit a parse tree produced by SolidityParser#errorDefinition.
@@ -332,22 +341,29 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
 
+
     # Visit a parse tree produced by SolidityParser#parameterList.
-    def visitParameterList(self, ctx:SolidityParser.ParameterListContext):
+    def visitParameterList(self, ctx: SolidityParser.ParameterListContext):
         parameters = []
 
         # 각 파라미터의 타입과 이름을 추출
-        for i in range(len(ctx.typeName())):
-            var_type = ctx.typeName(i).getText()  # 파라미터의 타입
+        for i in range(len(ctx)):  # 각 파라미터에 접근
+            param_ctx = ctx[i]
 
-            # 파라미터의 이름이 있는지 확인 (있을 수도 없을 수도 있음)
-            var_name = ctx.identifier(i).getText() if ctx.identifier(i) else None
+            # 1. 파라미터 타입 처리 (visitTypeName 호출)
+            type_ctx = param_ctx.children[0]
+            type_obj = SolType()  # SolType 객체 생성
+            type_obj = self.visitTypeName(type_ctx, type_obj)
 
-            # 파라미터 정보 (타입, 이름) 추가
-            parameters.append({
-                'type': var_type,
-                'name': var_name
-            })
+            # 2. 파라미터의 이름이 있는지 확인 (없으면 None)
+            var_name = param_ctx.children[1].getText() if param_ctx.children[1] else None
+
+            # 3. Variables 객체 생성 및 설정
+            variable_obj = Variables(identifier=var_name, scope="local")  # 파라미터는 로컬 스코프
+            variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+
+            # 4. 리스트에 Variables 객체 추가
+            parameters.append(variable_obj)
 
         return parameters
 
@@ -421,7 +437,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # 배열 크기 확인
         if ctx.expression():
-            array_size = self.visitExpression(ctx.expression())
+            array_size_expr = ctx.expression()
+            array_size = self.evaluate_expression(array_size_expr)  # 배열 크기를 평가 (정수 값이어야 함)
             is_dynamic = False
         else:
             array_size = None
@@ -433,6 +450,21 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj.isDynamicArray = is_dynamic
 
         return type_obj
+
+    def evaluate_expression(self, expr):
+        if expr.expression_type == 'index_access':
+            base_var = self.evaluate_expression(expr.base)
+            index_value = self.evaluate_expression(expr.index)
+
+            if isinstance(base_var, ArrayVariable):
+                index = index_value.min_value  # 인덱스 값 (Interval의 최소값)
+                if 0 <= index < len(base_var.elements):
+                    return base_var.elements[index].value
+                else:
+                    raise IndexError(f"Array index out of bounds: {index}")
+            else:
+                raise TypeError(f"Index access on non-array variable: {base_var}")
+        # 나머지 표현식 처리...
 
     # Visit a parse tree produced by SolidityParser#BasicType.
     def visitBasicType(self, ctx: SolidityParser.ElementaryTypeNameContext, type_obj):
@@ -1187,7 +1219,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             base=base_expr,
             index=index_expr,
-            operator='[]'
+            access='index_access'
         )
 
         return result_expr

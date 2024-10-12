@@ -79,6 +79,9 @@ def simulate_input(test_inputs):
 
         contract_analyzer.update_code(start_line, end_line, code)
 
+        if code == "\n" :
+            continue
+
         # Parse the received code based on context_type
         tree = generate_parse_tree(code, contract_analyzer.get_current_context_type())
 

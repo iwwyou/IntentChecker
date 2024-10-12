@@ -26,14 +26,15 @@ class CFGNode:
         :param val: Interval 값
         """
 
-        # 1. 할당문을 Expression 객체로 생성
-        assignment_expr = Expression(
+        # 1. 할당문을 Statement 객체로 생성
+        assignment_stmt = Statement(
+            statement_type='assignment',
             left=Expression(identifier=variable_obj.identifier),
             operator='=',
             right=Expression(literal=val),
-            var_type=variable_obj.var_type
+            var_type=variable_obj.typeInfo.typeCategory
         )
-        self.statements.append(assignment_expr)
+        self.statements.append(assignment_stmt)
 
         # 2. Variables 객체에 값 업데이트
         variable_obj.value = val
@@ -109,7 +110,7 @@ class ContractCFG(CFG):
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
-    def add_state_variable(self, variable, expr=None):
+    def add_state_variable(self, variable, expr=None): # variable : Variables, expr : Interval
         # 상태 변수 노드가 없는 경우 생성
         if not self.state_variable_node:
             self.state_variable_node = CFGNode('State_Variable')
@@ -125,7 +126,8 @@ class ContractCFG(CFG):
             self.graph.add_edge(self.entry_node, self.state_variable_node)
 
         # 상태 변수 정보를 노드에 추가
-        self.state_variable_node.variables[variable.identifier] = {'variable' : variable, 'expression' : expr}
+        self.state_variable_node.add_assign_statement(variable, expr)
+
 
     def add_constant_variable(self, variable, expr=None):
         if not self.state_variable_node:
@@ -174,26 +176,23 @@ class FunctionCFG(CFG):
         self.modifiers = {}
         self.related_variables = {}
 
-    def add_related_variable(self, var_name, var_type_info):
-        # 변수 정보를 담을 딕셔너리
-        variable_info = {
-            'type': var_type_info["type"],
-            'value': None
-        }
+    def add_related_variable(self, variable_obj):
+        # 추가적인 처리: 만약 로컬 변수의 경우 필요한 값들을 기본값으로 설정할 수 있음
+        if variable_obj.scope == 'local':
+            # int 또는 uint 타입 처리
+            if variable_obj.typeInfo.elementaryTypeName.startswith("int"):
+                interval = IntegerInterval()
+                variable_obj.value = interval.bottom()  # IntegerInterval의 기본 bottom 값
+            elif variable_obj.typeInfo.elementaryTypeName.startswith("uint"):
+                interval = UnsignedIntegerInterval()
+                variable_obj.value = interval.bottom()  # UnsignedIntegerInterval의 기본 bottom 값
 
-        # int 또는 uint 타입의 경우 length 정보 추가
-        if var_type_info["type"].startswith("int"):
-            variable_info['length'] = var_type_info.get('length', 256)
-            variable_info['value'] = IntegerInterval.bottom()
-        elif var_type_info["type"].startswith("uint"):
-            variable_info['length'] = var_type_info.get('length', 256)
-            variable_info['value'] = UnsignedIntegerInterval.bottom()
-        # bool 타입 처리
-        elif var_type_info["type"] == "bool":
-            variable_info['value'] = BooleanInterval.bottom()
+            # bool 타입 처리
+            elif variable_obj.typeInfo.elementaryTypeName == "bool":
+                variable_obj.value = BoolInterval.bottom()  # BooleanInterval의 기본 bottom 값
 
-        # 변수를 related_variables에 저장
-        self.related_variables[var_name] = variable_info
+        # 상태 변수든 로컬 변수든 상관없이 Variables 객체를 그대로 related_variables에 추가
+        self.related_variables[variable_obj.identifier] = variable_obj
 
     def get_related_variable(self, var_name):
         # 변수를 반환

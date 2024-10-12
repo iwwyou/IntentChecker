@@ -1,14 +1,44 @@
 class Statement:
-    def __init__(self, statement_type, identifier=None, string_literal=None, arguments=None):
-        self.statement_type = statement_type  # 예: 'revert', 'require', 'assert'
-        self.identifier = identifier          # Revert, require 등의 식별자
-        self.string_literal = string_literal  # 문자열 리터럴 (에러 메시지)
-        self.arguments = arguments            # 함수 호출의 인자 목록
+    def __init__(self, statement_type, **kwargs):
+        self.statement_type = statement_type  # 'assignment', 'if', 'while', 'for', 'return', 'require', 'assert' 등
+
+        # 공통 속성
+        self.expressions = []  # 해당 문에서 사용하는 Expression 객체들
+        self.statements = []   # 블록 내에 포함된 Statement 객체들
+
+        # 각 statement_type별로 필요한 속성 설정
+        if statement_type == 'assignment':
+            self.left = kwargs.get('left')        # 좌변 Expression
+            self.operator = kwargs.get('operator')  # 할당 연산자 (예: '=')
+            self.right = kwargs.get('right')      # 우변 Expression
+        elif statement_type == 'if':
+            self.condition = kwargs.get('condition')  # 조건 Expression
+            self.then_body = kwargs.get('then_body', [])  # 참인 경우 실행할 Statement 리스트
+            self.else_body = kwargs.get('else_body', [])  # 거짓인 경우 실행할 Statement 리스트
+        elif statement_type == 'while':
+            self.condition = kwargs.get('condition')  # 조건 Expression
+            self.body = kwargs.get('body', [])        # 반복문 본문 Statement 리스트
+        elif statement_type == 'for':
+            self.initialization = kwargs.get('initialization')  # 초기화 Statement
+            self.condition = kwargs.get('condition')            # 조건 Expression
+            self.increment = kwargs.get('increment')            # 증감 Expression
+            self.body = kwargs.get('body', [])                  # 반복문 본문 Statement 리스트
+        elif statement_type in ['require', 'assert']:
+            self.condition = kwargs.get('condition')  # 조건 Expression
+            self.message = kwargs.get('message')      # 에러 메시지 (옵션)
+        elif statement_type == 'return':
+            self.expression = kwargs.get('expression')  # 반환할 Expression
+        elif statement_type == 'expression_statement':
+            self.expression = kwargs.get('expression')  # 표현식 자체가 문인 경우
+        elif statement_type == 'block':
+            self.statements = kwargs.get('statements', [])  # 블록 내의 Statement 리스트
+        # 추가적인 문법 규칙에 대한 속성도 필요한 경우 추가
+
 
 
 class Expression:
     def __init__(self, left=None, operator=None, right=None, identifier=None, literal=None, var_type=None,
-                 function=None, arguments=None, named_arguments=None, base=None,
+                 function=None, arguments=None, named_arguments=None, base=None, access=None,
                  index=None, start_index=None, end_index=None, member=None, options=None,
                  type_name=None, expression=None, condition=None, true_expr=None, false_expr=None,
                  is_postfix=None, elements=None, expr_type=None, type_length=256):
@@ -22,6 +52,7 @@ class Expression:
         self.arguments = arguments      # 위치 기반 인자 목록 (리스트)
         self.named_arguments = named_arguments  # 이름 지정 인자 (딕셔너리)
         self.base = base                # 인덱스 또는 멤버 접근의 대상 표현식 (Expression)
+        self.access = access            # index_access 등
         self.index = index              # 단일 인덱스 표현식 (Expression)
         self.start_index = start_index  # 슬라이싱의 시작 인덱스 (Expression)
         self.end_index = end_index      # 슬라이싱의 끝 인덱스 (Expression)
@@ -38,6 +69,7 @@ class Expression:
         self.type_length = type_length  # 타입의 길이 (예: 256)
 
 
+
 class Variables:
     def __init__(self, identifier=None, value=None,
                  isConstant=False, scope=None):
@@ -45,10 +77,39 @@ class Variables:
         self.identifier = identifier  # 변수명
         self.scope = scope  # 변수의 스코프 (local, state 등)
         self.isConstant = isConstant  # 상수 여부
-        self.typeInfo = None
+        self.typeInfo = None # SolType
 
         # 값 정보
         self.value = value  # interval
+
+
+class ArrayVariable(Variables):
+    def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None, isConstant=False, scope=None):
+        super().__init__(identifier, value, isConstant, scope)
+        self.typeInfo = SolType()
+        self.typeInfo.typeCategory = 'array'
+        self.typeInfo.arrayBaseType = base_type  # SolType 객체
+        self.typeInfo.arrayLength = array_length
+        self.typeInfo.isDynamicArray = is_dynamic
+        self.elements = []  # 배열의 요소들: Variables 객체의 리스트
+
+
+
+class StructVariable(Variables):
+    def __init__(self, identifier=None, struct_type=None, value=None, isConstant=False, scope=None):
+        super().__init__(identifier, value, isConstant, scope)
+        self.typeInfo = SolType()
+        self.typeInfo.typeCategory = 'struct'
+        self.typeInfo.structTypeName = struct_type  # 구조체 이름
+        self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
+
+
+
+class StructDefinition:
+    def __init__(self, struct_name):
+        self.struct_name = struct_name
+        self.members = {}  # 멤버 변수들: 필드명 -> SolType 객체
+
 
 
 class SolType:
