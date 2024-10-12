@@ -218,7 +218,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # 2. 타입 분석
         type_ctx = ctx.typeName()
-        variable_obj = self.visitTypeName(type_ctx, variable_obj)
+        type_obj = SolType()
+        type_obj = self.visitTypeName(type_ctx, type_obj)
+
+        variable_obj.typeInfo = type_obj
 
         # 3. 초기값 처리 (있을 경우)
         if ctx.expression():
@@ -353,8 +356,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitEventParameter(self, ctx:SolidityParser.EventParameterContext):
         return self.visitChildren(ctx)
 
-
-
     # Visit a parse tree produced by SolidityParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx:SolidityParser.VariableDeclarationContext):
         var_type = ctx.typeName().getText()
@@ -399,83 +400,110 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
 
     # Visit a parse tree produced by SolidityParser#typeName.
-    def visitTypeName(self, ctx: SolidityParser.TypeNameContext, variable_obj):
-        # 각 태그에 따라 컨텍스트의 타입이 달라집니다.
+    def visitTypeName(self, ctx: SolidityParser.TypeNameContext, type_obj):
 
-        # 자식들을 순회하면서 해당하는 타입이 있는지 확인
-        for child in ctx.children:
-            if isinstance(child, SolidityParser.BasicTypeContext):  # # Basic 태그
-                return self.visitBasicType(child, variable_obj)
-            elif isinstance(child, SolidityParser.FunctionTypeContext):  # # Function 태그
-                return self.visitFunctionType(child, variable_obj)
-            elif isinstance(child, SolidityParser.MapTypeContext):  # # Map 태그
-                return self.visitMapType(child, variable_obj)
-            elif isinstance(child, SolidityParser.StructTypeContext):  # # Struct 태그
-                return self.visitStructType(child, variable_obj)
-            elif isinstance(child, SolidityParser.ArrayTypeContext):  # # Array 태그
-                return self.visitArrayType(child, variable_obj)
+        if isinstance(ctx, SolidityParser.BasicTypeContext):  # elementaryTypeName (BasicType)
+            return self.visitBasicType(ctx, type_obj)
+        elif isinstance(ctx, SolidityParser.FunctionTypeContext):  # functionTypeName (FunctionType)
+            return self.visitFunctionType(ctx, type_obj)
+        elif isinstance(ctx, SolidityParser.MapTypeContext):  # mapping (MapType)
+            return self.visitMapType(ctx, type_obj)
+        elif isinstance(ctx, SolidityParser.StructTypeContext):  # identifierPath (StructType)
+            return self.visitStructType(ctx, type_obj)
+        elif isinstance(ctx, SolidityParser.ArrayTypeContext):  # typeName '[' expression? ']' (ArrayType)
+            return self.visitArrayType(ctx, type_obj)
 
     # Visit a parse tree produced by SolidityParser#ArrayType.
-    def visitArrayType(self, ctx: SolidityParser.ArrayTypeContext):
-        return self.visitChildren(ctx)
+    def visitArrayType(self, ctx: SolidityParser.TypeNameContext, type_obj):
+        # 배열의 기본 타입 처리
+        base_type_ctx = ctx.typeName()
+        base_type_obj = self.visitTypeName(base_type_ctx)
+
+        # 배열 크기 확인
+        if ctx.expression():
+            array_size = self.visitExpression(ctx.expression())
+            is_dynamic = False
+        else:
+            array_size = None
+            is_dynamic = True
+
+        type_obj.typeCategory = "array"
+        type_obj.arrayBaseType = base_type_obj  # 재귀적으로 타입 표현
+        type_obj.arrayLength = array_size
+        type_obj.isDynamicArray = is_dynamic
+
+        return type_obj
 
     # Visit a parse tree produced by SolidityParser#BasicType.
-    def visitBasicType(self, ctx: SolidityParser.BasicTypeContext, variable_obj):
-        # a. elementaryTypeName 처리
-        var_type = ctx.elementaryTypeName().getText()
-        variable_obj.metaType = "elementary"
-        variable_obj.varType = var_type
+    def visitBasicType(self, ctx: SolidityParser.ElementaryTypeNameContext, type_obj):
+        var_type = ctx.getText()
+        type_obj.typeCategory = "elementary"
+        type_obj.elementaryTypeName = var_type
 
-        if var_type.startswith('int') or var_type.startswith('uint'):
-            if var_type == 'int' or var_type == 'uint':
-                variable_obj.intTypeLength = 256  # 기본 길이는 256
+        if var_type.startswith('int'):
+            if var_type == 'int':
+                type_obj.intTypeLength = 256  # 기본 길이는 256
             else:
-                variable_obj.intTypeLength = int(var_type[len('int'):])  # 타입의 길이 추출
+                # 'int' 뒤에 붙은 숫자를 추출하여 비트 길이 설정
+                try:
+                    type_obj.intTypeLength = int(var_type[3:])  # 'int' 뒤의 숫자를 추출
+                except ValueError:
+                    raise ValueError(f"Invalid integer type length in '{var_type}'")
 
-        return variable_obj
+        elif var_type.startswith('uint'):
+            if var_type == 'uint':
+                type_obj.intTypeLength = 256  # 기본 길이는 256
+            else:
+                # 'uint' 뒤에 붙은 숫자를 추출하여 비트 길이 설정
+                try:
+                    type_obj.intTypeLength = int(var_type[4:])  # 'uint' 뒤의 숫자를 추출
+                except ValueError:
+                    raise ValueError(f"Invalid unsigned integer type length in '{var_type}'")
+
+        return type_obj
 
     # Visit a parse tree produced by SolidityParser#StructType.
-    def visitStructType(self, ctx: SolidityParser.StructTypeContext, variable_obj):
-        # d. 사용자 정의 타입(Struct) 처리
-        variable_obj.varType = ctx.identifierPath().getText()
-        variable_obj.metaType = "struct"
-        return variable_obj
+    def visitStructType(self, ctx: SolidityParser.IdentifierPathContext, type_obj):
+        # 구조체 타입 처리
+        struct_name = ctx.getText()
+        type_obj.typeCategory = "struct"
+        type_obj.structTypeName = struct_name
+        return type_obj
 
     # Visit a parse tree produced by SolidityParser#FunctionType.
-    def visitFunctionType(self, ctx: SolidityParser.FunctionTypeContext, variable_obj):
-        # b. functionTypeName 처리
-        variable_obj.metaType = "function"
+    def visitFunctionType(self, ctx: SolidityParser.FunctionTypeNameContext, type_obj):
+        # 함수 타입 처리 (필요한 경우)
+        type_obj.typeCategory = "function"
         # 추가적인 정보 처리 필요 시 여기서 처리
-        return variable_obj
+        return type_obj
 
     # Visit a parse tree produced by SolidityParser#MapType.
-    def visitMapType(self, ctx: SolidityParser.MapTypeContext):
-        return self.visitChildren(ctx)
+    def visitMapType(self, ctx: SolidityParser.MappingContext, type_obj):
+        return self.visitMapping(ctx.mapping(), type_obj)
 
     # Visit a parse tree produced by SolidityParser#mapping.
-    def visitMapping(self, ctx:SolidityParser.MappingContext):
-        # 새로운 Variables 객체 생성
-        variable_obj = Variables()
-        variable_obj.metaType = "mapping"
-
+    def visitMapping(self, ctx:SolidityParser.MappingContext, type_obj):
         # 키 타입 처리
         key_type_ctx = ctx.mappingKeyType()
-        key_type = self.visitMappingKeyType(key_type_ctx)
-        variable_obj.mappingKeyType = key_type
+        key_type_obj = self.visitMappingKeyType(key_type_ctx)
 
         # 값 타입 처리
         value_type_ctx = ctx.typeName()
-        value_type = self.visitTypeName(value_type_ctx)
-        variable_obj.mappingValueType = value_type
+        value_type_obj = self.visitTypeName(value_type_ctx)
 
-        return variable_obj
+        type_obj.typeCategory = "mapping"
+        type_obj.mappingKeyType = key_type_obj
+        type_obj.mappingValueType = value_type_obj
+
+        return type_obj
 
     # Visit a parse tree produced by SolidityParser#mappingKeyType.
     def visitMappingKeyType(self, ctx:SolidityParser.MappingKeyTypeContext):
         # 키 타입은 elementaryTypeName만 가능
         if ctx.elementaryTypeName() is not None:
-            key_type = ctx.elementaryTypeName().getText()
-            return key_type
+            key_type_obj = SolType()
+            self.visitBasicType(ctx.elementaryTypeName(), key_type_obj)
+            return key_type_obj
         else:
             # Solidity에서 키 타입은 elementary 타입만 허용하므로, 기타 타입은 오류 처리
             raise ValueError("Invalid key type in mapping: {}".format(ctx.getText()))
@@ -1715,10 +1743,25 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return result_expr
 
     # Visit a parse tree produced by SolidityParser#literal.
-    def visitLiteral(self, ctx:SolidityParser.LiteralContext):
+    def visitLiteralExp(self, ctx: SolidityParser.LiteralExpContext):
         # 리터럴 값 추출
         literal_value = ctx.getText()
-        result_expr = Expression(literal=literal_value, expr_type='literal')
+        result_expr = Expression(literal=literal_value)
+
+        # 리터럴 값이 숫자인 경우 int 또는 uint로 설정
+        if literal_value.isdigit() or (literal_value.startswith('0x') or literal_value.startswith('0X')):
+            # 숫자 리터럴 처리: 10진수, 16진수 구분
+            result_expr.expr_type = 'uint' if literal_value.isdigit() else 'int'
+            result_expr.type_length = 256  # 기본적으로 256비트로 가정
+
+        # Boolean 리터럴인 경우
+        elif literal_value.lower() == 'true' or literal_value.lower() == 'false':
+            result_expr.expr_type = 'bool'
+
+        # 그 외 문자열 리터럴 등
+        else:
+            result_expr.expr_type = 'string'  # 문자열 또는 기타 리터럴 값
+
         return result_expr
 
     def visitIdentifierExp(self, ctx):

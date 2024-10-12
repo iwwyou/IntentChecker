@@ -39,92 +39,36 @@ class Expression:
 
 
 class Variables:
-    def __init__(self, identifier=None, metaType=None, varType=None,
-                 intTypeLength=None, arrayLength=None, isDynamic=False,
-                 structName=None, enumName=None, value=None,
-                 isConstant=False, scope=None, mappingKeyType=None,
-                 mappingValueType=None):
+    def __init__(self, identifier=None, value=None,
+                 isConstant=False, scope=None):
         # 기본 속성
         self.identifier = identifier  # 변수명
-        self.metaType = metaType  # 변수 메타타입: elementary, struct, array, mapping, enum 등
         self.scope = scope  # 변수의 스코프 (local, state 등)
         self.isConstant = isConstant  # 상수 여부
-
-        # 타입 정보
-        self.varType = varType  # 타입 이름 (ex. uint256)
-        self.intTypeLength = intTypeLength  # int, uint 타입의 경우 길이
-
-        # Mapping 관련 정보
-        self.mappingKeyType = mappingKeyType  # mapping key의 타입 (없으면 None)
-        self.mappingValueType = mappingValueType  # mapping value의 타입 (없으면 None)
-
-        # 배열 타입 관련 속성
-        self.arrayLength = arrayLength  # 배열 크기
-        self.isDynamic = isDynamic  # 동적 배열 여부
-
-        # 구조체 이름
-        self.structName = structName  # 구조체 이름 (struct인 경우)
-
-        # enum 이름
-        self.enumName = enumName  # enum 이름 (enum인 경우)
+        self.typeInfo = None
 
         # 값 정보
         self.value = value  # interval
 
 
+class SolType:
+    def __init__(self):
+        self.typeCategory = None  # 'elementary', 'array', 'mapping', 'struct', 'function', 'unknown'
 
+        # elementary 타입 정보
+        self.elementaryTypeName = None  # 예: 'uint256', 'address'
+        self.intTypeLength = None  # 정수 타입의 비트 길이 (예: 256)
 
+        # 배열 타입 정보
+        self.arrayBaseType = None  # Type 객체
+        self.arrayLength = None  # 배열 길이
+        self.isDynamicArray = False  # 동적 배열 여부
 
-        # 변경 이력
-        self.history = []  # 변수의 변경 이력을 저장하는 리스트 (block number, line number, value)
+        # mapping 타입 정보
+        self.mappingKeyType = None  # Type 객체
+        self.mappingValueType = None  # Type 객체
 
-    def add_to_history(self, block_number, line_number, expression, value):
-        """변수 값 변경 시 이력 기록"""
-        self.history.append({
-            "block_number": block_number,
-            "line_number": line_number,
-            "expression": expression,
-            "value": value
-        })
+        # 구조체 타입 정보
+        self.structTypeName = None  # 구조체 이름 (문자열)
 
-    def update_value(self, new_value):
-        """변수 값 업데이트"""
-        self.value = new_value
-
-    def get_value(self):
-        """현재 변수 값 반환"""
-        return self.value
-
-    def get_meta_type(self):
-        """변수의 메타타입 반환 (elementary, struct, array, mapping, enum)"""
-        return self.metaType
-
-    def get_type_info(self):
-        """변수의 타입 정보 반환"""
-        return {
-            "type": self.var_type,
-            "length": self.intTypeLength,
-            "array_length": self.arrayLength,
-            "is_dynamic": self.isDynamic,
-            "struct_name": self.structName,
-            "enum_name": self.enumName
-        }
-
-    def get_mapping_info(self):
-        """mapping의 key-value 타입 정보 반환"""
-        return {
-            "key_type": self.mappingKeyType,
-            "value_type": self.mappingValueType
-        }
-
-    def is_state_variable(self):
-        """상태 변수인지 여부 확인"""
-        return self.scope == 'state'
-
-    def is_local_variable(self):
-        """로컬 변수인지 여부 확인"""
-        return self.scope == 'local'
-
-    def is_constant(self):
-        """상수 여부 확인"""
-        return self.isConstant
+        # 기타 필요한 속성 추가 가능

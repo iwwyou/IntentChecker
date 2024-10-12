@@ -99,7 +99,7 @@ test_inputs = [
     },
 
     {
-        'code': 'uint256 public a;',  # 다음 줄에 코드 추가
+        'code': 'uint256 public a = 1 + 2;',  # 다음 줄에 코드 추가
         'startLine': 2,
         'endLine': 2
     },

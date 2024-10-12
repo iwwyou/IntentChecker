@@ -301,16 +301,17 @@ class ContractAnalyzer:
         # 2. abstract interpretation 수행
         interval_result = None
         if init_expr:
+            init_expr = self.adjust_expression_type(variable_obj, init_expr)  # 타입 일치
             # 초기화 식이 있는 경우, expression을 해석하여 interval로 변환
             interval_result = self.evaluate_expression(init_expr)
         else:
             # 초기화 식이 없으면 기본값으로 interval 설정
-            if variable_obj.var_type.startswith("int"):
+            if variable_obj.varType.startswith("int"):
                 interval_result = IntegerInterval(0, 0)
-            elif variable_obj.var_type.startswith("uint"):
+            elif variable_obj.varType.startswith("uint"):
                 interval_result = UnsignedIntegerInterval(0, 0)
-            elif variable_obj.var_type == "bool":
-                interval_result = BooleanInterval(False, False)
+            elif variable_obj.varType == "bool":
+                interval_result = BoolInterval(False, False)
 
         # 3. Variables 객체에 interval 값 추가
         variable_obj.value = interval_result
@@ -1391,6 +1392,30 @@ class ContractAnalyzer:
             # 4. 루프 바디 변수 상태 업데이트
             loop_body_block.variables = self.copy_variables(loop_entry_block.variables)
 
+    def adjust_expression_type(self, variable_obj, init_expr):
+        """
+        변수의 타입 정보를 기반으로 초기화식의 표현식 타입을 수정합니다.
+        :param variable_obj: Variables 객체 (변수 타입 정보 포함)
+        :param init_expr: 초기화 Expression 객체
+        :return: 타입이 수정된 Expression 객체
+        """
+        # 변수 타입을 기준으로 리터럴 타입을 수정
+        if variable_obj.typeInfo is not None:
+            # 변수 타입이 int인 경우
+            if 'int' in variable_obj.typeInfo.typeCategory:
+                init_expr.expr_type = 'int'
+                init_expr.type_length = variable_obj.typeInfo.intTypeLength
+            # 변수 타입이 uint인 경우
+            elif 'uint' in variable_obj.typeInfo.typeCategory:
+                init_expr.expr_type = 'uint'
+                init_expr.type_length = variable_obj.typeInfo.intTypeLength
+            # 변수 타입이 bool인 경우
+            elif variable_obj.typeInfo.typeCategory == 'bool':
+                init_expr.expr_type = 'bool'
+            # 기타 타입 처리 (필요 시 추가)
+
+        return init_expr
+
     def extract_variable_name(self, expression):
         # 좌변 표현식에서 변수 이름을 추출
         # 필요한 경우 재귀적으로 접근하여 전체 경로를 문자열로 반환
@@ -1654,7 +1679,7 @@ class ContractAnalyzer:
 
         # 3. bool 타입 처리
         elif var_type == "bool":
-            return BooleanInterval()  # bool은 항상 0 또는 1
+            return BoolInterval()  # bool은 항상 0 또는 1
 
         # 4. 기타 처리 (필요시 확장 가능)
         else:
@@ -1670,18 +1695,18 @@ class ContractAnalyzer:
             try:
                 # 숫자 리터럴 처리 (진법 자동 감지)
                 numeric_value = int(expr.literal, 0)
-                if 'int' in expr.expr_type:
+                if 'int' == expr.expr_type:
                     return IntegerInterval(numeric_value, numeric_value, expr.type_length)
-                elif 'uint' in expr.expr_type:
+                elif 'uint' == expr.expr_type:
                     return UnsignedIntegerInterval(numeric_value, numeric_value, expr.type_length)
                 else:
                     raise ValueError(f"Unsupported type '{expr.expr_type}' for literal '{expr.literal}'")
             except ValueError:
                 # Boolean 리터럴 처리
                 if expr.literal.lower() == 'true':
-                    return BooleanInterval(is_true=True, is_false=False)
+                    return BoolInterval(is_true=True, is_false=False)
                 elif expr.literal.lower() == 'false':
-                    return BooleanInterval(is_true=False, is_false=True)
+                    return BoolInterval(is_true=False, is_false=True)
                 else:
                     raise ValueError(f"Unable to parse literal value '{expr.literal}'")
 
@@ -1749,7 +1774,7 @@ class ContractAnalyzer:
         if left_interval.min_value is None or left_interval.max_value is None \
                 or right_interval.min_value is None or right_interval.max_value is None:
             # Interval 중 하나라도 값이 없으면 결과를 확정할 수 없음
-            return BooleanInterval(False, True)
+            return BoolInterval(False, True)
 
         # 비교 결과를 나타내는 변수
         is_true = False
@@ -1800,7 +1825,7 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported comparison operator: {operator}")
 
-        return BooleanInterval(is_true, is_false)
+        return BoolInterval(is_true, is_false)
 
     def get_variable_interval(self, var_name):
         """
