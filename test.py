@@ -95,28 +95,77 @@ def simulate_input(test_inputs):
 # Test inputs (replicating multiple steps)
 test_inputs = [
 
+    # contract 선언
     {
         'code': 'contract TestContract { \n }',
         'startLine': 1,
         'endLine': 2
     },
 
+    # 상태 변수 uint256 선언
     {
-        'code': 'uint256 public a = 1 + 2;',  # 다음 줄에 코드 추가
+        'code': 'uint256 public a = 1 + 2;',  # 상태 변수 uint256 추가
         'startLine': 2,
         'endLine': 2
     },
+
+    # 상태 변수 배열 선언
     {
-        'code': '\n',  # 다음 줄에 코드 추가
+        'code': 'uint256[] public numbers;',  # 배열 변수 선언
         'startLine': 3,
         'endLine': 3
     },
+
+    # 상태 변수 mapping 선언
     {
-        'code': 'function setA(uint256 _a) public { \n }',  # 함수 추가
+        'code': 'mapping(address => uint256) public balances;',  # mapping 선언
         'startLine': 4,
+        'endLine': 4
+    },
+
+    # 빈 줄 추가
+    {
+        'code': '\n',  # 공백 라인
+        'startLine': 5,
         'endLine': 5
+    },
+
+    # 함수 setA 선언
+    {
+        'code': 'function setA(uint256 _a) public { \n }',  # 함수 선언
+        'startLine': 6,
+        'endLine': 7
+    },
+
+    # 함수 내용 추가 - 상태 변수 할당
+    {
+        'code': 'a = _a;',
+        'startLine': 7,
+        'endLine': 7
+    },
+
+    # 함수 내용 추가 - if문 추가
+    {
+        'code': 'if(_a > 10) { \n a = 10; \n }',  # if문 추가
+        'startLine': 8,
+        'endLine': 10
+    },
+
+    # 함수 내용 추가 - 배열에 값 추가
+    {
+        'code': 'numbers.push(_a);',  # 배열에 값 추가
+        'startLine': 11,
+        'endLine': 11
+    },
+
+    # 함수 내용 추가 - mapping에 값 할당
+    {
+        'code': 'balances[msg.sender] = _a;',
+        'startLine': 12,
+        'endLine': 12
     }
 ]
+
 
 # Simulate input as if coming from VSCode with block structure assumptions
 simulate_input(test_inputs)

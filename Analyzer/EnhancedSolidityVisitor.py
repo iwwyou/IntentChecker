@@ -433,7 +433,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitArrayType(self, ctx: SolidityParser.TypeNameContext, type_obj):
         # 배열의 기본 타입 처리
         base_type_ctx = ctx.typeName()
-        base_type_obj = self.visitTypeName(base_type_ctx)
+        base_type_obj = SolType()
+        base_type_obj = self.visitTypeName(base_type_ctx, base_type_obj)
 
         # 배열 크기 확인
         if ctx.expression():
@@ -521,7 +522,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # 값 타입 처리
         value_type_ctx = ctx.typeName()
-        value_type_obj = self.visitTypeName(value_type_ctx)
+        value_type_obj = SolType()
+        value_type_obj = self.visitTypeName(value_type_ctx, value_type_obj)
 
         type_obj.typeCategory = "mapping"
         type_obj.mappingKeyType = key_type_obj

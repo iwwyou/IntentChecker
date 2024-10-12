@@ -58,12 +58,8 @@ class ContractAnalyzer:
         # 전체 코드를 다시 합쳐서 full_code 갱신
         self.full_code = '\n'.join([self.full_code_lines[line] for line in sorted(self.full_code_lines.keys())])
 
-        # 컴파일하여 문법적 오류가 있는지 확인
-        # modifier 때문에 약간 애매하네
-        #self.compile_check()
-
-        if new_code != "\n" :
-            # 새로 추가된 코드에 대한 컨텍스트를 분석
+        # 문법 오류 체크 및 컨텍스트 분석
+        if new_code != "\n":  # 단순 엔터 입력이 아닌 경우에만 분석 실행
             self.analyze_context(start_line, new_code)
 
     def compile_check(self):
@@ -79,20 +75,11 @@ class ContractAnalyzer:
         open_braces = code.count('{')
         close_braces = code.count('}')
 
-        # 이전 줄까지의 전체 brace 차이를 계산하는 "context 파악기"
-        context_difference = 0
-
-        # 현재 줄부터 위로 거슬러 올라가면서 brace 개수 계산
-        for line in range(line_number - 1, 0, -1):
-            if line in self.brace_count:
-                context_difference += self.brace_count[line]['open'] - self.brace_count[line]['close']
-
-        # 현재 줄에 대한 brace_count 업데이트
+        # brace_count 업데이트
         self.brace_count[line_number] = {
             'open': open_braces,
             'close': close_braces,
-            'cfg_node': None,
-            'context_difference': context_difference + (open_braces - close_braces)  # 현재 줄까지의 전체 차이 계산
+            'cfg_node': None
         }
 
     def analyze_context(self, start_line, new_code):
@@ -310,31 +297,41 @@ class ContractAnalyzer:
 
         # 2. abstract interpretation 수행
         interval_result = None
-        if init_expr:
-            init_expr = self.adjust_expression_type(variable_obj, init_expr)  # 타입 일치
-            # 초기화 식이 있는 경우, expression을 해석하여 interval로 변환
-            interval_result = self.evaluate_expression(init_expr)
-        else:
-            # 초기화 식이 없으면 기본값으로 interval 설정
-            if variable_obj.varType.startswith("int"):
-                interval_result = IntegerInterval(0, 0)
-            elif variable_obj.varType.startswith("uint"):
-                interval_result = UnsignedIntegerInterval(0, 0)
-            elif variable_obj.varType == "bool":
+        # ArrayVariable 처리
+        if isinstance(variable_obj, ArrayVariable):
+            if variable_obj.typeInfo.isDynamicArray:
+                # 동적 배열인 경우 interval 설정을 건너뜀
+                interval_result = None  # push 전에는 초기화 불가
+            else:
+                # 정적 배열인 경우 arrayLength만큼 초기화
+                interval_result = IntegerInterval(0, 0)  # 기본값
+                variable_obj.initialize_elements(interval_result)  # 배열 요소 초기화
+
+        # 일반 변수 처리 (Variables)
+        elif isinstance(variable_obj, Variables) and variable_obj.typeInfo.typeCategory == "elementary":
+            elementary_type = variable_obj.typeInfo.elementaryTypeName
+            int_length = variable_obj.typeInfo.intTypeLength if variable_obj.typeInfo.intTypeLength else 256
+
+            if elementary_type.startswith("int"):
+                interval_result = IntegerInterval(0, 0, int_length)
+            elif elementary_type.startswith("uint"):
+                interval_result = UnsignedIntegerInterval(0, 0, int_length)
+            elif elementary_type == "bool":
                 interval_result = BoolInterval(False, False)
 
         # 3. Variables 객체에 interval 값 추가
         variable_obj.value = interval_result
 
-        # [추가된 코드] self.analysis_result에 interval 값 저장 (vscode에 전송할 정보)
-        self.analysis_results = {
-            "line": self.current_start_line,
-            "variable": variable_obj.identifier,
-            "interval": {
-                "min": interval_result.min_value,
-                "max": interval_result.max_value
+        if interval_result :
+            # [추가된 코드] self.analysis_result에 interval 값 저장 (vscode에 전송할 정보)
+            self.analysis_results = {
+                "line": self.current_start_line,
+                "variable": variable_obj.identifier,
+                "interval": {
+                    "min": interval_result.min_value,
+                    "max": interval_result.max_value
+                }
             }
-        }
 
         # 4. 상태 변수를 ContractCFG에 추가
         contract_cfg.add_state_variable(variable_obj, init_expr)
@@ -440,8 +437,8 @@ class ContractAnalyzer:
         constructor_cfg = FunctionCFG(function_type='constructor', function_name=constructor_name)
 
         # 파라미터가 있을 경우, 이를 FunctionCFG에 추가
-        for var_name, var_type_info in parameters.items():
-            constructor_cfg.add_related_variable(var_name, var_type_info)
+        for variable in parameters:
+            constructor_cfg.add_related_variable(variable)
 
         # Modifier가 있을 경우 이를 FunctionCFG에 추가
         for modifier_name in modifiers:

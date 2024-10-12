@@ -84,7 +84,8 @@ class Variables:
 
 
 class ArrayVariable(Variables):
-    def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None, isConstant=False, scope=None):
+    def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,
+                 isConstant=False, scope=None):
         super().__init__(identifier, value, isConstant, scope)
         self.typeInfo = SolType()
         self.typeInfo.typeCategory = 'array'
@@ -92,6 +93,16 @@ class ArrayVariable(Variables):
         self.typeInfo.arrayLength = array_length
         self.typeInfo.isDynamicArray = is_dynamic
         self.elements = []  # 배열의 요소들: Variables 객체의 리스트
+
+    def initialize_elements(self, initial_interval):
+        """
+        정적 배열의 요소들을 초기화하는 메소드
+        :param initial_interval: 각 배열 요소에 할당될 초기 interval 값
+        """
+        if self.typeInfo.arrayLength is not None:
+            for i in range(self.typeInfo.arrayLength):
+                element = Variables(identifier=f"{self.identifier}[{i}]", value=initial_interval)
+                self.elements.append(element)
 
 
 
