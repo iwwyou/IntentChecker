@@ -587,7 +587,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveIfElseUnit.
     def visitInteractiveIfElseUnit(self, ctx:SolidityParser.InteractiveIfElseUnitContext):
-        return
+        return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by SolidityParser#interactiveCatchClauseUnit.

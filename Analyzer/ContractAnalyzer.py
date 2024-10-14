@@ -889,6 +889,8 @@ class ContractAnalyzer:
                                   condition_node=True,
                                   condition_node_type="if")
         condition_block.condition_expr = condition_expr
+        # 7. True 분기에서 변수 상태 복사 및 업데이트
+        condition_block.variables = self.copy_variables(current_block.variables)
 
         # 4. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
@@ -899,7 +901,7 @@ class ContractAnalyzer:
         true_block = CFGNode(name=f"if_true_{self.current_start_line + 1}")
 
         # 7. True 분기에서 변수 상태 복사 및 업데이트
-        true_block.variables = self.copy_variables(current_block.variables)
+        true_block.variables = self.copy_variables(condition_block.variables)
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
         # 8. 현재 블록의 후속 노드 처리 (기존 current_block의 successors를 가져옴)
@@ -940,42 +942,42 @@ class ContractAnalyzer:
             raise ValueError("No active function to process the else-if statement.")
 
         # 2. 이전 조건 노드를 가져와서 부정된 조건을 처리
-        previous_condition_node = self.find_corresponding_condition_node()  # 수정된 부분
+        previous_condition_node = self.find_corresponding_condition_node()
         if not previous_condition_node:
             raise ValueError("No previous if or else if node found for else-if statement.")
 
-        # 3. 조건식 블록 생성
+        # 3. 이전 조건 노드에서 False 분기 처리 (가상의 블록)
+        temp_variables = self.copy_variables(previous_condition_node.variables)
+        self.update_variables_with_condition(temp_variables, previous_condition_node.condition_expr,
+                                             is_true_branch=False)
+
+        # 4. else if 조건식 블록 생성
         condition_block = CFGNode(name=f"else_if_condition_{self.current_start_line}",
                                   condition_node=True,
                                   condition_node_type="else if")
         condition_block.condition_expr = condition_expr
 
-        # 4. brace_count 업데이트 - 존재하지 않으면 초기화
+        # 5. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
         self.brace_count[self.current_start_line]['cfg_node'] = condition_block
 
-        # 4. True 분기 블록 생성
+        # 6. True 분기 블록 생성
         true_block = CFGNode(name=f"else_if_true_{self.current_start_line + 1}")
 
-        # 5. True 분기에서 변수 상태 복사 및 업데이트
-        true_block.variables = self.copy_variables(previous_condition_node.variables)
+        # 7. True 분기에서 변수 상태 복사 및 업데이트
+        true_block.variables = self.copy_variables(temp_variables)
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
-        # 6. 기존 condition_block과 새로운 else_if_condition 블록을 연결
+        # 8. 이전 조건 블록과 새로운 else_if_condition 블록 연결
         function_cfg.graph.add_edge(previous_condition_node, condition_block, condition=False)
 
-        # 7. 새로운 조건 블록과 True 블록 연결
+        # 9. 새로운 조건 블록과 True 블록 연결
         function_cfg.graph.add_node(condition_block)
         function_cfg.graph.add_node(true_block)
         function_cfg.graph.add_edge(condition_block, true_block, condition=True)
 
-        # 6. True 블록에 대한 brace_count 업데이트
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line + 1] = {}
-        self.brace_count[self.current_start_line + 1]['cfg_node'] = true_block
-
-        # 8. CFG 업데이트
+        # 11. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
@@ -1485,12 +1487,19 @@ class ContractAnalyzer:
 
         # 우변 표현식에서 변수를 탐색
         for sub_expr in self.flatten_expression(expr):
-            if sub_expr is None :
+            if sub_expr is None:
                 continue
+
+            # 상수나 리터럴인 경우 관련 변수가 아니므로 무시
+            if self.is_literal_expression(sub_expr):
+                continue
+
             var_name = self.extract_variable_name(sub_expr)
             variable_obj = current_block.get_variable(var_name)
+
             if not variable_obj:
                 variable_obj = function_cfg.get_related_variable(var_name)
+
             if variable_obj:
                 related_vars.append(variable_obj)
 
@@ -1504,6 +1513,15 @@ class ContractAnalyzer:
         if hasattr(expr, 'right'):
             expressions.extend(self.flatten_expression(expr.right))
         return expressions
+
+    def is_literal_expression(self, expr):
+        """
+        주어진 표현식이 상수나 리터럴인지 확인하는 함수.
+        """
+        # 상수나 리터럴인 경우 True를 반환
+        if hasattr(expr, 'literal') and expr.literal is not None:
+            return True
+        return False
 
     def copy_variables(self, variables):
         """
@@ -1703,7 +1721,7 @@ class ContractAnalyzer:
                 elif cfg_node.condition_node:
                     if cfg_node.condition_node_type == 'if':  # if 블록이면 true_block 반환
                         return self.get_true_block(cfg_node)
-                    elif cfg_node.condition_node_type == 'else_if':  # else_if 블록이면 true_block 반환
+                    elif cfg_node.condition_node_type == 'else if':  # else_if 블록이면 true_block 반환
                         return self.get_true_block(cfg_node)
                     elif cfg_node.condition_node_type == 'else':  # else 블록이면 false_block 반환
                         return self.get_false_block(cfg_node)
@@ -1733,7 +1751,7 @@ class ContractAnalyzer:
         # 해당 조건 노드에서 true일 때 실행될 블록을 찾아 리턴
         successors = list(function_cfg.graph.successors(condition_node))
         for successor in successors:
-            if self.function_cfg.graph.edges[condition_node, successor].get('condition', False):
+            if function_cfg.graph.edges[condition_node, successor].get('condition', False):
                 return successor
         return None  # True 블록을 찾지 못하면 None 반환
 
@@ -1749,7 +1767,7 @@ class ContractAnalyzer:
         # 해당 조건 노드에서 false일 때 실행될 블록을 찾아 리턴
         successors = list(self.function_cfg.graph.successors(condition_node))
         for successor in successors:
-            if not self.function_cfg.graph.edges[condition_node, successor].get('condition', False):
+            if not function_cfg.graph.edges[condition_node, successor].get('condition', False):
                 return successor
         return None  # False 블록을 찾지 못하면 None 반환
 
@@ -1767,7 +1785,8 @@ class ContractAnalyzer:
 
                 # target_brace가 0이 되면 대응되는 블록을 찾은 것
                 if target_brace == 0:
-                    if 'cfg_node' in brace_info and brace_info['node_type'] in ['if', 'else_if']:
+                    if brace_info['cfg_node'].condition_node_type != None and \
+                            brace_info['cfg_node'].condition_node_type in ['if', 'else_if']:
                         return brace_info['cfg_node']
         return None
 
