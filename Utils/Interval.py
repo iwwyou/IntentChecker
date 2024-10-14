@@ -63,6 +63,25 @@ class IntegerInterval(Interval):
         else:
             raise ValueError(f"Unsupported operator: {operator}")
 
+    def intersect(self, other):
+        return IntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value))
+
+    def subtract(self, other):
+        # != 연산을 처리하기 위해 두 인터벌의 교차를 뺌 (즉, 교집합을 제외한 나머지를 의미)
+        return IntegerInterval(float('-inf'), float('inf')) if self == other else self
+
+    def less_than(self, other):
+        return IntegerInterval(self.min_value, min(self.max_value, other.min_value - 1))
+
+    def greater_than(self, other):
+        return IntegerInterval(max(self.min_value, other.max_value + 1), self.max_value)
+
+    def less_than_or_equal(self, other):
+        return IntegerInterval(self.min_value, min(self.max_value, other.max_value))
+
+    def greater_than_or_equal(self, other):
+        return IntegerInterval(max(self.min_value, other.min_value), self.max_value)
+
     def top(self):
         min_value = -2 ** (self.type_length - 1)
         max_value = 2 ** (self.type_length - 1) - 1
@@ -407,6 +426,25 @@ class UnsignedIntegerInterval(Interval):
         else:
             raise ValueError(f"Unsupported operator: {operator}")
 
+    def intersect(self, other):
+        return UnsignedIntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value))
+
+    def subtract(self, other):
+        # == 연산을 제외한 값들의 interval
+        return UnsignedIntegerInterval(float('-inf'), float('inf')) if self == other else self
+
+    def less_than(self, other):
+        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.min_value - 1))
+
+    def greater_than(self, other):
+        return UnsignedIntegerInterval(max(self.min_value, other.max_value + 1), self.max_value)
+
+    def less_than_or_equal(self, other):
+        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.max_value))
+
+    def greater_than_or_equal(self, other):
+        return UnsignedIntegerInterval(max(self.min_value, other.min_value), self.max_value)
+
     def top(self):
         min_value = 0
         max_value = 2 ** self.type_length - 1
@@ -549,6 +587,30 @@ class BoolInterval(Interval):
             return BoolInterval(0, 1)
         else:
             raise ValueError(f"Unsupported operator for bool: {operator}")
+
+    def intersect(self, other):
+        return BoolInterval(
+            is_true=self.is_true and other.is_true,
+            is_false=self.is_false and other.is_false
+        )
+
+    def subtract(self, other):
+        # != 연산을 처리하기 위해 부정 연산을 수행
+        return BoolInterval(not self.is_true, not self.is_false) if self == other else self
+
+    def less_than(self, other):
+        # Boolean에선 less_than 비교가 의미가 없으므로 그대로 반환
+        return self
+
+    def greater_than(self, other):
+        # Boolean에선 greater_than 비교가 의미가 없으므로 그대로 반환
+        return self
+
+    def less_than_or_equal(self, other):
+        return self  # Boolean에서 비교는 없음
+
+    def greater_than_or_equal(self, other):
+        return self  # Boolean에서 비교는 없음
 
     def top(self):
         return BoolInterval(0, 1)

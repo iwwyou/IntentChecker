@@ -168,7 +168,11 @@ class ContractAnalyzer:
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
                 if context_type == "function":
-                    return self.full_code_lines[line].split()[1]  # 함수 이름 반환
+                    # 함수 이름 뒤에 붙은 '('를 기준으로 함수 이름만 추출
+                    function_declaration = self.full_code_lines[line]
+                    function_name = function_declaration.split()[1]  # 첫 번째는 함수 선언, 두 번째는 함수 이름 포함
+                    function_name = function_name.split('(')[0]  # 함수 이름만 추출
+                    return function_name
         return None
 
     def determine_top_level_context(self, code_line):
@@ -322,16 +326,21 @@ class ContractAnalyzer:
         # 3. Variables 객체에 interval 값 추가
         variable_obj.value = interval_result
 
-        if interval_result :
-            # [추가된 코드] self.analysis_result에 interval 값 저장 (vscode에 전송할 정보)
-            self.analysis_results = {
-                "line": self.current_start_line,
+        # 4. 분석 결과 저장
+        intervals_info = {
+            "left": {
                 "variable": variable_obj.identifier,
-                "interval": {
-                    "min": interval_result.min_value,
-                    "max": interval_result.max_value
-                }
-            }
+                "assigned_interval": [interval_result.min_value,
+                                      interval_result.max_value] if interval_result else None,
+            },
+            "right": []
+        }
+
+        self.analysis_results = {
+            "line": self.current_start_line,
+            "variables_info": intervals_info,
+            "intent_check": {}  # 상태 변수 선언에 대해서는 의도 분석이 없으므로 빈 dict로 설정
+        }
 
         # 4. 상태 변수를 ContractCFG에 추가
         contract_cfg.add_state_variable(variable_obj, init_expr)
@@ -485,7 +494,7 @@ class ContractAnalyzer:
                 function_cfg.add_related_variable(variable)
 
         # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[function_name] = function_cfg
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -559,6 +568,9 @@ class ContractAnalyzer:
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
+        # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = current_block
+
     def process_compound_assignment(self, left_interval, right_interval, operator):
         """
         좌변과 우변의 Interval을 연산자에 맞게 처리합니다.
@@ -604,6 +616,9 @@ class ContractAnalyzer:
         variable_obj = current_block.get_variable(var_name)
 
         if not variable_obj:
+            variable_obj = function_cfg.get_related_variable(var_name)
+
+        if not variable_obj:
             raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
 
         # 5. 좌변 Interval 가져오기
@@ -621,6 +636,28 @@ class ContractAnalyzer:
         # 8. CFG 노드에 할당문 추가
         current_block.add_assign_statement(variable_obj, new_interval)
 
+        # 9. 우변의 관련 변수 정보 추출
+        related_vars = self.extract_related_variables(expr.right, current_block, function_cfg)
+
+        # 10. 좌변, 우변 관련 Interval 정보 생성
+        intervals_info = {
+            "left": {
+                "variable": var_name,
+                "assigned_interval": [new_interval.min_value, new_interval.max_value],
+            },
+            "right": []
+        }
+
+        for related_var in related_vars:
+            # 우변 변수도 CFG 노드에 추가
+            if related_var.identifier not in current_block.variables:
+                current_block.variables[related_var.identifier] = related_var
+
+            intervals_info["right"].append({
+                "variable": related_var.identifier,
+                "interval": [related_var.value.min_value, related_var.value.max_value]
+            })
+
         # 11. 개발자의 의도 파싱 및 비교
         intent_result = {"expected": [], "actual": [], "message": ""}
         if line_comment is not None:
@@ -635,8 +672,7 @@ class ContractAnalyzer:
         # 12. 분석 결과 저장
         result = {
             "line": self.current_start_line,
-            "variable": var_name,
-            "assigned_interval": [new_interval.min_value, new_interval.max_value],
+            "variables_info": intervals_info,
             "intent_check": intent_result
         }
 
@@ -648,6 +684,9 @@ class ContractAnalyzer:
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
     def process_assignment_function_call(self, expr, line_comment=None):
         # 1. 좌변 변수 이름 추출
@@ -851,9 +890,6 @@ class ContractAnalyzer:
                                   condition_node_type="if")
         condition_block.condition_expr = condition_expr
 
-        # 3.1 조건식 평가 (Abstract Interpretation)
-        condition_interval = self.evaluate_expression(condition_expr)
-
         # 4. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
@@ -880,11 +916,6 @@ class ContractAnalyzer:
         # 10. 조건 블록과 True/False 분기 연결
         function_cfg.graph.add_edge(current_block, condition_block)
         function_cfg.graph.add_edge(condition_block, true_block, condition=True)
-
-        # 6. True 블록에 대한 brace_count 업데이트
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line + 1] = {}
-        self.brace_count[self.current_start_line + 1]['cfg_node'] = true_block
 
         # 11. True 분기 후속 노드 연결
         for successor in successors:
@@ -1449,6 +1480,31 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported left-hand side expression: {expression}")
 
+    def extract_related_variables(self, expr, current_block, function_cfg):
+        related_vars = []
+
+        # 우변 표현식에서 변수를 탐색
+        for sub_expr in self.flatten_expression(expr):
+            if sub_expr is None :
+                continue
+            var_name = self.extract_variable_name(sub_expr)
+            variable_obj = current_block.get_variable(var_name)
+            if not variable_obj:
+                variable_obj = function_cfg.get_related_variable(var_name)
+            if variable_obj:
+                related_vars.append(variable_obj)
+
+        return related_vars
+
+    def flatten_expression(self, expr):
+        # 표현식에서 모든 서브 표현식을 재귀적으로 탐색하여 평탄화
+        expressions = [expr]
+        if hasattr(expr, 'left'):
+            expressions.extend(self.flatten_expression(expr.left))
+        if hasattr(expr, 'right'):
+            expressions.extend(self.flatten_expression(expr.right))
+        return expressions
+
     def copy_variables(self, variables):
         """
         주어진 변수 딕셔너리(variables)를 깊은 복사하여 반환합니다.
@@ -1456,24 +1512,46 @@ class ContractAnalyzer:
         """
         copied_variables = {}
         for var_name, var_obj in variables.items():
-            # Variables 객체를 깊은 복사하여 저장
-            copied_variables[var_name] = Variables(
-                identifier=var_obj.identifier,
-                metaType=var_obj.metaType,
-                var_type=var_obj.var_type,
-                intTypeLength=var_obj.intTypeLength,
-                arrayLength=var_obj.arrayLength,
-                isDynamic=var_obj.isDynamic,
-                structName=var_obj.structName,
-                enumName=var_obj.enumName,
-                value=var_obj.value,  # 이 부분은 깊은 복사가 필요할 수 있음
-                isConstant=var_obj.isConstant,
-                scope=var_obj.scope,
-                mappingKeyType=var_obj.mappingKeyType,
-                mappingValueType=var_obj.mappingValueType
-            )
-            # 변수의 변경 이력까지 깊은 복사
-            #copied_variables[var_name].history = var_obj.history[:]
+            # ArrayVariable 타입 처리
+            if isinstance(var_obj, ArrayVariable):
+                copied_array = ArrayVariable(
+                    identifier=var_obj.identifier,
+                    base_type=var_obj.typeInfo.arrayBaseType,
+                    array_length=var_obj.typeInfo.arrayLength,
+                    is_dynamic=var_obj.typeInfo.isDynamicArray,
+                    value=var_obj.value,
+                    isConstant=var_obj.isConstant,
+                    scope=var_obj.scope
+                )
+                # 배열의 각 요소를 깊은 복사
+                copied_array.elements = [self.copy_variables({elem.identifier: elem})[elem.identifier] for elem in
+                                         var_obj.elements]
+                copied_variables[var_name] = copied_array
+
+            # StructVariable 타입 처리
+            elif isinstance(var_obj, StructVariable):
+                copied_struct = StructVariable(
+                    identifier=var_obj.identifier,
+                    struct_type=var_obj.typeInfo.structTypeName,
+                    value=var_obj.value,
+                    isConstant=var_obj.isConstant,
+                    scope=var_obj.scope
+                )
+                # 구조체 멤버를 깊은 복사
+                copied_struct.members = {member_name: self.copy_variables({member_name: member_obj})[member_name] for
+                                         member_name, member_obj in var_obj.members.items()}
+                copied_variables[var_name] = copied_struct
+
+            # 기본 Variables 타입 처리
+            else:
+                copied_variables[var_name] = Variables(
+                    identifier=var_obj.identifier,
+                    value=var_obj.value,
+                    isConstant=var_obj.isConstant,
+                    scope=var_obj.scope
+                )
+                copied_variables[var_name].typeInfo = var_obj.typeInfo  # SolType 객체 복사
+
         return copied_variables
 
     def update_variables_with_condition(self, variables, condition_expr, is_true_branch):
@@ -1506,13 +1584,6 @@ class ContractAnalyzer:
                         # False 분기에서 조건이 성립하지 않는 경우 Interval 좁히기
                         negated_operator = self.negate_operator(condition_expr.operator)
                         var_obj.value = self.refine_interval(var_obj.value, right_interval, negated_operator)
-
-                    # 변수의 변경 이력 추가
-                    var_obj.history.append({
-                        'block': self.current_block.name,
-                        'line': self.current_start_line,
-                        'value': var_obj.value
-                    })
 
         elif condition_expr.operator in ['&&', '||']:
             # 논리 연산자가 포함된 복합 조건식 처리
@@ -1613,7 +1684,23 @@ class ContractAnalyzer:
                 cfg_node = brace_info['cfg_node']
 
                 # 조건 노드인 경우 처리 (if 또는 else if)
-                if cfg_node.condition_node:
+                if cfg_node.name == "ENTRY" :
+                    # entry 노드인 경우 새로운 블록을 생성하여 반환
+                    contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+                    function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+
+                    if function_cfg:
+                        entry_node = function_cfg.get_entry_node()
+
+                        # entry 노드인 경우 새로운 블록을 생성하여 반환
+                        new_block = CFGNode(f"Block_{self.current_start_line}")
+                        function_cfg.graph.add_node(new_block)
+                        function_cfg.graph.add_edge(entry_node, new_block)
+                        return new_block
+                    else:
+                        raise ValueError("No active block found and no active function.")
+
+                elif cfg_node.condition_node:
                     if cfg_node.condition_node_type == 'if':  # if 블록이면 true_block 반환
                         return self.get_true_block(cfg_node)
                     elif cfg_node.condition_node_type == 'else_if':  # else_if 블록이면 true_block 반환
@@ -1622,34 +1709,43 @@ class ContractAnalyzer:
                         return self.get_false_block(cfg_node)
                     else:
                         continue  # 다른 조건 노드는 건너뛰기
+                else :
+                    # functionCFG에서 해당 노드가 있는지 확인하고 있으면 그 노드를 리턴
+                    contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+                    function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
 
-                # 조건 노드가 아니면 해당 노드를 리턴
-                return cfg_node
+                    if function_cfg and function_cfg.graph.has_node(cfg_node):
+                        # 이미 그래프에 존재하는 노드가 있으면 그 노드를 리턴
+                        return cfg_node
+                    else :
+                        raise ValueError("No active block found and no active function.")
 
-        # 2. 만약 위 라인에서 노드를 찾지 못하면 함수의 entry node를 반환
-        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-
-        if function_cfg:
-            entry_node = function_cfg.get_entry_node()
-
-            # entry 노드인 경우 새로운 블록을 생성하여 반환
-            new_block = CFGNode(f"Block_{self.current_start_line}")
-            function_cfg.graph.add_node(new_block)
-            function_cfg.graph.add_edge(entry_node, new_block)
-            return new_block
-        else:
-            raise ValueError("No active block found and no active function.")
 
     def get_true_block(self, condition_node):
+        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not function_cfg:
+            raise ValueError("No active function to process the require statement.")
+
         # 해당 조건 노드에서 true일 때 실행될 블록을 찾아 리턴
-        successors = list(self.function_cfg.graph.successors(condition_node))
+        successors = list(function_cfg.graph.successors(condition_node))
         for successor in successors:
             if self.function_cfg.graph.edges[condition_node, successor].get('condition', False):
                 return successor
         return None  # True 블록을 찾지 못하면 None 반환
 
     def get_false_block(self, condition_node):
+        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not function_cfg:
+            raise ValueError("No active function to process the require statement.")
+
         # 해당 조건 노드에서 false일 때 실행될 블록을 찾아 리턴
         successors = list(self.function_cfg.graph.successors(condition_node))
         for successor in successors:
@@ -1857,18 +1953,11 @@ class ContractAnalyzer:
 
         # 3. 함수 내에서 정의된 변수 (related_variables) 먼저 확인
         if function_cfg:
-            related_variable = function_cfg.get_related_variable(var_name)
-            if related_variable and related_variable['value'] is not None:
-                return related_variable['value']
-
-        # 4. 상태 변수 확인 (state_variable_node)
-        if contract_cfg.state_variable_node:
-            state_variable = contract_cfg.state_variable_node.variables.get(var_name)
-            if state_variable and state_variable['value'] is not None:
-                return state_variable['value']
-
-        # 5. 변수를 찾지 못한 경우 에러 발생
-        raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
+            if function_cfg.get_related_variable(var_name) is not None :
+                return function_cfg.get_related_variable(var_name).value
+            else :
+                # 5. 변수를 찾지 못한 경우 에러 발생
+                raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
 
     def merge_variables(self, variables_list):
         merged_variables = {}

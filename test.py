@@ -139,30 +139,65 @@ test_inputs = [
 
     # 함수 내용 추가 - 상태 변수 할당
     {
-        'code': 'a = _a;',
+        'code': 'a = _a;',  # a에 값 할당
         'startLine': 7,
         'endLine': 7
     },
 
-    # 함수 내용 추가 - if문 추가
+    # if문 선언
     {
-        'code': 'if(_a > 10) { \n a = 10; \n }',  # if문 추가
+        'code': 'if(_a > 10) { \n }',  # if문 선언
         'startLine': 8,
-        'endLine': 10
+        'endLine': 9
     },
 
-    # 함수 내용 추가 - 배열에 값 추가
+    # if 블록 안 내용 추가
     {
-        'code': 'numbers.push(_a);',  # 배열에 값 추가
+        'code': 'a = 10;',  # if 블록 내 내용
+        'startLine': 9,
+        'endLine': 9
+    },
+
+    # else if문 선언
+    {
+        'code': 'else if (_a == 10) { \n }',  # else if 선언
+        'startLine': 10,
+        'endLine': 11
+    },
+
+    # else if 블록 안 내용 추가
+    {
+        'code': 'a = 5;',  # else if 블록 내 내용
         'startLine': 11,
         'endLine': 11
     },
 
-    # 함수 내용 추가 - mapping에 값 할당
+    # else문 선언
     {
-        'code': 'balances[msg.sender] = _a;',
+        'code': 'else { \n }',  # else 선언
         'startLine': 12,
-        'endLine': 12
+        'endLine': 13
+    },
+
+    # else 블록 안 내용 추가
+    {
+        'code': 'a = 1;',  # else 블록 내 내용
+        'startLine': 13,
+        'endLine': 13
+    },
+
+    # 배열에 값 추가
+    {
+        'code': 'numbers.push(_a);',  # 배열에 값 추가
+        'startLine': 14,
+        'endLine': 14
+    },
+
+    # 조건에 따른 a 값 balances에 할당
+    {
+        'code': 'balances[msg.sender] = a;',  # balances에 a 값을 할당
+        'startLine': 15,
+        'endLine': 15
     }
 ]
 

@@ -362,6 +362,18 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             variable_obj = Variables(identifier=var_name, scope="local")  # 파라미터는 로컬 스코프
             variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
+            # 4. 타입에 따른 Interval 설정
+            if type_obj.typeCategory == 'elementary':
+                if type_obj.elementaryTypeName.startswith('int'):
+                    # int 타입의 경우: -inf ~ +inf로 설정
+                    variable_obj.value = IntegerInterval(float('-inf'), float('inf'), type_obj.intTypeLength)
+                elif type_obj.elementaryTypeName.startswith('uint'):
+                    # uint 타입의 경우: 0 ~ +inf로 설정
+                    variable_obj.value = UnsignedIntegerInterval(0, float('inf'), type_obj.intTypeLength)
+                elif type_obj.elementaryTypeName == 'bool':
+                    # bool 타입의 경우: false ~ true로 설정
+                    variable_obj.value = BoolInterval(is_true=False, is_false=True)
+
             # 4. 리스트에 Variables 객체 추가
             parameters.append(variable_obj)
 
@@ -555,33 +567,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveEnumUnit.
     def visitInteractiveEnumUnit(self, ctx:SolidityParser.InteractiveEnumUnitContext):
-        enum_name = self.contract_analyzer.get_current_context()
-
-        result = self.visitChildren(ctx)
-
-        return result
+        return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by SolidityParser#interactiveStructUnit.
     def visitInteractiveStructUnit(self, ctx:SolidityParser.InteractiveStructUnitContext):
-        struct_name = self.contract_analyzer.get_current_context()
-
-        result = self.visitChildren(ctx)
-
-        return result
+        return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by SolidityParser#interactiveBlockUnit.
     def visitInteractiveBlockUnit(self, ctx:SolidityParser.InteractiveBlockUnitContext):
-        block_name = f"Block_{ctx.start.line}"
-        self.contract_analyzer.enter_block(block_name)
-        self.contract_analyzer.add_control_flow_node(block_name, ctx)
-
-        # 단일 코드 조각을 처리하도록 수정
-        if ctx.interactiveBlockItem():
-            self.visit(ctx.interactiveBlockItem(0))
-
-        self.contract_analyzer.exit_block()
         return self.visitChildren(ctx)
 
 
@@ -634,11 +629,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveBlockItem.
     def visitInteractiveBlockItem(self, ctx:SolidityParser.InteractiveBlockItemContext):
-        if ctx.interactiveStatement():
-            self.visit(ctx.interactiveStatement())
-        elif ctx.uncheckedBlock():
-            # uncheckedBlock에 대한 처리 (나중에 구현 예정)
-            pass
         return self.visitChildren(ctx)
 
 
@@ -941,10 +931,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveSimpleStatement.
     def visitInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
-        if ctx.interactiveVariableDeclarationStatement():
-            self.visit(ctx.interactiveVariableDeclarationStatement())
-        elif ctx.interactiveExpressionStatement():
-            self.visit(ctx.interactiveExpressionStatement())
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#InteractiveVariableDeclarationStatement.
@@ -1822,8 +1808,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#identifier.
     def visitIdentifier(self, ctx:SolidityParser.IdentifierContext):
-        identifier = ctx.getText()
-        self.contract_analyzer.add_variable(identifier, 'identifier')
 
         return self.visitChildren(ctx)
 
@@ -1856,23 +1840,3 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#overrideSpecifier.
     def visitOverrideSpecifier(self, ctx:SolidityParser.OverrideSpecifierContext):
         return self.visitChildren(ctx)
-
-    def get_type_name(self, ctx):
-        if ctx.elementaryTypeName():
-            return ctx.elementaryTypeName().getText()
-        elif ctx.functionTypeName():
-            return ctx.functionTypeName().getText()
-        elif ctx.mapping():
-            key_type = self.get_type_name(ctx.mapping().mappingKeyType())
-            value_type = self.get_type_name(ctx.mapping().typeName())
-            return f"mapping({key_type} => {value_type})"
-        elif ctx.identifierPath():
-            return ctx.identifierPath().getText()
-        elif ctx.typeName():
-            base_type = self.get_type_name(ctx.typeName(0))
-            if ctx.expression():
-                return f"{base_type}[{ctx.expression().getText()}]"
-            else:
-                return f"{base_type}[]"
-        else:
-            return ctx.getText()  # 기본적으로 처리되지 않은 타입은 raw string으로 처리

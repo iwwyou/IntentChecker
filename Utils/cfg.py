@@ -42,6 +42,10 @@ class CFGNode:
         # 3. 변수 정보 업데이트 (변수 이름 -> Variables 객체)
         self.variables[variable_obj.identifier] = variable_obj
 
+    def copy_variables_to_node(self):
+
+        return
+
     def get_variable(self, var_name: str) -> Variables:
         """
         변수 이름을 받아 관련 변수를 반환합니다.
@@ -181,15 +185,19 @@ class FunctionCFG(CFG):
         if variable_obj.scope == 'local':
             # int 또는 uint 타입 처리
             if variable_obj.typeInfo.elementaryTypeName.startswith("int"):
-                interval = IntegerInterval()
-                variable_obj.value = interval.bottom()  # IntegerInterval의 기본 bottom 값
+                if variable_obj.value is None :
+                    interval = IntegerInterval()
+                    variable_obj.value = interval.bottom()  # IntegerInterval의 기본 bottom 값
+
             elif variable_obj.typeInfo.elementaryTypeName.startswith("uint"):
-                interval = UnsignedIntegerInterval()
-                variable_obj.value = interval.bottom()  # UnsignedIntegerInterval의 기본 bottom 값
+                if variable_obj.value is None:
+                    interval = UnsignedIntegerInterval()
+                    variable_obj.value = interval.bottom()  # UnsignedIntegerInterval의 기본 bottom 값
 
             # bool 타입 처리
             elif variable_obj.typeInfo.elementaryTypeName == "bool":
-                variable_obj.value = BoolInterval.bottom()  # BooleanInterval의 기본 bottom 값
+                if variable_obj.value is None:
+                    variable_obj.value = BoolInterval.bottom()  # BooleanInterval의 기본 bottom 값
 
         # 상태 변수든 로컬 변수든 상관없이 Variables 객체를 그대로 related_variables에 추가
         self.related_variables[variable_obj.identifier] = variable_obj
