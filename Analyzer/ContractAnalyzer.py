@@ -1788,50 +1788,250 @@ class ContractAnalyzer:
         # 필요에 따라 추가적인 분석 수행
         pass
 
-    def get_current_block(self):  # 현재 들어갈 block 구하는 메소드
-        # 1. 바로 위의 라인의 brace count에서 노드를 찾음
+    def get_current_block(self):
+        """
+        현재 들어갈 CFG 블록을 결정하는 메소드.
+        블록 아웃을 감지하여 필요한 처리를 수행합니다.
+        """
+        contextStack = []
+
+        # 현재 라인부터 위로 올라가면서 brace_count 검사
         for line in range(self.current_start_line - 1, 0, -1):
-            brace_info = self.brace_count[line]
-            if brace_info and 'cfg_node' in brace_info:
-                cfg_node = brace_info['cfg_node']
+            brace_info = self.brace_count.get(line, {})
 
-                # 조건 노드인 경우 처리 (if 또는 else if)
-                if cfg_node.name == "ENTRY" :
-                    # entry 노드인 경우 새로운 블록을 생성하여 반환
-                    contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-                    function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-
-                    if function_cfg:
-                        entry_node = function_cfg.get_entry_node()
-
-                        # entry 노드인 경우 새로운 블록을 생성하여 반환
-                        new_block = CFGNode(f"Block_{self.current_start_line}")
-                        function_cfg.graph.add_node(new_block)
-                        function_cfg.graph.add_edge(entry_node, new_block)
-                        return new_block
-                    else:
-                        raise ValueError("No active block found and no active function.")
-
-                elif cfg_node.condition_node:
-                    if cfg_node.condition_node_type == 'if':  # if 블록이면 true_block 반환
-                        return self.get_true_block(cfg_node)
-                    elif cfg_node.condition_node_type == 'else if':  # else_if 블록이면 true_block 반환
-                        return self.get_true_block(cfg_node)
-                    elif cfg_node.condition_node_type == 'else':  # else 블록이면 false_block 반환
-                        return self.get_false_block(cfg_node)
-                    else:
-                        continue  # 다른 조건 노드는 건너뛰기
-                else :
-                    # functionCFG에서 해당 노드가 있는지 확인하고 있으면 그 노드를 리턴
+            if not contextStack:
+                # contextStack이 비어 있는 경우 (블록 아웃을 아직 감지하지 않은 상태)
+                if brace_info.get('cfg_node') is None and \
+                        brace_info.get('open', 0) == 0 and \
+                        brace_info.get('close', 0) == 0:
+                    # 공백 라인 또는 처리할 것이 없는 라인
+                    continue
+                elif brace_info.get('cfg_node') is not None and \
+                        brace_info.get('open', 0) == 0 and \
+                        brace_info.get('close', 0) == 0:
+                    # 분기가 없는 일반적인 문장인 경우
                     contract_cfg = self.contract_cfgs.get(self.current_target_contract)
                     function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
 
                     if function_cfg and function_cfg.graph.has_node(cfg_node):
                         # 이미 그래프에 존재하는 노드가 있으면 그 노드를 리턴
                         return cfg_node
-                    else :
+                    else:
                         raise ValueError("No active block found and no active function.")
 
+                elif brace_info.get('cfg_node') is not None and \
+                        brace_info.get('open', 0) == 1 and \
+                        brace_info.get('close', 0) == 0:
+                    # '{'를 만난 경우 (entry point 또는 조건 노드)
+                    cfg_node = brace_info['cfg_node']
+                    if cfg_node.name == "ENTRY":
+                        # ENTRY 노드인 경우 새로운 블록 생성 및 반환
+                        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+                        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+                        if function_cfg:
+                            entry_node = function_cfg.get_entry_node()
+                            new_block = CFGNode(f"Block_{self.current_start_line}")
+                            function_cfg.graph.add_node(new_block)
+                            function_cfg.graph.add_edge(entry_node, new_block)
+                            return new_block
+                        else:
+                            raise ValueError("No active function CFG found.")
+                    elif cfg_node.condition_node:
+                        # 조건 노드인 경우 해당 블록 반환
+                        if cfg_node.condition_node_type in ['if', 'else if']:
+                            return self.get_true_block(cfg_node)
+                        elif cfg_node.condition_node_type == 'else':
+                            return self.get_false_block(cfg_node)
+                        else:
+                            continue  # 다른 조건 노드는 건너뜁니다.
+                    else:
+                        # 기타 경우 해당 노드 반환
+                        # functionCFG에서 해당 노드가 있는지 확인하고 있으면 그 노드를 리턴
+                        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+                        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+
+                        if function_cfg and function_cfg.graph.has_node(cfg_node):
+                            # 이미 그래프에 존재하는 노드가 있으면 그 노드를 리턴
+                            return cfg_node
+                        else:
+                            raise ValueError("No active block found and no active function.")
+
+                elif brace_info.get('cfg_node') is None and \
+                        brace_info.get('open', 0) == 0 and \
+                        brace_info.get('close', 0) == 1:
+                    # '}'를 만난 경우 (블록 아웃 감지)
+                    contextStack.append(line)
+            else:
+                # contextStack이 비어 있지 않은 경우 (블록 아웃 추가 탐색)
+                if brace_info.get('cfg_node') is None and \
+                        brace_info.get('open', 0) == 0 and \
+                        brace_info.get('close', 0) == 1:
+                    # 또 다른 블록 아웃을 감지
+                    contextStack.append(line)
+                elif brace_info.get('cfg_node') is None and brace_info.get('open', 0) == 0 and brace_info.get('close', 0) == 0:
+                    # 공백 라인 또는 처리할 것이 없는 라인
+                    continue
+                else:
+                    # 블록 아웃 탐색 완료
+                    break
+
+        # 블록 아웃 처리
+        if contextStack:
+            return self.process_block_out(contextStack)
+        else:
+            raise ValueError("Unintended exception in get current block.")
+
+    def process_block_out(self, contextStack):
+        """
+        블록 아웃을 처리하는 메소드.
+        :param contextStack: 블록 아웃이 감지된 라인 번호의 리스트
+        :return: 블록 아웃 처리 후의 CFG 노드
+        """
+        # 가장 최근의 블록 아웃부터 처리
+        while contextStack:
+            block_out_line = contextStack.pop()
+            brace_info = self.brace_count.get(block_out_line, {})
+            # 해당 라인에서 시작하여 부모 노드를 추적
+            node = brace_info.get('cfg_node')
+            function_cfg = self.get_current_function_cfg()
+            if not function_cfg:
+                raise ValueError("No active function CFG found.")
+
+            parent = function_cfg.get_parent_node(node)
+            join_nodes = []
+            is_else = False
+
+            while parent:
+                if not is_else:
+                    if parent.condition_node and parent.condition_node_type == 'if':
+                        # if 블록 아웃 처리
+                        block_out_type = 'if'
+                        join_nodes.append(node)
+                        join_nodes.append(parent.true_block)
+                        break
+                    elif parent.condition_node and parent.condition_node_type == 'else if':
+                        # else if 블록 처리
+                        block_out_type = 'else if'
+                        join_nodes.append(node)
+                        join_nodes.append(parent.true_block)
+                        is_else = True
+                    elif parent.condition_node and parent.condition_node_type == 'else':
+                        # else 블록 처리
+                        block_out_type = 'else'
+                        join_nodes.append(node)
+                        join_nodes.append(parent.false_block)
+                        is_else = True
+                    elif parent.loop_node and parent.loop_node_type == 'while':
+                        # while 루프 블록 아웃 처리
+                        block_out_type = 'while'
+                        loop_node = parent
+                        break
+                    else:
+                        # 다른 경우 부모로 이동
+                        node = parent
+                        parent = function_cfg.get_parent_node(parent)
+                else:
+                    # is_else == True 인 경우
+                    if parent.condition_node and parent.condition_node_type == 'if':
+                        block_out_type = 'if'
+                        join_nodes.append(parent.true_block)
+                        break
+                    elif parent.condition_node and parent.condition_node_type == 'else if':
+                        block_out_type = 'else if'
+                        join_nodes.append(parent.true_block)
+                    else:
+                        # 다른 경우 부모로 이동
+                        node = parent
+                        parent = function_cfg.get_parent_node(parent)
+
+            # 블록 아웃 타입에 따라 처리
+            if block_out_type == 'if':
+                # 조인 노드들을 변수별로 조인
+                new_block = self.join_nodes(join_nodes, function_cfg)
+                return new_block
+            elif block_out_type == 'while':
+                # 고정점 알고리즘 적용
+                new_block = self.apply_fixpoint(loop_node, function_cfg)
+                return new_block
+            else:
+                # 기타 경우 처리 필요 시 추가
+                pass
+
+        # 블록 아웃 처리가 완료된 후 기본 블록 반환 또는 예외 처리
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if function_cfg:
+            return function_cfg.get_entry_node()
+        else:
+            raise ValueError("No active function CFG found.")
+
+    def join_nodes(self, nodes, function_cfg):
+        """
+        주어진 노드들의 변수 정보를 조인하여 새로운 블록을 생성합니다.
+        :param nodes: 조인할 CFG 노드들의 리스트
+        :param function_cfg: 현재 함수의 CFG 객체
+        :return: 새로운 CFG 노드
+        """
+        new_block = CFGNode(f"JoinBlock_{self.current_start_line}")
+        function_cfg.graph.add_node(new_block)
+
+        # 각 노드의 변수 정보를 조인
+        variables = {}
+        for node in nodes:
+            for var_name, var_obj in node.variables.items():
+                if var_name in variables:
+                    # 기존 변수와 조인
+                    variables[var_name] = variables[var_name].join(var_obj)
+                else:
+                    # 새로운 변수 추가
+                    variables[var_name] = var_obj
+
+        # 새로운 블록에 변수 정보 저장
+        new_block.variables = variables
+
+        # 조인된 노드들과 새로운 블록을 연결
+        for node in nodes:
+            function_cfg.graph.add_edge(node, new_block)
+
+        return new_block
+
+    def apply_fixpoint(self, loop_node, function_cfg):
+        """
+        루프 노드에 대해 고정점 알고리즘을 적용합니다.
+        :param loop_node: 루프의 시작 노드
+        :param function_cfg: 현재 함수의 CFG 객체
+        :return: 새로운 CFG 노드
+        """
+        # 워크리스트 초기화
+        worklist = [loop_node]
+        visited = set()
+        iteration = 0
+        max_iterations = 10  # 최대 반복 횟수 설정 (필요에 따라 조정)
+
+        while worklist and iteration < max_iterations:
+            current_node = worklist.pop()
+            visited.add(current_node)
+            # 변수 값 갱신 로직 (고정점 계산)
+            # 각 변수에 대해 이전 값과 새로운 값을 비교하여 수렴 여부 판단
+            # 필요에 따라 widening 및 narrowing 적용
+
+            # 다음 노드 추가
+            for successor in function_cfg.graph.successors(current_node):
+                if successor not in visited:
+                    worklist.append(successor)
+
+            iteration += 1
+
+        # 고정점 계산 후 결과를 새로운 블록에 저장
+        new_block = CFGNode(f"LoopExitBlock_{self.current_start_line}")
+        function_cfg.graph.add_node(new_block)
+        # 루프 노드와 새로운 블록을 연결
+        function_cfg.graph.add_edge(loop_node, new_block)
+
+        # 변수 정보 갱신 (예시로 루프 노드의 변수 정보를 그대로 사용)
+        new_block.variables = loop_node.variables.copy()
+
+        return new_block
 
     def get_true_block(self, condition_node):
         contract_cfg = self.contract_cfgs[self.current_target_contract]
