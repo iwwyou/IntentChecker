@@ -454,7 +454,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             array_size = self.evaluate_expression(array_size_expr)  # 배열 크기를 평가 (정수 값이어야 함)
             is_dynamic = False
         else:
-            array_size = None
+            array_size = 0
             is_dynamic = True
 
         type_obj.typeCategory = "array"
@@ -1207,7 +1207,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             base=base_expr,
             index=index_expr,
-            access='index_access'
+            access='index_access',
+            context='IndexAccessContext'
         )
 
         return result_expr
@@ -1276,7 +1277,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             base=base_expr,
             start_index=start_expr,
             end_index=end_expr,
-            operator='[:]'
+            operator='[:]',
+            context='IndexRangeAccessContext'
         )
 
         return result_expr
@@ -1296,7 +1298,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             base=base_expr,
             member=member_name,
-            operator='.'
+            operator='.',
+            context='MemberAccessContext'
         )
 
         return result_expr
@@ -1346,7 +1349,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             function=base_expr,
             options=options,
-            operator='{}'
+            operator='{}',
+            context='FunctionCallOptionContext'
         )
 
         return result_expr
@@ -1363,7 +1367,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             function=function_expr,
             arguments=arguments,
             named_arguments=named_arguments,
-            operator='()'
+            operator='()',
+            context='FunctionCallContext'
         )
 
         return result_expr
@@ -1381,7 +1386,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             function=function_expr,
             arguments=arguments,
             named_arguments=named_arguments,
-            operator='()'
+            operator='()',
+            context='PayableFunctionCallContext'
         )
 
         return result_expr
@@ -1455,7 +1461,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             type_name=type_name,
             expression=expr,
-            operator='type_conversion'
+            operator='type_conversion',
+            context='TypeConversionContext'
         )
 
         return result_expr
@@ -1466,7 +1473,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             operator=operator,
             expression=expression,
-            is_postfix=False
+            is_postfix=False,
+            context='UnaryPrefixOpContext'
         )
         return result_expr
 
@@ -1481,7 +1489,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             operator=operator,
             expression=expr,
-            is_postfix=True  # 후위 연산자임을 표시
+            is_postfix=True,  # 후위 연산자임을 표시
+            context='UnarySuffixOpContext'
         )
 
         return result_expr
@@ -1500,7 +1509,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='ExponentiationContext'
         )
 
         return result_expr
@@ -1519,7 +1529,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='MultiplicativeOpContext'
         )
 
         return result_expr
@@ -1538,7 +1549,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='AdditiveOpContext'
         )
 
         return result_expr
@@ -1557,7 +1569,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='ShiftOpContext'
         )
 
         return result_expr
@@ -1576,7 +1589,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='BitAndOpContext'
         )
 
         return result_expr
@@ -1595,7 +1609,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='BitXorOpContext'
         )
 
         return result_expr
@@ -1614,7 +1629,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='BitOrOpContext'
         )
 
         return result_expr
@@ -1633,7 +1649,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='RelationalOpContext'
         )
 
         return result_expr
@@ -1652,7 +1669,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='EqualityOpContext'
         )
 
         return result_expr
@@ -1671,7 +1689,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='AndOperationOpContext'
         )
 
         return result_expr
@@ -1690,7 +1709,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='OrOperationContext'
         )
 
         return result_expr
@@ -1710,7 +1730,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             condition=condition_expr,
             true_expr=true_expr,
             false_expr=false_expr,
-            operator='?:'
+            operator='?:',
+            context='ConditionalExpContext'
         )
 
         return result_expr
@@ -1729,7 +1750,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         result_expr = Expression(
             left=left_expr,
             operator=operator,
-            right=right_expr
+            right=right_expr,
+            context='AssignmentOpContext'
         )
 
         return result_expr
@@ -1741,7 +1763,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # Expression 객체 생성
         result_expr = Expression(
             operator='new',
-            type_name=type_name
+            type_name=type_name,
+            context='NewExpContext'
         )
 
         return result_expr
@@ -1757,7 +1780,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # Expression 객체 생성
         result_expr = Expression(
             elements=elements,
-            operator='tuple'
+            operator='tuple',
+            context='TupleExpContext'
         )
 
         return result_expr
@@ -1766,7 +1790,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitLiteralExp(self, ctx: SolidityParser.LiteralExpContext):
         # 리터럴 값 추출
         literal_value = ctx.getText()
-        result_expr = Expression(literal=literal_value)
+        result_expr = Expression(literal=literal_value,
+                                 context='LiteralExpContext')
 
         # 리터럴 값이 숫자인 경우 int 또는 uint로 설정
         if literal_value.isdigit() or (literal_value.startswith('0x') or literal_value.startswith('0X')):
@@ -1787,7 +1812,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIdentifierExp(self, ctx):
         # 식별자 이름 추출
         identifier_name = ctx.getText()
-        result_expr = Expression(identifier=identifier_name)
+        result_expr = Expression(identifier=identifier_name,
+                                 context='IdentifierExpContext')
         return result_expr
 
 

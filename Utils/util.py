@@ -41,7 +41,7 @@ class Expression:
                  function=None, arguments=None, named_arguments=None, base=None, access=None,
                  index=None, start_index=None, end_index=None, member=None, options=None,
                  type_name=None, expression=None, condition=None, true_expr=None, false_expr=None,
-                 is_postfix=None, elements=None, expr_type=None, type_length=256):
+                 is_postfix=None, elements=None, expr_type=None, type_length=256, context=None):
         self.left = left                # 좌측 피연산자 (Expression)
         self.operator = operator        # 연산자 (문자열)
         self.right = right              # 우측 피연산자 (Expression)
@@ -67,6 +67,7 @@ class Expression:
         self.elements = elements        # 튜플 또는 배열의 요소들 (리스트)
         self.expr_type = expr_type      # 표현식의 타입 (예: 'int', 'uint', 'bool')
         self.type_length = type_length  # 타입의 길이 (예: 256)
+        self.context = context
 
 
 

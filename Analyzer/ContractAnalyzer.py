@@ -859,9 +859,103 @@ class ContractAnalyzer:
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
-    def process_function_call(self, expr, line_comment=None):
-        # Handle regular function calls
-        pass
+    def process_function_call(self, expr):
+        """
+        함수 호출을 처리하는 메소드입니다.
+        :param expr: Expression 객체 (FunctionCall)
+        :return: 함수 호출 결과 (Interval 또는 None)
+        """
+
+        # 1. 현재 타겟 컨트랙트의 CFG 가져오기
+        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        # 2. 현재 타겟 함수의 CFG 가져오기
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not function_cfg:
+            raise ValueError("No active function to add variables to.")
+
+        # 1. 함수 표현식 가져오기
+        function_expr = expr.function
+
+        # 2. 함수 표현식이 MemberAccessContext인지 확인
+        if function_expr.context == 'MemberAccessContext':
+            # 2.1 base와 member 가져오기
+            base_expr = function_expr.base
+            member_name = function_expr.member
+
+            # 2.2 base_expr이 IdentifierExpContext인지 확인
+            if base_expr.context == 'IdentifierExpContext':
+                identifier = base_expr.identifier
+
+                # 2.3 현재 함수 CFG에서 변수 가져오기
+                arr_var = self.function_cfg.get_variable(identifier)
+
+                if arr_var is None:
+                    raise ValueError(f"Variable '{identifier}' not found in current function scope.")
+
+                # 2.4 배열 변수인지 확인
+                if isinstance(arr_var, ArrayVariable) and arr_var.typeInfo.isDynamicArray:
+                    # 2.5 멤버 함수 처리
+                    if member_name == 'push':
+                        arguments = expr.arguments
+
+                        if arguments is None or len(arguments) == 0:
+                            # 빈 괄호 push(): 새로운 기본값 요소를 추가하고, 참조를 반환
+                            # 여기서는 기본값 요소를 추가합니다.
+                            base_type = arr_var.typeInfo.arrayBaseType
+
+                            # 기본값 생성 (타입에 따라 다름, 여기서는 None으로 처리)
+                            element_var = Variables(value=None, typeInfo=base_type)
+
+                            arr_var.elements.append(element_var)
+
+                            # 배열의 길이 증가
+                            if arr_var.typeInfo.arrayLength is not None:
+                                arr_var.typeInfo.arrayLength += 1
+
+                            # 반환값 처리 (필요에 따라 구현)
+                            return element_var  # 참조를 반환 (여기서는 Variables 객체)
+                        elif len(arguments) == 1:
+                            # push(value): 인자를 배열에 추가
+                            arg_expr = arguments[0]
+                            arg_value = self.evaluate_expression(arg_expr)
+
+                            # 타입 호환성 검사는 생략합니다.
+
+                            element_var = Variables(value=arg_value, typeInfo=arr_var.typeInfo.arrayBaseType)
+                            arr_var.elements.append(element_var)
+
+                            # 배열의 길이 증가
+                            if arr_var.typeInfo.arrayLength is not None:
+                                arr_var.typeInfo.arrayLength += 1
+
+                            # push()는 반환값이 없음
+                            return None
+                        else:
+                            raise ValueError("push() function accepts at most one argument.")
+                    elif member_name == 'pop':
+                        # pop(): 마지막 요소를 제거
+                        if not arr_var.elements:
+                            raise IndexError(f"Cannot pop from empty array '{identifier}'.")
+
+                        arr_var.elements.pop()
+
+                        # 배열의 길이 감소
+                        if arr_var.typeInfo.arrayLength is not None:
+                            arr_var.typeInfo.arrayLength -= 1
+
+                        # pop()은 반환값이 없음
+                        return None
+                    else:
+                        raise NotImplementedError(f"Member function '{member_name}' is not implemented.")
+                else:
+                    raise TypeError(f"Variable '{identifier}' is not a dynamic array.")
+            else:
+                raise NotImplementedError("Only simple identifiers are supported as array variables.")
+        else:
+            raise NotImplementedError("Only member function calls are supported in this context.")
 
     def process_payable_function_call(self, expr, line_comment=None):
         # Handle payable function calls
@@ -999,10 +1093,6 @@ class ContractAnalyzer:
         # 3. False 분기 블록 생성
         else_block = CFGNode(name=f"else_block_{self.current_start_line}")
 
-        # 4. CFG 연결 - 조건 노드의 False 브랜치에 else 블록 연결
-        function_cfg.add_node(else_block)
-        function_cfg.add_edge(condition_node, else_block, condition=False)
-
         # 5. 변수 상태 관리
         # else 블록의 변수 상태 초기화 (이전 조건 노드의 변수 상태 복사)
         else_block.variables = self.copy_variables(condition_node.variables)
@@ -1010,10 +1100,14 @@ class ContractAnalyzer:
         # 6. 조건식 부정된 상태로 변수 값 업데이트
         self.update_variables_with_condition(else_block.variables, condition_node.condition_expr, is_true_branch=False)
 
-        # 6. True 블록에 대한 brace_count 업데이트
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line + 1] = {}
-        self.brace_count[self.current_start_line + 1]['cfg_node'] = else_block
+        # 4. CFG 연결 - 조건 노드의 False 브랜치에 else 블록 연결
+        function_cfg.graph.add_node(else_block)
+        function_cfg.graph.add_edge(condition_node, else_block, condition=False)
+
+        # 5. brace_count 업데이트 - 존재하지 않으면 초기화
+        if self.current_start_line not in self.brace_count:
+            self.brace_count[self.current_start_line] = {}
+        self.brace_count[self.current_start_line]['cfg_node'] = else_block
 
         # 7. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = function_cfg
@@ -1785,8 +1879,8 @@ class ContractAnalyzer:
 
                 # target_brace가 0이 되면 대응되는 블록을 찾은 것
                 if target_brace == 0:
-                    if brace_info['cfg_node'].condition_node_type != None and \
-                            brace_info['cfg_node'].condition_node_type in ['if', 'else_if']:
+                    if brace_info['cfg_node'] != None and \
+                            brace_info['cfg_node'].condition_node_type in ['if', 'else if']:
                         return brace_info['cfg_node']
         return None
 

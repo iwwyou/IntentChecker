@@ -175,29 +175,29 @@ test_inputs = [
     # else문 선언
     {
         'code': 'else { \n }',  # else 선언
-        'startLine': 13,
-        'endLine': 14
+        'startLine': 14,
+        'endLine': 15
     },
 
     # else 블록 안 내용 추가
     {
         'code': 'a = 1;',  # else 블록 내 내용
-        'startLine': 14,
-        'endLine': 14
+        'startLine': 15,
+        'endLine': 15
     },
 
     # 배열에 값 추가
     {
         'code': 'numbers.push(_a);',  # 배열에 값 추가
-        'startLine': 16,
-        'endLine': 16
+        'startLine': 17,
+        'endLine': 17
     },
 
     # 조건에 따른 a 값 balances에 할당
     {
         'code': 'balances[msg.sender] = a;',  # balances에 a 값을 할당
-        'startLine': 17,
-        'endLine': 17
+        'startLine': 18,
+        'endLine': 18
     }
 ]
 
