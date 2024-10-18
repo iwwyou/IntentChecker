@@ -789,7 +789,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#breakStatement.
     def visitBreakStatement(self, ctx:SolidityParser.BreakStatementContext):
-        return self.visitChildren(ctx)
+        return self.contract_analyzer.process_break_statement()
 
 
     # Visit a parse tree produced by SolidityParser#returnStatement.

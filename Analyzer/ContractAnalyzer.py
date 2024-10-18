@@ -19,6 +19,7 @@ class ContractAnalyzer:
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
+        self.current_target_function_cfg = None
 
         # for Multiple Contract
         self.contract_cfgs = {} # name -> CFG
@@ -509,8 +510,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
         # 3. 현재 블록의 CFG 노드 가져오기
@@ -529,7 +530,7 @@ class ContractAnalyzer:
         current_block.add_assign_statement(variable_obj.identifier, variable_obj.var_type, interval)
 
         # 7. 함수 CFG의 related_variables에 추가
-        function_cfg.related_variables[variable_obj.identifier] = variable_obj
+        self.current_target_function_cfg.related_variables[variable_obj.identifier] = variable_obj
 
         # 9. 분석 결과에 interval 값 저장
         interval_result = {
@@ -563,13 +564,15 @@ class ContractAnalyzer:
         self.analysis_results = result
 
         # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
+
+        self.current_target_function_cfg = None
 
     def process_compound_assignment(self, left_interval, right_interval, operator):
         """
@@ -604,8 +607,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
         # 3. 현재 블록의 CFG 노드 가져오기
@@ -616,7 +619,7 @@ class ContractAnalyzer:
         variable_obj = current_block.get_variable(var_name)
 
         if not variable_obj:
-            variable_obj = function_cfg.get_related_variable(var_name)
+            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
 
         if not variable_obj:
             raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
@@ -680,13 +683,15 @@ class ContractAnalyzer:
         self.analysis_results = result
 
         # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
+
+        self.current_target_function_cfg = None
 
     def process_assignment_function_call(self, expr, line_comment=None):
         # 1. 좌변 변수 이름 추출
@@ -748,8 +753,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
         # 3. 현재 블록의 CFG 노드 가져오기
@@ -795,10 +800,12 @@ class ContractAnalyzer:
         self.analysis_results = result
 
         # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_unary_suffix_operation(self, expr, line_comment=None):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
@@ -807,8 +814,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
         # 3. 현재 블록의 CFG 노드 가져오기
@@ -854,10 +861,12 @@ class ContractAnalyzer:
         self.analysis_results = result
 
         # 9. function_cfg 결과를 contract_cfg에 반영
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_function_call(self, expr):
         """
@@ -872,8 +881,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
         # 1. 함수 표현식 가져오기
@@ -890,7 +899,7 @@ class ContractAnalyzer:
                 identifier = base_expr.identifier
 
                 # 2.3 현재 함수 CFG에서 변수 가져오기
-                arr_var = self.function_cfg.get_variable(identifier)
+                arr_var = self.self.current_target_function_cfg.get_variable(identifier)
 
                 if arr_var is None:
                     raise ValueError(f"Variable '{identifier}' not found in current function scope.")
@@ -957,6 +966,8 @@ class ContractAnalyzer:
         else:
             raise NotImplementedError("Only member function calls are supported in this context.")
 
+        self.current_target_function_cfg = None
+
     def process_payable_function_call(self, expr, line_comment=None):
         # Handle payable function calls
         pass
@@ -971,8 +982,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the if statement.")
 
         # 2. 현재 블록 가져오기
@@ -999,31 +1010,33 @@ class ContractAnalyzer:
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
         # 8. 현재 블록의 후속 노드 처리 (기존 current_block의 successors를 가져옴)
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 기존 current_block과 successor들의 edge를 제거
         for successor in successors:
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 9. CFG 노드 추가
-        function_cfg.graph.add_node(condition_block)
-        function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_node(condition_block)
+        self.current_target_function_cfg.graph.add_node(true_block)
 
         # 10. 조건 블록과 True/False 분기 연결
-        function_cfg.graph.add_edge(current_block, condition_block)
-        function_cfg.graph.add_edge(condition_block, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_edge(current_block, condition_block)
+        self.current_target_function_cfg.graph.add_edge(condition_block, true_block, condition=True)
 
         # 11. True 분기 후속 노드 연결
         for successor in successors:
-            function_cfg.graph.add_edge(true_block, successor)
+            self.current_target_function_cfg.graph.add_edge(true_block, successor)
 
         # 12. False 분기 처리: False일 경우 기존 current_block의 후속 노드로 연결
         for successor in successors:
-            function_cfg.graph.add_edge(condition_block, successor, condition=False)
+            self.current_target_function_cfg.graph.add_edge(condition_block, successor, condition=False)
 
         # 13. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_else_if_statement(self, condition_expr):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1031,8 +1044,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the else-if statement.")
 
         # 2. 이전 조건 노드를 가져와서 부정된 조건을 처리
@@ -1064,16 +1077,18 @@ class ContractAnalyzer:
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
         # 8. 이전 조건 블록과 새로운 else_if_condition 블록 연결
-        function_cfg.graph.add_edge(previous_condition_node, condition_block, condition=False)
+        self.current_target_function_cfg.graph.add_edge(previous_condition_node, condition_block, condition=False)
 
         # 9. 새로운 조건 블록과 True 블록 연결
-        function_cfg.graph.add_node(condition_block)
-        function_cfg.graph.add_node(true_block)
-        function_cfg.graph.add_edge(condition_block, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_node(condition_block)
+        self.current_target_function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_edge(condition_block, true_block, condition=True)
 
         # 11. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_else_statement(self):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1081,8 +1096,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the else statement.")
 
         # 2. 대응되는 if 또는 else if의 조건 노드 찾기
@@ -1101,8 +1116,8 @@ class ContractAnalyzer:
         self.update_variables_with_condition(else_block.variables, condition_node.condition_expr, is_true_branch=False)
 
         # 4. CFG 연결 - 조건 노드의 False 브랜치에 else 블록 연결
-        function_cfg.graph.add_node(else_block)
-        function_cfg.graph.add_edge(condition_node, else_block, condition=False)
+        self.current_target_function_cfg.graph.add_node(else_block)
+        self.current_target_function_cfg.graph.add_edge(condition_node, else_block, condition=False)
 
         # 5. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
@@ -1110,8 +1125,10 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = else_block
 
         # 7. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_while_statement(self, condition_expr):
         # 1. Get the current contract and function CFG
@@ -1119,8 +1136,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfgg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the while statement.")
 
         # 2. Get the current block
@@ -1130,11 +1147,11 @@ class ContractAnalyzer:
         join_node = CFGNode(name=f"while_join_{self.current_start_line}",
                             join_point_node=True)
 
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 기존 current_block과 successor들의 edge를 제거
         for successor in successors:
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 4. Create the condition node
         condition_node = CFGNode(name=f"while_condition_{self.current_start_line}",
@@ -1143,53 +1160,45 @@ class ContractAnalyzer:
         condition_node.condition_expr = condition_expr  # Store the condition expression for later use
 
         # 5. Connect the current block to the join node (if not already connected)
-        function_cfg.add_node(join_node)
-        function_cfg.add_edge(current_block, join_node)
+        self.current_target_function_cfg.add_node(join_node)
+        self.current_target_function_cfg.add_edge(current_block, join_node)
 
         # 6. Connect the join node to the condition node
-        function_cfg.add_node(condition_node)
-        function_cfg.add_edge(join_node, condition_node)
+        self.current_target_function_cfg.add_node(condition_node)
+        self.current_target_function_cfg.add_edge(join_node, condition_node)
 
         # 7. Create the true node (loop body)
-        true_node = CFGNode(name=f"while_body_{self.current_start_line+1}")
+        true_node = CFGNode(name=f"while_body_{self.current_start_line}")
 
         # 8. Create the false node (exit block)
-        false_node = CFGNode(name=f"while_exit_{self.current_start_line+2}",
+        false_node = CFGNode(name=f"while_exit_{self.current_start_line}",
                              loop_exit_node=True)
 
         # 9. Connect the condition node's true branch to the true node
-        function_cfg.add_node(true_node)
-        function_cfg.add_edge(condition_node, true_node, condition=True)
+        self.current_target_function_cfg.add_node(true_node)
+        self.current_target_function_cfg.add_edge(condition_node, true_node, condition=True)
 
         # 10. Connect the condition node's false branch to the false node
-        function_cfg.add_node(false_node)
-        function_cfg.add_edge(condition_node, false_node, condition=False)
+        self.current_target_function_cfg.add_node(false_node)
+        self.current_target_function_cfg.add_edge(condition_node, false_node, condition=False)
 
         # 기존 current_block과 successor들을 false block의 successor로
         for successor in successors:
-            function_cfg.graph.add_edge(successor, false_node)
+            self.current_target_function_cfg.graph.add_edge(successor, false_node)
 
         # 11. Connect the true node back to the join node (loop back)
-        function_cfg.add_edge(true_node, join_node)
+        self.current_target_function_cfg.add_edge(true_node, join_node)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
         self.brace_count[self.current_start_line]['cfg_node'] = condition_node
 
-        # 8. Return 노드에 대한 brace_count 업데이트
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line] = {}
-        self.brace_count[self.current_start_line]['cfg_node'] = true_node
-
-        # 8. Return 노드에 대한 brace_count 업데이트
-        if self.current_start_line + 2 not in self.brace_count:
-            self.brace_count[self.current_start_line] = {}
-        self.brace_count[self.current_start_line]['cfg_node'] = false_node
-
         # 8. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_continue_statement(self):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1197,8 +1206,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the continue statement.")
 
         # 2. 현재 블록 가져오기 (continue가 발생한 블록)
@@ -1209,17 +1218,17 @@ class ContractAnalyzer:
         current_block.statements.append(continue_statement)
 
         # 4. 재귀적으로 join_point_node 찾기
-        join_point_node = self.find_join_point_node(current_block, function_cfg)
+        join_point_node = self.find_join_point_node(current_block, self.current_target_function_cfg)
         if not join_point_node:
             raise ValueError("No corresponding loop join node found for continue statement.")
 
         # 5. 현재 블록의 모든 successor와의 edge 제거
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
         for successor in successors:
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 6. 현재 블록을 join_point_node로 연결 (loop로 다시 돌아감)
-        function_cfg.graph.add_edge(current_block, join_point_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, join_point_node)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1227,8 +1236,10 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         # 7. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_break_statement(self):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1236,8 +1247,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the break statement.")
 
         # 2. 현재 블록 가져오기 (break가 발생한 블록)
@@ -1248,22 +1259,22 @@ class ContractAnalyzer:
         current_block.statements.append(break_statement)
 
         # 4. 재귀적으로 위로 타고 올라가서 while문 조건 노드를 찾기
-        condition_node = self.find_while_condition_node(current_block, function_cfg)
+        condition_node = self.find_while_condition_node(current_block, self.current_target_function_cfg)
         if not condition_node:
             raise ValueError("No corresponding while condition node found for break statement.")
 
         # 5. 해당 조건 노드의 false branch를 통해 loop_exit_node 찾기
-        loop_exit_node = function_cfg.get_false_block(condition_node)  # 수정된 부분
+        loop_exit_node = self.current_target_function_cfg.get_false_block(condition_node)  # 수정된 부분
         if not loop_exit_node or not loop_exit_node.loop_exit_node:
             raise ValueError("No valid loop exit node found for break statement.")
 
         # 6. 현재 블록의 모든 successor와의 edge 제거
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
         for successor in successors:
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 7. 현재 블록을 loop_exit_node로 연결 (루프에서 빠져나감)
-        function_cfg.graph.add_edge(current_block, loop_exit_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, loop_exit_node)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1271,8 +1282,10 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         # 8. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def find_join_point_node(self, current_node, function_cfg):
         """
@@ -1313,8 +1326,8 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the return statement.")
 
         # 2. 현재 블록 가져오기
@@ -1331,16 +1344,16 @@ class ContractAnalyzer:
         return_node.statements.append(f"return {return_value}" if return_value else "return;")
 
         # 5. 기존 current_block과 그 successors 사이의 edge 제거
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
         for successor in successors:
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 6. 기존 current_block에서 return_node로 edge 추가
-        function_cfg.graph.add_edge(current_block, return_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, return_node)
 
         # 7. 기존 successors에서 return_node로 edge 추가
         for successor in successors:
-            function_cfg.graph.add_edge(return_node, successor)
+            self.current_target_function_cfg.graph.add_edge(return_node, successor)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1348,8 +1361,10 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = return_node
 
         # 8. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
@@ -1358,8 +1373,8 @@ class ContractAnalyzer:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
         # 2. 현재 타겟 함수의 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the revert statement.")
 
         # 3. 현재 블록 가져오기
@@ -1375,10 +1390,10 @@ class ContractAnalyzer:
         current_block.statements.append(revert_statement)
 
         # 5. 함수의 exit 노드와 현재 노드 간 연결이 이미 존재하는지 확인
-        exit_node = function_cfg.get_exit_node()
-        if not function_cfg.graph.has_edge(current_block, exit_node):
+        exit_node = self.current_target_function_cfg.get_exit_node()
+        if not self.current_target_function_cfg.graph.has_edge(current_block, exit_node):
             # 기존 엣지가 없으면 연결
-            function_cfg.graph.add_edge(current_block, exit_node)
+            self.current_target_function_cfg.graph.add_edge(current_block, exit_node)
 
         # 7. Revert 노드의 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1386,8 +1401,10 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         # 6. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_require_statement(self, condition_expr, string_literal):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1395,15 +1412,15 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the require statement.")
 
         # 2. 현재 블록 가져오기
         current_block = self.get_current_block()
 
         # 3. 기존 current_block의 successor 가져오기
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 4. 조건식 블록 생성 및 평가
         require_condition_node = CFGNode(name=f"require_condition_{self.current_start_line}", condition_node=True)
@@ -1418,33 +1435,31 @@ class ContractAnalyzer:
 
         # 7. 기존 current_block의 successors를 require_condition_node로 설정
         for successor in successors:
-            function_cfg.graph.add_edge(require_condition_node, successor)
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.add_edge(require_condition_node, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 8. 기존 current_block과 require_condition_node 연결
-        function_cfg.graph.add_node(require_condition_node)
-        function_cfg.graph.add_edge(current_block, require_condition_node)
+        self.current_target_function_cfg.graph.add_node(require_condition_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, require_condition_node)
 
         # 9. False 분기 처리 (조건이 실패할 경우, exit 노드로 연결)
-        exit_node = function_cfg.get_exit_node()
-        function_cfg.graph.add_edge(require_condition_node, exit_node, condition=False)
+        exit_node = self.current_target_function_cfg.get_exit_node()
+        self.current_target_function_cfg.graph.add_edge(require_condition_node, exit_node, condition=False)
 
         # 10. True 블록 연결
-        function_cfg.graph.add_node(true_block)
-        function_cfg.graph.add_edge(require_condition_node, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_edge(require_condition_node, true_block, condition=True)
 
         # 11. brace_count 업데이트
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
         self.brace_count[self.current_start_line]['cfg_node'] = require_condition_node
 
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line + 1] = {}
-        self.brace_count[self.current_start_line + 1]['cfg_node'] = true_block
-
         # 12. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def process_assert_statement(self, condition_expr, string_literal):
         # 1. 현재 컨트랙트와 함수의 CFG 가져오기
@@ -1452,15 +1467,15 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if not function_cfg:
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not self.current_target_function_cfg:
             raise ValueError("No active function to process the require statement.")
 
         # 2. 현재 블록 가져오기
         current_block = self.get_current_block()
 
         # 3. 기존 current_block의 successor 가져오기
-        successors = list(function_cfg.graph.successors(current_block))
+        successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 4. 조건식 블록 생성 및 평가
         assert_condition_node = CFGNode(name=f"require_condition_{self.current_start_line}", condition_node=True)
@@ -1475,33 +1490,31 @@ class ContractAnalyzer:
 
         # 7. 기존 current_block의 successors를 require_condition_node로 설정
         for successor in successors:
-            function_cfg.graph.add_edge(assert_condition_node, successor)
-            function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.add_edge(assert_condition_node, successor)
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
         # 8. 기존 current_block과 require_condition_node 연결
-        function_cfg.graph.add_node(assert_condition_node)
-        function_cfg.graph.add_edge(current_block, assert_condition_node)
+        self.current_target_function_cfg.graph.add_node(assert_condition_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, assert_condition_node)
 
         # 9. False 분기 처리 (조건이 실패할 경우, exit 노드로 연결)
-        exit_node = function_cfg.get_exit_node()
-        function_cfg.graph.add_edge(assert_condition_node, exit_node, condition=False)
+        exit_node = self.current_target_function_cfg.get_exit_node()
+        self.current_target_function_cfg.graph.add_edge(assert_condition_node, exit_node, condition=False)
 
         # 10. True 블록 연결
-        function_cfg.graph.add_node(true_block)
-        function_cfg.graph.add_edge(assert_condition_node, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_edge(assert_condition_node, true_block, condition=True)
 
         # 11. brace_count 업데이트
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
-        self.brace_count[self.current_start_line]['cfg_node'] = require_condition_node
-
-        if self.current_start_line + 1 not in self.brace_count:
-            self.brace_count[self.current_start_line + 1] = {}
-        self.brace_count[self.current_start_line + 1]['cfg_node'] = true_block
+        self.brace_count[self.current_start_line]['cfg_node'] = assert_condition_node
 
         # 12. CFG 업데이트
-        contract_cfg.functions[self.current_target_function] = function_cfg
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
 
     def perform_fixpoint_analysis(self, loop_entry_block, loop_body_block, condition_expr):
         # 최대 반복 횟수 설정
@@ -1533,30 +1546,6 @@ class ContractAnalyzer:
 
             # 4. 루프 바디 변수 상태 업데이트
             loop_body_block.variables = self.copy_variables(loop_entry_block.variables)
-
-    def adjust_expression_type(self, variable_obj, init_expr):
-        """
-        변수의 타입 정보를 기반으로 초기화식의 표현식 타입을 수정합니다.
-        :param variable_obj: Variables 객체 (변수 타입 정보 포함)
-        :param init_expr: 초기화 Expression 객체
-        :return: 타입이 수정된 Expression 객체
-        """
-        # 변수 타입을 기준으로 리터럴 타입을 수정
-        if variable_obj.typeInfo is not None:
-            # 변수 타입이 int인 경우
-            if 'int' in variable_obj.typeInfo.typeCategory:
-                init_expr.expr_type = 'int'
-                init_expr.type_length = variable_obj.typeInfo.intTypeLength
-            # 변수 타입이 uint인 경우
-            elif 'uint' in variable_obj.typeInfo.typeCategory:
-                init_expr.expr_type = 'uint'
-                init_expr.type_length = variable_obj.typeInfo.intTypeLength
-            # 변수 타입이 bool인 경우
-            elif variable_obj.typeInfo.typeCategory == 'bool':
-                init_expr.expr_type = 'bool'
-            # 기타 타입 처리 (필요 시 추가)
-
-        return init_expr
 
     def extract_variable_name(self, expression):
         # 좌변 표현식에서 변수 이름을 추출
@@ -1790,85 +1779,54 @@ class ContractAnalyzer:
 
     def get_current_block(self):
         """
-        현재 들어갈 CFG 블록을 결정하는 메소드.
+        현재 코드 위치에서 들어갈 CFG 블록을 결정하는 함수입니다.
         블록 아웃을 감지하여 필요한 처리를 수행합니다.
         """
-        contextStack = []
+        closeBraceQueue = []
 
         # 현재 라인부터 위로 올라가면서 brace_count 검사
         for line in range(self.current_start_line - 1, 0, -1):
-            brace_info = self.brace_count.get(line, {})
+            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
 
-            if not contextStack:
-                # contextStack이 비어 있는 경우 (블록 아웃을 아직 감지하지 않은 상태)
-                if brace_info.get('cfg_node') is None and \
-                        brace_info.get('open', 0) == 0 and \
-                        brace_info.get('close', 0) == 0:
+            if not closeBraceQueue:
+                # closeBraceQueue가 비어있는 경우
+                if brace_info['cfg_node'] is None and brace_info['open'] == 0 and brace_info['close'] == 0:
                     # 공백 라인 또는 처리할 것이 없는 라인
                     continue
-                elif brace_info.get('cfg_node') is not None and \
-                        brace_info.get('open', 0) == 0 and \
-                        brace_info.get('close', 0) == 0:
+                elif brace_info['cfg_node'] is not None and brace_info['open'] == 0 and brace_info['close'] == 0:
                     # 분기가 없는 일반적인 문장인 경우
-                    contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-                    function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-
-                    if function_cfg and function_cfg.graph.has_node(cfg_node):
-                        # 이미 그래프에 존재하는 노드가 있으면 그 노드를 리턴
-                        return cfg_node
-                    else:
-                        raise ValueError("No active block found and no active function.")
-
-                elif brace_info.get('cfg_node') is not None and \
-                        brace_info.get('open', 0) == 1 and \
-                        brace_info.get('close', 0) == 0:
-                    # '{'를 만난 경우 (entry point 또는 조건 노드)
+                    return brace_info['cfg_node']
+                elif brace_info['cfg_node'] is not None and brace_info['open'] == 1 and brace_info['close'] == 0:
+                    # 여는 중괄호 '{'를 만난 경우 (entry point 또는 조건 노드)
                     cfg_node = brace_info['cfg_node']
                     if cfg_node.name == "ENTRY":
                         # ENTRY 노드인 경우 새로운 블록 생성 및 반환
-                        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-                        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-                        if function_cfg:
-                            entry_node = function_cfg.get_entry_node()
+                        if self.current_target_function_cfg:
+                            entry_node = self.current_target_function_cfg.get_entry_node()
                             new_block = CFGNode(f"Block_{self.current_start_line}")
-                            function_cfg.graph.add_node(new_block)
-                            function_cfg.graph.add_edge(entry_node, new_block)
+                            self.current_target_function_cfg.graph.add_node(new_block)
+                            self.current_target_function_cfg.graph.add_edge(entry_node, new_block)
                             return new_block
                         else:
                             raise ValueError("No active function CFG found.")
                     elif cfg_node.condition_node:
                         # 조건 노드인 경우 해당 블록 반환
-                        if cfg_node.condition_node_type in ['if', 'else if']:
-                            return self.get_true_block(cfg_node)
-                        elif cfg_node.condition_node_type == 'else':
-                            return self.get_false_block(cfg_node)
+                        if cfg_node.condition_node_type in ['if', 'else if', 'else']:
+                            return cfg_node
                         else:
                             continue  # 다른 조건 노드는 건너뜁니다.
                     else:
                         # 기타 경우 해당 노드 반환
-                        # functionCFG에서 해당 노드가 있는지 확인하고 있으면 그 노드를 리턴
-                        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-                        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-
-                        if function_cfg and function_cfg.graph.has_node(cfg_node):
-                            # 이미 그래프에 존재하는 노드가 있으면 그 노드를 리턴
-                            return cfg_node
-                        else:
-                            raise ValueError("No active block found and no active function.")
-
-                elif brace_info.get('cfg_node') is None and \
-                        brace_info.get('open', 0) == 0 and \
-                        brace_info.get('close', 0) == 1:
-                    # '}'를 만난 경우 (블록 아웃 감지)
-                    contextStack.append(line)
+                        return cfg_node
+                elif brace_info['cfg_node'] is None and brace_info['open'] == 0 and brace_info['close'] == 1:
+                    # 닫는 중괄호 '}'를 만난 경우 (블록 아웃 감지)
+                    closeBraceQueue.append(line)
             else:
-                # contextStack이 비어 있지 않은 경우 (블록 아웃 추가 탐색)
-                if brace_info.get('cfg_node') is None and \
-                        brace_info.get('open', 0) == 0 and \
-                        brace_info.get('close', 0) == 1:
+                # closeBraceQueue가 비어있지 않은 경우 (추가적인 블록 아웃 감지)
+                if brace_info['cfg_node'] is None and brace_info['open'] == 0 and brace_info['close'] == 1:
                     # 또 다른 블록 아웃을 감지
-                    contextStack.append(line)
-                elif brace_info.get('cfg_node') is None and brace_info.get('open', 0) == 0 and brace_info.get('close', 0) == 0:
+                    closeBraceQueue.append(line)
+                elif brace_info['cfg_node'] is None and brace_info['open'] == 0 and brace_info['close'] == 0:
                     # 공백 라인 또는 처리할 것이 없는 라인
                     continue
                 else:
@@ -1876,124 +1834,134 @@ class ContractAnalyzer:
                     break
 
         # 블록 아웃 처리
-        if contextStack:
-            return self.process_block_out(contextStack)
-        else:
-            raise ValueError("Unintended exception in get current block.")
-
-    def process_block_out(self, contextStack):
-        """
-        블록 아웃을 처리하는 메소드.
-        :param contextStack: 블록 아웃이 감지된 라인 번호의 리스트
-        :return: 블록 아웃 처리 후의 CFG 노드
-        """
-        # 가장 최근의 블록 아웃부터 처리
-        while contextStack:
-            block_out_line = contextStack.pop()
-            brace_info = self.brace_count.get(block_out_line, {})
-            # 해당 라인에서 시작하여 부모 노드를 추적
-            node = brace_info.get('cfg_node')
-            function_cfg = self.get_current_function_cfg()
-            if not function_cfg:
-                raise ValueError("No active function CFG found.")
-
-            parent = function_cfg.get_parent_node(node)
-            join_nodes = []
-            is_else = False
-
-            while parent:
-                if not is_else:
-                    if parent.condition_node and parent.condition_node_type == 'if':
-                        # if 블록 아웃 처리
-                        block_out_type = 'if'
-                        join_nodes.append(node)
-                        join_nodes.append(parent.true_block)
-                        break
-                    elif parent.condition_node and parent.condition_node_type == 'else if':
-                        # else if 블록 처리
-                        block_out_type = 'else if'
-                        join_nodes.append(node)
-                        join_nodes.append(parent.true_block)
-                        is_else = True
-                    elif parent.condition_node and parent.condition_node_type == 'else':
-                        # else 블록 처리
-                        block_out_type = 'else'
-                        join_nodes.append(node)
-                        join_nodes.append(parent.false_block)
-                        is_else = True
-                    elif parent.loop_node and parent.loop_node_type == 'while':
-                        # while 루프 블록 아웃 처리
-                        block_out_type = 'while'
-                        loop_node = parent
-                        break
-                    else:
-                        # 다른 경우 부모로 이동
-                        node = parent
-                        parent = function_cfg.get_parent_node(parent)
-                else:
-                    # is_else == True 인 경우
-                    if parent.condition_node and parent.condition_node_type == 'if':
-                        block_out_type = 'if'
-                        join_nodes.append(parent.true_block)
-                        break
-                    elif parent.condition_node and parent.condition_node_type == 'else if':
-                        block_out_type = 'else if'
-                        join_nodes.append(parent.true_block)
-                    else:
-                        # 다른 경우 부모로 이동
-                        node = parent
-                        parent = function_cfg.get_parent_node(parent)
-
-            # 블록 아웃 타입에 따라 처리
-            if block_out_type == 'if':
-                # 조인 노드들을 변수별로 조인
-                new_block = self.join_nodes(join_nodes, function_cfg)
-                return new_block
-            elif block_out_type == 'while':
-                # 고정점 알고리즘 적용
-                new_block = self.apply_fixpoint(loop_node, function_cfg)
-                return new_block
-            else:
-                # 기타 경우 처리 필요 시 추가
-                pass
-
-        # 블록 아웃 처리가 완료된 후 기본 블록 반환 또는 예외 처리
-        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-        if function_cfg:
-            return function_cfg.get_entry_node()
+        if closeBraceQueue:
+            return self.process_block_out(closeBraceQueue)
         else:
             raise ValueError("No active function CFG found.")
 
-    def join_nodes(self, nodes, function_cfg):
+    def process_block_out(self, closeBraceQueue):
         """
-        주어진 노드들의 변수 정보를 조인하여 새로운 블록을 생성합니다.
-        :param nodes: 조인할 CFG 노드들의 리스트
-        :param function_cfg: 현재 함수의 CFG 객체
-        :return: 새로운 CFG 노드
+        블록 아웃을 처리하는 함수입니다.
+        :param closeBraceQueue: 블록 아웃이 감지된 라인 번호의 리스트
+        :return: 블록 아웃 처리 후의 CFG 노드
         """
-        new_block = CFGNode(f"JoinBlock_{self.current_start_line}")
-        function_cfg.graph.add_node(new_block)
+        outSideIfNode = None
+        newBlock = None
+        hasNode = False
 
-        # 각 노드의 변수 정보를 조인
-        variables = {}
-        for node in nodes:
-            for var_name, var_obj in node.variables.items():
-                if var_name in variables:
+        # closeBraceQueue에서 각 닫는 중괄호에 대해 처리
+        for line in closeBraceQueue:
+            openBrace = self.find_corresponding_open_brace(line)
+            if not openBrace:
+                raise ValueError("No open brace are found.")
+
+            cfg_node = openBrace['cfg_node']
+
+            if cfg_node.condition_node_type == "while":
+                # while 루프의 경우 고정점 분석 수행
+                join_point_node = cfg_node  # while 조건 노드
+                newBlock = self.find_fixpoint(join_point_node)
+                # while 조건 노드의 false branch에 결과 반영
+                self.update_variables_at_node(join_point_node.false_branch, newBlock.variables)
+                break  # while 루프의 블록 아웃 처리는 여기서 종료
+            elif not hasNode and cfg_node.condition_node_type == "if":
+                outSideIfNode = cfg_node
+                hasNode = True
+
+        if hasNode and outSideIfNode:
+            newBlock = self.join_leaf_nodes(outSideIfNode)
+            return newBlock
+        else:
+            # 블록 아웃 처리가 완료되지 않았거나 처리할 노드가 없는 경우
+            return None
+
+    def find_corresponding_open_brace(self, close_line):
+        """
+        닫는 중괄호에 대응되는 여는 중괄호를 찾는 함수입니다.
+        :param close_line: 닫는 중괄호 라인 번호
+        :return: 여는 중괄호의 brace_info 딕셔너리
+        """
+        contextDiff = 0
+        for line in range(close_line, 0, -1):
+            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            contextDiff += brace_info['open'] - brace_info['close']
+
+            if contextDiff == 0 and brace_info['open'] > 0:
+                cfg_node = brace_info['cfg_node']
+                if cfg_node and cfg_node.condition_node_type in ["while", "if"]:
+                    return brace_info
+                elif cfg_node and cfg_node.condition_node_type in ["else if", "else"] :
+                    continue
+        return None
+
+    def join_leaf_nodes(self, condition_node):
+        """
+        주어진 조건 노드의 하위 그래프를 탐색하여 리프 노드들을 수집하고 변수 정보를 조인합니다.
+        :param condition_node: 최상위 조건 노드 (if 노드)
+        :return: 조인된 변수 정보를 가진 새로운 블록
+        """
+        # 리프 노드 수집
+        leaf_nodes = self.collect_leaf_nodes(condition_node)
+
+        # 리프 노드들의 변수 정보를 조인
+        joined_variables = {}
+        for node in leaf_nodes:
+            if 'return' in [stmt.statement_type for stmt in node.statements]:
+                continue  # return 문이 있는 리프 노드는 제외
+            for var_name, var_value in node.variables.items():
+                if var_name in joined_variables:
                     # 기존 변수와 조인
-                    variables[var_name] = variables[var_name].join(var_obj)
+                    joined_variables[var_name] = self.join_variable_values(joined_variables[var_name], var_value)
                 else:
                     # 새로운 변수 추가
-                    variables[var_name] = var_obj
+                    joined_variables[var_name] = var_value
 
-        # 새로운 블록에 변수 정보 저장
-        new_block.variables = variables
+        # 새로운 블록 생성 및 변수 정보 저장
+        new_block = CFGNode(name=f"JoinBlock_{self.current_start_line}")
+        new_block.variables = joined_variables
 
-        # 조인된 노드들과 새로운 블록을 연결
-        for node in nodes:
-            function_cfg.graph.add_edge(node, new_block)
+        # 조건 노드의 후속 노드로 연결
+        function_cfg = self.get_current_function_cfg()
+        function_cfg.graph.add_node(new_block)
+        function_cfg.graph.add_edge(condition_node, new_block)
 
         return new_block
+
+    def collect_leaf_nodes(self, node):
+        """
+        주어진 노드의 하위 그래프를 탐색하여 리프 노드들을 수집합니다.
+        :param node: 시작 노드
+        :return: 리프 노드들의 리스트
+        """
+        leaf_nodes = []
+        visited = set()
+        stack = [node]
+
+        while stack:
+            current_node = stack.pop()
+            if current_node in visited:
+                continue
+            visited.add(current_node)
+
+            successors = list(self.get_current_function_cfg().graph.successors(current_node))
+            if not successors:
+                # 자식이 없는 노드 (리프 노드)
+                leaf_nodes.append(current_node)
+            else:
+                # 자식 노드가 있는 경우 스택에 추가
+                for successor in successors:
+                    stack.append(successor)
+
+        return leaf_nodes
+
+    def join_variable_values(self, value1, value2):
+        # 변수 타입에 따라 조인 연산 수행
+        # 여기서는 예시로 Interval 값을 조인한다고 가정합니다.
+        if isinstance(value1, Interval) and isinstance(value2, Interval):
+            return value1.join(value2)
+        else:
+            # 기타 타입에 대한 처리
+            return value1  # 또는 다른 조인 로직 적용
 
     def apply_fixpoint(self, loop_node, function_cfg):
         """
@@ -2032,6 +2000,68 @@ class ContractAnalyzer:
         new_block.variables = loop_node.variables.copy()
 
         return new_block
+
+    def find_fixpoint(self, loop_node):
+        """
+        루프 노드에 대해 고정점 분석을 수행합니다.
+        :param loop_node: 루프의 조건 노드
+        :return: 수렴된 변수 정보를 가진 노드
+        """
+        # 워크리스트 알고리즘을 사용하여 고정점 계산
+        # 간단한 예시로 구현
+        function_cfg = self.get_current_function_cfg()
+        variables = {}
+        changed = True
+
+        while changed:
+            changed = False
+            for node in self.traverse_loop_nodes(loop_node):
+                for var_name, var_value in node.variables.items():
+                    if var_name in variables:
+                        new_value = self.join_variable_values(variables[var_name], var_value)
+                        if new_value != variables[var_name]:
+                            variables[var_name] = new_value
+                            changed = True
+                    else:
+                        variables[var_name] = var_value
+                        changed = True
+
+        # 수렴된 변수 정보를 가진 노드 반환
+        fixpoint_node = CFGNode(name=f"FixpointNode_{self.current_start_line}")
+        fixpoint_node.variables = variables
+        return fixpoint_node
+
+    def update_variables_at_node(self, node, variables):
+        """
+        주어진 노드의 변수 정보를 업데이트합니다.
+        :param node: 대상 노드
+        :param variables: 업데이트할 변수 딕셔너리
+        """
+        node.variables = variables.copy()
+
+    def traverse_loop_nodes(self, loop_node):
+        """
+        루프 노드부터 시작하여 루프 내의 노드들을 순회합니다.
+        :param loop_node: 루프의 조건 노드
+        :return: 루프 내의 노드들
+        """
+        visited = set()
+        stack = [loop_node]
+        loop_nodes = []
+
+        while stack:
+            current_node = stack.pop()
+            if current_node in visited:
+                continue
+            visited.add(current_node)
+            loop_nodes.append(current_node)
+
+            successors = list(self.get_current_function_cfg().graph.successors(current_node))
+            for successor in successors:
+                if successor != loop_node.false_branch:
+                    stack.append(successor)
+
+        return loop_nodes
 
     def get_true_block(self, condition_node):
         contract_cfg = self.contract_cfgs[self.current_target_contract]
