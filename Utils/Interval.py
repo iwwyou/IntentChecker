@@ -82,6 +82,20 @@ class IntegerInterval(Interval):
     def greater_than_or_equal(self, other):
         return IntegerInterval(max(self.min_value, other.min_value), self.max_value)
 
+    def widen(self, current_interval):
+        new_min = float('-inf') if self.min_value > current_interval.min_value else self.min_value
+        new_max = float('inf') if self.max_value < current_interval.max_value else self.max_value
+        return IntegerInterval(new_min, new_max)
+
+    def narrow(self, new_interval):
+        if self.min_value == float('-inf') or self.max_value == float('inf'):
+            return new_interval
+
+        new_min = new_interval.min_value if self.min_value == float('-inf') else self.min_value
+        new_max = new_interval.max_value if self.max_value == float('inf') else min(self.max_value,
+                                                                                    new_interval.max_value)
+        return IntegerInterval(new_min, new_max)
+
     def top(self):
         min_value = -2 ** (self.type_length - 1)
         max_value = 2 ** (self.type_length - 1) - 1
@@ -445,6 +459,20 @@ class UnsignedIntegerInterval(Interval):
     def greater_than_or_equal(self, other):
         return UnsignedIntegerInterval(max(self.min_value, other.min_value), self.max_value)
 
+    def widen(self, current_interval):
+        new_min = 0 if self.min_value > current_interval.min_value else self.min_value
+        new_max = float('inf') if self.max_value < current_interval.max_value else self.max_value
+        return UnsignedIntegerInterval(new_min, new_max)
+
+    def narrow(self, new_interval):
+        if self.max_value == float('inf'):
+            return new_interval
+
+        new_min = new_interval.min_value if self.min_value == 0 else self.min_value
+        new_max = new_interval.max_value if self.max_value == float('inf') else min(self.max_value,
+                                                                                    new_interval.max_value)
+        return UnsignedIntegerInterval(new_min, new_max)
+
     def top(self):
         min_value = 0
         max_value = 2 ** self.type_length - 1
@@ -611,6 +639,18 @@ class BoolInterval(Interval):
 
     def greater_than_or_equal(self, other):
         return self  # Boolean에서 비교는 없음
+
+    def widen(self, current_interval):
+        # Boolean widen 결과는 항상 [0, 1]이므로 고정
+        return BoolInterval(0, 1)
+
+    def narrow(self, new_interval):
+        if self.min_value == 0 and self.max_value == 1:
+            return new_interval
+
+        new_min = new_interval.min_value if self.min_value == 0 else self.min_value
+        new_max = new_interval.max_value if self.max_value == 1 else min(self.max_value, new_interval.max_value)
+        return BoolInterval(new_min, new_max)
 
     def top(self):
         return BoolInterval(0, 1)

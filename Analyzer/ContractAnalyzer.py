@@ -1003,7 +1003,7 @@ class ContractAnalyzer:
         self.brace_count[self.current_start_line]['cfg_node'] = condition_block
 
         # 5. True 분기 블록 생성
-        true_block = CFGNode(name=f"if_true_{self.current_start_line + 1}")
+        true_block = CFGNode(name=f"if_true_{self.current_start_line}")
 
         # 7. True 분기에서 변수 상태 복사 및 업데이트
         true_block.variables = self.copy_variables(condition_block.variables)
@@ -1136,7 +1136,7 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        self.current_target_function_cfgg = contract_cfg.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
         if not self.current_target_function_cfg:
             raise ValueError("No active function to process the while statement.")
 
@@ -1146,6 +1146,9 @@ class ContractAnalyzer:
         # 3. Create the join point node (entry point for the loop)
         join_node = CFGNode(name=f"while_join_{self.current_start_line}",
                             join_point_node=True)
+
+        # Copy variables from current_block to join_node
+        join_node.variables = self.copy_variables(current_block.variables)
 
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1158,6 +1161,7 @@ class ContractAnalyzer:
                                  condition_node=True,
                                  condition_node_type="while")
         condition_node.condition_expr = condition_expr  # Store the condition expression for later use
+        condition_node.variables = self.copy_variables(join_node.variables)
 
         # 5. Connect the current block to the join node (if not already connected)
         self.current_target_function_cfg.add_node(join_node)
@@ -1169,6 +1173,7 @@ class ContractAnalyzer:
 
         # 7. Create the true node (loop body)
         true_node = CFGNode(name=f"while_body_{self.current_start_line}")
+        true_node.is_while_body = True
 
         # 8. Create the false node (exit block)
         false_node = CFGNode(name=f"while_exit_{self.current_start_line}",
@@ -1516,37 +1521,6 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def perform_fixpoint_analysis(self, loop_entry_block, loop_body_block, condition_expr):
-        # 최대 반복 횟수 설정
-        max_iterations = 10
-        iteration = 0
-        changed = True
-
-        while changed and iteration < max_iterations:
-            changed = False
-            iteration += 1
-
-            # 1. 조건식에 따른 변수 상태 업데이트
-            self.update_variables_with_condition(loop_entry_block.variables, condition_expr, is_true_branch=True)
-
-            # 2. 루프 바디에서의 변수 업데이트 (루프 바디의 내용을 분석해야 함)
-            # 현재는 루프 바디가 비어 있으므로 생략
-
-            # 3. 루프 바디의 변수 상태를 루프 진입 변수 상태와 비교하여 변경 여부 확인
-            for var_name, interval in loop_body_block.variables.items():
-                if var_name in loop_entry_block.variables:
-                    old_interval = loop_entry_block.variables[var_name]
-                    new_interval = old_interval.join(interval)
-                    if new_interval != old_interval:
-                        loop_entry_block.variables[var_name] = new_interval
-                        changed = True
-                else:
-                    loop_entry_block.variables[var_name] = interval
-                    changed = True
-
-            # 4. 루프 바디 변수 상태 업데이트
-            loop_body_block.variables = self.copy_variables(loop_entry_block.variables)
-
     def extract_variable_name(self, expression):
         # 좌변 표현식에서 변수 이름을 추출
         # 필요한 경우 재귀적으로 접근하여 전체 경로를 문자열로 반환
@@ -1859,7 +1833,12 @@ class ContractAnalyzer:
 
             if cfg_node.condition_node_type == "while":
                 # while 루프의 경우 고정점 분석 수행
-                join_point_node = cfg_node  # while 조건 노드
+                join_point_node = cfg_node
+                pred = self.current_target_function_cfg.get_predecessor_node(cfg_node)
+                if len(pred) == 1 :
+                    join_point_node = pred[0]
+                else :
+                    raise ValueError(f"There are too much precedecssors of {cfg_node}")
                 newBlock = self.find_fixpoint(join_point_node)
                 # while 조건 노드의 false branch에 결과 반영
                 self.update_variables_at_node(join_point_node.false_branch, newBlock.variables)
@@ -1962,75 +1941,6 @@ class ContractAnalyzer:
         else:
             # 기타 타입에 대한 처리
             return value1  # 또는 다른 조인 로직 적용
-
-    def apply_fixpoint(self, loop_node, function_cfg):
-        """
-        루프 노드에 대해 고정점 알고리즘을 적용합니다.
-        :param loop_node: 루프의 시작 노드
-        :param function_cfg: 현재 함수의 CFG 객체
-        :return: 새로운 CFG 노드
-        """
-        # 워크리스트 초기화
-        worklist = [loop_node]
-        visited = set()
-        iteration = 0
-        max_iterations = 10  # 최대 반복 횟수 설정 (필요에 따라 조정)
-
-        while worklist and iteration < max_iterations:
-            current_node = worklist.pop()
-            visited.add(current_node)
-            # 변수 값 갱신 로직 (고정점 계산)
-            # 각 변수에 대해 이전 값과 새로운 값을 비교하여 수렴 여부 판단
-            # 필요에 따라 widening 및 narrowing 적용
-
-            # 다음 노드 추가
-            for successor in function_cfg.graph.successors(current_node):
-                if successor not in visited:
-                    worklist.append(successor)
-
-            iteration += 1
-
-        # 고정점 계산 후 결과를 새로운 블록에 저장
-        new_block = CFGNode(f"LoopExitBlock_{self.current_start_line}")
-        function_cfg.graph.add_node(new_block)
-        # 루프 노드와 새로운 블록을 연결
-        function_cfg.graph.add_edge(loop_node, new_block)
-
-        # 변수 정보 갱신 (예시로 루프 노드의 변수 정보를 그대로 사용)
-        new_block.variables = loop_node.variables.copy()
-
-        return new_block
-
-    def find_fixpoint(self, loop_node):
-        """
-        루프 노드에 대해 고정점 분석을 수행합니다.
-        :param loop_node: 루프의 조건 노드
-        :return: 수렴된 변수 정보를 가진 노드
-        """
-        # 워크리스트 알고리즘을 사용하여 고정점 계산
-        # 간단한 예시로 구현
-        function_cfg = self.get_current_function_cfg()
-        variables = {}
-        changed = True
-
-        while changed:
-            changed = False
-            for node in self.traverse_loop_nodes(loop_node):
-                for var_name, var_value in node.variables.items():
-                    if var_name in variables:
-                        new_value = self.join_variable_values(variables[var_name], var_value)
-                        if new_value != variables[var_name]:
-                            variables[var_name] = new_value
-                            changed = True
-                    else:
-                        variables[var_name] = var_value
-                        changed = True
-
-        # 수렴된 변수 정보를 가진 노드 반환
-        fixpoint_node = CFGNode(name=f"FixpointNode_{self.current_start_line}")
-        fixpoint_node.variables = variables
-        return fixpoint_node
-
     def update_variables_at_node(self, node, variables):
         """
         주어진 노드의 변수 정보를 업데이트합니다.
@@ -2301,20 +2211,6 @@ class ContractAnalyzer:
             else :
                 # 5. 변수를 찾지 못한 경우 에러 발생
                 raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
-
-    def merge_variables(self, variables_list):
-        merged_variables = {}
-        var_names = set().union(*[vars.keys() for vars in variables_list])
-
-        for var_name in var_names:
-            intervals = [vars.get(var_name) for vars in variables_list if var_name in vars]
-            # Interval들을 병합
-            merged_interval = intervals[0]
-            for interval in intervals[1:]:
-                merged_interval = merged_interval.join(interval)
-            merged_variables[var_name] = merged_interval
-
-        return merged_variables
 
     """
     intent analysis part
