@@ -517,6 +517,10 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
+        if current_block.is_while_body :
+            vars=fixpoint(variable_obj, init_expr)
+            update_while_body(vars, current_block)
+
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
             interval = self.calculate_default_interval(variable_obj.var_type)
@@ -1149,6 +1153,8 @@ class ContractAnalyzer:
 
         # Copy variables from current_block to join_node
         join_node.variables = self.copy_variables(current_block.variables)
+        join_node.join_point_node_vars = self.copy_variables(current_block.variables)
+
 
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1174,6 +1180,7 @@ class ContractAnalyzer:
         # 7. Create the true node (loop body)
         true_node = CFGNode(name=f"while_body_{self.current_start_line}")
         true_node.is_while_body = True
+        self.update_variables_with_condition(true_node.variables, condition_expr, is_true_branch=True)
 
         # 8. Create the false node (exit block)
         false_node = CFGNode(name=f"while_exit_{self.current_start_line}",
@@ -1292,7 +1299,7 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def find_join_point_node(self, current_node, function_cfg):
+    def find_join_point_node(self, current_node):
         """
         재귀적으로 predecessor를 탐색하여 join_point_node를 찾는 함수
         """
@@ -1301,10 +1308,10 @@ class ContractAnalyzer:
             return current_node
 
         # 직접적인 predecessor를 탐색
-        predecessors = list(function_cfg.graph.predecessors(current_node))
+        predecessors = list(self.current_target_function_cfg.graph.predecessors(current_node))
         for pred in predecessors:
             # 재귀적으로 predecessor를 탐색하여 join_point_node를 찾음
-            join_point_node = self.find_join_point_node(pred, function_cfg)
+            join_point_node = self.find_join_point_node(pred)
             if join_point_node:
                 return join_point_node
 
@@ -1785,10 +1792,16 @@ class ContractAnalyzer:
                             raise ValueError("No active function CFG found.")
                     elif cfg_node.condition_node:
                         # 조건 노드인 경우 해당 블록 반환
-                        if cfg_node.condition_node_type in ['if', 'else if', 'else']:
-                            return cfg_node
+                        if cfg_node.condition_node_type == 'if':  # if 블록이면 true_block 반환
+                            return self.get_true_block(cfg_node)
+                        elif cfg_node.condition_node_type == 'else if':  # else_if 블록이면 true_block 반환
+                            return self.get_true_block(cfg_node)
+                        elif cfg_node.condition_node_type == 'else':  # else 블록이면 false_block 반환
+                            return self.get_false_block(cfg_node)
+                        elif cfg_node.condition_node_type == 'while' :
+                            return self.get_true_block(cfg_node)
                         else:
-                            continue  # 다른 조건 노드는 건너뜁니다.
+                            continue  # 다른 조건 노드는 건너뛰기
                     else:
                         # 기타 경우 해당 노드 반환
                         return cfg_node

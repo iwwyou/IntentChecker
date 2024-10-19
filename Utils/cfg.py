@@ -11,12 +11,16 @@ class CFGNode:
                  join_point_node=False,
                  loop_exit_node=False):
         self.name = name
+
         self.condition_node = condition_node
         self.condition_expr = None
         self.condition_node_type = condition_node_type
+
         self.join_point_node = join_point_node
         self.loop_exit_node = loop_exit_node
         self.is_while_body = False
+        self.join_point_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태
+
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
 

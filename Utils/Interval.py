@@ -9,6 +9,12 @@ class Interval:
         """
         return self.min_value >= intended_interval.min_value and self.max_value <= intended_interval.max_value
 
+    def equals(self, other):
+        return self.min_value == other.min_value and self.max_value == other.max_value
+
+    def copy(self):
+        return Interval(self.min_value, self.max_value)
+
 class IntegerInterval(Interval):
     def __init__(self, min_value=None, max_value=None, type_length=None):
         super().__init__(min_value, max_value)
