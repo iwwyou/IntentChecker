@@ -517,10 +517,6 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        if current_block.is_while_body :
-            vars=fixpoint(variable_obj, init_expr)
-            update_while_body(vars, current_block)
-
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
             interval = self.calculate_default_interval(variable_obj.var_type)
@@ -535,6 +531,10 @@ class ContractAnalyzer:
 
         # 7. 함수 CFG의 related_variables에 추가
         self.current_target_function_cfg.related_variables[variable_obj.identifier] = variable_obj
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         # 9. 분석 결과에 interval 값 저장
         interval_result = {
@@ -644,7 +644,7 @@ class ContractAnalyzer:
         current_block.add_assign_statement(variable_obj, new_interval)
 
         # 9. 우변의 관련 변수 정보 추출
-        related_vars = self.extract_related_variables(expr.right, current_block, function_cfg)
+        related_vars = self.extract_related_variables(expr.right, current_block, self.current_target_function_cfg)
 
         # 10. 좌변, 우변 관련 Interval 정보 생성
         intervals_info = {
@@ -664,6 +664,10 @@ class ContractAnalyzer:
                 "variable": related_var.identifier,
                 "interval": [related_var.value.min_value, related_var.value.max_value]
             })
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         # 11. 개발자의 의도 파싱 및 비교
         intent_result = {"expected": [], "actual": [], "message": ""}
@@ -781,6 +785,10 @@ class ContractAnalyzer:
         # 7. CFG 노드에 업데이트된 변수 정보 저장
         current_block.add_assign_statement(var_name, expr.expr_type, new_interval)
 
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
+
         # 9. 개발자의 의도 파싱 및 비교
         intent_result = {"expected": [], "actual": [], "message": ""}
         if line_comment is not None:
@@ -841,6 +849,10 @@ class ContractAnalyzer:
 
         # 7. CFG 노드에 업데이트된 변수 정보 저장
         current_block.add_assign_statement(var_name, expr.expr_type, new_interval)
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         # 9. 개발자의 의도 파싱 및 비교
         intent_result = {"expected": [], "actual": [], "message": ""}
@@ -969,6 +981,10 @@ class ContractAnalyzer:
                 raise NotImplementedError("Only simple identifiers are supported as array variables.")
         else:
             raise NotImplementedError("Only member function calls are supported in this context.")
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         self.current_target_function_cfg = None
 
@@ -1242,6 +1258,10 @@ class ContractAnalyzer:
         # 6. 현재 블록을 join_point_node로 연결 (loop로 다시 돌아감)
         self.current_target_function_cfg.graph.add_edge(current_block, join_point_node)
 
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
+
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
             self.brace_count[self.current_start_line] = {}
@@ -1287,6 +1307,10 @@ class ContractAnalyzer:
 
         # 7. 현재 블록을 loop_exit_node로 연결 (루프에서 빠져나감)
         self.current_target_function_cfg.graph.add_edge(current_block, loop_exit_node)
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1366,6 +1390,10 @@ class ContractAnalyzer:
         # 7. 기존 successors에서 return_node로 edge 추가
         for successor in successors:
             self.current_target_function_cfg.graph.add_edge(return_node, successor)
+
+        if current_block.is_while_body:
+            vars = self.fixpoint(current_block)
+            self.update_while_body(vars, current_block)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1675,6 +1703,189 @@ class ContractAnalyzer:
             # 좌우 조건식에 대해 재귀적으로 처리
             self.update_variables_with_condition(variables, left_expr, is_true_branch)
             self.update_variables_with_condition(variables, right_expr, is_true_branch)
+
+    def fixpoint(self, current_block):
+        """
+        고정점 분석을 수행하여 루프 내의 변수 상태를 수렴시킵니다.
+        :param current_block: 현재 블록 (CFGNode)
+        :return: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        """
+        # 1. join_point_node 찾기
+        join_point_node = self.find_join_point_node(current_block)
+        if not join_point_node:
+            raise ValueError("Join point node not found for the current block.")
+
+        # 2. 루프 내의 모든 노드 수집
+        loop_nodes = self.traverse_loop_nodes(join_point_node)
+
+        # 3. 변수 상태 초기화
+        in_vars = {}
+        out_vars = {}
+        for node in loop_nodes:
+            in_vars[node] = {}
+            out_vars[node] = {}
+            if node == join_point_node:
+                # join_point_node의 변수 상태 초기화
+                in_vars[node] = self.copy_variables(join_point_node.join_point_node_vars)
+
+        # 4. 워크리스트 알고리즘 초기화
+        worklist = loop_nodes.copy()
+        max_iterations = 100  # 최대 반복 횟수 설정
+        iteration = 0
+        while worklist and iteration < max_iterations:
+            iteration += 1
+            node = worklist.pop(0)
+
+            # 5. 선행 노드들의 out_vars를 조인하여 in_vars 계산
+            predecessors = list(self.current_target_function_cfg.graph.predecessors(node))
+            new_in_vars = {}
+            for pred in predecessors:
+                if pred in out_vars:
+                    new_in_vars = self.join_variables(new_in_vars, out_vars[pred])
+                else:
+                    new_in_vars = self.join_variables(new_in_vars, in_vars.get(pred, {}))
+            if node == join_point_node:
+                new_in_vars = self.join_variables(new_in_vars, join_point_node.join_point_node_vars)
+
+            # 6. in_vars 변화 확인
+            if not self.variables_equal(in_vars[node], new_in_vars):
+                in_vars[node] = new_in_vars
+
+            # 7. 노드의 transfer function 적용하여 out_vars 계산
+            old_out_vars = out_vars[node]
+            out_vars[node] = self.transfer_function(node, in_vars[node])
+
+            # 8. out_vars 변화 확인 및 워크리스트 업데이트
+            if not self.variables_equal(old_out_vars, out_vars[node]):
+                successors = list(self.current_target_function_cfg.graph.successors(node))
+                for succ in successors:
+                    if succ in loop_nodes and succ not in worklist:
+                        worklist.append(succ)
+
+        if iteration == max_iterations:
+            print("Fixpoint analysis did not converge within max iterations.")
+
+        # 9. 수렴된 변수 상태를 루프 내 각 노드에 반영
+        for node in loop_nodes:
+            node.variables = out_vars[node]
+
+        # 10. 수렴된 변수 상태 반환
+        return out_vars[join_point_node]
+
+    def traverse_loop_nodes(self, loop_node):
+        """
+        루프 내의 모든 노드를 수집합니다.
+        :param loop_node: 루프의 시작 노드 (join_point_node)
+        :return: 루프 내의 노드 집합 (set)
+        """
+        visited = set()
+        stack = [loop_node]
+        while stack:
+            current_node = stack.pop()
+            if current_node in visited:
+                continue
+            visited.add(current_node)
+            successors = list(self.current_target_function_cfg.graph.successors(current_node))
+            for succ in successors:
+                # 루프 종료 노드로의 에지는 제외
+                if current_node.condition_node and current_node.condition_node_type == 'while':
+                    if succ.loop_exit_node:
+                        continue
+                stack.append(succ)
+        return visited
+
+    def join_variables(self, vars1, vars2):
+        """
+        두 변수 상태 딕셔너리를 조인합니다.
+        :param vars1: 첫 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :param vars2: 두 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: 조인된 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        """
+        result = self.copy_variables(vars1)
+        for var_name, var_obj in vars2.items():
+            if var_name in result:
+                # Variables 객체의 value 속성을 조인
+                var_value1 = result[var_name].value
+                var_value2 = var_obj.value
+                joined_value = self.join_variable_values(var_value1, var_value2)
+                result[var_name].value = joined_value
+            else:
+                # 새로운 변수 추가 (깊은 복사)
+                result[var_name] = self.copy_variables({var_name: var_obj})[var_name]
+        return result
+
+    def variables_equal(self, vars1, vars2):
+        """
+        두 변수 상태 딕셔너리가 동일한지 확인합니다.
+        :param vars1: 첫 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :param vars2: 두 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: 동일하면 True, 아니면 False
+        """
+        if vars1.keys() != vars2.keys():
+            return False
+        for var_name in vars1:
+            var_value1 = vars1[var_name].value
+            var_value2 = vars2[var_name].value
+            if not var_value1.equals(var_value2):
+                return False
+        return True
+
+    def transfer_function(self, node, in_vars):
+        """
+        노드의 transfer function을 적용하여 out_vars를 계산합니다.
+        :param node: 현재 노드
+        :param in_vars: 노드의 입력 변수 상태 (var_name -> Variables 객체)
+        :return: 노드의 출력 변수 상태 (var_name -> Variables 객체)
+        """
+        out_vars = self.copy_variables(in_vars)
+        if node.condition_node:
+            # 조건 노드 처리
+            self.update_variables_with_condition(out_vars, node.condition_expr, is_true_branch=True)
+        else:
+            # 일반 노드 처리: 노드의 모든 statement 평가
+            for statement in node.statements:
+                self.update_statement_with_variables(statement, out_vars)
+        return out_vars
+
+    def update_while_body(self, variables, current_block):
+        """
+        고정점 분석 결과를 바탕으로 while body 내의 문장들의 Interval을 업데이트합니다.
+        :param variables: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :param current_block: 현재 블록 (CFGNode)
+        """
+        # 1. join_point_node 찾기
+        join_point_node = self.find_join_point_node(current_block)
+        if not join_point_node:
+            raise ValueError("Join point node not found for the current block.")
+
+        # 2. 루프 내의 모든 노드 수집
+        loop_nodes = self.traverse_loop_nodes(join_point_node)
+
+        # 3. 각 노드의 문장들에 대해 Interval 업데이트
+        for node in loop_nodes:
+            node_vars = node.variables
+            for statement in node.statements:
+                self.update_statement_with_variables(statement, node_vars)
+
+    def update_statement_with_variables(self, statement, variables):
+        """
+        문장의 변수 Interval을 업데이트합니다.
+        :param statement: Statement 객체
+        :param variables: 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        """
+        if statement.statement_type == 'assignment':
+            # 좌변 변수의 Interval 업데이트
+            var_name = statement.left.identifier
+            if var_name in variables:
+                variables[var_name].value = self.evaluate_expression(statement.right, variables)
+            else:
+                # 새로운 변수인 경우 Variables 객체 생성
+                variables[var_name] = Variables(
+                    identifier=var_name,
+                    value=self.evaluate_expression(statement.right, variables),
+                    scope='local'
+                )
+        # 추가적인 문장 유형에 대한 처리 필요 시 구현
 
     def refine_interval(self, var_interval, value_interval, operator):
         # 조건 연산자에 따라 변수의 Interval을 좁힘
@@ -2062,9 +2273,12 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr):
+    def evaluate_expression(self, expr, variables=None):
         """
         주어진 Expression 객체를 평가하여 그 Interval을 반환합니다.
+        :param expr: Expression 객체
+        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: Interval 객체
         """
 
         # 1. 리터럴 값인 경우 처리
@@ -2089,11 +2303,18 @@ class ContractAnalyzer:
 
         # 2. 식별자인 경우 (변수)
         elif expr.identifier is not None:
-            return self.get_variable_interval(expr.identifier)
+            var_name = expr.identifier
+            if variables is not None:
+                if var_name in variables:
+                    return variables[var_name].value
+                else:
+                    raise ValueError(f"Variable '{var_name}' not found in current context.")
+            else:
+                return self.get_variable_interval(var_name)
 
         # 3. 단항 연산자 처리
         if expr.operator in ['-', '!', '~'] and expr.expression:
-            operand_interval = self.evaluate_expression(expr.expression)
+            operand_interval = self.evaluate_expression(expr.expression, variables)
             if operand_interval is not None:
                 if expr.operator == '-':
                     return operand_interval.negate()
@@ -2105,8 +2326,8 @@ class ContractAnalyzer:
                 raise ValueError(f"Unable to evaluate operand in unary expression: {expr}")
 
         # 4. 이항 연산자 처리
-        left_interval = self.evaluate_expression(expr.left) if expr.left else None
-        right_interval = self.evaluate_expression(expr.right) if expr.right else None
+        left_interval = self.evaluate_expression(expr.left, variables) if expr.left else None
+        right_interval = self.evaluate_expression(expr.right, variables) if expr.right else None
 
         if left_interval is not None and right_interval is not None:
             operator = expr.operator

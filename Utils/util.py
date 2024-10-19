@@ -83,7 +83,6 @@ class Variables:
         # 값 정보
         self.value = value  # interval
 
-
 class ArrayVariable(Variables):
     def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,
                  isConstant=False, scope=None):
@@ -105,8 +104,6 @@ class ArrayVariable(Variables):
                 element = Variables(identifier=f"{self.identifier}[{i}]", value=initial_interval)
                 self.elements.append(element)
 
-
-
 class StructVariable(Variables):
     def __init__(self, identifier=None, struct_type=None, value=None, isConstant=False, scope=None):
         super().__init__(identifier, value, isConstant, scope)
@@ -114,8 +111,6 @@ class StructVariable(Variables):
         self.typeInfo.typeCategory = 'struct'
         self.typeInfo.structTypeName = struct_type  # 구조체 이름
         self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
-
-
 
 class StructDefinition:
     def __init__(self, struct_name):
