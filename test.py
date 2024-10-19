@@ -124,7 +124,7 @@ test_inputs = [
 
     # 상태 변수 배열 선언
     {
-        'code': 'uint256[] public numbers;',  # 배열 변수 선언
+        'code': 'uint256[5] public numbers;',  # 배열 변수 선언
         'startLine': 5,
         'endLine': 5
     },
@@ -145,7 +145,7 @@ test_inputs = [
 
     # 함수 complexFunction 선언
     {
-        'code': 'function complexFunction(uint256 _a, uint256[] memory amounts) public returns (uint256) { \n }',
+        'code': 'function complexFunction(uint256 _a, uint256[5] memory amounts) public returns (uint256) { \n }',
         'startLine': 8,
         'endLine': 9
     },

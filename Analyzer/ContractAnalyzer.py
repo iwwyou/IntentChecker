@@ -23,7 +23,7 @@ class ContractAnalyzer:
 
         # for Multiple Contract
         self.contract_cfgs = {} # name -> CFG
-        #self.current_contract_cfg = None
+
 
         self.analysis_results = None
 
@@ -110,11 +110,20 @@ class ContractAnalyzer:
                 self.current_target_contract = self.find_contract_context(start_line)
                 self.current_target_function = self.find_function_context(start_line)
 
-        elif ',' in stripped_code:  # enum
-            parent_context = self.find_parent_context(start_line)
-            if parent_context == "enum":
-                self.current_context_type = "enumMember"
+
+        elif ',' in stripped_code:
+            # 함수 정의인지 확인 (괄호 열고 닫힌 경우는 함수 파라미터로 가정)
+            if '(' in stripped_code and ')' in stripped_code:
+                self.current_context_type = "functionDefinition"
                 self.current_target_contract = self.find_contract_context(start_line)
+                self.current_target_function = self.find_function_context(start_line)
+
+            # enum인지 확인
+            else:
+                parent_context = self.find_parent_context(start_line)
+                if parent_context == "enum":
+                    self.current_context_type = "enumMember"
+                    self.current_target_contract = self.find_contract_context(start_line)
 
         elif '{' in stripped_code: # definition 및 block 관련
             self.current_context_type = self.determine_top_level_context(new_code)
@@ -344,7 +353,7 @@ class ContractAnalyzer:
         }
 
         # 4. 상태 변수를 ContractCFG에 추가
-        contract_cfg.add_state_variable(variable_obj, init_expr)
+        contract_cfg.add_state_variable(variable_obj, interval_result)
 
         # 5. ContractCFG에 있는 모든 FunctionCFG에 상태 변수 추가
         for function_cfg in contract_cfg.functions.values():
@@ -519,7 +528,7 @@ class ContractAnalyzer:
 
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
-            interval = self.calculate_default_interval(variable_obj.var_type)
+            interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
         else:
             interval = self.evaluate_expression(init_expr)
 
@@ -527,23 +536,25 @@ class ContractAnalyzer:
         variable_obj.value = interval
 
         # 6. CFG 노드에 할당문 추가 및 변수 정보 업데이트
-        current_block.add_assign_statement(variable_obj.identifier, variable_obj.var_type, interval)
+        current_block.add_assign_statement(variable_obj, interval)
 
         # 7. 함수 CFG의 related_variables에 추가
-        self.current_target_function_cfg.related_variables[variable_obj.identifier] = variable_obj
+        self.current_target_function_cfg.add_related_variable(variable_obj)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 9. 분석 결과에 interval 값 저장
+        # 8. 분석 결과에 interval 값 저장
         interval_result = {
             "variable": variable_obj.identifier,
-            "type": variable_obj.var_type,
-            "value": [interval.min_value, interval.max_value]
+            "type": variable_obj.typeInfo.elementaryTypeName,
+            "value": [interval.min_value, interval.max_value],
+            "scope": variable_obj.scope,  # 추가로 스코프 정보 포함
+            "is_constant": variable_obj.isConstant
         }
 
-        # 10. 의도 체크 결과 저장 (lineComment가 있을 경우)
+        # 9. 의도 체크 결과 저장 (lineComment가 있을 경우)
         intent_result = {"expected": [], "actual": [interval.min_value, interval.max_value], "message": ""}
 
         if line_comment is not None:
@@ -557,7 +568,7 @@ class ContractAnalyzer:
                     "message"] = f"Error: {variable_obj.identifier} out of intended range {expected_interval.min_value} " \
                                  f"to {expected_interval.max_value}"
 
-        # 11. 분석 결과를 저장
+        # 10. 분석 결과를 저장
         result = {
             "line": self.current_start_line,
             "interval": interval_result,
@@ -567,13 +578,13 @@ class ContractAnalyzer:
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-        # 9. function_cfg 결과를 contract_cfg에 반영
+        # 11. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
-        # 10. contract_cfg를 contract_cfgs에 반영
+        # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
-        # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        # 13. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         self.current_target_function_cfg = None
@@ -1016,6 +1027,8 @@ class ContractAnalyzer:
         condition_block.condition_expr = condition_expr
         # 7. True 분기에서 변수 상태 복사 및 업데이트
         condition_block.variables = self.copy_variables(current_block.variables)
+        if current_block.is_while_body :
+            condition_block.is_while_body = True
 
         # 4. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
@@ -1027,6 +1040,8 @@ class ContractAnalyzer:
 
         # 7. True 분기에서 변수 상태 복사 및 업데이트
         true_block.variables = self.copy_variables(condition_block.variables)
+        if current_block.is_while_body :
+            condition_block.is_while_body = True
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
         # 8. 현재 블록의 후속 노드 처리 (기존 current_block의 successors를 가져옴)
@@ -1171,7 +1186,6 @@ class ContractAnalyzer:
         join_node.variables = self.copy_variables(current_block.variables)
         join_node.join_point_node_vars = self.copy_variables(current_block.variables)
 
-
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 기존 current_block과 successor들의 edge를 제거
@@ -1186,16 +1200,17 @@ class ContractAnalyzer:
         condition_node.variables = self.copy_variables(join_node.variables)
 
         # 5. Connect the current block to the join node (if not already connected)
-        self.current_target_function_cfg.add_node(join_node)
-        self.current_target_function_cfg.add_edge(current_block, join_node)
+        self.current_target_function_cfg.graph.add_node(join_node)
+        self.current_target_function_cfg.graph.add_edge(current_block, join_node)
 
         # 6. Connect the join node to the condition node
-        self.current_target_function_cfg.add_node(condition_node)
-        self.current_target_function_cfg.add_edge(join_node, condition_node)
+        self.current_target_function_cfg.graph.add_node(condition_node)
+        self.current_target_function_cfg.graph.add_edge(join_node, condition_node)
 
         # 7. Create the true node (loop body)
         true_node = CFGNode(name=f"while_body_{self.current_start_line}")
         true_node.is_while_body = True
+        true_node.variables = self.copy_variables(condition_node.variables)
         self.update_variables_with_condition(true_node.variables, condition_expr, is_true_branch=True)
 
         # 8. Create the false node (exit block)
@@ -1203,12 +1218,12 @@ class ContractAnalyzer:
                              loop_exit_node=True)
 
         # 9. Connect the condition node's true branch to the true node
-        self.current_target_function_cfg.add_node(true_node)
-        self.current_target_function_cfg.add_edge(condition_node, true_node, condition=True)
+        self.current_target_function_cfg.graph.add_node(true_node)
+        self.current_target_function_cfg.graph.add_edge(condition_node, true_node, condition=True)
 
         # 10. Connect the condition node's false branch to the false node
-        self.current_target_function_cfg.add_node(false_node)
-        self.current_target_function_cfg.add_edge(condition_node, false_node, condition=False)
+        self.current_target_function_cfg.graph.add_node(false_node)
+        self.current_target_function_cfg.graph.add_edge(condition_node, false_node, condition=False)
 
         # 기존 current_block과 successor들을 false block의 successor로
         for successor in successors:
@@ -2301,6 +2316,7 @@ class ContractAnalyzer:
                 else:
                     raise ValueError(f"Unable to parse literal value '{expr.literal}'")
 
+        #
         # 2. 식별자인 경우 (변수)
         elif expr.identifier is not None:
             var_name = expr.identifier
@@ -2311,6 +2327,30 @@ class ContractAnalyzer:
                     raise ValueError(f"Variable '{var_name}' not found in current context.")
             else:
                 return self.get_variable_interval(var_name)
+
+        # 3. MemberAccess 처리
+        if expr.context == 'MemberAccessContext':
+            base_var = self.find_variable_by_identifier(expr.base)
+            member_name = expr.member
+
+            # 배열의 length 처리
+            if isinstance(base_var, ArrayVariable) and member_name == 'length':
+                # 동적 배열의 길이 처리
+                if base_var.typeInfo.isDynamicArray:
+                    # 변수의 scope가 state인지 local인지 확인
+                    if base_var.scope == "state":
+                        # state 배열인 경우 실제 배열의 길이 반환
+                        return UnsignedIntegerInterval(len(base_var.elements), len(base_var.elements))
+                    elif base_var.scope == "local":
+                        # local 배열인 경우 무한대(동적 배열이므로 크기를 알 수 없음)
+                        return UnsignedIntegerInterval(0, float('inf'))
+                    else:
+                        raise ValueError(f"Unknown scope for array variable '{base_var.identifier}'")
+                else:
+                    # 정적 배열의 경우 고정된 배열 길이 반환
+                    return UnsignedIntegerInterval(base_var.typeInfo.arrayLength, base_var.typeInfo.arrayLength)
+            else:
+                raise ValueError(f"Unsupported member access: {member_name} on {base_var}")
 
         # 3. 단항 연산자 처리
         if expr.operator in ['-', '!', '~'] and expr.expression:
@@ -2364,6 +2404,21 @@ class ContractAnalyzer:
         else:
             # 피연산자 중 하나라도 None인 경우 예외 발생
             raise ValueError(f"Unable to evaluate expression due to missing operand intervals: {expr}")
+
+    def find_variable_by_identifier(self, expr):
+        """
+        식별자에 해당하는 변수를 찾아서 반환하는 함수.
+        :param expr: Expression 객체 또는 identifier 이름
+        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: Variables 객체
+        """
+        var_name = expr.identifier if hasattr(expr, 'identifier') else expr
+
+        # Function CFG의 related_variables 또는 contract CFG에서 변수 찾기
+        if self.current_target_function_cfg.related_variables[var_name] != None:
+            return self.current_target_function_cfg.related_variables[var_name]
+        else :
+            raise ValueError(f"Variable '{var_name}' not found in the current context.")
 
     def compare_intervals(self, left_interval, right_interval, operator):
         """

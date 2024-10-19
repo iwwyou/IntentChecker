@@ -185,11 +185,26 @@ class FunctionCFG(CFG):
         self.related_variables = {}
 
     def add_related_variable(self, variable_obj):
-        # 추가적인 처리: 만약 로컬 변수의 경우 필요한 값들을 기본값으로 설정할 수 있음
-        if variable_obj.scope == 'local':
+        # 배열 타입 처리
+        if isinstance(variable_obj, ArrayVariable):
+            # 배열은 각 요소를 따로 처리해야 함
+            if not variable_obj.elements:
+                initial_interval = IntegerInterval() if variable_obj.typeInfo.arrayBaseType.elementaryTypeName.startswith(
+                    "int") \
+                    else UnsignedIntegerInterval()  # 기본 interval 설정
+                variable_obj.initialize_elements(initial_interval)
+
+        # 구조체 타입 처리
+        elif isinstance(variable_obj, StructVariable):
+            # 구조체 멤버 변수들 처리
+            for member_name, member_var in variable_obj.members.items():
+                self.add_related_variable(member_var)  # 각 멤버 변수에 대해 재귀적으로 처리
+
+        # 기본 elementary 타입 처리 (로컬 변수)
+        elif variable_obj.scope == 'local':
             # int 또는 uint 타입 처리
             if variable_obj.typeInfo.elementaryTypeName.startswith("int"):
-                if variable_obj.value is None :
+                if variable_obj.value is None:
                     interval = IntegerInterval()
                     variable_obj.value = interval.bottom()  # IntegerInterval의 기본 bottom 값
 

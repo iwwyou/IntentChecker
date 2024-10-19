@@ -308,7 +308,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # 2. 파라미터 처리
         parameters = {}
         if ctx.parameterList():
-            parameters = self.visitParameterList(ctx.parameterList())
+            parameters = self.visitParameterList(ctx.parameterList(0))
 
         # 3. Modifier 처리
         modifiers = []
@@ -346,39 +346,73 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitParameterList(self, ctx: SolidityParser.ParameterListContext):
         parameters = []
 
-        # 각 파라미터의 타입과 이름을 추출
-        for i in range(len(ctx)):  # 각 파라미터에 접근
-            param_ctx = ctx[i]
+        # children 중에서 ','로 파라미터를 나누기 위한 리스트 생성
+        param_groups = []
+        current_param = []
 
-            # 1. 파라미터 타입 처리 (visitTypeName 호출)
-            type_ctx = param_ctx.children[0]
+        # 각 children을 순회하면서 ',' (TerminalNodeImpl)를 기준으로 파라미터 그룹을 나눔
+        for child in ctx.children:
+            if child.getText() == ',':
+                # ','를 만나면 하나의 파라미터 그룹을 완성하여 param_groups에 추가
+                param_groups.append(current_param)
+                current_param = []
+            else:
+                # ','가 아니면 해당 child를 현재 파라미터 그룹에 추가
+                current_param.append(child)
+
+        # 마지막 파라미터 그룹 추가 (리스트가 끝날 때)
+        if current_param:
+            param_groups.append(current_param)
+
+        # 각 param_group에서 타입과 변수를 추출
+        for param_group in param_groups:
             type_obj = SolType()  # SolType 객체 생성
-            type_obj = self.visitTypeName(type_ctx, type_obj)
+            var_name = None
 
-            # 2. 파라미터의 이름이 있는지 확인 (없으면 None)
-            var_name = param_ctx.children[1].getText() if param_ctx.children[1] else None
+            # param_group 내에서 각 요소를 확인
+            for elem in param_group:
+                if isinstance(elem, SolidityParser.TypeNameContext):
+                    # 1. 타입 정보 추출
+                    type_obj = self.visitTypeName(elem, type_obj)
+                elif isinstance(elem, SolidityParser.IdentifierContext):
+                    # 2. 변수 이름 추출
+                    var_name = elem.getText()
 
-            # 3. Variables 객체 생성 및 설정
-            variable_obj = Variables(identifier=var_name, scope="local")  # 파라미터는 로컬 스코프
-            variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+            # var_name이 없으면 객체 생성하지 않고 건너뜀
+            if var_name is None:
+                continue
 
-            # 4. 타입에 따른 Interval 설정
-            if type_obj.typeCategory == 'elementary':
-                if type_obj.elementaryTypeName.startswith('int'):
-                    # int 타입의 경우: -inf ~ +inf로 설정
-                    variable_obj.value = IntegerInterval(float('-inf'), float('inf'), type_obj.intTypeLength)
-                elif type_obj.elementaryTypeName.startswith('uint'):
-                    # uint 타입의 경우: 0 ~ +inf로 설정
-                    variable_obj.value = UnsignedIntegerInterval(0, float('inf'), type_obj.intTypeLength)
-                elif type_obj.elementaryTypeName == 'bool':
-                    # bool 타입의 경우: false ~ true로 설정
-                    variable_obj.value = BoolInterval(is_true=False, is_false=True)
+            # 타입에 따라 적절한 변수 클래스를 생성
+            if type_obj.typeCategory == 'array':
+                # 배열 타입인 경우 ArrayVariable 생성
+                variable_obj = ArrayVariable(
+                    identifier=var_name,
+                    base_type=type_obj.arrayBaseType,
+                    array_length=type_obj.arrayLength,
+                    is_dynamic=type_obj.isDynamicArray,
+                    scope="local"
+                )
+                # 배열 요소 초기화
+                variable_obj.initialize_elements(IntegerInterval(0, 0))  # 기본 interval 설정
 
-            # 4. 리스트에 Variables 객체 추가
+            elif type_obj.typeCategory == 'struct':
+                # 구조체 타입인 경우 StructVariable 생성
+                variable_obj = StructVariable(
+                    identifier=var_name,
+                    struct_type=type_obj.structTypeName,
+                    scope="local"
+                )
+
+            else:
+                # 기본 타입인 경우 Variables 객체 생성
+                variable_obj = Variables(identifier=var_name, scope="local")
+                variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+
+
+            # 리스트에 Variables 객체 추가
             parameters.append(variable_obj)
 
         return parameters
-
 
     # Visit a parse tree produced by SolidityParser#eventParameter.
     def visitEventParameter(self, ctx:SolidityParser.EventParameterContext):
@@ -465,7 +499,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return type_obj
 
     def evaluate_expression(self, expr):
-        if expr.expression_type == 'index_access':
+        # 1. LiteralExp 처리
+        if isinstance(expr, SolidityParser.LiteralExpContext):
+            return self.evaluate_literal_expression(expr)
+
+        # 2. IndexAccess 처리
+        elif expr.expression_type == 'index_access':
             base_var = self.evaluate_expression(expr.base)
             index_value = self.evaluate_expression(expr.index)
 
@@ -477,7 +516,63 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     raise IndexError(f"Array index out of bounds: {index}")
             else:
                 raise TypeError(f"Index access on non-array variable: {base_var}")
-        # 나머지 표현식 처리...
+
+        # 다른 표현식의 경우 처리 계속
+        # 여기에 다른 expression 규칙을 추가할 수 있음
+
+    def evaluate_literal_expression(self, expr):
+        """
+        literal 표현식 (숫자, 문자열, boolean 등)을 처리하는 함수.
+        LiteralExpContext에서 리터럴 값을 분석하여 처리합니다.
+        """
+        literal_text = expr.getText()  # 리터럴 텍스트 가져오기
+
+        # 숫자 리터럴인지 확인
+        if literal_text.isdigit():
+            return self.evaluate_number_literal(literal_text)
+
+        # 불리언 리터럴인지 확인
+        elif literal_text == 'true' or literal_text == 'false':
+            return self.evaluate_boolean_literal(literal_text)
+
+        # 기타 리터럴 타입 (16진수 문자열, 유니코드 등)
+        elif literal_text.startswith("0x"):
+            return self.evaluate_hex_string_literal(literal_text)
+
+        elif literal_text.startswith('"') and literal_text.endswith('"'):
+            return self.evaluate_string_literal(literal_text)
+
+        else:
+            raise ValueError(f"Unsupported literal type: {literal_text}")
+
+    def evaluate_number_literal(self, literal_text):
+        """
+        숫자 리터럴 처리
+        """
+        return int(literal_text)
+
+
+    def evaluate_boolean_literal(self, literal_text):
+        """
+        boolean 리터럴 처리
+        """
+        if literal_text == 'true':
+            return True
+        elif literal_text == 'false':
+            return False
+
+    def evaluate_hex_string_literal(self, literal_text):
+        """
+        16진수 리터럴 처리
+        """
+        return int(literal_text, 16)
+
+
+    def evaluate_string_literal(self, literal_text):
+        """
+        문자열 리터럴 처리
+        """
+        return literal_text.strip('"')  # 따옴표 제거 후 반환
 
     # Visit a parse tree produced by SolidityParser#BasicType.
     def visitBasicType(self, ctx: SolidityParser.ElementaryTypeNameContext, type_obj):
@@ -937,7 +1032,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitInteractiveVariableDeclarationStatement(self,
                                                      ctx: SolidityParser.InteractiveVariableDeclarationStatementContext):
         # 1. 변수 선언 정보 가져오기
-        var_type = ctx.variableDeclaration().typeName().getText()
+        type_ctx = ctx.variableDeclaration().typeName()
         var_name = ctx.variableDeclaration().identifier().getText()
 
         # 2. 초기화 값이 있는 경우 처리
@@ -945,8 +1040,39 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         if ctx.expression():
             init_expr = self.visitExpression(ctx.expression())
 
-        # 3. 변수 타입 정보 분석 및 Variables 객체 생성
-        variable_obj = Variables(identifier=var_name, metaType='elementary', var_type=var_type)
+        # 3. 변수 타입 정보 분석 및 적절한 Variables 객체 생성
+        type_obj = SolType()
+        type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
+
+        if type_obj.typeCategory == 'array':
+            # 배열 타입인 경우 ArrayVariable 생성
+            base_type = type_obj.arrayBaseType
+            array_length = type_obj.arrayLength
+            is_dynamic = type_obj.isDynamicArray
+            variable_obj = ArrayVariable(identifier=var_name, base_type=base_type,
+                                         array_length=array_length, is_dynamic=is_dynamic, scope='local')
+            if not is_dynamic:
+                # 정적 배열의 경우 초기화
+                variable_obj.initialize_elements(IntegerInterval(0, 0))
+
+        elif type_obj.typeCategory == 'struct':
+            # 구조체 타입인 경우 StructVariable 생성
+            struct_type = type_obj.structTypeName
+            variable_obj = StructVariable(identifier=var_name, struct_type=struct_type, scope='local')
+
+        else:
+            # 기본 타입인 경우 Variables 객체 생성
+            variable_obj = Variables(identifier=var_name, scope="local")
+            variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+
+            # 기본 타입에 대한 초기값 설정 (Interval)
+            if type_obj.typeCategory == 'elementary':
+                if type_obj.elementaryTypeName.startswith('int'):
+                    variable_obj.value = IntegerInterval(float('-inf'), float('inf'), type_obj.intTypeLength)
+                elif type_obj.elementaryTypeName.startswith('uint'):
+                    variable_obj.value = UnsignedIntegerInterval(0, float('inf'), type_obj.intTypeLength)
+                elif type_obj.elementaryTypeName == 'bool':
+                    variable_obj.value = BoolInterval(is_true=False, is_false=True)
 
         # 4. lineComment(개발자의 의도)가 있는 경우 처리
         line_comment = None
