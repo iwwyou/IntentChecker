@@ -1745,7 +1745,7 @@ class ContractAnalyzer:
 
         # 4. 워크리스트 알고리즘 초기화
         worklist = loop_nodes.copy()
-        max_iterations = 100  # 최대 반복 횟수 설정
+        max_iterations = 30  # 최대 반복 횟수 설정
         iteration = 0
         while worklist and iteration < max_iterations:
             iteration += 1
