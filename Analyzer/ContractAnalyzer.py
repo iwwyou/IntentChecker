@@ -1230,7 +1230,7 @@ class ContractAnalyzer:
             self.current_target_function_cfg.graph.add_edge(successor, false_node)
 
         # 11. Connect the true node back to the join node (loop back)
-        self.current_target_function_cfg.add_edge(true_node, join_node)
+        self.current_target_function_cfg.graph.add_edge(true_node, join_node)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -2205,10 +2205,17 @@ class ContractAnalyzer:
             visited.add(current_node)
             loop_nodes.append(current_node)
 
-            successors = list(self.get_current_function_cfg().graph.successors(current_node))
+            successors = list(self.current_target_function_cfg.graph.successors(current_node))
             for successor in successors:
-                if successor != loop_node.false_branch:
-                    stack.append(successor)
+                # 간선의 조건을 확인하여 false_branch를 건너뜀
+                edge_data = self.current_target_function_cfg.graph.get_edge_data(current_node, successor)
+                if edge_data and edge_data.get('condition') == False:  # False branch는 제외
+                    continue
+
+                # False branch가 아니면 순회 계속
+                stack.append(successor)
+                #if successor != loop_node.false_branch:
+                #    stack.append(successor)
 
         return loop_nodes
 
@@ -2351,6 +2358,67 @@ class ContractAnalyzer:
                     return UnsignedIntegerInterval(base_var.typeInfo.arrayLength, base_var.typeInfo.arrayLength)
             else:
                 raise ValueError(f"Unsupported member access: {member_name} on {base_var}")
+
+        # 4. IndexAccess 처리
+        if expr.context == 'IndexAccessContext':
+            base_var = self.find_variable_by_identifier(expr.base)
+            index_interval = self.evaluate_expression(expr.index, variables)
+
+            # 배열에 대한 인덱스 접근 처리
+            if isinstance(base_var, ArrayVariable):
+                # 인덱스가 정적 범위 내에 있는지 확인
+                if base_var.typeInfo.arrayLength is not None:
+                    index_min = index_interval.min_value
+                    index_max = index_interval.max_value
+                    if index_min < 0 or index_max >= base_var.typeInfo.arrayLength:
+                        raise IndexError(f"Array index out of bounds: {index_min} to {index_max}")
+
+                    # 인덱스가 배열의 범위 안에 있는 경우 해당 인덱스 값 반환
+                    return base_var.elements[index_min].value if index_min == index_max else IntegerInterval(
+                        min(base_var.elements[index_min].value.min_value,
+                            base_var.elements[index_max].value.min_value),
+                        max(base_var.elements[index_min].value.max_value,
+                            base_var.elements[index_max].value.max_value)
+                    )
+                else:
+                    # 동적 배열의 경우는 처리 필요
+                    raise ValueError("Dynamic arrays are not fully supported for index access yet.")
+            else:
+                raise TypeError(f"Index access on non-array variable: {base_var}")
+
+        # 5. IndexRangeAccess 처리
+        if expr.context == 'IndexRangeAccessContext':
+            base_var = self.find_variable_by_identifier(expr.base, variables)
+
+            # 배열에서 범위 접근을 처리
+            if isinstance(base_var, ArrayVariable):
+                # 배열이 고정 길이일 때 범위에 따른 처리
+                array_length = base_var.typeInfo.arrayLength
+
+                # 시작 및 끝 인덱스를 평가
+                start_index = self.evaluate_expression(expr.start_index,
+                                                       variables) if expr.start_index else IntegerInterval(0, 0)
+                end_index = self.evaluate_expression(expr.end_index,
+                                                     variables) if expr.end_index else IntegerInterval(
+                    array_length - 1, array_length - 1)
+
+                # 인덱스 값이 배열의 길이 범위 내에 있는지 확인
+                if start_index.min_value < 0 or end_index.max_value >= array_length:
+                    raise IndexError(
+                        f"Array index range out of bounds: {start_index.min_value} to {end_index.max_value}")
+
+                # 배열의 해당 범위에 있는 요소들의 값을 합산하거나 결합하여 반환
+                sub_intervals = [
+                    element.value for element in base_var.elements[start_index.min_value:end_index.max_value + 1]
+                ]
+                if len(sub_intervals) == 1:
+                    return sub_intervals[0]
+                else:
+                    min_value = min(interval.min_value for interval in sub_intervals)
+                    max_value = max(interval.max_value for interval in sub_intervals)
+                    return IntegerInterval(min_value, max_value)
+            else:
+                raise TypeError(f"Index range access on non-array variable: {base_var}")
 
         # 3. 단항 연산자 처리
         if expr.operator in ['-', '!', '~'] and expr.expression:
