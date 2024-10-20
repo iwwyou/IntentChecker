@@ -1743,13 +1743,14 @@ class ContractAnalyzer:
                 # join_point_node의 변수 상태 초기화
                 in_vars[node] = self.copy_variables(join_point_node.join_point_node_vars)
 
-        # 4. 워크리스트 알고리즘 초기화
-        worklist = loop_nodes.copy()
+        # 4. 워크리스트 알고리즘 초기화 (집합 사용)
+        worklist = set(loop_nodes)
         max_iterations = 30  # 최대 반복 횟수 설정
         iteration = 0
+
         while worklist and iteration < max_iterations:
             iteration += 1
-            node = worklist.pop(0)
+            node = worklist.pop()
 
             # 5. 선행 노드들의 out_vars를 조인하여 in_vars 계산
             predecessors = list(self.current_target_function_cfg.graph.predecessors(node))
@@ -1774,8 +1775,8 @@ class ContractAnalyzer:
             if not self.variables_equal(old_out_vars, out_vars[node]):
                 successors = list(self.current_target_function_cfg.graph.successors(node))
                 for succ in successors:
-                    if succ in loop_nodes and succ not in worklist:
-                        worklist.append(succ)
+                    if succ in loop_nodes:
+                        worklist.add(succ)
 
         if iteration == max_iterations:
             print("Fixpoint analysis did not converge within max iterations.")
@@ -1786,6 +1787,7 @@ class ContractAnalyzer:
 
         # 10. 수렴된 변수 상태 반환
         return out_vars[join_point_node]
+
 
     def traverse_loop_nodes(self, loop_node):
         """
@@ -2161,7 +2163,7 @@ class ContractAnalyzer:
                 continue
             visited.add(current_node)
 
-            successors = list(self.get_current_function_cfg().graph.successors(current_node))
+            successors = list(self.current_target_function_cfg.graph.successors(current_node))
             if not successors:
                 # 자식이 없는 노드 (리프 노드)
                 leaf_nodes.append(current_node)

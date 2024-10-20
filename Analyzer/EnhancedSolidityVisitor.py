@@ -1065,15 +1065,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             variable_obj = Variables(identifier=var_name, scope="local")
             variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
-            # 기본 타입에 대한 초기값 설정 (Interval)
-            if type_obj.typeCategory == 'elementary':
-                if type_obj.elementaryTypeName.startswith('int'):
-                    variable_obj.value = IntegerInterval(float('-inf'), float('inf'), type_obj.intTypeLength)
-                elif type_obj.elementaryTypeName.startswith('uint'):
-                    variable_obj.value = UnsignedIntegerInterval(0, float('inf'), type_obj.intTypeLength)
-                elif type_obj.elementaryTypeName == 'bool':
-                    variable_obj.value = BoolInterval(is_true=False, is_false=True)
-
         # 4. lineComment(개발자의 의도)가 있는 경우 처리
         line_comment = None
         if ctx.lineComment():
