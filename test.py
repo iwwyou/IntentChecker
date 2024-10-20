@@ -145,7 +145,7 @@ test_inputs = [
 
     # 함수 complexFunction 선언
     {
-        'code': 'function complexFunction(uint256 _a, uint256[5] memory amounts) public returns (uint256) { \n }',
+        'code': 'function complexFunction(uint256 _a) public returns (uint256) { \n }',
         'startLine': 8,
         'endLine': 9
     },
@@ -171,139 +171,147 @@ test_inputs = [
         'endLine': 11
     },
 
+    # 배열 elements를 1, 2, 3, 4, 5로 초기화
+    {
+        'code': 'uint256[5] memory amounts = [1, 2, 3, 4, 5];',
+        'startLine': 12,
+        'endLine': 12
+    },
+
     # while문 선언
     {
         'code': 'while (i < amounts.length) { \n }',
-        'startLine': 12,
-        'endLine': 13
+        'startLine': 13,
+        'endLine': 14
     },
 
     # while문 내용 - 배열 요소 접근
     {
         'code': 'uint256 currentAmount = amounts[i];',
-        'startLine': 13,
-        'endLine': 13
+        'startLine': 14,
+        'endLine': 14
     },
 
     # while문 내용 - balance 증가
     {
         'code': 'balance += currentAmount;',
-        'startLine': 14,
-        'endLine': 14
+        'startLine': 15,
+        'endLine': 15
     },
 
     # if문 선언
     {
         'code': 'if (i == 10) { \n }',
-        'startLine': 15,
-        'endLine': 16
+        'startLine': 16,
+        'endLine': 17
     },
 
     # if문 내용 - return a;
     {
         'code': 'return a;',
-        'startLine': 16,
-        'endLine': 16
+        'startLine': 17,
+        'endLine': 17
     },
 
     # else if문 선언
     {
         'code': 'else if (i < 5) { \n }',
-        'startLine': 17,
-        'endLine': 18
+        'startLine': 18,
+        'endLine': 19
     },
 
     # else if문 내용 - a 증가
     {
         'code': 'a += 1;',
-        'startLine': 18,
-        'endLine': 18
+        'startLine': 19,
+        'endLine': 19
     },
 
     # else if문 내용 - i 증가
     {
         'code': 'i += 1;',
-        'startLine': 19,
-        'endLine': 19
+        'startLine': 20,
+        'endLine': 20
     },
 
     # else if문 내용 - continue
     {
         'code': 'continue;',
-        'startLine': 20,
-        'endLine': 20
+        'startLine': 21,
+        'endLine': 21
     },
 
     # else if문 추가
     {
         'code': 'else if (i >= 15) { \n }',
-        'startLine': 21,
-        'endLine': 22
+        'startLine': 22,
+        'endLine': 23
     },
 
     # else if문 내용 - break
     {
         'code': 'break;',
-        'startLine': 22,
-        'endLine': 22
+        'startLine': 23,
+        'endLine': 23
     },
 
     # else문 선언
     {
         'code': 'else { \n }',
-        'startLine': 23,
-        'endLine': 24
+        'startLine': 24,
+        'endLine': 25
     },
 
     # else문 내용 - balance 감소
     {
         'code': 'balance -= 2;',
-        'startLine': 24,
-        'endLine': 24
+        'startLine': 25,
+        'endLine': 25
     },
 
     # else문 내용 - a 계산
     {
         'code': 'a = a * 2 + 3;',
-        'startLine': 25,
-        'endLine': 25
+        'startLine': 26,
+        'endLine': 26
     },
 
     # else문 내용 - i 증가
     {
         'code': 'i += 1;',
-        'startLine': 26,
-        'endLine': 26
+        'startLine': 27,
+        'endLine': 27
     },
 
     # while문 종료 후 내용 - total 계산
     {
         'code': 'total = a * i;',
-        'startLine': 27,
-        'endLine': 27
+        'startLine': 28,
+        'endLine': 28
     },
 
     # 잔액 추가
     {
         'code': 'balance += total;',
-        'startLine': 28,
-        'endLine': 28
+        'startLine': 29,
+        'endLine': 29
     },
 
     # balances에 최종 a 값을 할당
     {
         'code': 'balances[msg.sender] = balance;',
-        'startLine': 29,
-        'endLine': 29
+        'startLine': 30,
+        'endLine': 30
     },
 
     # 함수 종료 - 최종 반환
     {
         'code': 'return balance;',
-        'startLine': 30,
-        'endLine': 30
+        'startLine': 31,
+        'endLine': 31
     }
 ]
+
 
 
 

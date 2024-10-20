@@ -835,9 +835,23 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
 
     # Visit a parse tree produced by SolidityParser#inlineArrayExpression.
-    def visitInlineArrayExpression(self, ctx:SolidityParser.InlineArrayExpressionContext):
-        return self.visitChildren(ctx)
+    # 배열 표현식 처리
+    def visitInlineArrayExpression(self, ctx: SolidityParser.InlineArrayExpressionContext):
+        elements = []
 
+        # 배열의 각 요소들을 순회하며 Expression으로 방문
+        for expr_ctx in ctx.expression():
+            element_expr = self.visitExpression(expr_ctx)  # 각 요소에 대해 Expression 객체 생성
+            elements.append(element_expr)  # 리스트에 추가
+
+        # Expression 객체로 배열을 표현
+        array_expr = Expression(
+            elements=elements,  # 배열의 요소들 저장
+            expr_type='array',  # 표현식 타입을 배열로 지정
+            context='InlineArrayExpressionContext'
+        )
+
+        return array_expr
 
     # Visit a parse tree produced by SolidityParser#assemblyStatement.
     def visitAssemblyStatement(self, ctx:SolidityParser.AssemblyStatementContext):
@@ -1949,6 +1963,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         )
 
         return result_expr
+
+    # Visit a parse tree produced by SolidityParser#InlineArrayExp.
+    def visitInlineArrayExp(self, ctx: SolidityParser.InlineArrayExpContext):
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#literal.
     def visitLiteralExp(self, ctx: SolidityParser.LiteralExpContext):

@@ -47,6 +47,52 @@ class CFGNode:
         # 3. 변수 정보 업데이트 (변수 이름 -> Variables 객체)
         self.variables[variable_obj.identifier] = variable_obj
 
+    def add_array_assign_statement(self, variable_obj: ArrayVariable, intervals: list):
+        """
+        배열 변수에 대한 할당문을 CFG에 추가하고 배열의 각 요소에 대해 변수 정보를 업데이트합니다.
+        :param variable_obj: ArrayVariable 객체
+        :param intervals: 배열 요소들의 Interval 값 리스트
+        """
+        for i, interval in enumerate(intervals):
+            # 배열의 각 요소에 대해 할당문 생성
+            assignment_stmt = Statement(
+                statement_type='assignment',
+                left=Expression(identifier=f"{variable_obj.identifier}[{i}]"),
+                operator='=',
+                right=Expression(literal=interval),
+                var_type=variable_obj.typeInfo.arrayBaseType.typeCategory
+            )
+            self.statements.append(assignment_stmt)
+
+            # 각 배열 요소의 값을 업데이트
+            variable_obj.elements[i].value = interval
+
+        # 배열 전체를 변수 정보로 업데이트
+        self.variables[variable_obj.identifier] = variable_obj
+
+    def add_struct_assign_statement(self, variable_obj: StructVariable, member_intervals: dict):
+        """
+        구조체 변수에 대한 할당문을 CFG에 추가하고 각 멤버에 대해 변수 정보를 업데이트합니다.
+        :param variable_obj: StructVariable 객체
+        :param member_intervals: 구조체 멤버들의 Interval 값 딕셔너리
+        """
+        for member_name, interval in member_intervals.items():
+            # 구조체 멤버에 대해 할당문 생성
+            assignment_stmt = Statement(
+                statement_type='assignment',
+                left=Expression(identifier=f"{variable_obj.identifier}.{member_name}"),
+                operator='=',
+                right=Expression(literal=interval),
+                var_type=variable_obj.members[member_name].typeInfo.typeCategory
+            )
+            self.statements.append(assignment_stmt)
+
+            # 각 멤버의 값을 업데이트
+            variable_obj.members[member_name].value = interval
+
+        # 구조체 전체를 변수 정보로 업데이트
+        self.variables[variable_obj.identifier] = variable_obj
+
     def copy_variables_to_node(self):
         return
 

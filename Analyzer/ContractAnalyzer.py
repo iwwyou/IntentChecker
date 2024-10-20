@@ -538,55 +538,96 @@ class ContractAnalyzer:
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
             interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
+            variable_obj.value = interval  # 기본 interval 설정
+            current_block.add_assign_statement(variable_obj, interval)
         else:
-            interval = self.evaluate_expression(init_expr)
+            # 타입에 따라 적절한 평가 함수 호출 및 할당문 추가
+            if isinstance(variable_obj, ArrayVariable):
+                intervals = self.evaluate_array_expression(variable_obj, init_expr)
+                current_block.add_array_assign_statement(variable_obj, intervals)  # Array 관련 할당문 추가
+            elif isinstance(variable_obj, StructVariable):
+                member_intervals = self.evaluate_struct_expression(variable_obj, init_expr)
+                current_block.add_struct_assign_statement(variable_obj, member_intervals)  # Struct 관련 할당문 추가
+            else:
+                interval = self.evaluate_expression(init_expr)
+                variable_obj.value = interval
+                current_block.add_assign_statement(variable_obj, interval)
 
-        # 5. Variables 객체의 값 업데이트
-        variable_obj.value = interval
-
-        # 6. CFG 노드에 할당문 추가 및 변수 정보 업데이트
-        current_block.add_assign_statement(variable_obj, interval)
-
-        # 7. 함수 CFG의 related_variables에 추가
+        # 5. 함수 CFG의 related_variables에 추가
         self.current_target_function_cfg.add_related_variable(variable_obj)
 
         if current_block.is_while_body:
             # while문 안에서 새로 생긴 값에 대해 bottom으로 join point node에 저장
             join_point_node = self.find_join_point_node(current_block)
+
             # identifier가 join_point_node의 variables에 없는 경우 처리
             if for_joint_node_variables.identifier not in join_point_node.variables:
-                # 변수가 없다면 기본값으로 초기화 (예: bottom 값)
-                variable_obj.value.bottom()
+                # 타입에 따라 bottom 값을 설정
+                if isinstance(variable_obj, ArrayVariable):
+                    self.set_bottom_for_array(variable_obj)
+                elif isinstance(variable_obj, StructVariable):
+                    self.set_bottom_for_struct(variable_obj)
+                elif isinstance(variable_obj, MappingVariable):
+                    self.set_bottom_for_mapping(variable_obj)
+                else:
+                    # 기본 타입 처리
+                    variable_obj.value.bottom()
+
+                # join_point_node에 변수 추가
                 join_point_node.join_point_node_vars[for_joint_node_variables.identifier] = variable_obj
                 join_point_node.variables[for_joint_node_variables.identifier] = variable_obj
 
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 8. 분석 결과에 interval 값 저장
-        interval_result = {
-            "variable": variable_obj.identifier,
-            "type": variable_obj.typeInfo.elementaryTypeName,
-            "value": [interval.min_value, interval.max_value],
-            "scope": variable_obj.scope,  # 추가로 스코프 정보 포함
-            "is_constant": variable_obj.isConstant
-        }
+        # 6. 분석 결과에 interval 값 저장 (배열 및 구조체 처리 추가)
+        if isinstance(variable_obj, ArrayVariable):
+            interval_result = {
+                "variable": variable_obj.identifier,
+                "type": variable_obj.typeInfo.elementaryTypeName,
+                "value": [[interval.min_value, interval.max_value] for interval in intervals],  # 배열 요소 각각의 interval
+                "scope": variable_obj.scope,
+                "is_constant": variable_obj.isConstant
+            }
+        elif isinstance(variable_obj, StructVariable):
+            interval_result = {
+                "variable": variable_obj.identifier,
+                "type": variable_obj.typeInfo.elementaryTypeName,
+                "value": [[interval.min_value, interval.max_value] for interval in member_intervals],
+                # 구조체 멤버별 interval
+                "scope": variable_obj.scope,
+                "is_constant": variable_obj.isConstant
+            }
+        else:
+            interval_result = {
+                "variable": variable_obj.identifier,
+                "type": variable_obj.typeInfo.elementaryTypeName,
+                "value": [interval.min_value, interval.max_value],
+                "scope": variable_obj.scope,  # 추가로 스코프 정보 포함
+                "is_constant": variable_obj.isConstant
+            }
 
-        # 9. 의도 체크 결과 저장 (lineComment가 있을 경우)
-        intent_result = {"expected": [], "actual": [interval.min_value, interval.max_value], "message": ""}
+        # 7. 의도 체크 결과 저장 (lineComment가 있을 경우)
+        intent_result = {"expected": [], "actual": interval_result["value"], "message": ""}
 
         if line_comment is not None:
             # 개발자의 의도 파싱
             expected_interval = self.parse_intent(line_comment)
 
             # 실제 interval이 의도된 interval 안에 포함되는지 확인
-            if expected_interval and not interval.encompass(expected_interval):
-                intent_result["expected"] = [expected_interval.min_value, expected_interval.max_value]
-                intent_result[
-                    "message"] = f"Error: {variable_obj.identifier} out of intended range {expected_interval.min_value} " \
-                                 f"to {expected_interval.max_value}"
+            if expected_interval:
+                if isinstance(variable_obj, ArrayVariable):
+                    for idx, interval in enumerate(intervals):
+                        if not interval.encompass(expected_interval):
+                            intent_result["expected"].append([expected_interval.min_value, expected_interval.max_value])
+                            intent_result[
+                                "message"] = f"Error: {variable_obj.identifier}[{idx}] out of intended range {expected_interval.min_value} to {expected_interval.max_value}"
+                elif not interval.encompass(expected_interval):
+                    intent_result["expected"] = [expected_interval.min_value, expected_interval.max_value]
+                    intent_result[
+                        "message"] = f"Error: {variable_obj.identifier} out of intended range {expected_interval.min_value} to {expected_interval.max_value}"
 
-        # 10. 분석 결과를 저장
+        # 8. 분석 결과를 저장
         result = {
             "line": self.current_start_line,
             "interval": interval_result,
@@ -596,13 +637,13 @@ class ContractAnalyzer:
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-        # 11. function_cfg 결과를 contract_cfg에 반영
+        # 9. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
-        # 12. contract_cfg를 contract_cfgs에 반영
+        # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
-        # 13. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        # 11. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         self.current_target_function_cfg = None
@@ -647,7 +688,7 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 좌변 변수 정보 가져오기 (CFGNode에서)
+        # 4. 좌변 변수 정보 가져오기 (배열, 구조체의 경우도 처리)
         var_name = self.extract_variable_name(expr.left)
         variable_obj = current_block.get_variable(var_name)
 
@@ -657,20 +698,28 @@ class ContractAnalyzer:
         if not variable_obj:
             raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
 
-        # 5. 좌변 Interval 가져오기
+        # 5. 좌변 Interval 가져오기 (배열이나 구조체인 경우 각각 처리)
         left_interval = variable_obj.value
 
-        # 6. 우변 표현식 평가
-        right_interval = self.evaluate_expression(expr.right)
+        # 6. 우변 표현식 평가 (배열, 구조체일 경우 적절한 함수 호출)
+        if isinstance(variable_obj, ArrayVariable):
+            right_intervals = self.evaluate_array_expression(variable_obj, expr.right)
+            current_block.add_array_assign_statement(variable_obj, right_intervals)
+        elif isinstance(variable_obj, StructVariable):
+            right_member_intervals = self.evaluate_struct_expression(variable_obj, expr.right)
+            current_block.add_struct_assign_statement(variable_obj, right_member_intervals)
+        else:
+            right_interval = self.evaluate_expression(expr.right)
 
         # 7. 복합 할당 연산자 처리
         if expr.operator == '=':
-            new_interval = right_interval
+            new_interval = right_interval if not isinstance(variable_obj, (ArrayVariable, StructVariable)) else None
         else:
             new_interval = self.process_compound_assignment(left_interval, right_interval, expr.operator)
 
-        # 8. CFG 노드에 할당문 추가
-        current_block.add_assign_statement(variable_obj, new_interval)
+        # 8. 배열 또는 구조체가 아닐 경우에만 일반 할당문 추가
+        if not isinstance(variable_obj, (ArrayVariable, StructVariable)):
+            current_block.add_assign_statement(variable_obj, new_interval)
 
         # 9. 우변의 관련 변수 정보 추출
         related_vars = self.extract_related_variables(expr.right, current_block, self.current_target_function_cfg)
@@ -679,7 +728,7 @@ class ContractAnalyzer:
         intervals_info = {
             "left": {
                 "variable": var_name,
-                "assigned_interval": [new_interval.min_value, new_interval.max_value],
+                "assigned_interval": [new_interval.min_value, new_interval.max_value] if new_interval else None,
             },
             "right": []
         }
@@ -719,13 +768,13 @@ class ContractAnalyzer:
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-        # 9. function_cfg 결과를 contract_cfg에 반영
+        # 13. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
-        # 10. contract_cfg를 contract_cfgs에 반영
+        # 14. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
-        # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        # 15. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         self.current_target_function_cfg = None
@@ -797,11 +846,30 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 이름 추출
+        # 4. 변수 이름 또는 배열/구조체 접근자 추출
         var_name = self.extract_variable_name(expr.expression)
+        variable_obj = current_block.get_variable(var_name)
 
-        # 5. 변수의 기존 interval 가져오기
-        current_interval = self.get_variable_interval(var_name)
+        if not variable_obj:
+            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
+
+        if not variable_obj:
+            raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
+
+        # 5. 배열 또는 구조체의 경우 처리
+        if isinstance(variable_obj, ArrayVariable):
+            # 배열 요소에 대해 연산 수행
+            index_expr = expr.expression.index  # 배열 인덱스 추출
+            index_interval = self.evaluate_expression(index_expr)
+            element = variable_obj.elements[index_interval.min_value]
+            current_interval = element.value
+        elif isinstance(variable_obj, StructVariable):
+            # 구조체 멤버에 대해 연산 수행
+            member_name = expr.expression.member
+            current_interval = variable_obj.members[member_name].value
+        else:
+            # 기본 변수 처리
+            current_interval = variable_obj.value
 
         # 6. 단항 연산 수행 (++i, --i)
         if expr.operator == '++':
@@ -812,7 +880,18 @@ class ContractAnalyzer:
             raise ValueError(f"Unsupported unary prefix operator: {expr.operator}")
 
         # 7. CFG 노드에 업데이트된 변수 정보 저장
-        current_block.add_assign_statement(var_name, expr.expr_type, new_interval)
+        if isinstance(variable_obj, ArrayVariable):
+            # 배열 요소에 대한 할당문 추가
+            current_block.add_array_assign_statement(variable_obj, [new_interval])
+            variable_obj.elements[index_interval.min_value].value = new_interval
+        elif isinstance(variable_obj, StructVariable):
+            # 구조체 멤버에 대한 할당문 추가
+            current_block.add_struct_assign_statement(variable_obj, {member_name: new_interval})
+            variable_obj.members[member_name].value = new_interval
+        else:
+            # 기본 변수에 대한 할당문 추가
+            current_block.add_assign_statement(variable_obj, new_interval)
+            variable_obj.value = new_interval
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -840,10 +919,10 @@ class ContractAnalyzer:
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-        # 9. function_cfg 결과를 contract_cfg에 반영
+        # 11. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
-        # 10. contract_cfg를 contract_cfgs에 반영
+        # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         self.current_target_function_cfg = None
@@ -862,11 +941,30 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 이름 추출
+        # 4. 변수 이름 또는 배열/구조체 접근자 추출
         var_name = self.extract_variable_name(expr.expression)
+        variable_obj = current_block.get_variable(var_name)
 
-        # 5. 변수의 기존 interval 가져오기
-        current_interval = self.get_variable_interval(var_name)
+        if not variable_obj:
+            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
+
+        if not variable_obj:
+            raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
+
+        # 5. 배열 또는 구조체의 경우 처리
+        if isinstance(variable_obj, ArrayVariable):
+            # 배열 요소에 대해 연산 수행
+            index_expr = expr.expression.index  # 배열 인덱스 추출
+            index_interval = self.evaluate_expression(index_expr)
+            element = variable_obj.elements[index_interval.min_value]
+            current_interval = element.value
+        elif isinstance(variable_obj, StructVariable):
+            # 구조체 멤버에 대해 연산 수행
+            member_name = expr.expression.member
+            current_interval = variable_obj.members[member_name].value
+        else:
+            # 기본 변수 처리
+            current_interval = variable_obj.value
 
         # 6. 단항 연산 수행 (i++, i--)
         if expr.operator == '++':
@@ -877,7 +975,18 @@ class ContractAnalyzer:
             raise ValueError(f"Unsupported unary suffix operator: {expr.operator}")
 
         # 7. CFG 노드에 업데이트된 변수 정보 저장
-        current_block.add_assign_statement(var_name, expr.expr_type, new_interval)
+        if isinstance(variable_obj, ArrayVariable):
+            # 배열 요소에 대한 할당문 추가
+            current_block.add_array_assign_statement(variable_obj, [new_interval])
+            variable_obj.elements[index_interval.min_value].value = new_interval
+        elif isinstance(variable_obj, StructVariable):
+            # 구조체 멤버에 대한 할당문 추가
+            current_block.add_struct_assign_statement(variable_obj, {member_name: new_interval})
+            variable_obj.members[member_name].value = new_interval
+        else:
+            # 기본 변수에 대한 할당문 추가
+            current_block.add_assign_statement(variable_obj, new_interval)
+            variable_obj.value = new_interval
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -905,10 +1014,10 @@ class ContractAnalyzer:
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-        # 9. function_cfg 결과를 contract_cfg에 반영
+        # 11. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
 
-        # 10. contract_cfg를 contract_cfgs에 반영
+        # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         self.current_target_function_cfg = None
@@ -930,82 +1039,88 @@ class ContractAnalyzer:
         if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
-        # 1. 함수 표현식 가져오기
+        # 3. 함수 표현식 가져오기
         function_expr = expr.function
 
-        # 2. 함수 표현식이 MemberAccessContext인지 확인
+        # 4. 함수 표현식이 MemberAccessContext인지 확인
         if function_expr.context == 'MemberAccessContext':
-            # 2.1 base와 member 가져오기
+            # 4.1 base와 member 가져오기
             base_expr = function_expr.base
             member_name = function_expr.member
 
-            # 2.2 base_expr이 IdentifierExpContext인지 확인
+            # 4.2 base_expr이 IdentifierExpContext인지 확인
             if base_expr.context == 'IdentifierExpContext':
                 identifier = base_expr.identifier
 
-                # 2.3 현재 함수 CFG에서 변수 가져오기
-                arr_var = self.self.current_target_function_cfg.get_variable(identifier)
+                # 4.3 현재 함수 CFG에서 변수 가져오기
+                arr_var = self.current_target_function_cfg.get_variable(identifier)
 
                 if arr_var is None:
                     raise ValueError(f"Variable '{identifier}' not found in current function scope.")
 
-                # 2.4 배열 변수인지 확인
-                if isinstance(arr_var, ArrayVariable) and arr_var.typeInfo.isDynamicArray:
-                    # 2.5 멤버 함수 처리
-                    if member_name == 'push':
-                        arguments = expr.arguments
+                # 4.4 배열 변수인지 확인
+                if isinstance(arr_var, ArrayVariable):
+                    # 4.5 배열의 기본 타입을 검증
+                    if arr_var.typeInfo.isDynamicArray:
+                        # 5. push 함수 처리
+                        if member_name == 'push':
+                            arguments = expr.arguments
 
-                        if arguments is None or len(arguments) == 0:
-                            # 빈 괄호 push(): 새로운 기본값 요소를 추가하고, 참조를 반환
-                            # 여기서는 기본값 요소를 추가합니다.
-                            base_type = arr_var.typeInfo.arrayBaseType
+                            if arguments is None or len(arguments) == 0:
+                                # push(): 새로운 기본값 요소 추가 (기본값을 타입에 맞춰 생성)
+                                base_type = arr_var.typeInfo.arrayBaseType
 
-                            # 기본값 생성 (타입에 따라 다름, 여기서는 None으로 처리)
-                            element_var = Variables(value=None, typeInfo=base_type)
+                                # 기본값 생성 (타입에 따라 처리)
+                                if base_type == 'uint' or base_type == 'int':
+                                    element_var = Variables(value=IntegerInterval(0, 0), typeInfo=base_type)
+                                else:
+                                    element_var = Variables(value=None, typeInfo=base_type)
 
-                            arr_var.elements.append(element_var)
+                                arr_var.elements.append(element_var)
 
-                            # 배열의 길이 증가
+                                # 배열의 길이 증가
+                                if arr_var.typeInfo.arrayLength is not None:
+                                    arr_var.typeInfo.arrayLength += 1
+
+                                # 반환값 처리 (필요시 참조 반환)
+                                return element_var
+                            elif len(arguments) == 1:
+                                # push(value): 인자를 배열에 추가
+                                arg_expr = arguments[0]
+                                arg_value = self.evaluate_expression(arg_expr)
+
+                                # 타입 호환성 확인 후 요소 추가
+                                element_var = Variables(value=arg_value, typeInfo=arr_var.typeInfo.arrayBaseType)
+                                arr_var.elements.append(element_var)
+
+                                # 배열의 길이 증가
+                                if arr_var.typeInfo.arrayLength is not None:
+                                    arr_var.typeInfo.arrayLength += 1
+
+                                # 반환값 없음
+                                return None
+                            else:
+                                raise ValueError("push() function accepts at most one argument.")
+                        # 6. pop 함수 처리
+                        elif member_name == 'pop':
+                            # pop(): 마지막 요소 제거
+                            if not arr_var.elements:
+                                raise IndexError(f"Cannot pop from empty array '{identifier}'.")
+
+                            arr_var.elements.pop()
+
+                            # 배열의 길이 감소
                             if arr_var.typeInfo.arrayLength is not None:
-                                arr_var.typeInfo.arrayLength += 1
+                                arr_var.typeInfo.arrayLength -= 1
 
-                            # 반환값 처리 (필요에 따라 구현)
-                            return element_var  # 참조를 반환 (여기서는 Variables 객체)
-                        elif len(arguments) == 1:
-                            # push(value): 인자를 배열에 추가
-                            arg_expr = arguments[0]
-                            arg_value = self.evaluate_expression(arg_expr)
-
-                            # 타입 호환성 검사는 생략합니다.
-
-                            element_var = Variables(value=arg_value, typeInfo=arr_var.typeInfo.arrayBaseType)
-                            arr_var.elements.append(element_var)
-
-                            # 배열의 길이 증가
-                            if arr_var.typeInfo.arrayLength is not None:
-                                arr_var.typeInfo.arrayLength += 1
-
-                            # push()는 반환값이 없음
+                            # 반환값 없음
                             return None
                         else:
-                            raise ValueError("push() function accepts at most one argument.")
-                    elif member_name == 'pop':
-                        # pop(): 마지막 요소를 제거
-                        if not arr_var.elements:
-                            raise IndexError(f"Cannot pop from empty array '{identifier}'.")
-
-                        arr_var.elements.pop()
-
-                        # 배열의 길이 감소
-                        if arr_var.typeInfo.arrayLength is not None:
-                            arr_var.typeInfo.arrayLength -= 1
-
-                        # pop()은 반환값이 없음
-                        return None
+                            raise NotImplementedError(f"Member function '{member_name}' is not implemented.")
                     else:
-                        raise NotImplementedError(f"Member function '{member_name}' is not implemented.")
+                        raise TypeError(f"Variable '{identifier}' is not a dynamic array.")
                 else:
-                    raise TypeError(f"Variable '{identifier}' is not a dynamic array.")
+                    raise TypeError(f"Variable '{identifier}' is not an array variable.")
             else:
                 raise NotImplementedError("Only simple identifiers are supported as array variables.")
         else:
@@ -1931,11 +2046,44 @@ class ContractAnalyzer:
         """
         if vars1.keys() != vars2.keys():
             return False
+
         for var_name in vars1:
-            var_value1 = vars1[var_name].value
-            var_value2 = vars2[var_name].value
-            if not var_value1.equals(var_value2):
-                return False
+            var_obj1 = vars1[var_name]
+            var_obj2 = vars2[var_name]
+
+            # 배열 타입 비교
+            if isinstance(var_obj1, ArrayVariable) and isinstance(var_obj2, ArrayVariable):
+                # 배열 길이 확인
+                if var_obj1.typeInfo.arrayLength != var_obj2.typeInfo.arrayLength:
+                    return False
+                # 배열의 각 요소 비교
+                for elem1, elem2 in zip(var_obj1.elements, var_obj2.elements):
+                    if not self.variables_equal({elem1.identifier: elem1}, {elem2.identifier: elem2}):
+                        return False
+
+            # 구조체 타입 비교
+            elif isinstance(var_obj1, StructVariable) and isinstance(var_obj2, StructVariable):
+                # 구조체 멤버 비교
+                if not self.variables_equal(var_obj1.members, var_obj2.members):
+                    return False
+
+            # 매핑 타입 비교
+            elif isinstance(var_obj1, MappingVariable) and isinstance(var_obj2, MappingVariable):
+                # 매핑된 키 값 확인
+                if var_obj1.mapping.keys() != var_obj2.mapping.keys():
+                    return False
+                # 매핑된 각 키-값 쌍 비교
+                for key in var_obj1.mapping:
+                    if not self.variables_equal({key: var_obj1.mapping[key]}, {key: var_obj2.mapping[key]}):
+                        return False
+
+            # 기본 타입 비교 (Variables)
+            else:
+                var_value1 = var_obj1.value
+                var_value2 = var_obj2.value
+                if not var_value1.equals(var_value2):
+                    return False
+
         return True
 
     def transfer_function(self, node, in_vars):
@@ -2447,90 +2595,6 @@ class ContractAnalyzer:
             else:
                 return self.get_variable_interval(var_name)
 
-        # 3. MemberAccess 처리
-        if expr.context == 'MemberAccessContext':
-            base_var = self.find_variable_by_identifier(expr.base)
-            member_name = expr.member
-
-            # 배열의 length 처리
-            if isinstance(base_var, ArrayVariable) and member_name == 'length':
-                # 동적 배열의 길이 처리
-                if base_var.typeInfo.isDynamicArray:
-                    # 변수의 scope가 state인지 local인지 확인
-                    if base_var.scope == "state":
-                        # state 배열인 경우 실제 배열의 길이 반환
-                        return UnsignedIntegerInterval(len(base_var.elements), len(base_var.elements))
-                    elif base_var.scope == "local":
-                        # local 배열인 경우 무한대(동적 배열이므로 크기를 알 수 없음)
-                        return UnsignedIntegerInterval(0, float('inf'))
-                    else:
-                        raise ValueError(f"Unknown scope for array variable '{base_var.identifier}'")
-                else:
-                    # 정적 배열의 경우 고정된 배열 길이 반환
-                    return UnsignedIntegerInterval(base_var.typeInfo.arrayLength, base_var.typeInfo.arrayLength)
-            else:
-                raise ValueError(f"Unsupported member access: {member_name} on {base_var}")
-
-        # 4. IndexAccess 처리
-        if expr.context == 'IndexAccessContext':
-            base_var = self.find_variable_by_identifier(expr.base)
-            index_interval = self.evaluate_expression(expr.index, variables)
-
-            # 배열에 대한 인덱스 접근 처리
-            if isinstance(base_var, ArrayVariable):
-                # 인덱스가 정적 범위 내에 있는지 확인
-                if base_var.typeInfo.arrayLength is not None:
-                    index_min = index_interval.min_value
-                    index_max = index_interval.max_value
-                    if index_min < 0 or index_max >= base_var.typeInfo.arrayLength:
-                        raise IndexError(f"Array index out of bounds: {index_min} to {index_max}")
-
-                    # 인덱스가 배열의 범위 안에 있는 경우 해당 인덱스 값 반환
-                    return base_var.elements[index_min].value if index_min == index_max else IntegerInterval(
-                        min(base_var.elements[index_min].value.min_value,
-                            base_var.elements[index_max].value.min_value),
-                        max(base_var.elements[index_min].value.max_value,
-                            base_var.elements[index_max].value.max_value)
-                    )
-                else:
-                    # 동적 배열의 경우는 처리 필요
-                    raise ValueError("Dynamic arrays are not fully supported for index access yet.")
-            else:
-                raise TypeError(f"Index access on non-array variable: {base_var}")
-
-        # 5. IndexRangeAccess 처리
-        if expr.context == 'IndexRangeAccessContext':
-            base_var = self.find_variable_by_identifier(expr.base, variables)
-
-            # 배열에서 범위 접근을 처리
-            if isinstance(base_var, ArrayVariable):
-                # 배열이 고정 길이일 때 범위에 따른 처리
-                array_length = base_var.typeInfo.arrayLength
-
-                # 시작 및 끝 인덱스를 평가
-                start_index = self.evaluate_expression(expr.start_index,
-                                                       variables) if expr.start_index else IntegerInterval(0, 0)
-                end_index = self.evaluate_expression(expr.end_index,
-                                                     variables) if expr.end_index else IntegerInterval(
-                    array_length - 1, array_length - 1)
-
-                # 인덱스 값이 배열의 길이 범위 내에 있는지 확인
-                if start_index.min_value < 0 or end_index.max_value >= array_length:
-                    raise IndexError(
-                        f"Array index range out of bounds: {start_index.min_value} to {end_index.max_value}")
-
-                # 배열의 해당 범위에 있는 요소들의 값을 합산하거나 결합하여 반환
-                sub_intervals = [
-                    element.value for element in base_var.elements[start_index.min_value:end_index.max_value + 1]
-                ]
-                if len(sub_intervals) == 1:
-                    return sub_intervals[0]
-                else:
-                    min_value = min(interval.min_value for interval in sub_intervals)
-                    max_value = max(interval.max_value for interval in sub_intervals)
-                    return IntegerInterval(min_value, max_value)
-            else:
-                raise TypeError(f"Index range access on non-array variable: {base_var}")
 
         # 3. 단항 연산자 처리
         if expr.operator in ['-', '!', '~'] and expr.expression:
@@ -2584,6 +2648,111 @@ class ContractAnalyzer:
         else:
             # 피연산자 중 하나라도 None인 경우 예외 발생
             raise ValueError(f"Unable to evaluate expression due to missing operand intervals: {expr}")
+
+    def evaluate_array_expression(self, variable_obj, init_expr, variables=None):
+        """
+        배열에 대한 초기화 표현식을 처리하고 값을 반환합니다.
+        :param variable_obj: ArrayVariable 객체
+        :param init_expr: 배열 초기화 표현식 (예: [1, 2, 3, 4, 5])
+        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: 배열 요소들의 값 (리스트 또는 단일 Interval 값)
+        """
+
+        # 1. InlineArrayExpression 처리: 배열의 각 요소 값을 리스트로 반환
+        if init_expr.context == 'InlineArrayExpressionContext':
+            intervals = []
+            for i, expr in enumerate(init_expr.elements):
+                interval = self.evaluate_expression(expr, variables)
+                if i < len(variable_obj.elements):
+                    variable_obj.elements[i].value = interval
+                    intervals.append(interval)
+                else:
+                    raise IndexError(f"Array index out of bounds: {i}")
+            return intervals  # 갱신된 배열 값들을 리스트로 반환
+
+        # 2. MemberAccess 처리: 배열의 length 값 반환
+        elif init_expr.context == 'MemberAccessContext':
+            base_var = self.find_variable_by_identifier(init_expr.base)
+            member_name = init_expr.member
+
+            if isinstance(base_var, ArrayVariable) and member_name == 'length':
+                if base_var.typeInfo.isDynamicArray:
+                    if base_var.scope == "state":
+                        return UnsignedIntegerInterval(len(base_var.elements), len(base_var.elements))
+                    elif base_var.scope == "local":
+                        return UnsignedIntegerInterval(0, float('inf'))
+                    else:
+                        raise ValueError(f"Unknown scope for array variable '{base_var.identifier}'")
+                else:
+                    return UnsignedIntegerInterval(base_var.typeInfo.arrayLength, base_var.typeInfo.arrayLength)
+            else:
+                raise ValueError(f"Unsupported member access: {member_name} on {base_var}")
+
+        # 3. IndexAccess 처리: 배열의 특정 인덱스 값 반환
+        elif init_expr.context == 'IndexAccessContext':
+            base_var = self.find_variable_by_identifier(init_expr.base)
+            index_interval = self.evaluate_expression(init_expr.index, variables)
+
+            if isinstance(base_var, ArrayVariable):
+                if base_var.typeInfo.arrayLength is not None:
+                    index_min = index_interval.min_value
+                    index_max = index_interval.max_value
+                    if index_min < 0 or index_max >= base_var.typeInfo.arrayLength:
+                        raise IndexError(f"Array index out of bounds: {index_min} to {index_max}")
+
+                    return base_var.elements[index_min].value if index_min == index_max else IntegerInterval(
+                        min(base_var.elements[index_min].value.min_value, base_var.elements[index_max].value.min_value),
+                        max(base_var.elements[index_min].value.max_value, base_var.elements[index_max].value.max_value)
+                    )
+                else:
+                    raise ValueError("Dynamic arrays are not fully supported for index access yet.")
+            else:
+                raise TypeError(f"Index access on non-array variable: {base_var}")
+
+        # 4. IndexRangeAccess 처리: 배열의 범위 값 반환
+        elif init_expr.context == 'IndexRangeAccessContext':
+            base_var = self.find_variable_by_identifier(init_expr.base, variables)
+
+            if isinstance(base_var, ArrayVariable):
+                array_length = base_var.typeInfo.arrayLength
+
+                start_index = self.evaluate_expression(init_expr.start_index,
+                                                       variables) if init_expr.start_index else IntegerInterval(0, 0)
+                end_index = self.evaluate_expression(init_expr.end_index,
+                                                     variables) if init_expr.end_index else IntegerInterval(
+                    array_length - 1, array_length - 1)
+
+                if start_index.min_value < 0 or end_index.max_value >= array_length:
+                    raise IndexError(
+                        f"Array index range out of bounds: {start_index.min_value} to {end_index.max_value}")
+
+                sub_intervals = [element.value for element in
+                                 base_var.elements[start_index.min_value:end_index.max_value + 1]]
+                if len(sub_intervals) == 1:
+                    return sub_intervals[0]
+                else:
+                    min_value = min(interval.min_value for interval in sub_intervals)
+                    max_value = max(interval.max_value for interval in sub_intervals)
+                    return IntegerInterval(min_value, max_value)
+            else:
+                raise TypeError(f"Index range access on non-array variable: {base_var}")
+
+        else:
+            raise ValueError(f"Unsupported context: {init_expr.context}")
+
+    def evaluate_struct_expression(self, variable_obj, init_expr):
+        """
+        구조체에 대한 초기화 표현식을 처리합니다.
+        :param variable_obj: StructVariable 객체
+        :param init_expr: 구조체 초기화 표현식
+        """
+        # 구조체의 각 멤버를 초기화하는 표현식을 평가
+        for member_name, member_expr in init_expr.named_arguments.items():
+            if member_name in variable_obj.members:
+                interval = self.evaluate_expression(member_expr)
+                variable_obj.members[member_name].value = interval
+            else:
+                raise ValueError(f"Struct member {member_name} not found in {variable_obj.identifier}")
 
     def find_variable_by_identifier(self, expr):
         """
@@ -2680,6 +2849,28 @@ class ContractAnalyzer:
             else :
                 # 5. 변수를 찾지 못한 경우 에러 발생
                 raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
+
+    def set_bottom_for_array(self, variable_obj):
+        """
+        배열 변수에 대해 bottom 값을 설정하는 함수.
+        """
+        for element in variable_obj.elements:
+            element.value = self.calculate_default_interval(variable_obj.typeInfo.arrayBaseType.elementaryTypeName)
+
+    def set_bottom_for_struct(self, variable_obj):
+        """
+        구조체 변수에 대해 bottom 값을 설정하는 함수.
+        """
+        for member_name, member_var in variable_obj.members.items():
+            member_var.value = self.calculate_default_interval(member_var.typeInfo.elementaryTypeName)
+
+    def set_bottom_for_mapping(self, variable_obj):
+        """
+        맵핑 변수에 대해 bottom 값을 설정하는 함수.
+        """
+        # 맵핑의 키와 값에 대해 기본값을 설정
+        for key, value in variable_obj.mapping.items():
+            value.value = self.calculate_default_interval(value.typeInfo.elementaryTypeName)
 
     """
     intent analysis part
