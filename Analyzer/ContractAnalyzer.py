@@ -2173,19 +2173,6 @@ class ContractAnalyzer:
         }
         return negations.get(operator, operator)
 
-    def merge_variables(self, variables_list):
-        merged_variables = {}
-        var_names = set().union(*[vars.keys() for vars in variables_list])
-
-        for var_name in var_names:
-            intervals = [vars[var_name] for vars in variables_list if var_name in vars]
-            merged_interval = intervals[0]
-            for interval in intervals[1:]:
-                merged_interval = merged_interval.join(interval)
-            merged_variables[var_name] = merged_interval
-
-        return merged_variables
-
     def analyze_function_call(self, function_name, function_args):
         # 함수의 리턴 타입과 Interval을 추론
         # 함수의 정의를 분석하거나 사전 정의된 정보를 활용
@@ -2202,29 +2189,6 @@ class ContractAnalyzer:
         # 함수 호출로 인해 상태 변수가 변경되는 경우 등을 처리
         # 함수의 정의를 분석하여 상태 변수의 업데이트를 추적
         # 여기서는 예시로 아무 작업도 수행하지 않음
-        pass
-
-    def process_unary_operation(self, expr, line_comment=None):
-        # 단항 연산자(++, -- 등)에 대한 처리 로직
-        # 변수의 값을 업데이트하고, 인터벌 분석 수행
-        # 개발자의 의도(line_comment)가 있는 경우 처리
-        pass
-
-    def process_function_call(self, expr, line_comment=None):
-        # 함수 호출에 대한 처리 로직
-        # 함수의 효과를 추론하거나, 사이드 이펙트를 고려
-        # 개발자의 의도(line_comment)가 있는 경우 처리
-        pass
-
-    def process_new_expression(self, expr, line_comment=None):
-        # new 연산자에 대한 처리 로직
-        # 객체 생성에 따른 영향 분석
-        # 개발자의 의도(line_comment)가 있는 경우 처리
-        pass
-
-    def process_general_expression(self, expr, line_comment=None):
-        # 기타 일반적인 표현식에 대한 처리 로직
-        # 필요에 따라 추가적인 분석 수행
         pass
 
     def get_current_block(self):
