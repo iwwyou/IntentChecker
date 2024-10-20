@@ -19,7 +19,7 @@ class CFGNode:
         self.join_point_node = join_point_node
         self.loop_exit_node = loop_exit_node
         self.is_while_body = False
-        self.join_point_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태
+        self.join_point_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태, join 하면서 변하는 변수의 상태
 
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
@@ -199,6 +199,12 @@ class FunctionCFG(CFG):
             # 구조체 멤버 변수들 처리
             for member_name, member_var in variable_obj.members.items():
                 self.add_related_variable(member_var)  # 각 멤버 변수에 대해 재귀적으로 처리
+
+        # 매핑 타입 처리
+        elif isinstance(variable_obj, MappingVariable):
+            # 매핑된 값들을 처리
+            for key, value in variable_obj.elements.items():
+                self.add_related_variable(value)  # 각 매핑된 값에 대해 재귀적으로 처리
 
         # 기본 elementary 타입 처리 (로컬 변수)
         elif variable_obj.scope == 'local':

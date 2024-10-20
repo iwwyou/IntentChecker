@@ -228,6 +228,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                                          scope='state')
         elif type_obj.typeCategory == 'struct':
             variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName, scope='state')
+        elif type_obj.typeCategory == 'mapping':
+            variable_obj = MappingVariable(identifier=var_name,
+                                           key_type=type_obj.mappingKeyType,
+                                           value_type=type_obj.mappingValueType,
+                                           scope='state')
         else:
             variable_obj = Variables(identifier=var_name, scope='state')
             variable_obj.typeInfo = type_obj
@@ -514,11 +519,53 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     return base_var.elements[index].value
                 else:
                     raise IndexError(f"Array index out of bounds: {index}")
+            elif isinstance(base_var, MappingVariable):
+                if index_value not in base_var.elements:
+                    # Mapping에 해당 키가 없을 경우 기본값 생성
+                    base_var.elements[index_value] = self.create_default_value(base_var.typeInfo.mappingValueType)
+                return base_var.elements[index_value].value
             else:
                 raise TypeError(f"Index access on non-array variable: {base_var}")
 
         # 다른 표현식의 경우 처리 계속
         # 여기에 다른 expression 규칙을 추가할 수 있음
+
+    def create_default_value(self, value_type):
+        """
+        주어진 값 타입에 따라 기본 값을 생성하는 함수 (예: 기본 Interval 등).
+        """
+        if value_type.typeCategory == 'elementary':
+            if value_type.elementaryTypeName.startswith('int'):
+                type_length = self.get_elementary_type_length(value_type.elementaryTypeName, default_length=256)
+                return IntegerInterval(float('-inf'), float('inf'), type_length)
+            elif value_type.elementaryTypeName.startswith('uint'):
+                type_length = self.get_elementary_type_length(value_type.elementaryTypeName, default_length=256)
+                return UnsignedIntegerInterval(0, float('inf'), type_length)
+            elif value_type.elementaryTypeName == 'bool':
+                return BoolInterval(is_true=False, is_false=True)
+        elif value_type.typeCategory == 'mapping':
+            return MappingVariable()  # 기본 Mapping 객체 생성
+        elif value_type.typeCategory == 'array':
+            return ArrayVariable()  # 기본 Array 객체 생성
+        elif value_type.typeCategory == 'struct':
+            return StructVariable()  # 기본 Struct 객체 생성
+        else:
+            raise ValueError(f"Unsupported value type: {value_type.typeCategory}")
+
+    def get_elementary_type_length(self, elementary_type_name, default_length=256):
+        """
+        주어진 elementary 타입 이름에서 비트 길이를 추출합니다.
+        기본적으로 길이가 명시되지 않으면 default_length를 사용합니다.
+        """
+        if elementary_type_name == 'int' or elementary_type_name == 'uint':
+            return default_length
+        else:
+            try:
+                # 'int256', 'uint128' 등의 경우 뒤에 숫자가 붙어있는지 확인
+                return int(elementary_type_name[3:])  # 예: 'int256' -> 256
+            except ValueError:
+                # 만약 숫자가 없다면 기본값 사용
+                return default_length
 
     def evaluate_literal_expression(self, expr):
         """

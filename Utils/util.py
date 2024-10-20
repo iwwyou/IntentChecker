@@ -1,3 +1,5 @@
+from Utils.Interval import *
+
 class Statement:
     def __init__(self, statement_type, **kwargs):
         self.statement_type = statement_type  # 'assignment', 'if', 'while', 'for', 'return', 'require', 'assert' 등
@@ -73,15 +75,17 @@ class Expression:
 
 class Variables:
     def __init__(self, identifier=None, value=None,
-                 isConstant=False, scope=None):
+                 isConstant=False, scope=None, typeInfo=None):
         # 기본 속성
         self.identifier = identifier  # 변수명
         self.scope = scope  # 변수의 스코프 (local, state 등)
         self.isConstant = isConstant  # 상수 여부
-        self.typeInfo = None # SolType
+        self.typeInfo = typeInfo # SolType
 
         # 값 정보
         self.value = value  # interval
+
+
 
 class ArrayVariable(Variables):
     def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,
@@ -89,20 +93,105 @@ class ArrayVariable(Variables):
         super().__init__(identifier, value, isConstant, scope)
         self.typeInfo = SolType()
         self.typeInfo.typeCategory = 'array'
-        self.typeInfo.arrayBaseType = base_type  # SolType 객체
+        self.typeInfo.arrayBaseType = base_type  # SolType 객체 (배열의 기본 타입이 배열일 수도 있음)
         self.typeInfo.arrayLength = array_length
         self.typeInfo.isDynamicArray = is_dynamic
         self.elements = []  # 배열의 요소들: Variables 객체의 리스트
 
     def initialize_elements(self, initial_interval):
         """
-        정적 배열의 요소들을 초기화하는 메소드
+        정적 배열의 요소들을 초기화하는 메소드.
+        기본 타입이 배열인 경우 재귀적으로 요소들을 초기화합니다.
         :param initial_interval: 각 배열 요소에 할당될 초기 interval 값
         """
         if self.typeInfo.arrayLength is not None:
             for i in range(self.typeInfo.arrayLength):
-                element = Variables(identifier=f"{self.identifier}[{i}]", value=initial_interval)
-                self.elements.append(element)
+                # 배열의 기본 타입이 또 다른 배열인 경우 처리 (이중 배열)
+                if isinstance(self.typeInfo.arrayBaseType, SolType) and self.typeInfo.arrayBaseType.typeCategory == 'array':
+                    sub_array = ArrayVariable(
+                        identifier=f"{self.identifier}[{i}]",
+                        base_type=self.typeInfo.arrayBaseType.arrayBaseType,  # 하위 배열의 타입
+                        array_length=self.typeInfo.arrayBaseType.arrayLength,
+                        is_dynamic=self.typeInfo.arrayBaseType.isDynamicArray,
+                        scope=self.scope
+                    )
+                    sub_array.initialize_elements(initial_interval)  # 재귀적으로 초기화
+                    self.elements.append(sub_array)
+                else:
+                    # 일반 배열 요소인 경우 Variables 객체로 처리
+                    element = Variables(identifier=f"{self.identifier}[{i}]", value=initial_interval,
+                                        typeInfo=self.typeInfo.arrayBaseType)
+                    self.elements.append(element)
+
+class MappingVariable(Variables):
+    def __init__(self, identifier=None, key_type=None, value_type=None, value=None,
+                 isConstant=False, scope=None):
+        super().__init__(identifier, value, isConstant, scope)
+        self.typeInfo = SolType()
+        self.typeInfo.typeCategory = 'mapping'
+        self.typeInfo.mappingKeyType = key_type  # 키 타입: SolType 객체
+        self.typeInfo.mappingValueType = value_type  # 값 타입: SolType 객체
+        self.mapping = {}  # 매핑된 키-값 쌍 저장: key -> Variables 객체
+
+    def add_mapping(self, key, value):
+        """
+        매핑에 새로운 키-값 쌍을 추가합니다.
+        :param key: 매핑 키 (키 타입에 맞는 값이어야 함)
+        :param value: 매핑 값 (Variables 객체 또는 그 하위 클래스)
+        """
+        if not isinstance(key, Variables):
+            raise ValueError(f"Invalid key type: {key} is not a valid Variables object.")
+        if not isinstance(value, Variables):
+            raise ValueError(f"Invalid value type: {value} is not a valid Variables object.")
+
+        # 키와 값의 타입이 적합한지 확인
+        if key.typeInfo.elementaryTypeName != self.typeInfo.mappingKeyType.elementaryTypeName:
+            raise TypeError(
+                f"Key type mismatch: Expected {self.typeInfo.mappingKeyType.elementaryTypeName}, but got {key.typeInfo.elementaryTypeName}")
+
+        # 매핑의 값 타입이 다른 매핑, 배열, 구조체인 경우 처리
+        if isinstance(value, MappingVariable):
+            # 이중 매핑의 경우
+            if value.typeInfo.typeCategory != 'mapping':
+                raise TypeError(f"Value type mismatch: Expected 'mapping', but got {value.typeInfo.typeCategory}")
+        elif isinstance(value, ArrayVariable):
+            # 값이 배열일 경우
+            if value.typeInfo.typeCategory != 'array':
+                raise TypeError(f"Value type mismatch: Expected 'array', but got {value.typeInfo.typeCategory}")
+        elif isinstance(value, StructVariable):
+            # 값이 구조체일 경우
+            if value.typeInfo.typeCategory != 'struct':
+                raise TypeError(f"Value type mismatch: Expected 'struct', but got {value.typeInfo.typeCategory}")
+        else:
+            # 기본 타입의 경우 처리
+            if value.typeInfo.elementaryTypeName != self.typeInfo.mappingValueType.elementaryTypeName:
+                raise TypeError(
+                    f"Value type mismatch: Expected {self.typeInfo.mappingValueType.elementaryTypeName}, but got {value.typeInfo.elementaryTypeName}")
+
+        # 매핑 추가
+        self.mapping[key.identifier] = value
+
+    def get_mapping(self, key):
+        """
+        주어진 키에 해당하는 값을 반환합니다.
+        :param key: 매핑 키 (키 타입에 맞는 값이어야 함)
+        :return: 매핑된 Variables 객체 또는 None
+        """
+        if key in self.mapping:
+            return self.mapping[key]
+        else:
+            raise KeyError(f"Key '{key}' not found in the mapping.")
+
+    def remove_mapping(self, key):
+        """
+        매핑에서 주어진 키를 제거합니다.
+        :param key: 매핑 키
+        """
+        if key in self.mapping:
+            del self.mapping[key]
+        else:
+            raise KeyError(f"Key '{key}' not found in the mapping.")
+
 
 class StructVariable(Variables):
     def __init__(self, identifier=None, struct_type=None, value=None, isConstant=False, scope=None):

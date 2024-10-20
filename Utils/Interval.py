@@ -70,28 +70,29 @@ class IntegerInterval(Interval):
             raise ValueError(f"Unsupported operator: {operator}")
 
     def intersect(self, other):
-        return IntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value))
+        return IntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value),
+                               self.type_length)
 
     def subtract(self, other):
         # != 연산을 처리하기 위해 두 인터벌의 교차를 뺌 (즉, 교집합을 제외한 나머지를 의미)
-        return IntegerInterval(float('-inf'), float('inf')) if self == other else self
+        return IntegerInterval(float('-inf'), float('inf'), self.type_length) if self == other else self
 
     def less_than(self, other):
-        return IntegerInterval(self.min_value, min(self.max_value, other.min_value - 1))
+        return IntegerInterval(self.min_value, min(self.max_value, other.min_value - 1), self.type_length)
 
     def greater_than(self, other):
-        return IntegerInterval(max(self.min_value, other.max_value + 1), self.max_value)
+        return IntegerInterval(max(self.min_value, other.max_value + 1), self.max_value, self.type_length)
 
     def less_than_or_equal(self, other):
-        return IntegerInterval(self.min_value, min(self.max_value, other.max_value))
+        return IntegerInterval(self.min_value, min(self.max_value, other.max_value), self.type_length)
 
     def greater_than_or_equal(self, other):
-        return IntegerInterval(max(self.min_value, other.min_value), self.max_value)
+        return IntegerInterval(max(self.min_value, other.min_value), self.max_value, self.type_length)
 
     def widen(self, current_interval):
         new_min = float('-inf') if self.min_value > current_interval.min_value else self.min_value
         new_max = float('inf') if self.max_value < current_interval.max_value else self.max_value
-        return IntegerInterval(new_min, new_max)
+        return IntegerInterval(new_min, new_max, self.type_length)
 
     def narrow(self, new_interval):
         if self.min_value == float('-inf') or self.max_value == float('inf'):
@@ -100,7 +101,7 @@ class IntegerInterval(Interval):
         new_min = new_interval.min_value if self.min_value == float('-inf') else self.min_value
         new_max = new_interval.max_value if self.max_value == float('inf') else min(self.max_value,
                                                                                     new_interval.max_value)
-        return IntegerInterval(new_min, new_max)
+        return IntegerInterval(new_min, new_max, self.type_length)
 
     def top(self):
         min_value = -2 ** (self.type_length - 1)
@@ -447,28 +448,30 @@ class UnsignedIntegerInterval(Interval):
             raise ValueError(f"Unsupported operator: {operator}")
 
     def intersect(self, other):
-        return UnsignedIntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value))
+        return UnsignedIntegerInterval(max(self.min_value, other.min_value),
+                                       min(self.max_value, other.max_value),
+                                       self.type_length)
 
     def subtract(self, other):
         # == 연산을 제외한 값들의 interval
-        return UnsignedIntegerInterval(float('-inf'), float('inf')) if self == other else self
+        return UnsignedIntegerInterval(float('-inf'), float('inf'), self.type_length) if self == other else self
 
     def less_than(self, other):
-        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.min_value - 1))
+        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.min_value - 1), self.type_length)
 
     def greater_than(self, other):
-        return UnsignedIntegerInterval(max(self.min_value, other.max_value + 1), self.max_value)
+        return UnsignedIntegerInterval(max(self.min_value, other.max_value + 1), self.max_value, self.type_length)
 
     def less_than_or_equal(self, other):
-        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.max_value))
+        return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.max_value), self.type_length)
 
     def greater_than_or_equal(self, other):
-        return UnsignedIntegerInterval(max(self.min_value, other.min_value), self.max_value)
+        return UnsignedIntegerInterval(max(self.min_value, other.min_value), self.max_value, self.type_length)
 
     def widen(self, current_interval):
         new_min = 0 if self.min_value > current_interval.min_value else self.min_value
         new_max = float('inf') if self.max_value < current_interval.max_value else self.max_value
-        return UnsignedIntegerInterval(new_min, new_max)
+        return UnsignedIntegerInterval(new_min, new_max, self.type_length)
 
     def narrow(self, new_interval):
         if self.max_value == float('inf'):
@@ -477,7 +480,7 @@ class UnsignedIntegerInterval(Interval):
         new_min = new_interval.min_value if self.min_value == 0 else self.min_value
         new_max = new_interval.max_value if self.max_value == float('inf') else min(self.max_value,
                                                                                     new_interval.max_value)
-        return UnsignedIntegerInterval(new_min, new_max)
+        return UnsignedIntegerInterval(new_min, new_max, self.type_length)
 
     def top(self):
         min_value = 0

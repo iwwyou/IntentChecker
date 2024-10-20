@@ -3,6 +3,7 @@ from Utils.Interval import *
 from Utils.cfg import *
 from Utils.util import *
 from solcx import compile_source, install_solc
+from collections import deque
 import solcx
 import re
 
@@ -321,6 +322,12 @@ class ContractAnalyzer:
                 interval_result = IntegerInterval(0, 0)  # 기본값
                 variable_obj.initialize_elements(interval_result)  # 배열 요소 초기화
 
+            # MappingVariable 처리
+        elif isinstance(variable_obj, MappingVariable):
+            # Mapping은 기본적으로 동적이므로 초기화할 수 없습니다.
+            interval_result = None  # Mapping 자체는 interval이 없음
+            variable_obj.elements = {}  # 초기에는 빈 매핑으로 설정
+
         # 일반 변수 처리 (Variables)
         elif isinstance(variable_obj, Variables) and variable_obj.typeInfo.typeCategory == "elementary":
             elementary_type = variable_obj.typeInfo.elementaryTypeName
@@ -526,6 +533,8 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
+        for_joint_node_variables = variable_obj
+
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
             interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
@@ -542,6 +551,15 @@ class ContractAnalyzer:
         self.current_target_function_cfg.add_related_variable(variable_obj)
 
         if current_block.is_while_body:
+            # while문 안에서 새로 생긴 값에 대해 bottom으로 join point node에 저장
+            join_point_node = self.find_join_point_node(current_block)
+            # identifier가 join_point_node의 variables에 없는 경우 처리
+            if for_joint_node_variables.identifier not in join_point_node.variables:
+                # 변수가 없다면 기본값으로 초기화 (예: bottom 값)
+                variable_obj.value.bottom()
+                join_point_node.join_point_node_vars[for_joint_node_variables.identifier] = variable_obj
+                join_point_node.variables[for_joint_node_variables.identifier] = variable_obj
+
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
@@ -1183,8 +1201,8 @@ class ContractAnalyzer:
                             join_point_node=True)
 
         # Copy variables from current_block to join_node
-        join_node.variables = self.copy_variables(current_block.variables)
-        join_node.join_point_node_vars = self.copy_variables(current_block.variables)
+        join_node.variables = self.copy_variables(current_block.variables) # while문 이전에서 들어온 변수의 상태
+        join_node.join_point_node_vars = self.copy_variables(current_block.variables) # join 하면서 변하는 변수의 상태
 
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1357,18 +1375,23 @@ class ContractAnalyzer:
         # join_point_node를 찾지 못하면 None 반환
         return None
 
-    def find_while_condition_node(self, current_block, function_cfg):
+    def find_while_condition_node(self, current_node):
         """
-        현재 블록에서 위로 올라가면서 조건 노드 중 타입이 'while'인 노드를 찾음
-        """
-        predecessors = list(function_cfg.graph.predecessors(current_block))
+                재귀적으로 predecessor를 탐색하여 join_point_node를 찾는 함수
+                """
+        # 현재 노드가 join_point_node라면 반환
+        if current_node.condition_node and current_node.condition_node_type == "while":
+            return current_node
+
+        # 직접적인 predecessor를 탐색
+        predecessors = list(self.current_target_function_cfg.graph.predecessors(current_node))
         for pred in predecessors:
-            if pred.condition_node and pred.condition_node_type == "while":
-                return pred
-            # 재귀적으로 위로 탐색
-            result = self.find_while_condition_node(pred, function_cfg)
-            if result:
-                return result
+            # 재귀적으로 predecessor를 탐색하여 join_point_node를 찾음
+            while_condition_node = self.find_while_condition_node(pred)
+            if while_condition_node:
+                return while_condition_node
+
+        # join_point_node를 찾지 못하면 None 반환
         return None
 
     def process_return_statement(self, return_expr=None):
@@ -1667,6 +1690,21 @@ class ContractAnalyzer:
                                          member_name, member_obj in var_obj.members.items()}
                 copied_variables[var_name] = copied_struct
 
+            # MappingVariable 타입 처리
+            elif isinstance(var_obj, MappingVariable):
+                copied_mapping = MappingVariable(
+                    identifier=var_obj.identifier,
+                    key_type=var_obj.typeInfo.mappingKeyType,
+                    value_type=var_obj.typeInfo.mappingValueType,
+                    value=var_obj.value,
+                    isConstant=var_obj.isConstant,
+                    scope=var_obj.scope
+                )
+                # Mapping의 키-값 쌍을 깊은 복사
+                copied_mapping.mapping = {key: self.copy_variables({key: value})[key] for key, value in
+                                          var_obj.mapping.items()}
+                copied_variables[var_name] = copied_mapping
+
             # 기본 Variables 타입 처리
             else:
                 copied_variables[var_name] = Variables(
@@ -1730,8 +1768,12 @@ class ContractAnalyzer:
         if not join_point_node:
             raise ValueError("Join point node not found for the current block.")
 
+        while_condition_node = self.find_while_condition_node(current_block)
+        if not while_condition_node :
+            raise ValueError("While condition node not found for the current block.")
+
         # 2. 루프 내의 모든 노드 수집
-        loop_nodes = self.traverse_loop_nodes(join_point_node)
+        loop_nodes = self.traverse_loop_nodes(while_condition_node)
 
         # 3. 변수 상태 초기화
         in_vars = {}
@@ -1739,33 +1781,46 @@ class ContractAnalyzer:
         for node in loop_nodes:
             in_vars[node] = {}
             out_vars[node] = {}
-            if node == join_point_node:
-                # join_point_node의 변수 상태 초기화
+            if node == while_condition_node:
                 in_vars[node] = self.copy_variables(join_point_node.join_point_node_vars)
 
         # 4. 워크리스트 알고리즘 초기화 (집합 사용)
-        worklist = set(loop_nodes)
+        #worklist = set(loop_nodes)
+        worklist = deque([while_condition_node])
         max_iterations = 30  # 최대 반복 횟수 설정
         iteration = 0
 
         while worklist and iteration < max_iterations:
             iteration += 1
-            node = worklist.pop()
+            node = worklist.popleft()
 
             # 5. 선행 노드들의 out_vars를 조인하여 in_vars 계산
             predecessors = list(self.current_target_function_cfg.graph.predecessors(node))
-            new_in_vars = {}
+            new_in_vars = None  # None으로 초기화하여 첫 번째 조인 시 설정되도록 함
             for pred in predecessors:
-                if pred in out_vars:
-                    new_in_vars = self.join_variables(new_in_vars, out_vars[pred])
+                if pred in loop_nodes:
+                    # pred가 루프 내의 노드인 경우
+                    if pred in out_vars and out_vars[pred]:
+                        if new_in_vars is None:
+                            new_in_vars = self.copy_variables(out_vars[pred])
+                        else:
+                            new_in_vars = self.join_variables(new_in_vars, out_vars[pred])
+                    elif pred in in_vars and in_vars[pred]:
+                        if new_in_vars is None:
+                            new_in_vars = self.copy_variables(in_vars[pred])
+                        else:
+                            new_in_vars = self.join_variables(new_in_vars, in_vars[pred])
                 else:
-                    new_in_vars = self.join_variables(new_in_vars, in_vars.get(pred, {}))
-            if node == join_point_node:
-                new_in_vars = self.join_variables(new_in_vars, join_point_node.join_point_node_vars)
+                    # pred가 루프 밖의 노드인 경우
+                    if new_in_vars is None:
+                        new_in_vars = self.copy_variables(join_point_node.variables)
+                    else:
+                        new_in_vars = self.join_variables(new_in_vars, join_point_node.variables)
 
             # 6. in_vars 변화 확인
-            if not self.variables_equal(in_vars[node], new_in_vars):
-                in_vars[node] = new_in_vars
+            if new_in_vars:
+                if not self.variables_equal(in_vars[node], new_in_vars):
+                    in_vars[node] = new_in_vars
 
             # 7. 노드의 transfer function 적용하여 out_vars 계산
             old_out_vars = out_vars[node]
@@ -1776,10 +1831,11 @@ class ContractAnalyzer:
                 successors = list(self.current_target_function_cfg.graph.successors(node))
                 for succ in successors:
                     if succ in loop_nodes:
-                        worklist.add(succ)
+                        worklist.append(succ)
 
-        if iteration == max_iterations:
-            print("Fixpoint analysis did not converge within max iterations.")
+            if iteration == max_iterations:
+                print("Fixpoint analysis did not converge within max iterations.")
+                break
 
         # 9. 수렴된 변수 상태를 루프 내 각 노드에 반영
         for node in loop_nodes:
@@ -1821,11 +1877,46 @@ class ContractAnalyzer:
         result = self.copy_variables(vars1)
         for var_name, var_obj in vars2.items():
             if var_name in result:
-                # Variables 객체의 value 속성을 조인
-                var_value1 = result[var_name].value
-                var_value2 = var_obj.value
-                joined_value = self.join_variable_values(var_value1, var_value2)
-                result[var_name].value = joined_value
+                existing_var = result[var_name]
+                # 변수의 타입이 동일한지 확인
+                if existing_var.typeInfo.typeCategory != var_obj.typeInfo.typeCategory:
+                    raise TypeError(
+                        f"Cannot join variables of different types: {existing_var.typeInfo.typeCategory} and {var_obj.typeInfo.typeCategory}")
+                # 변수의 타입 카테고리에 따라 처리
+                if existing_var.typeInfo.typeCategory == 'array':
+                    # 배열 변수의 경우 각 요소를 조인
+                    # 배열 길이와 요소 타입이 동일한지 확인
+                    if existing_var.typeInfo.arrayLength != var_obj.typeInfo.arrayLength:
+                        raise ValueError("Cannot join arrays of different lengths")
+                    joined_elements = []
+                    for elem1, elem2 in zip(existing_var.elements, var_obj.elements):
+                        joined_elem = self.join_variables({elem1.identifier: elem1}, {elem2.identifier: elem2})
+                        joined_elements.append(joined_elem[elem1.identifier])
+                    existing_var.elements = joined_elements
+                elif existing_var.typeInfo.typeCategory == 'struct':
+                    # 구조체 변수의 경우 각 멤버를 조인
+                    existing_var.members = self.join_variables(existing_var.members, var_obj.members)
+                elif existing_var.typeInfo.typeCategory == 'mapping':
+                    # mapping 변수의 경우, 키-값 쌍을 조인
+                    if not existing_var.mapping:
+                        continue  # 매핑 값이 없는 경우 넘어감
+                    else:
+                        # 매핑 키-값을 비교하고 조인
+                        for key, value in var_obj.mapping.items():
+                            if key in existing_var.mapping:
+                                existing_var.mapping[key] = self.join_variables(
+                                    {key: existing_var.mapping[key]}, {key: value}
+                                )[key]
+                            else:
+                                # 없는 키는 새로 추가
+                                existing_var.mapping[key] = self.copy_variables({key: value})[key]
+
+                else:
+                    # 기본 변수의 경우 value를 조인
+                    var_value1 = existing_var.value
+                    var_value2 = var_obj.value
+                    joined_value = self.join_variable_values(var_value1, var_value2)
+                    existing_var.value = joined_value
             else:
                 # 새로운 변수 추가 (깊은 복사)
                 result[var_name] = self.copy_variables({var_name: var_obj})[var_name]
@@ -1858,6 +1949,8 @@ class ContractAnalyzer:
         if node.condition_node:
             # 조건 노드 처리
             self.update_variables_with_condition(out_vars, node.condition_expr, is_true_branch=True)
+        elif node.join_point_node:
+            return out_vars
         else:
             # 일반 노드 처리: 노드의 모든 statement 평가
             for statement in node.statements:
@@ -1894,12 +1987,12 @@ class ContractAnalyzer:
             # 좌변 변수의 Interval 업데이트
             var_name = statement.left.identifier
             if var_name in variables:
-                variables[var_name].value = self.evaluate_expression(statement.right, variables)
+                variables[var_name].value = statement.right.literal
             else:
                 # 새로운 변수인 경우 Variables 객체 생성
                 variables[var_name] = Variables(
                     identifier=var_name,
-                    value=self.evaluate_expression(statement.right, variables),
+                    value=statement.right.literal,
                     scope='local'
                 )
         # 추가적인 문장 유형에 대한 처리 필요 시 구현
@@ -2013,6 +2106,9 @@ class ContractAnalyzer:
                         if self.current_target_function_cfg:
                             entry_node = self.current_target_function_cfg.get_entry_node()
                             new_block = CFGNode(f"Block_{self.current_start_line}")
+                            # related_variables 딕셔너리를 복사하고 새로운 블록에 할당
+                            new_block.variables = self.copy_variables(
+                                self.current_target_function_cfg.related_variables)
                             self.current_target_function_cfg.graph.add_node(new_block)
                             self.current_target_function_cfg.graph.add_edge(entry_node, new_block)
                             return new_block
@@ -2175,13 +2271,27 @@ class ContractAnalyzer:
         return leaf_nodes
 
     def join_variable_values(self, value1, value2):
-        # 변수 타입에 따라 조인 연산 수행
-        # 여기서는 예시로 Interval 값을 조인한다고 가정합니다.
+        """
+        두 변수의 값을 조인합니다.
+        :param value1: 첫 번째 변수의 값 (Interval 등)
+        :param value2: 두 번째 변수의 값 (Interval 등)
+        :return: 조인된 값
+        """
+        # 두 값이 모두 Interval의 인스턴스인지 확인
         if isinstance(value1, Interval) and isinstance(value2, Interval):
-            return value1.join(value2)
+            # 동일한 타입의 Interval인지 확인
+            if type(value1) is type(value2):
+                # 동일한 타입의 Interval이면 해당 타입의 join 메소드 호출
+                return value1.join(value2)
+            else:
+                # 타입이 다른 Interval이면 예외 발생 또는 업캐스팅하여 처리
+                # 여기서는 예외를 발생시킵니다.
+                raise TypeError(
+                    f"Cannot join intervals of different types: {type(value1).__name__} and {type(value2).__name__}")
         else:
-            # 기타 타입에 대한 처리
-            return value1  # 또는 다른 조인 로직 적용
+            # Interval이 아닌 경우, 그대로 value1을 반환하거나 적절히 처리
+            return value1
+
     def update_variables_at_node(self, node, variables):
         """
         주어진 노드의 변수 정보를 업데이트합니다.
