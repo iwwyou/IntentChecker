@@ -166,7 +166,7 @@ test_inputs = [
 
     # 함수 내용 추가 - balance 초기화
     {
-        'code': 'balance = 0;',
+        'code': 'balance = 100;',
         'startLine': 11,
         'endLine': 11
     },

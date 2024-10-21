@@ -11,30 +11,9 @@ class Statement:
         # 각 statement_type별로 필요한 속성 설정
         if statement_type == 'assignment':
             self.left = kwargs.get('left')        # 좌변 Expression
-            self.operator = kwargs.get('operator')  # 할당 연산자 (예: '=')
+            self.operator = kwargs.get('operator')  # 할당 연산자 (예: '=', '+=', '-=' 등)
             self.right = kwargs.get('right')      # 우변 Expression
-        elif statement_type == 'if':
-            self.condition = kwargs.get('condition')  # 조건 Expression
-            self.then_body = kwargs.get('then_body', [])  # 참인 경우 실행할 Statement 리스트
-            self.else_body = kwargs.get('else_body', [])  # 거짓인 경우 실행할 Statement 리스트
-        elif statement_type == 'while':
-            self.condition = kwargs.get('condition')  # 조건 Expression
-            self.body = kwargs.get('body', [])        # 반복문 본문 Statement 리스트
-        elif statement_type == 'for':
-            self.initialization = kwargs.get('initialization')  # 초기화 Statement
-            self.condition = kwargs.get('condition')            # 조건 Expression
-            self.increment = kwargs.get('increment')            # 증감 Expression
-            self.body = kwargs.get('body', [])                  # 반복문 본문 Statement 리스트
-        elif statement_type in ['require', 'assert']:
-            self.condition = kwargs.get('condition')  # 조건 Expression
-            self.message = kwargs.get('message')      # 에러 메시지 (옵션)
-        elif statement_type == 'return':
-            self.expression = kwargs.get('expression')  # 반환할 Expression
-        elif statement_type == 'expression_statement':
-            self.expression = kwargs.get('expression')  # 표현식 자체가 문인 경우
-        elif statement_type == 'block':
-            self.statements = kwargs.get('statements', [])  # 블록 내의 Statement 리스트
-        # 추가적인 문법 규칙에 대한 속성도 필요한 경우 추가
+            self.evaluated_value = kwargs.get('evaluated_value')  # 우변 표현식을 평가한 Interval 값
 
 
 

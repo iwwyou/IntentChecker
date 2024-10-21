@@ -24,73 +24,89 @@ class CFGNode:
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
 
-    def add_assign_statement(self, variable_obj: Variables, val: Interval):
+    def add_assign_statement(self, variable_obj: Variables, expr: Expression, evaluated_value=None, operator='='):
         """
         변수에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
         :param variable_obj: Variables 객체
-        :param val: Interval 값
+        :param expr: 우변 Expression 객체
+        :param evaluated_value: 우변 표현식을 평가한 Interval 값
+        :param operator: 할당 연산자
         """
-
-        # 1. 할당문을 Statement 객체로 생성
+        # Statement 생성
         assignment_stmt = Statement(
             statement_type='assignment',
             left=Expression(identifier=variable_obj.identifier),
-            operator='=',
-            right=Expression(literal=val),
-            var_type=variable_obj.typeInfo.typeCategory
+            operator=operator,
+            right=expr,
+            evaluated_value=evaluated_value
         )
         self.statements.append(assignment_stmt)
 
-        # 2. Variables 객체에 값 업데이트
-        variable_obj.value = val
+        # 변수 값 업데이트 (실시간 분석을 위해)
+        variable_obj.value = evaluated_value
 
-        # 3. 변수 정보 업데이트 (변수 이름 -> Variables 객체)
+        # 변수 정보 업데이트
         self.variables[variable_obj.identifier] = variable_obj
 
-    def add_array_assign_statement(self, variable_obj: ArrayVariable, intervals: list):
+    def add_array_assign_statement(self, variable_obj: ArrayVariable, expr: Expression, evaluated_value=None,
+                                   operator='='):
         """
-        배열 변수에 대한 할당문을 CFG에 추가하고 배열의 각 요소에 대해 변수 정보를 업데이트합니다.
+        배열 변수에 대한 할당문을 CFG에 추가합니다.
         :param variable_obj: ArrayVariable 객체
-        :param intervals: 배열 요소들의 Interval 값 리스트
+        :param expr: 우변 Expression 객체
+        :param evaluated_value: 배열 요소들의 Interval 값 리스트
+        :param operator: 할당 연산자
         """
-        for i, interval in enumerate(intervals):
-            # 배열의 각 요소에 대해 할당문 생성
-            assignment_stmt = Statement(
-                statement_type='assignment',
-                left=Expression(identifier=f"{variable_obj.identifier}[{i}]"),
-                operator='=',
-                right=Expression(literal=interval),
-                var_type=variable_obj.typeInfo.arrayBaseType.typeCategory
-            )
-            self.statements.append(assignment_stmt)
+        assignment_stmt = Statement(
+            statement_type='assignment',
+            left=Expression(identifier=variable_obj.identifier),
+            operator=operator,
+            right=expr,
+            evaluated_value=evaluated_value
+        )
+        self.statements.append(assignment_stmt)
 
-            # 각 배열 요소의 값을 업데이트
-            variable_obj.elements[i].value = interval
+        # 변수 값 업데이트 (실시간 분석을 위해)
+        variable_obj.elements = evaluated_value
 
-        # 배열 전체를 변수 정보로 업데이트
+        # 변수 정보 업데이트
         self.variables[variable_obj.identifier] = variable_obj
 
-    def add_struct_assign_statement(self, variable_obj: StructVariable, member_intervals: dict):
+    def add_struct_assign_statement(self, variable_obj: StructVariable, expr: Expression,
+                                    evaluated_value=None, operator='='):
         """
-        구조체 변수에 대한 할당문을 CFG에 추가하고 각 멤버에 대해 변수 정보를 업데이트합니다.
+        구조체 변수에 대한 할당문을 CFG에 추가합니다.
         :param variable_obj: StructVariable 객체
-        :param member_intervals: 구조체 멤버들의 Interval 값 딕셔너리
+        :param expr: 우변 Expression 객체
+        :param evaluated_value: 구조체 멤버들의 Interval 값 딕셔너리
+        :param operator: 할당 연산자
         """
-        for member_name, interval in member_intervals.items():
-            # 구조체 멤버에 대해 할당문 생성
-            assignment_stmt = Statement(
-                statement_type='assignment',
-                left=Expression(identifier=f"{variable_obj.identifier}.{member_name}"),
-                operator='=',
-                right=Expression(literal=interval),
-                var_type=variable_obj.members[member_name].typeInfo.typeCategory
-            )
-            self.statements.append(assignment_stmt)
+        assignment_stmt = Statement(
+            statement_type='assignment',
+            left=Expression(identifier=variable_obj.identifier),
+            operator=operator,
+            right=expr,
+            evaluated_value=evaluated_value
+        )
+        self.statements.append(assignment_stmt)
 
-            # 각 멤버의 값을 업데이트
+        # 변수 값 업데이트 (실시간 분석을 위해)
+        for member_name, interval in evaluated_value.items():
             variable_obj.members[member_name].value = interval
 
-        # 구조체 전체를 변수 정보로 업데이트
+        # 변수 정보 업데이트
+        self.variables[variable_obj.identifier] = variable_obj
+
+    def add_mapping_assign_statement(self, variable_obj: MappingVariable, expr: Expression, evaluated_value=None,
+                                     operator='='):
+        assignment_stmt = Statement(
+            statement_type='assignment',
+            left=Expression(identifier=variable_obj.identifier),
+            operator=operator,
+            right=expr,
+            evaluated_value=evaluated_value
+        )
+        self.statements.append(assignment_stmt)
         self.variables[variable_obj.identifier] = variable_obj
 
     def copy_variables_to_node(self):
@@ -121,6 +137,7 @@ class CFG:
         self.graph.add_node(self.entry_node)
         self.graph.add_node(self.exit_node)
         self.graph.add_edge(self.entry_node, self.exit_node)
+
 
     def get_entry_node(self):
         return self.entry_node
@@ -164,7 +181,7 @@ class ContractCFG(CFG):
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
-    def add_state_variable(self, variable, expr=None): # variable : Variables, expr : Interval
+    def add_state_variable(self, variable, expr=None, evaluatedValue=None): # variable : Variables, expr : Interval
         # 상태 변수 노드가 없는 경우 생성
         if not self.state_variable_node:
             self.state_variable_node = CFGNode('State_Variable')
@@ -180,7 +197,7 @@ class ContractCFG(CFG):
             self.graph.add_edge(self.entry_node, self.state_variable_node)
 
         # 상태 변수 정보를 노드에 추가
-        self.state_variable_node.add_assign_statement(variable, expr)
+        self.state_variable_node.add_assign_statement(variable_obj=variable, expr=expr, evaluated_value=evaluatedValue)
 
 
     def add_constant_variable(self, variable, expr=None):
@@ -229,6 +246,21 @@ class FunctionCFG(CFG):
         self.function_name = function_name
         self.modifiers = {}
         self.related_variables = {}
+
+    def update_block(self, block_node):
+        """
+        FunctionCFG 내에서 블록을 업데이트하는 메서드.
+        기존 그래프에 블록을 찾아 업데이트하거나, 새로운 블록이 추가된 경우 이를 반영.
+        """
+        # 그래프에서 block_node의 ID에 해당하는 노드를 찾아서 업데이트
+        if self.graph.has_node(block_node):
+            # 이미 해당 노드가 그래프에 있으면, 노드 정보를 업데이트
+            existing_node = self.graph.nodes[block_node]
+            # 필요에 따라 기존 노드의 속성을 업데이트 (여기선 덮어쓰기)
+            self.graph.nodes[block_node].update(block_node.__dict__)
+
+        else:
+            raise ValueError(f"There is no {block_node} in functionCFG")
 
     def add_related_variable(self, variable_obj):
         # 배열 타입 처리
