@@ -197,7 +197,7 @@ class ContractAnalyzer:
                 return "interface"
             elif stripped_code.startswith("library"):
                 return "library"
-            elif stripped_code.startswith("function"):
+            elif stripped_code.startith("function"):
                 return "function"
             elif stripped_code.startswith("constructor"):
                 return "constructor"
