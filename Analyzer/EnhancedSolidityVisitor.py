@@ -755,13 +755,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # vscode에서 enum이 어떻게 날라오냐에 따라 달라질듯, 어짜피 중요한게 아니니 추후 수정하자
     def visitInteractiveEnumItems(self, ctx:SolidityParser.InteractiveEnumItemsContext):
-        enum_name = self.contract_analyzer.get_current_context()
         enum_items = [identifier.getText() for identifier in ctx.identifier()]
 
-        for item in enum_items:
-            self.contract_analyzer.add_enum_item(enum_name, item)
+        self.contract_analyzer.process_enum_item(enum_items)
 
-        return self.visitChildren(ctx)
+        return
 
 
     # Visit a parse tree produced by SolidityParser#interactiveFunctionElement.

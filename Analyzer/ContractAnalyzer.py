@@ -25,6 +25,8 @@ class ContractAnalyzer:
         # for Multiple Contract
         self.contract_cfgs = {} # name -> CFG
 
+        # 고정된 address 값 설정
+        self.fixed_address = "0x1234567890abcdef1234567890abcdef12345678"
 
         self.analysis_results = None
 
@@ -197,7 +199,7 @@ class ContractAnalyzer:
                 return "interface"
             elif stripped_code.startswith("library"):
                 return "library"
-            elif stripped_code.startith("function"):
+            elif stripped_code.startswith("function"):
                 return "function"
             elif stripped_code.startswith("constructor"):
                 return "constructor"
@@ -260,18 +262,39 @@ class ContractAnalyzer:
 
     # for interactiveEnumDefinition in Solidity.g4
     def process_enum_definition(self, enum_name):
-        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
 
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        contract_cfg.define_enum(enum_name)
-
-        # 10. contract_cfg를 contract_cfgs에 반영
-        self.contract_cfgs[self.current_target_contract] = contract_cfg
+        # 새로운 EnumDefinition 객체 생성
+        enum_def = EnumDefinition(enum_name)
+        contract_cfg.define_enum(enum_name, enum_def)
 
         # brace_count 업데이트
-        self.brace_count[self.current_start_line]['enums'] = contract_cfg.enums
+        self.brace_count[self.current_start_line]['cfg_node'] = enum_def
+
+    def process_enum_item(self, items):
+        # 현재 타겟 컨트랙트의 CFG 가져오기
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        # brace_count에서 가장 최근의 enum 정의를 찾습니다.
+        enum_def = None
+        for line in reversed(range(self.current_start_line + 1)):
+            context = self.brace_count.get(line)
+            if context and 'cfg_node' in context and isinstance(context['cfg_node'], EnumDefinition):
+                enum_def = context['cfg_node']
+                break
+
+        if enum_def is not None:
+            # EnumDefinition에 아이템 추가
+            for item in items:
+                enum_def.add_member(item)
+        else:
+            raise ValueError(f"Unable to find EnumDefinition context for line {self.current_start_line}")
 
     # for interactiveStructDefinition in Solidity.g4
     def process_struct_definition(self, struct_name):
@@ -354,7 +377,25 @@ class ContractAnalyzer:
             elif isinstance(variable_obj, MappingVariable):
                 # Mapping은 기본적으로 동적이므로 초기화할 수 없습니다.
                 interval_result = None  # Mapping 자체는 interval이 없음
-                variable_obj.elements = {}  # 초기에는 빈 매핑으로 설정
+                variable_obj.mapping = {}  # 초기에는 빈 매핑으로 설정
+                if variable_obj.typeInfo.mappingKeyType.typeCategory == "elementary" :
+                    if variable_obj.typeInfo.mappingKeyType.elementaryTypeName == 'address' :
+                        value_type = variable_obj.typeInfo.mappingValueType
+
+                        if value_type.elementaryTypeName.startswith("int"):
+                            # Integer interval 초기화
+                            sample_value = IntegerInterval(0, 0, value_type.intTypeLength)
+                        elif value_type.elementaryTypeName.startswith("uint"):
+                            # Unsigned integer 초기화
+                            sample_value = UnsignedIntegerInterval(0, 0, value_type.intTypeLength)
+                        elif value_type.elementaryTypeName == "bool":
+                            # Boolean 초기화
+                            sample_value = BoolInterval(False, False)
+                        else:
+                            sample_value = None
+
+                        variable_obj.mapping[self.fixed_address] = Variables(value=sample_value)
+
                 # Mapping 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
                 expr = Expression(literal=None)
 
@@ -570,14 +611,30 @@ class ContractAnalyzer:
 
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
-            # 초기화 값이 없는 경우 기본 Interval 설정
-            interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
-            variable_obj.value = interval  # 기본 interval 설정
+            if isinstance(variable_obj, EnumVariable):
+                # 초기화 식이 없는 경우 기본값 설정
+                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(
+                    variable_obj.typeInfo.enumTypeName)
+                if enum_def and enum_def.members:
+                    first_member = enum_def.members[0]
+                    variable_obj.set_member_value(first_member)
+                    variable_obj.value = 0  # 첫 번째 멤버의 인덱스는 0
+                    # 우변 표현식 생성
+                    expr = Expression(literal=f"{variable_obj.typeInfo.enumTypeName}.{first_member}")
+                    # Statement에 우변 표현식과 평가된 값 저장
+                    current_block.add_assign_statement(variable_obj, expr, evaluated_value=variable_obj.value)
+                else:
+                    raise ValueError(f"Enum '{variable_obj.typeInfo.enumTypeName}' is not defined or has no members.")
+            else :
+                # 초기화 값이 없는 경우 기본 Interval 설정
+                interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
+                variable_obj.value = interval  # 기본 interval 설정
 
-            # 우변 표현식 생성 (리터럴 값)
-            expr = Expression(literal=interval)
-            # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-            current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
+                # 우변 표현식 생성 (리터럴 값)
+                expr = Expression(literal=interval)
+                # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
+                current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
+
         else:
             # 5. 타입에 따른 분기 처리
             if isinstance(variable_obj, ArrayVariable):
@@ -658,6 +715,30 @@ class ContractAnalyzer:
                         variable_obj.elements.append(elem_var)
                     current_block.add_array_assign_statement(variable_obj, init_expr,
                                                              evaluated_value=variable_obj.elements)
+
+            elif isinstance(variable_obj, EnumVariable):
+                # 초기화 식이 있는 경우
+                right_interval = self.evaluate_enum_expression(init_expr, variables=current_block.variables)
+                if isinstance(right_interval, IntegerInterval):
+                    enum_value = right_interval.min_value
+                    enum_def = self.contract_cfgs[self.current_target_contract].enums.get(
+                        variable_obj.typeInfo.enumTypeName)
+                    if enum_def:
+                        if 0 <= enum_value < len(enum_def.members):
+                            member_name = enum_def.members[enum_value]
+                            variable_obj.set_member_value(member_name)
+                            variable_obj.value = enum_value
+                            # Statement에 우변 표현식과 평가된 값 저장
+                            current_block.add_assign_statement(variable_obj, init_expr,
+                                                               evaluated_value=variable_obj.value)
+                        else:
+                            raise ValueError(
+                                f"Enum value '{enum_value}' is out of range for enum '{variable_obj.typeInfo.enumTypeName}'.")
+                    else:
+                        raise ValueError(f"Enum '{variable_obj.typeInfo.enumTypeName}' is not defined.")
+                else:
+                    raise ValueError("Assigned value to EnumVariable must be an integer interval.")
+
             elif isinstance(variable_obj, StructVariable):
                 # 구조체 변수 처리
                 if init_expr.context == 'MemberAccessContext':
@@ -976,6 +1057,30 @@ class ContractAnalyzer:
                     variable_obj.elements.append(elem_var)
                 current_block.add_array_assign_statement(variable_obj, right_expr,
                                                          evaluated_value=variable_obj.elements)
+
+        elif isinstance(variable_obj, EnumVariable):
+            # 좌변이 EnumVariable인 경우
+            # 우변 표현식을 평가하여 Enum 값 설정
+            right_interval = self.evaluate_enum_expression(right_expr, variables=current_block.variables)
+            if isinstance(right_interval, IntegerInterval):
+                enum_value = right_interval.min_value
+                # EnumDefinition에서 해당 값의 멤버를 찾습니다.
+                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(
+                    variable_obj.typeInfo.enumTypeName)
+                if enum_def:
+                    if 0 <= enum_value < len(enum_def.members):
+                        member_name = enum_def.members[enum_value]
+                        variable_obj.set_member_value(member_name)
+                        variable_obj.value = enum_value
+                        # Statement에 우변 표현식과 평가된 값 저장
+                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=variable_obj.value)
+                    else:
+                        raise ValueError(
+                            f"Enum value '{enum_value}' is out of range for enum '{variable_obj.typeInfo.enumTypeName}'.")
+                else:
+                    raise ValueError(f"Enum '{variable_obj.typeInfo.enumTypeName}' is not defined.")
+            else:
+                raise ValueError("Assigned value to EnumVariable must be an integer interval.")
 
         elif isinstance(variable_obj, StructVariable):
             # 좌변이 구조체인 경우
@@ -3267,7 +3372,11 @@ class ContractAnalyzer:
         if init_expr.context == 'InlineArrayExpressionContext':
             intervals = []
             for i, expr in enumerate(init_expr.elements):
-                interval = self.evaluate_expression(expr, variables)
+                # 배열 요소의 타입에 따라 평가 함수 선택
+                if variable_obj.typeInfo.arrayBaseType.typeCategory == 'enum':
+                    interval = self.evaluate_enum_expression(expr, variables)
+                else:
+                    interval = self.evaluate_expression(expr, variables)
                 if i < len(variable_obj.elements):
                     variable_obj.elements[i].value = interval
                     intervals.append(interval)
@@ -3344,6 +3453,58 @@ class ContractAnalyzer:
 
         else:
             raise ValueError(f"Unsupported context: {init_expr.context}")
+
+    def evaluate_enum_expression(self, expr, variables=None):
+        """
+        주어진 Enum 표현식을 평가하여 그 Interval을 반환합니다.
+        :param expr: Expression 객체 (Enum 표현식)
+        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        :return: IntegerInterval 객체 (Enum 멤버의 인덱스 값)
+        """
+        # 1. 리터럴인 경우 (예: EnumType.Member)
+        if expr.literal is not None:
+            enum_literal = expr.literal
+            if '.' in enum_literal:
+                enum_type_name, member_name = enum_literal.split('.')
+                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(enum_type_name)
+                if enum_def and member_name in enum_def.members:
+                    enum_value = enum_def.members.index(member_name)
+                    return IntegerInterval(enum_value, enum_value)
+                else:
+                    raise ValueError(f"Enum member '{enum_literal}' not found.")
+            else:
+                raise ValueError(f"Invalid enum literal '{enum_literal}'. Expected format 'EnumType.Member'.")
+        # 2. 식별자인 경우 (Enum 변수)
+        elif expr.identifier is not None:
+            var_name = expr.identifier
+            if variables is not None:
+                if var_name in variables:
+                    var_obj = variables[var_name]
+                    if isinstance(var_obj, EnumVariable):
+                        enum_value = var_obj.value  # 정수 값 (멤버 인덱스)
+                        return IntegerInterval(enum_value, enum_value)
+                    else:
+                        raise ValueError(f"Variable '{var_name}' is not an EnumVariable.")
+                else:
+                    raise ValueError(f"Variable '{var_name}' not found in current context.")
+            else:
+                raise ValueError("Variables dictionary is required to evaluate enum variable.")
+        # 3. 멤버 접근인 경우 (MemberAccessContext)
+        elif expr.context == 'MemberAccessContext':
+            base_expr = expr.base
+            member_name = expr.member
+            if base_expr.identifier is not None:
+                enum_type_name = base_expr.identifier
+                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(enum_type_name)
+                if enum_def and member_name in enum_def.members:
+                    enum_value = enum_def.members.index(member_name)
+                    return IntegerInterval(enum_value, enum_value)
+                else:
+                    raise ValueError(f"Enum member '{enum_type_name}.{member_name}' not found.")
+            else:
+                raise ValueError("Invalid base expression for enum member access.")
+        else:
+            raise ValueError("Unsupported expression type for enum evaluation.")
 
     def evaluate_struct_expression(self, variable_obj, init_expr):
         """

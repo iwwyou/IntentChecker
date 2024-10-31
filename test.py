@@ -128,23 +128,23 @@ test_inputs = [
         'endLine': 5
     },
 
-    # 상태 변수 mapping 선언 - _rebaseState
+
     {
-        'code': 'mapping(address => uint8) private _rebaseState;',
+        'code': 'enum RebaseOptions { \n };',
         'startLine': 6,
         'endLine': 6
     },
 
-    # enum RebaseOptions 선언 - enumDefinition
+
     {
-        'code': 'enum RebaseOptions { \n };',
+        'code': 'NotSet, Rebased',
         'startLine': 7,
         'endLine': 8
     },
 
-    # enum RebaseOptions - enumItem 추가
+
     {
-        'code': 'NotSet, Rebased',
+        'code': 'mapping(address => RebaseOptions) private _rebaseState;',
         'startLine': 8,
         'endLine': 8
     },

@@ -151,33 +151,33 @@ class ContractCFG(CFG):
         super().__init__('contract')
         self.contract_name = contract_name
         self.state_variable_node = None
-        self.enums = {} # name -> member list
-        self.structs = {} #
+        self.enums = {}  # name -> EnumDefinition 객체
+        self.structs = {}  # name -> StructDefinition 객체
 
-        self.constructor = None # functionCFG (Constructor Type)
+        self.constructor = None  # FunctionCFG (Constructor Type)
         self.fallback = None
         self.receive = None
 
-        self.modifiers = {} # name -> functionCFG
-        self.functions = {} # name -> functionCFG
+        self.modifiers = {}  # name -> FunctionCFG
+        self.functions = {}  # name -> FunctionCFG
 
-    # for interactiveEnumDefinition in Solidity.g4
-    def define_enum(self, enum_name):
+    # Enum 정의 추가
+    def define_enum(self, enum_name, enum_def):
         if enum_name not in self.enums:
-            self.enums[enum_name] = []
+            self.enums[enum_name] = enum_def
         else:
             raise ValueError(f"Enum {enum_name} is already defined.")
 
-    # for interactiveStructDefinition in Solidity.g4
-    def define_struct(self, struct_name):
+    # Struct 정의 추가
+    def define_struct(self, struct_name, struct_def):
         if struct_name not in self.structs:
-            self.structs[struct_name] = {}
+            self.structs[struct_name] = struct_def
         else:
-            raise ValueError(f"Enum {struct_name} is already defined.")
+            raise ValueError(f"Struct {struct_name} is already defined.")
 
     def add_enum_member(self, enum_name, member_name):
         if enum_name in self.enums:
-            self.enums[enum_name].append(member_name)
+            self.enums[enum_name].add_member(member_name)
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 

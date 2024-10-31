@@ -185,6 +185,43 @@ class StructDefinition:
         self.struct_name = struct_name
         self.members = {}  # 멤버 변수들: 필드명 -> SolType 객체
 
+class EnumVariable(Variables):
+    def __init__(self, identifier=None, enum_type=None, value=None, isConstant=False, scope=None):
+        super().__init__(identifier, value, isConstant, scope)
+        self.typeInfo = SolType()
+        self.typeInfo.typeCategory = 'enum'
+        self.typeInfo.enumTypeName = enum_type  # 열거형 이름
+        self.members = {}  # 멤버 변수들: 멤버명 -> 정수 값 (열거형의 각 멤버는 정수 값에 매핑됨)
+        self.current_value = None  # 현재 설정된 멤버의 이름
+
+    def set_member_value(self, member_name):
+        """
+        열거형 변수의 값을 특정 멤버로 설정합니다.
+        :param member_name: 열거형 멤버 이름
+        """
+        if member_name in self.members:
+            self.current_value = member_name
+            self.value = self.members[member_name]  # 멤버의 정수 값을 변수의 값으로 설정
+        else:
+            raise ValueError(f"Member '{member_name}' not found in enum '{self.typeInfo.enumTypeName}'.")
+
+    def get_member_value(self):
+        """
+        열거형 변수의 현재 값을 반환합니다.
+        :return: 현재 설정된 멤버의 이름
+        """
+        return self.current_value
+
+class EnumDefinition:
+    def __init__(self, enum_name):
+        self.enum_name = enum_name
+        self.members = []  # 멤버들의 리스트
+
+    def add_member(self, member_name):
+        if member_name not in self.members:
+            self.members.append(member_name)
+        else:
+            raise ValueError(f"Member '{member_name}' is already defined in enum '{self.enum_name}'.")
 
 
 class SolType:

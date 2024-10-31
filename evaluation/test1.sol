@@ -6,7 +6,7 @@ contract USDs {
     mapping(address => uint256) private nonRebasingCreditsPerToken;
     uint256 private rebasingCreditsPerToken;
     uint256 private nonRebasingSupply;
-    mapping(address => uint8) private _rebaseState;
+    mapping(address => RebaseOptions) private _rebaseState;
     enum RebaseOptions { NotSet, Rebased }
 
     function _isNonRebasingAccount(address _account) internal view returns (bool) {
