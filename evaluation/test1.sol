@@ -85,193 +85,211 @@ test_inputs = [
         'endLine': 5
     },
 
-    # 상태 변수 mapping 선언 - _rebaseState
-    {
-        'code': 'mapping(address => uint8) private _rebaseState;',
-        'startLine': 6,
-        'endLine': 6
-    },
 
-    # enum RebaseOptions 선언 - enumDefinition
     {
         'code': 'enum RebaseOptions { \n };',
-        'startLine': 7,
-        'endLine': 8
+        'startLine': 6,
+        'endLine': 7
     },
 
-    # enum RebaseOptions - enumItem 추가
+
     {
         'code': 'NotSet, Rebased',
-        'startLine': 8,
-        'endLine': 8
+        'startLine': 7,
+        'endLine': 7
+    },
+
+
+    {
+        'code': 'mapping(address => RebaseOptions) private _rebaseState;',
+        'startLine': 9,
+        'endLine': 9
     },
 
     # _isContract 함수 선언
     {
         'code': 'function _isContract(address _account) private view returns (bool) { \n }',
-        'startLine': 9,
-        'endLine': 10
+        'startLine': 10,
+        'endLine': 11
     },
 
     # _isContract 함수 내용 - size 체크
     {
         'code': 'uint32 size = _account.code.length;',
-        'startLine': 10,
-        'endLine': 10
+        'startLine': 11,
+        'endLine': 11
     },
 
     # _isContract 함수 내용 - if문 작성
     {
         'code': 'if (size > 0) { \n }',
-        'startLine': 11,
-        'endLine': 11
+        'startLine': 12,
+        'endLine': 13
     },
 
     # _isContract 함수 내용 - return true
     {
         'code': 'return true;',
-        'startLine': 12,
-        'endLine': 12
+        'startLine': 13,
+        'endLine': 13
     },
 
     # _isContract 함수 내용 - return false
     {
         'code': 'return false;',
-        'startLine': 13,
-        'endLine': 13
+        'startLine': 15,
+        'endLine': 15
+    },
+
+    {
+        'code': '\n',
+        'startLine': 17,
+        'endLine': 17
     },
 
     # _balanceOf 함수 선언
     {
         'code': 'function _balanceOf(address _account) private view returns (uint256) { \n }',
-        'startLine': 14,
-        'endLine': 15
+        'startLine': 18,
+        'endLine': 19
     },
 
     # _balanceOf 함수 내용 - credits 변수 선언 및 초기화
     {
         'code': 'uint256 credits = _creditBalances[_account];',
-        'startLine': 15,
-        'endLine': 15
+        'startLine': 19,
+        'endLine': 19
     },
 
     # _balanceOf 함수 내용 - if문 체크 - credits > 0
     {
         'code': 'if (credits > 0) { \n }',
-        'startLine': 16,
-        'endLine': 16
+        'startLine': 20,
+        'endLine': 21
     },
 
     # _balanceOf 함수 내용 - if문 체크 - nonRebasingCreditsPerToken
     {
         'code': 'if (nonRebasingCreditsPerToken[_account] > 0) { \n }',
-        'startLine': 17,
-        'endLine': 17
+        'startLine': 21,
+        'endLine': 22
     },
 
     # _balanceOf 함수 내용 - return credits
     {
         'code': 'return credits;',
-        'startLine': 18,
-        'endLine': 18
+        'startLine': 22,
+        'endLine': 22
     },
 
     # _balanceOf 함수 내용 - return credits / rebasingCreditsPerToken
     {
         'code': 'return credits / rebasingCreditsPerToken;',
-        'startLine': 19,
-        'endLine': 19
+        'startLine': 24,
+        'endLine': 24
     },
 
     # _balanceOf 함수 내용 - return 0
     {
         'code': 'return 0;',
-        'startLine': 20,
-        'endLine': 20
+        'startLine': 26,
+        'endLine': 26
+    },
+
+    {
+        'code': '\n',
+        'startLine': 28,
+        'endLine': 28
     },
 
     # _ensureRebasingMigration 함수 선언
     {
         'code': 'function _ensureRebasingMigration(address _account) internal { \n }',
-        'startLine': 21,
-        'endLine': 22
+        'startLine': 29,
+        'endLine': 30
     },
 
     # _ensureRebasingMigration 함수 내용 - if문 체크 - nonRebasingCreditsPerToken[_account] == 0
     {
         'code': 'if (nonRebasingCreditsPerToken[_account] == 0) { \n }',
-        'startLine': 22,
-        'endLine': 22
+        'startLine': 30,
+        'endLine': 31
     },
 
     # _ensureRebasingMigration 함수 내용 - nonRebasingCreditsPerToken[_account] = 1;
     {
         'code': 'nonRebasingCreditsPerToken[_account] = 1;',
-        'startLine': 23,
-        'endLine': 23
+        'startLine': 31,
+        'endLine': 31
     },
 
     # _ensureRebasingMigration 함수 내용 - if문 체크 - _creditBalances[_account] != 0
     {
         'code': 'if (_creditBalances[_account] != 0) { \n }',
-        'startLine': 24,
-        'endLine': 24
+        'startLine': 32,
+        'endLine': 33
     },
 
     # _ensureRebasingMigration 함수 내용 - uint256 bal = _balanceOf(_account);
     {
         'code': 'uint256 bal = _balanceOf(_account);',
-        'startLine': 25,
-        'endLine': 25
+        'startLine': 33,
+        'endLine': 33
     },
 
     # _ensureRebasingMigration 함수 내용 - nonRebasingSupply 증가
     {
         'code': 'nonRebasingSupply = nonRebasingSupply + bal;',
-        'startLine': 26,
-        'endLine': 26
+        'startLine': 34,
+        'endLine': 34
     },
 
     # _ensureRebasingMigration 함수 내용 - _creditBalances[_account] 업데이트
     {
         'code': '_creditBalances[_account] = bal;',
-        'startLine': 27,
-        'endLine': 27
+        'startLine': 35,
+        'endLine': 35
+    },
+
+    {
+        'code': '\n',
+        'startLine': 39,
+        'endLine': 39
     },
 
     # _isNonRebasingAccount 함수 선언
     {
         'code': 'function _isNonRebasingAccount(address _account) internal view returns (bool) { \n }',
-        'startLine': 28,
-        'endLine': 29
+        'startLine': 40,
+        'endLine': 41
     },
 
     # _isNonRebasingAccount 함수 내용 - isContract 체크
     {
         'code': 'bool isContract = _isContract(_account);',
-        'startLine': 29,
-        'endLine': 29
+        'startLine': 41,
+        'endLine': 41
     },
 
     # _isNonRebasingAccount 함수 내용 - if문 작성
     {
         'code': 'if (isContract && _rebaseState[_account] == RebaseOptions.NotSet) { \n }',
-        'startLine': 30,
-        'endLine': 30
+        'startLine': 42,
+        'endLine': 43
     },
 
     # _isNonRebasingAccount 함수 내용 - _ensureRebasingMigration 호출
     {
         'code': '_ensureRebasingMigration(_account);',
-        'startLine': 31,
-        'endLine': 31
+        'startLine': 43,
+        'endLine': 43
     },
 
     # _isNonRebasingAccount 함수 내용 - return 조건
     {
         'code': 'return nonRebasingCreditsPerToken[_account] > 0;',
-        'startLine': 32,
-        'endLine': 32
+        'startLine': 45,
+        'endLine': 45
     }
 ]
 */
