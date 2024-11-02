@@ -15,6 +15,10 @@ class Statement:
             self.right = kwargs.get('right')      # 우변 Expression
             self.evaluated_value = kwargs.get('evaluated_value')  # 우변 표현식을 평가한 Interval 값
 
+        elif statement_type == 'return':
+            self.return_expr = kwargs.get('return_expr')
+            self.evaluated_value = kwargs.get('evaluated_value')
+
 
 
 class Expression:
@@ -192,7 +196,7 @@ class EnumVariable(Variables):
         self.typeInfo.typeCategory = 'enum'
         self.typeInfo.enumTypeName = enum_type  # 열거형 이름
         self.members = {}  # 멤버 변수들: 멤버명 -> 정수 값 (열거형의 각 멤버는 정수 값에 매핑됨)
-        self.current_value = None  # 현재 설정된 멤버의 이름
+        self.value = None  # 현재 설정된 멤버의 이름
 
     def set_member_value(self, member_name):
         """

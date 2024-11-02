@@ -24,6 +24,9 @@ class CFGNode:
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
 
+        self.function_exit_node = False
+        self.return_val = None
+
     def add_assign_statement(self, variable_obj: Variables, expr: Expression, evaluated_value=None, operator='='):
         """
         변수에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
@@ -108,6 +111,20 @@ class CFGNode:
         )
         self.statements.append(assignment_stmt)
         self.variables[variable_obj.identifier] = variable_obj
+
+    def add_return_statement(self, return_expr: Expression = None, evaluated_value=None):
+        """
+        반환 구문을 CFG에 추가하고, 반환 값을 업데이트합니다.
+        :param return_expr: 반환할 Expression 객체
+        :param evaluated_value: 평가된 Interval 값
+        """
+        return_stmt = Statement(
+            statement_type='return',
+            return_expr=return_expr,
+            evaluated_value=evaluated_value
+        )
+        self.statements.append(return_stmt)
+        self.return_val = evaluated_value  # exit 노드에 저장할 반환 값으로 사용
 
     def copy_variables_to_node(self):
         return
@@ -246,6 +263,7 @@ class FunctionCFG(CFG):
         self.function_name = function_name
         self.modifiers = {}
         self.related_variables = {}
+        self.exit_node.function_exit_node = True
 
     def update_block(self, block_node):
         """
@@ -271,18 +289,13 @@ class FunctionCFG(CFG):
                     "int") \
                     else UnsignedIntegerInterval()  # 기본 interval 설정
                 variable_obj.initialize_elements(initial_interval)
+            self.related_variables[variable_obj.identifier] = variable_obj
 
         # 구조체 타입 처리
         elif isinstance(variable_obj, StructVariable):
             # 구조체 멤버 변수들 처리
             for member_name, member_var in variable_obj.members.items():
                 self.add_related_variable(member_var)  # 각 멤버 변수에 대해 재귀적으로 처리
-
-        # 매핑 타입 처리
-        elif isinstance(variable_obj, MappingVariable):
-            # 매핑된 값들을 처리
-            for key, value in variable_obj.mapping.items():
-                self.add_related_variable(value)  # 각 매핑된 값에 대해 재귀적으로 처리
 
         # 기본 elementary 타입 처리 (로컬 변수)
         elif variable_obj.scope == 'local':
@@ -302,8 +315,11 @@ class FunctionCFG(CFG):
                 if variable_obj.value is None:
                     variable_obj.value = BoolInterval.bottom()  # BooleanInterval의 기본 bottom 값
 
-        # 상태 변수든 로컬 변수든 상관없이 Variables 객체를 그대로 related_variables에 추가
-        self.related_variables[variable_obj.identifier] = variable_obj
+            self.related_variables[variable_obj.identifier] = variable_obj
+
+        else :
+            self.related_variables[variable_obj.identifier] = variable_obj
+
 
     def get_predecessor_node(self, cfg_node):
         if self.graph.has_node(cfg_node) :

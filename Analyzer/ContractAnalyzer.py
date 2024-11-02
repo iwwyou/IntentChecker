@@ -303,7 +303,9 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        contract_cfg.define_enum(struct_name)
+        struct_def = StructDefinition(struct_name=struct_name)
+
+        contract_cfg.define_enum(struct_def)
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -372,7 +374,6 @@ class ContractAnalyzer:
                 # 배열 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
                 expr = Expression(literal=interval_result)
 
-
             # MappingVariable 처리
             elif isinstance(variable_obj, MappingVariable):
                 # Mapping은 기본적으로 동적이므로 초기화할 수 없습니다.
@@ -382,26 +383,31 @@ class ContractAnalyzer:
                     if variable_obj.typeInfo.mappingKeyType.elementaryTypeName == 'address' :
                         value_type = variable_obj.typeInfo.mappingValueType
 
-                        if value_type.typeCategory == "enum" :
-                            enum = self.contract_cfgs[self.current_target_contract].enums[value_type.enumTypeName]
-                            sample_value = enum.get_member(0)
+                        # Value가 Enum 타입일 경우 처리
+                        if value_type.typeCategory == "enum":
+                            # EnumDefinition에서 초기 멤버 가져오기
+                            enum_definition = contract_cfg.enums[value_type.enumTypeName]
+                            sample_value = EnumVariable(enum_type=value_type.enumTypeName,
+                                                        scope='state')
+                            sample_value.members = {member: index for index, member in
+                                                    enumerate(enum_definition.members)}
+                            sample_value.set_member_value(enum_definition.get_member(0))  # 첫 번째 멤버로 초기화
+
+                            variable_obj.mapping[self.fixed_address] = sample_value  # Mapping에 추가
+
                         else :
+                            sample_value = None
                             if value_type.elementaryTypeName.startswith("int"):
                                 # Integer interval 초기화
-                                sample_value = IntegerInterval(0, 0, value_type.intTypeLength)
+                                sample_value = IntegerInterval(float('-inf'), float('inf'), value_type.intTypeLength)
                             elif value_type.elementaryTypeName.startswith("uint"):
                                 # Unsigned integer 초기화
-                                sample_value = UnsignedIntegerInterval(0, 0, value_type.intTypeLength)
+                                sample_value = UnsignedIntegerInterval(0, float('inf'), value_type.intTypeLength)
                             elif value_type.elementaryTypeName == "bool":
                                 # Boolean 초기화
-                                sample_value = BoolInterval(False, False)
-                            elif value_type.typeCategory == "enum":
-                                enum = self.contract_cfgs[self.current_target_contract].enums[value_type.enumTypeName]
-                                sample_value = enum[0]
-                            else:
-                                sample_value = None
+                                sample_value = BoolInterval(False, True)
 
-                        variable_obj.mapping[self.fixed_address] = Variables(value=sample_value)
+                            variable_obj.mapping[self.fixed_address] = Variables(value=sample_value)
 
                 # Mapping 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
                 expr = Expression(literal=None)
@@ -617,29 +623,14 @@ class ContractAnalyzer:
 
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
-            if isinstance(variable_obj, EnumVariable):
-                # 초기화 식이 없는 경우 기본값 설정
-                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(
-                    variable_obj.typeInfo.enumTypeName)
-                if enum_def and enum_def.members:
-                    first_member = enum_def.members[0]
-                    variable_obj.set_member_value(first_member)
-                    variable_obj.value = 0  # 첫 번째 멤버의 인덱스는 0
-                    # 우변 표현식 생성
-                    expr = Expression(literal=f"{variable_obj.typeInfo.enumTypeName}.{first_member}")
-                    # Statement에 우변 표현식과 평가된 값 저장
-                    current_block.add_assign_statement(variable_obj, expr, evaluated_value=variable_obj.value)
-                else:
-                    raise ValueError(f"Enum '{variable_obj.typeInfo.enumTypeName}' is not defined or has no members.")
-            else :
-                # 초기화 값이 없는 경우 기본 Interval 설정
-                interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
-                variable_obj.value = interval  # 기본 interval 설정
+            # 초기화 값이 없는 경우 기본 Interval 설정
+            interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
+            variable_obj.value = interval  # 기본 interval 설정
 
-                # 우변 표현식 생성 (리터럴 값)
-                expr = Expression(literal=interval)
-                # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-                current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
+            # 우변 표현식 생성 (리터럴 값)
+            expr = Expression(literal=interval)
+            # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
+            current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
 
         else:
             # 5. 타입에 따른 분기 처리
@@ -807,31 +798,75 @@ class ContractAnalyzer:
             else:
                 # 6. `init_expr`의 context에 따른 분기 처리
                 if init_expr.context == 'IndexAccessContext':
-                    # 배열 인덱스 접근
-                    result = self.evaluate_array_expression(variable_obj=variable_obj, init_expr=init_expr)
-                    interval = result[0] if isinstance(result, list) else result
-                    variable_obj.value = interval
-                    current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
-                elif init_expr.context == 'MemberAccessContext':
-                    # MemberAccess일 때 base 확인
-                    base_identifier = init_expr.base.identifier
-                    base_variable = self.current_target_function_cfg.get_related_variable(base_identifier)
+                    base = init_expr.base  # 인덱스 접근 대상
 
-                    if isinstance(base_variable, ArrayVariable):
-                        # base가 배열이면 배열 관련 평가 함수 호출
+                    # base가 매핑인지 배열인지 확인 (기존 함수 CFG에서 관련 변수 가져오기)
+                    base_variable = self.current_target_function_cfg.get_related_variable(base.identifier)
+                    if isinstance(base_variable, MappingVariable):
+                        # 매핑 인덱스 접근 처리
+                        key_expr = init_expr.index
+                        key_value = self.evaluate_expression(key_expr)  # 키 값 평가
+
+                        # 매핑에서 특정 키의 값 가져오기
+                        if key_value in base_variable.mapping:
+                            interval = base_variable.mapping[key_value].value  # 키에 해당하는 값의 interval
+                        else:
+                            # 키가 매핑에 없는 경우 기본 interval 설정 (new entry)
+                            value_type = base_variable.typeInfo.mappingValueType
+                            if value_type.elementaryTypeName.startswith("int"):
+                                interval = IntegerInterval()  # 기본 interval 설정
+                            elif value_type.elementaryTypeName.startswith("uint"):
+                                interval = UnsignedIntegerInterval()
+                            elif value_type.elementaryTypeName == "bool":
+                                interval = BoolInterval()
+
+                            # 매핑에 새로운 키-값 쌍 추가
+                            base_variable.mapping[key_value] = Variables(value=interval)
+
+                        variable_obj.value = interval
+                        current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+
+                    elif isinstance(base_variable, ArrayVariable):
+                        # 배열 인덱스 접근 처리
                         result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
                         interval = result[0] if isinstance(result, list) else result
                         variable_obj.value = interval
-                        current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
-                    elif isinstance(base_variable, StructVariable):
-                        # base가 구조체면 구조체 관련 평가 함수 호출
-                        member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
-                        interval = next(iter(member_intervals.values()))
-                        variable_obj.value = interval
-                        current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                        current_block.add_array_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                elif init_expr.context == 'MemberAccessContext':
+                    # MemberAccess일 때 base 확인
+                    base = init_expr.base
+                    if hasattr(base, 'identifier') and base.identifier is not None:
+                        # base가 유효한 identifier인 경우 기존 로직 유지
+                        base_identifier = base.identifier
+                        base_variable = self.current_target_function_cfg.get_related_variable(base_identifier)
+
+                        if isinstance(base_variable, ArrayVariable):
+                            # base가 배열이면 배열 관련 평가 함수 호출
+                            result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
+                            interval = result[0] if isinstance(result, list) else result
+                            variable_obj.value = interval
+                            current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                        elif isinstance(base_variable, StructVariable):
+                            # base가 구조체면 구조체 관련 평가 함수 호출
+                            member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
+                            interval = next(iter(member_intervals.values()))
+                            variable_obj.value = interval
+                            current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                        else:
+                            raise ValueError(
+                                f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
                     else:
-                        raise ValueError(
-                            f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
+                        # address.code.length와 같은 경우를 처리
+                        if base.base.context == "IdentifierExpContext":
+                            base_variable = self.current_target_function_cfg.get_related_variable(base.base.identifier)
+                            if base_variable.typeInfo.typeCategory == "elementary" \
+                                    and base_variable.typeInfo.elementaryTypeName == "address" :
+                                if base.member == "code" :
+                                    if init_expr.member == "length" :
+                                        interval = UnsignedIntegerInterval(0, 2**32 - 1, 32)
+                                        variable_obj.value = interval
+                                        current_block.add_assign_statement(variable_obj, init_expr,
+                                                                           evaluated_value=interval)
                 else:
                     # 기본 표현식 처리
                     interval = self.evaluate_expression(init_expr)
@@ -1684,6 +1719,10 @@ class ContractAnalyzer:
             condition_block.is_while_body = True
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
+        false_block = CFGNode(name=f"if_false_{self.current_start_line}")
+        false_block.variables = self.copy_variables(condition_block.variables)
+        self.update_variables_with_condition(false_block.variables, condition_expr, is_true_branch=False)
+
         # 8. 현재 블록의 후속 노드 처리 (기존 current_block의 successors를 가져옴)
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1694,18 +1733,16 @@ class ContractAnalyzer:
         # 9. CFG 노드 추가
         self.current_target_function_cfg.graph.add_node(condition_block)
         self.current_target_function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_node(false_block)
 
         # 10. 조건 블록과 True/False 분기 연결
         self.current_target_function_cfg.graph.add_edge(current_block, condition_block)
         self.current_target_function_cfg.graph.add_edge(condition_block, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_edge(condition_block, false_block, condition=False)
 
         # 11. True 분기 후속 노드 연결
         for successor in successors:
             self.current_target_function_cfg.graph.add_edge(true_block, successor)
-
-        # 12. False 분기 처리: False일 경우 기존 current_block의 후속 노드로 연결
-        for successor in successors:
-            self.current_target_function_cfg.graph.add_edge(condition_block, successor, condition=False)
 
         # 13. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
@@ -1727,6 +1764,13 @@ class ContractAnalyzer:
         previous_condition_node = self.find_corresponding_condition_node()
         if not previous_condition_node:
             raise ValueError("No previous if or else if node found for else-if statement.")
+
+        # 3. 이전 조건 노드의 False 분기 제거
+        false_successors = list(self.current_target_function_cfg.graph.successors(previous_condition_node))
+        for successor in false_successors:
+            edge_data = self.current_target_function_cfg.graph.get_edge_data(previous_condition_node, successor)
+            if edge_data.get('condition') is False:
+                self.current_target_function_cfg.graph.remove_edge(previous_condition_node, successor)
 
         # 3. 이전 조건 노드에서 False 분기 처리 (가상의 블록)
         temp_variables = self.copy_variables(previous_condition_node.variables)
@@ -1751,13 +1795,22 @@ class ContractAnalyzer:
         true_block.variables = self.copy_variables(temp_variables)
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
+        # 5. False 분기 블록 생성
+        false_block = CFGNode(name=f"else_if_false_{self.current_start_line}")
+        false_block.variables = self.copy_variables(previous_condition_node.variables)
+        self.update_variables_with_condition(false_block.variables, previous_condition_node.condition_expr,
+                                             is_true_branch=False)
+
         # 8. 이전 조건 블록과 새로운 else_if_condition 블록 연결
         self.current_target_function_cfg.graph.add_edge(previous_condition_node, condition_block, condition=False)
 
         # 9. 새로운 조건 블록과 True 블록 연결
         self.current_target_function_cfg.graph.add_node(condition_block)
         self.current_target_function_cfg.graph.add_node(true_block)
+        self.current_target_function_cfg.graph.add_node(false_block)
+
         self.current_target_function_cfg.graph.add_edge(condition_block, true_block, condition=True)
+        self.current_target_function_cfg.graph.add_edge(condition_block, false_block, condition=False)
 
         # 11. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
@@ -1779,6 +1832,13 @@ class ContractAnalyzer:
         condition_node = self.find_corresponding_condition_node()
         if not condition_node:
             raise ValueError("No corresponding if or else if condition node found for else statement.")
+
+        # 3. 이전 조건 노드의 False 분기 제거
+        false_successors = list(self.current_target_function_cfg.graph.successors(condition_node))
+        for successor in false_successors:
+            edge_data = self.current_target_function_cfg.graph.get_edge_data(condition_node, successor)
+            if edge_data.get('condition') is False:
+                self.current_target_function_cfg.graph.remove_edge(condition_node, successor)
 
         # 3. False 분기 블록 생성
         else_block = CFGNode(name=f"else_block_{self.current_start_line}")
@@ -2035,35 +2095,25 @@ class ContractAnalyzer:
         else:
             return_value = None
 
-        # 4. Return 노드 생성
-        return_node = CFGNode(name=f"return_{self.current_start_line}")
-        return_node.statements.append(f"return {return_value}" if return_value else "return;")
+        # 4. Return 구문을 current_block에 추가
+        current_block.add_return_statement(return_expr=return_expr, evaluated_value=return_value)
 
-        # 5. 기존 current_block과 그 successors 사이의 edge 제거
-        successors = list(self.current_target_function_cfg.graph.successors(current_block))
-        for successor in successors:
-            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
+        # 5. function_exit_node에 return 값을 저장
+        exit_node = self.current_target_function_cfg.get_exit_node()
+        exit_node.return_val = return_value  # 반환 값을 exit_node의 return_val에 기록
 
-        # 6. 기존 current_block에서 return_node로 edge 추가
-        self.current_target_function_cfg.graph.add_edge(current_block, return_node)
-
-        # 7. 기존 successors에서 return_node로 edge 추가
-        for successor in successors:
-            self.current_target_function_cfg.graph.add_edge(return_node, successor)
+        # 7. current_block에서 exit_node로 직접 연결
+        self.current_target_function_cfg.graph.add_edge(current_block, exit_node)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 8. Return 노드에 대한 brace_count 업데이트
-        if self.current_start_line not in self.brace_count:
-            self.brace_count[self.current_start_line] = {}
-        self.brace_count[self.current_start_line]['cfg_node'] = return_node
-
         # 8. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
+        # 9. current_target_function_cfg를 None으로 설정하여 함수 종료
         self.current_target_function_cfg = None
 
     def process_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None):
@@ -2976,8 +3026,8 @@ class ContractAnalyzer:
         # 리프 노드들의 변수 정보를 조인
         joined_variables = {}
         for node in leaf_nodes:
-            if 'return' in [stmt.statement_type for stmt in node.statements]:
-                continue  # return 문이 있는 리프 노드는 제외
+            if node.function_exit_node :
+                continue
             for var_name, var_value in node.variables.items():
                 if var_name in joined_variables:
                     # 기존 변수와 조인
@@ -2989,11 +3039,6 @@ class ContractAnalyzer:
         # 새로운 블록 생성 및 변수 정보 저장
         new_block = CFGNode(name=f"JoinBlock_{self.current_start_line}")
         new_block.variables = joined_variables
-
-        # 조건 노드의 후속 노드로 연결
-        function_cfg = self.get_current_function_cfg()
-        function_cfg.graph.add_node(new_block)
-        function_cfg.graph.add_edge(condition_node, new_block)
 
         return new_block
 
@@ -3171,23 +3216,30 @@ class ContractAnalyzer:
 
         # 1. 리터럴 값인 경우 처리
         if expr.literal is not None:
-            try:
-                # 숫자 리터럴 처리 (진법 자동 감지)
+            # Handle numeric literals
+            if expr.expr_type in ['int', 'uint']:
                 numeric_value = int(expr.literal, 0)
-                if 'int' == expr.expr_type:
-                    return IntegerInterval(numeric_value, numeric_value, expr.type_length)
-                elif 'uint' == expr.expr_type:
-                    return UnsignedIntegerInterval(numeric_value, numeric_value, expr.type_length)
+                if expr.expr_type == 'int':
+                    return IntegerInterval(numeric_value, numeric_value, expr.type_length or 256)
+                elif expr.expr_type == 'uint':
+                    return UnsignedIntegerInterval(numeric_value, numeric_value, expr.type_length or 256)
                 else:
-                    raise ValueError(f"Unsupported type '{expr.expr_type}' for literal '{expr.literal}'")
-            except ValueError:
-                # Boolean 리터럴 처리
-                if expr.literal.lower() == 'true':
-                    return BoolInterval(is_true=True, is_false=False)
-                elif expr.literal.lower() == 'false':
-                    return BoolInterval(is_true=False, is_false=True)
-                else:
-                    raise ValueError(f"Unable to parse literal value '{expr.literal}'")
+                    return numeric_value
+
+            # Handle boolean literals
+            elif expr.expr_type == 'bool':
+                return expr.literal.lower() == 'true'
+            # Handle string literals
+            elif expr.expr_type == 'string':
+                return expr.literal.strip('"')
+            # Handle address literals
+            elif expr.expr_type == 'address':
+                return expr.literal  # Assuming address literals are valid
+            # Handle bytes literals
+            elif expr.expr_type.startswith('bytes'):
+                return expr.literal  # May require parsing
+            else:
+                raise ValueError(f"Unsupported literal type '{expr.expr_type}'")
 
         # 2. 식별자인 경우 (변수)
         elif expr.identifier is not None:
@@ -3253,6 +3305,18 @@ class ContractAnalyzer:
             # 피연산자 중 하나라도 None인 경우 예외 발생
             raise ValueError(f"Unable to evaluate expression due to missing operand intervals: {expr}")
 
+    def evaluate_address_code_length(self, expr):
+        """
+        address.code.length 표현식을 평가하여 Uint32 범위로 반환합니다.
+        :param expr: Expression 객체
+        :return: Uint32 범위의 UnsignedIntegerInterval
+        """
+        # Expression이 address.code.length를 의미하는지 확인
+        if expr.expr_type == 'address' and expr.member_access == 'code.length':
+            return UnsignedIntegerInterval(0, 2 ** 32 - 1, 32)  # Uint32의 범위에 맞게 설정
+        else:
+            raise ValueError("Expression does not represent address.code.length")
+
     def update_variables_with_condition(self, variables, condition_expr, is_true_branch):
         """
         조건식을 분석하여 변수들의 상태(Interval)를 True/False 분기에서 업데이트합니다.
@@ -3279,6 +3343,29 @@ class ContractAnalyzer:
                         left_interval = self.evaluate_array_expression(var_obj, left_expr)
                     elif isinstance(var_obj, StructVariable):
                         left_interval = self.evaluate_struct_expression(var_obj, left_expr)
+                        # 매핑 변수 처리
+                    elif isinstance(var_obj, MappingVariable):
+                        key_expr = left_expr.index  # 인덱스 표현식
+                        key_value = self.evaluate_expression(key_expr)  # 매핑 키 값 평가
+
+                        # 매핑에서 특정 키에 해당하는 값을 가져오기
+                        if key_value in var_obj.mapping:
+                            left_interval = var_obj.mapping[key_value].value
+                        else:
+                            # 키가 매핑에 없는 경우 기본 Interval 설정 (new entry)
+                            value_type = var_obj.typeInfo.mappingValueType
+                            if value_type.elementaryTypeName.startswith("int"):
+                                left_interval = IntegerInterval()
+                            elif value_type.elementaryTypeName.startswith("uint"):
+                                left_interval = UnsignedIntegerInterval()
+                            elif value_type.elementaryTypeName == "bool":
+                                left_interval = BoolInterval()
+                            else:
+                                raise TypeError(
+                                    f"Unsupported type '{value_type.elementaryTypeName}' for mapping values")
+
+                            # 매핑에 새로운 키-값 쌍 추가
+                            var_obj.mapping[key_value] = Variables(value=left_interval)
                     else:
                         raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
                 else:

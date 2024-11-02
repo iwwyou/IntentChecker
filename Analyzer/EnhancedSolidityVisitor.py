@@ -412,7 +412,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 # 기본 타입인 경우 Variables 객체 생성
                 variable_obj = Variables(identifier=var_name, scope="local")
                 variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
-
+                if type_obj.typeCategory == "elementary" :
+                    if type_obj.elementaryTypeName == "address" :
+                        variable_obj.value = self.contract_analyzer.fixed_address
 
             # 리스트에 Variables 객체 추가
             parameters.append(variable_obj)
