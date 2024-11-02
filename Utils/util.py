@@ -223,10 +223,13 @@ class EnumDefinition:
         else:
             raise ValueError(f"Member '{member_name}' is already defined in enum '{self.enum_name}'.")
 
+    def get_member(self, index):
+        return self.members[index]
+
 
 class SolType:
     def __init__(self):
-        self.typeCategory = None  # 'elementary', 'array', 'mapping', 'struct', 'function', 'unknown'
+        self.typeCategory = None  # 'elementary', 'array', 'mapping', 'struct', 'function', 'enum'
 
         # elementary 타입 정보
         self.elementaryTypeName = None  # 예: 'uint256', 'address'
@@ -243,5 +246,6 @@ class SolType:
 
         # 구조체 타입 정보
         self.structTypeName = None  # 구조체 이름 (문자열)
+        self.enumTypeName = None
 
         # 기타 필요한 속성 추가 가능

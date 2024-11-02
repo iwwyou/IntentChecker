@@ -281,7 +281,7 @@ class FunctionCFG(CFG):
         # 매핑 타입 처리
         elif isinstance(variable_obj, MappingVariable):
             # 매핑된 값들을 처리
-            for key, value in variable_obj.elements.items():
+            for key, value in variable_obj.mapping.items():
                 self.add_related_variable(value)  # 각 매핑된 값에 대해 재귀적으로 처리
 
         # 기본 elementary 타입 처리 (로컬 변수)

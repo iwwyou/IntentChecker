@@ -382,23 +382,29 @@ class ContractAnalyzer:
                     if variable_obj.typeInfo.mappingKeyType.elementaryTypeName == 'address' :
                         value_type = variable_obj.typeInfo.mappingValueType
 
-                        if value_type.elementaryTypeName.startswith("int"):
-                            # Integer interval 초기화
-                            sample_value = IntegerInterval(0, 0, value_type.intTypeLength)
-                        elif value_type.elementaryTypeName.startswith("uint"):
-                            # Unsigned integer 초기화
-                            sample_value = UnsignedIntegerInterval(0, 0, value_type.intTypeLength)
-                        elif value_type.elementaryTypeName == "bool":
-                            # Boolean 초기화
-                            sample_value = BoolInterval(False, False)
-                        else:
-                            sample_value = None
+                        if value_type.typeCategory == "enum" :
+                            enum = self.contract_cfgs[self.current_target_contract].enums[value_type.enumTypeName]
+                            sample_value = enum.get_member(0)
+                        else :
+                            if value_type.elementaryTypeName.startswith("int"):
+                                # Integer interval 초기화
+                                sample_value = IntegerInterval(0, 0, value_type.intTypeLength)
+                            elif value_type.elementaryTypeName.startswith("uint"):
+                                # Unsigned integer 초기화
+                                sample_value = UnsignedIntegerInterval(0, 0, value_type.intTypeLength)
+                            elif value_type.elementaryTypeName == "bool":
+                                # Boolean 초기화
+                                sample_value = BoolInterval(False, False)
+                            elif value_type.typeCategory == "enum":
+                                enum = self.contract_cfgs[self.current_target_contract].enums[value_type.enumTypeName]
+                                sample_value = enum[0]
+                            else:
+                                sample_value = None
 
                         variable_obj.mapping[self.fixed_address] = Variables(value=sample_value)
 
                 # Mapping 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
                 expr = Expression(literal=None)
-
 
             # 일반 변수 처리 (Variables)
             elif isinstance(variable_obj, Variables) and variable_obj.typeInfo.typeCategory == "elementary":

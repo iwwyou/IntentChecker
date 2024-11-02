@@ -475,8 +475,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             return self.visitFunctionType(ctx, type_obj)
         elif isinstance(ctx, SolidityParser.MapTypeContext):  # mapping (MapType)
             return self.visitMapType(ctx, type_obj)
-        elif isinstance(ctx, SolidityParser.StructTypeContext):  # identifierPath (StructType)
-            return self.visitStructType(ctx, type_obj)
+        elif isinstance(ctx, SolidityParser.UserDefinedTypeContext):  # identifierPath (StructType)
+            return self.visitUserDefinedType(ctx, type_obj)
         elif isinstance(ctx, SolidityParser.ArrayTypeContext):  # typeName '[' expression? ']' (ArrayType)
             return self.visitArrayType(ctx, type_obj)
 
@@ -650,11 +650,37 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return type_obj
 
     # Visit a parse tree produced by SolidityParser#StructType.
-    def visitStructType(self, ctx: SolidityParser.IdentifierPathContext, type_obj):
-        # 구조체 타입 처리
-        struct_name = ctx.getText()
-        type_obj.typeCategory = "struct"
-        type_obj.structTypeName = struct_name
+    def visitUserDefinedType(self, ctx:SolidityParser.UserDefinedTypeContext, type_obj):
+        """
+            사용자 정의 타입(Struct, Enum 등)을 처리합니다.
+            :param ctx: IdentifierPathContext
+            :param type_obj: SolType 객체
+            :return: 수정된 type_obj
+            """
+        # 타입 이름 추출
+        type_name = ctx.getText()
+
+        # 현재 타겟 컨트랙트 이름 가져오기
+        contract_name = self.contract_analyzer.current_target_contract
+
+        # 현재 컨트랙트의 CFG 가져오기
+        contract_cfg = self.contract_analyzer.contract_cfgs.get(contract_name)
+        if not contract_cfg:
+            raise ValueError(f"Contract '{contract_name}' not found in contract configurations.")
+
+        # 타입이 enum인지 struct인지 확인
+        if type_name in contract_cfg.enums:
+            # Enum 타입인 경우
+            type_obj.typeCategory = "enum"
+            type_obj.enumTypeName = type_name
+        elif type_name in contract_cfg.structs:
+            # Struct 타입인 경우
+            type_obj.typeCategory = "struct"
+            type_obj.structTypeName = type_name
+        else:
+            # 정의되지 않은 타입인 경우 예외 처리 또는 기본값 설정
+            raise ValueError(f"Type '{type_name}' is not defined as struct or enum in contract '{contract_name}'.")
+
         return type_obj
 
     # Visit a parse tree produced by SolidityParser#FunctionType.

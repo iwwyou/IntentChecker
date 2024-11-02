@@ -189,7 +189,7 @@ typeName
   : elementaryTypeName # BasicType
   | functionTypeName # FunctionType
   | mapping # MapType
-  | identifierPath # StructType
+  | identifierPath # UserDefinedType
   | typeName '[' expression? ']' # ArrayType
   ;
 
