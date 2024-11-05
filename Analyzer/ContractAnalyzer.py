@@ -634,6 +634,9 @@ class ContractAnalyzer:
             current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
 
         else:
+            if init_expr.context == 'FunctionCallContext' :
+                return_var = self.function_abstract_interpretation(init_expr)
+
             # 5. 타입에 따른 분기 처리
             if isinstance(variable_obj, ArrayVariable):
                 # 배열 변수 처리
@@ -3559,6 +3562,122 @@ class ContractAnalyzer:
             # 좌우 조건식에 대해 재귀적으로 처리
             self.update_variables_with_condition(variables, left_expr, is_true_branch)
             self.update_variables_with_condition(variables, right_expr, is_true_branch)
+
+    def function_abstract_interpretation(self, function_expr):
+        """
+        주어진 함수 호출 표현식을 abstract interpretation하여 반환 값을 돌려줍니다.
+        :param function_expr: Expression 객체 (FunctionCallContext)
+        :return: 함수의 반환 값 (Interval 또는 기타 값)
+        """
+        # 1. 호출할 함수의 이름 또는 식별자 추출
+        if function_expr.function.identifier:
+            function_name = function_expr.function.identifier
+        else:
+            # 함수 표현식이 식별자가 아닌 경우 처리
+            raise ValueError("Unsupported function expression for function call.")
+
+        # 2. 현재 컨트랙트의 CFG에서 해당 함수의 CFG 가져오기
+        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        function_cfg = contract_cfg.get_function_cfg(function_name)
+        if not function_cfg:
+            raise ValueError(f"Function '{function_name}' not found in contract '{self.current_target_contract}'.")
+
+        # 3. 함수의 매개변수와 인자 매핑
+        # 함수의 매개변수 목록 가져오기
+        function_params = function_cfg.parameters  # 매개변수 이름의 리스트 또는 딕셔너리
+        # 함수 호출 시 전달된 인자 가져오기
+        arguments = function_expr.arguments if function_expr.arguments else []
+        named_arguments = function_expr.named_arguments if function_expr.named_arguments else {}
+
+        # 인자와 매개변수 수 일치 여부 확인
+        if len(function_params) != len(arguments) + len(named_arguments):
+            raise ValueError(f"Argument count mismatch in function call to '{function_name}'.")
+
+        # 매개변수 이름과 인자 값을 매핑하여 새로운 변수 환경 생성
+        function_variables = {}
+
+        # 위치 기반 인자 처리
+        for param, arg_expr in zip(function_params, arguments):
+            arg_value = self.evaluate_expression(arg_expr, self.get_current_block().variables)
+            # 변수 생성 및 값 할당
+            param_var = Variables(identifier=param.name, value=arg_value, typeInfo=param.typeInfo)
+            function_variables[param.name] = param_var
+
+        # 이름 기반 인자 처리
+        for param_name, arg_expr in named_arguments.items():
+            if param_name not in function_params:
+                raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}'.")
+            arg_value = self.evaluate_expression(arg_expr, self.get_current_block().variables)
+            # 변수 생성 및 값 할당
+            param_var = Variables(identifier=param_name, value=arg_value, typeInfo=function_params[param_name].typeInfo)
+            function_variables[param_name] = param_var
+
+        # 4. 함수 CFG를 따라 abstract interpretation 수행
+        # 함수의 시작 블록 가져오기
+        entry_block = function_cfg.entry_block
+
+        # 함수의 변수 환경을 초기화 (매개변수와 로컬 변수)
+        # 기존 변수 환경을 저장
+        previous_variables = self.get_current_block().variables
+        # 새로운 변수 환경으로 교체
+        self.get_current_block().variables = function_variables
+
+        # 함수 CFG를 abstract interpretation
+        return_value = self.interpret_function_cfg(function_cfg)
+
+        # 함수 호출 후 변수 환경 복원
+        self.get_current_block().variables = previous_variables
+
+        # 5. 반환 값 처리
+        return return_value
+
+    def interpret_function_cfg(self, function_cfg):
+        """
+        함수의 CFG를 abstract interpretation하여 반환 값을 돌려줍니다.
+        :param function_cfg: FunctionCFG 객체
+        :return: 함수의 반환 값 (Interval 또는 기타 값)
+        """
+        # 함수의 시작 블록 가져오기
+        current_block = function_cfg.entry_block
+
+        # 함수의 반환 값 초기화
+        return_value = None
+
+        # CFG를 순회하면서 abstract interpretation 수행
+        visited_blocks = set()
+        block_stack = [current_block]
+
+        while block_stack:
+            current_block = block_stack.pop()
+
+            if current_block in visited_blocks:
+                continue
+            visited_blocks.add(current_block)
+
+            # 블록 내의 문장들을 해석
+            for stmt in current_block.statements:
+                if stmt.statement_type == 'assignment':
+                    self.process_assignment_statement(stmt)
+                elif stmt.statement_type == 'variable_declaration':
+                    self.process_variable_declaration_statement(stmt)
+                elif stmt.statement_type == 'if':
+                    self.process_if_statement(stmt)
+                elif stmt.statement_type == 'while':
+                    self.process_while_statement(stmt)
+                elif stmt.statement_type == 'return':
+                    return_value = self.evaluate_expression(stmt.expression, self.get_current_block().variables)
+                    # 함수 내에서 return이 발생하면 해석을 종료
+                    return return_value
+                # 기타 필요한 문장 유형 처리
+
+            # 다음 블록으로 이동
+            for successor in current_block.successors:
+                block_stack.append(successor)
+
+        return return_value
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
         """
