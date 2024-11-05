@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 contract USDs {
     mapping(address => uint256) private _creditBalances;
     mapping(address => uint256) private nonRebasingCreditsPerToken;
-    uint256 private rebasingCreditsPerToken;
+    uint256 private rebasingCreditsPerToken = 10;
     uint256 private nonRebasingSupply;
     mapping(address => RebaseOptions) private _rebaseState;
     enum RebaseOptions { NotSet, Rebased }
@@ -36,7 +36,7 @@ contract USDs {
             }
             return credits / rebasingCreditsPerToken;
         }
-        return 0;
+        return;
     }
     
     function _isContract(address _account) private view returns (bool) {

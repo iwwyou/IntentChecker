@@ -100,17 +100,32 @@ class CFGNode:
         # 변수 정보 업데이트
         self.variables[variable_obj.identifier] = variable_obj
 
-    def add_mapping_assign_statement(self, variable_obj: MappingVariable, expr: Expression, evaluated_value=None,
-                                     operator='='):
+    def add_mapping_assign_statement(self, mapping_var: MappingVariable, element_var: Variables, left_expr: Expression,
+                                     right_expr: Expression, evaluated_value=None, operator='='):
+        """
+        매핑 변수의 특정 키에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
+        :param mapping_var: MappingVariable 객체 (매핑 변수)
+        :param element_var: Variables 객체 (매핑의 특정 키에 해당하는 변수)
+        :param left_expr: 좌변 Expression 객체
+        :param right_expr: 우변 Expression 객체
+        :param evaluated_value: 우변 표현식을 평가한 값
+        :param operator: 할당 연산자
+        """
+        # Statement 생성
         assignment_stmt = Statement(
             statement_type='assignment',
-            left=Expression(identifier=variable_obj.identifier),
+            left=left_expr,
             operator=operator,
-            right=expr,
+            right=right_expr,
             evaluated_value=evaluated_value
         )
         self.statements.append(assignment_stmt)
-        self.variables[variable_obj.identifier] = variable_obj
+
+        # 변수 값 업데이트 (실시간 분석을 위해)
+        element_var.value = evaluated_value
+
+        # 매핑 변수의 정보 업데이트는 필요에 따라 수행
+        self.variables[mapping_var.identifier] = mapping_var
 
     def add_return_statement(self, return_expr: Expression = None, evaluated_value=None):
         """

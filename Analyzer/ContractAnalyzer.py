@@ -6,6 +6,7 @@ from solcx import compile_source, install_solc
 from collections import deque
 import solcx
 import re
+import copy
 
 
 class ContractAnalyzer:
@@ -407,7 +408,7 @@ class ContractAnalyzer:
                                 # Boolean 초기화
                                 sample_value = BoolInterval(False, True)
 
-                            variable_obj.mapping[self.fixed_address] = Variables(value=sample_value)
+                            variable_obj.mapping[self.fixed_address] = sample_value
 
                 # Mapping 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
                 expr = Expression(literal=None)
@@ -809,7 +810,7 @@ class ContractAnalyzer:
 
                         # 매핑에서 특정 키의 값 가져오기
                         if key_value in base_variable.mapping:
-                            interval = base_variable.mapping[key_value].value  # 키에 해당하는 값의 interval
+                            interval = base_variable.mapping[key_value]  # 키에 해당하는 값의 interval
                         else:
                             # 키가 매핑에 없는 경우 기본 interval 설정 (new entry)
                             value_type = base_variable.typeInfo.mappingValueType
@@ -1012,20 +1013,37 @@ class ContractAnalyzer:
         current_block = self.get_current_block()
 
         # 4. 좌변 변수 정보 가져오기
-        var_name = self.extract_variable_name(expr.left)
-        variable_obj = current_block.get_variable(var_name)
-
-        if not variable_obj:
-            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
+        variable_obj, var_name, element_var, key_or_index = self.get_variable_from_expression(expr.left,
+                                                                                              current_block.variables)
 
         if not variable_obj:
             raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
 
         # 5. 우변 표현식 평가 (좌변 변수의 타입과 우변 context에 따른 분기)
-        right_interval = None  # 미리 선언하여 모든 분기에서 참조 가능하도록 함
-        right_expr = expr.right  # 우변 표현식
+        right_expr = expr.right  # 미리 선언하여 모든 분기에서 참조 가능하도록 함
+        right_value = self.evaluate_expression(right_expr, current_block.variables)  # 우변 표현식
 
-        if isinstance(variable_obj, ArrayVariable):
+        # 6. 좌변 변수의 타입에 따른 처리
+        if isinstance(variable_obj, MappingVariable):
+            # 좌변이 매핑 변수인 경우
+            mapping_var = variable_obj
+            if element_var and key_or_index is not None:
+                key_str = str(key_or_index)
+
+                # 복합 할당 연산자 처리
+                if expr.operator != '=':
+                    new_value = self.process_compound_assignment(element_var.value, right_value, expr.operator)
+                    element_var.value = new_value
+                else:
+                    element_var.value = right_value
+
+                # Statement에 우변 표현식과 평가된 값 저장
+                current_block.add_mapping_assign_statement(mapping_var, element_var, expr.left, right_expr,
+                                                           evaluated_value=element_var.value, operator=expr.operator)
+            else:
+                raise ValueError(f"Cannot assign value directly to mapping variable '{variable_obj.identifier}'")
+
+        elif isinstance(variable_obj, ArrayVariable):
             # 좌변이 배열인 경우
             if right_expr.context == 'InlineArrayExpressionContext':
                 # 우변이 배열 초기화 표현식인 경우
@@ -2267,22 +2285,48 @@ class ContractAnalyzer:
         self.current_target_function_cfg = None
 
     def extract_variable_name(self, expression):
-        # 좌변 표현식에서 변수 이름을 추출
-        # 필요한 경우 재귀적으로 접근하여 전체 경로를 문자열로 반환
+        """
+        표현식에서 변수 이름을 추출합니다.
+        필요한 경우 재귀적으로 접근하여 전체 경로를 문자열로 반환합니다.
+        :param expression: Expression 객체
+        :return: 변수 이름 문자열 (예: 'a', 'arr[0]', 'struct.member', 'map[key]')
+        """
         if expression.identifier:
+            # 단순 식별자인 경우
             return expression.identifier
-        elif expression.operator == '.' and expression.left and expression.right:
-            left_name = self.extract_variable_name(expression.left)
-            right_name = expression.right.identifier
-            return f"{left_name}.{right_name}"
-        elif expression.operator == '[' and expression.left and expression.index:
-            left_name = self.extract_variable_name(expression.left)
+        elif expression.context == 'IndexAccessContext':
+            # 인덱스 접근인 경우 (예: arr[0], map[key])
+            base_name = self.extract_variable_name(expression.base)
             index_expr = expression.index
-            index_value = self.evaluate_expression(index_expr)
-            index_str = f"[{index_value}]"
-            return f"{left_name}{index_str}"
+            index_value = self.extract_index_value(index_expr)
+            return f"{base_name}[{index_value}]"
+        elif expression.context == 'MemberAccessContext':
+            # 멤버 접근인 경우 (예: struct.member)
+            base_name = self.extract_variable_name(expression.base)
+            member_name = expression.member
+            return f"{base_name}.{member_name}"
+        elif expression.context == 'FunctionCallContext':
+            # 함수 호출인 경우 (예: func())
+            function_name = self.extract_variable_name(expression.function)
+            return f"{function_name}()"  # 함수 호출은 변수 이름으로 간주하지 않음
         else:
-            raise ValueError(f"Unsupported left-hand side expression: {expression}")
+            raise ValueError(f"Unsupported expression type for variable extraction: {expression}")
+
+    def extract_index_value(self, index_expr):
+        """
+        인덱스 표현식에서 인덱스 값을 추출합니다.
+        :param index_expr: Expression 객체 (인덱스 표현식)
+        :return: 인덱스 문자열 (예: '0', 'key', 'i')
+        """
+        if index_expr.literal is not None:
+            return index_expr.literal
+        elif index_expr.identifier is not None:
+            return index_expr.identifier
+        elif index_expr.context in ['IndexAccessContext', 'MemberAccessContext']:
+            return self.extract_variable_name(index_expr)
+        else:
+            # 인덱스 표현식이 복잡한 경우 문자열로 표현
+            return str(index_expr)
 
     def extract_related_variables(self, expr, current_block, function_cfg):
         related_vars = []
@@ -2325,6 +2369,54 @@ class ContractAnalyzer:
             return True
         return False
 
+    import copy
+
+    class Variables:
+        def __init__(self, identifier=None, value=None,
+                     isConstant=False, scope=None, typeInfo=None):
+            # 기본 속성
+            self.identifier = identifier  # 변수명
+            self.scope = scope  # 변수의 스코프 (local, state 등)
+            self.isConstant = isConstant  # 상수 여부
+            self.typeInfo = typeInfo  # SolType 객체
+
+            # 값 정보
+            self.value = value  # Interval 또는 기타 값
+
+    class ArrayVariable(Variables):
+        def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,
+                     isConstant=False, scope=None):
+            super().__init__(identifier, value, isConstant, scope)
+            self.typeInfo = SolType()
+            self.typeInfo.typeCategory = 'array'
+            self.typeInfo.arrayBaseType = base_type  # SolType 객체
+            self.typeInfo.arrayLength = array_length
+            self.typeInfo.isDynamicArray = is_dynamic
+            self.elements = []  # 배열 요소들: Variables 객체의 리스트
+
+    class MappingVariable(Variables):
+        def __init__(self, identifier=None, key_type=None, value_type=None, value=None,
+                     isConstant=False, scope=None):
+            super().__init__(identifier, value, isConstant, scope)
+            self.typeInfo = SolType()
+            self.typeInfo.typeCategory = 'mapping'
+            self.typeInfo.mappingKeyType = key_type  # SolType 객체
+            self.typeInfo.mappingValueType = value_type  # SolType 객체
+            self.mapping = {}  # 매핑된 키-값 쌍 저장: key -> Variables 객체 또는 값
+
+    class StructVariable(Variables):
+        def __init__(self, identifier=None, struct_type=None, value=None, isConstant=False, scope=None):
+            super().__init__(identifier, value, isConstant, scope)
+            self.typeInfo = SolType()
+            self.typeInfo.typeCategory = 'struct'
+            self.typeInfo.structTypeName = struct_type  # 구조체 이름
+            self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
+
+    class SolType:
+        def __init__(self):
+            self.typeCategory = None  # 'elementary', 'array', 'mapping', 'struct', 'function', 'enum'
+            # 기타 타입 정보 생략
+
     def copy_variables(self, variables):
         """
         주어진 변수 딕셔너리(variables)를 깊은 복사하여 반환합니다.
@@ -2332,14 +2424,13 @@ class ContractAnalyzer:
         """
         copied_variables = {}
         for var_name, var_obj in variables.items():
-            # ArrayVariable 타입 처리
             if isinstance(var_obj, ArrayVariable):
                 copied_array = ArrayVariable(
                     identifier=var_obj.identifier,
                     base_type=var_obj.typeInfo.arrayBaseType,
                     array_length=var_obj.typeInfo.arrayLength,
                     is_dynamic=var_obj.typeInfo.isDynamicArray,
-                    value=var_obj.value,
+                    value=copy.deepcopy(var_obj.value),
                     isConstant=var_obj.isConstant,
                     scope=var_obj.scope
                 )
@@ -2348,12 +2439,11 @@ class ContractAnalyzer:
                                          var_obj.elements]
                 copied_variables[var_name] = copied_array
 
-            # StructVariable 타입 처리
             elif isinstance(var_obj, StructVariable):
                 copied_struct = StructVariable(
                     identifier=var_obj.identifier,
                     struct_type=var_obj.typeInfo.structTypeName,
-                    value=var_obj.value,
+                    value=copy.deepcopy(var_obj.value),
                     isConstant=var_obj.isConstant,
                     scope=var_obj.scope
                 )
@@ -2362,30 +2452,37 @@ class ContractAnalyzer:
                                          member_name, member_obj in var_obj.members.items()}
                 copied_variables[var_name] = copied_struct
 
-            # MappingVariable 타입 처리
             elif isinstance(var_obj, MappingVariable):
                 copied_mapping = MappingVariable(
                     identifier=var_obj.identifier,
                     key_type=var_obj.typeInfo.mappingKeyType,
                     value_type=var_obj.typeInfo.mappingValueType,
-                    value=var_obj.value,
+                    value=copy.deepcopy(var_obj.value),
                     isConstant=var_obj.isConstant,
                     scope=var_obj.scope
                 )
-                # Mapping의 키-값 쌍을 깊은 복사
-                copied_mapping.mapping = {key: self.copy_variables({key: value})[key] for key, value in
-                                          var_obj.mapping.items()}
+                # 매핑의 키-값 쌍을 깊은 복사
+                copied_mapping.mapping = {}
+                for key, value in var_obj.mapping.items():
+                    # 값이 Variables 객체인지 확인
+                    if isinstance(value, Variables):
+                        # Variables 객체인 경우 재귀적으로 복사
+                        copied_value = self.copy_variables({key: value})[key]
+                    else:
+                        # Variables 객체가 아닌 경우 (Interval 등), 값을 그대로 복사
+                        copied_value = copy.deepcopy(value)
+                    copied_mapping.mapping[key] = copied_value
                 copied_variables[var_name] = copied_mapping
 
-            # 기본 Variables 타입 처리
             else:
+                # 기본 Variables 타입 처리
                 copied_variables[var_name] = Variables(
                     identifier=var_obj.identifier,
-                    value=var_obj.value,
+                    value=copy.deepcopy(var_obj.value),
                     isConstant=var_obj.isConstant,
-                    scope=var_obj.scope
+                    scope=var_obj.scope,
+                    typeInfo=var_obj.typeInfo  # SolType 객체 복사
                 )
-                copied_variables[var_name].typeInfo = var_obj.typeInfo  # SolType 객체 복사
 
         return copied_variables
 
@@ -3350,7 +3447,7 @@ class ContractAnalyzer:
 
                         # 매핑에서 특정 키에 해당하는 값을 가져오기
                         if key_value in var_obj.mapping:
-                            left_interval = var_obj.mapping[key_value].value
+                            left_interval = var_obj.mapping[key_value]
                         else:
                             # 키가 매핑에 없는 경우 기본 Interval 설정 (new entry)
                             value_type = var_obj.typeInfo.mappingValueType
@@ -3408,6 +3505,17 @@ class ContractAnalyzer:
                         # False 분기에서 조건이 성립하지 않는 경우 Interval 좁히기
                         negated_operator = self.negate_operator(condition_expr.operator)
                         var_obj.value = self.refine_interval(var_obj.value, right_interval, negated_operator)
+
+            elif left_expr.context == 'IndexAccessContext' :
+                base_name = left_expr.base.identifier
+                var_obj = variables.get(base_name)
+                if isinstance(var_obj,MappingVariable) :
+                    if is_true_branch :
+                        var_obj.mapping[key_value] = self.refine_interval(left_interval, right_interval, condition_expr.operator)
+                    else :
+                        negated_operator = self.negate_operator(condition_expr.operator)
+                        var_obj.mapping[key_value] = self.refine_interval(left_interval, right_interval,
+                                                                          negated_operator)
 
         elif condition_expr.operator in ['&&', '||']:
             # 논리 연산자가 포함된 복합 조건식 처리
@@ -3708,6 +3816,68 @@ class ContractAnalyzer:
             else :
                 # 5. 변수를 찾지 못한 경우 에러 발생
                 raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
+
+    def get_variable_from_expression(self, expr, variables):
+        if expr.identifier:
+            var_name = expr.identifier
+            var_obj = variables.get(var_name)
+            return var_obj, var_name, None, None  # element_var, key_or_index는 None
+        elif expr.context == 'IndexAccessContext':
+            base_expr = expr.base
+            index_expr = expr.index
+
+            base_var_obj, base_var_name, _, _ = self.get_variable_from_expression(base_expr, variables)
+            if not base_var_obj:
+                return None, None, None, None
+
+            key_or_index = self.evaluate_expression(index_expr, variables)
+            key_str = str(key_or_index)
+
+            var_name = f"{base_var_name}[{key_str}]"
+
+            # 매핑 또는 배열의 경우 처리
+            if isinstance(base_var_obj, MappingVariable):
+                mapping_var = base_var_obj
+                element_var = mapping_var.mapping.get(key_str)
+                if not element_var:
+                    # 요소가 없으면 생성
+                    value_type = mapping_var.typeInfo.mappingValueType
+                    element_var = Variables(identifier=var_name)
+                    element_var.typeInfo = value_type
+                    mapping_var.mapping[key_str] = element_var
+                return mapping_var, var_name, element_var, key_or_index
+            elif isinstance(base_var_obj, ArrayVariable):
+                array_var = base_var_obj
+                index = int(key_or_index)
+                if index < 0 or index >= len(array_var.elements):
+                    raise IndexError(f"Array index out of bounds: {index}")
+                element_var = array_var.elements[index]
+                return array_var, var_name, element_var, key_or_index
+            else:
+                return None, None, None, None
+        elif expr.context == 'MemberAccessContext':
+            base_expr = expr.base
+            member_name = expr.member
+
+            base_var_obj, base_var_name, _, _ = self.get_variable_from_expression(base_expr, variables)
+            if not base_var_obj:
+                return None, None, None, None
+
+            var_name = f"{base_var_name}.{member_name}"
+
+            # 구조체 멤버의 경우 처리
+            if isinstance(base_var_obj, StructVariable):
+                struct_var = base_var_obj
+                member_var = struct_var.members.get(member_name)
+                if not member_var:
+                    # 멤버 변수가 없으면 생성
+                    member_var = Variables(identifier=var_name)
+                    struct_var.members[member_name] = member_var
+                return struct_var, var_name, member_var, member_name
+            else:
+                return None, None, None, None
+        else:
+            return None, None, None, None
 
     def set_bottom_for_array(self, variable_obj):
         """
