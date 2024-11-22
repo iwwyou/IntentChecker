@@ -2194,7 +2194,9 @@ class ContractAnalyzer:
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 4. 조건식 블록 생성 및 평가
-        require_condition_node = CFGNode(name=f"require_condition_{self.current_start_line}", condition_node=True)
+        require_condition_node = CFGNode(name=f"require_condition_{self.current_start_line}",
+                                         condition_node=True,
+                                         condition_node_type="require")
         require_condition_node.condition_expr = condition_expr
 
         # 5. True 분기 블록 생성
@@ -2249,7 +2251,9 @@ class ContractAnalyzer:
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
         # 4. 조건식 블록 생성 및 평가
-        assert_condition_node = CFGNode(name=f"require_condition_{self.current_start_line}", condition_node=True)
+        assert_condition_node = CFGNode(name=f"assert_condition_{self.current_start_line}",
+                                        condition_node=True,
+                                        condition_node_type="assert")
         assert_condition_node.condition_expr = condition_expr
 
         # 5. True 분기 블록 생성
@@ -3586,52 +3590,51 @@ class ContractAnalyzer:
             raise ValueError(f"Function '{function_name}' not found in contract '{self.current_target_contract}'.")
 
         # 3. 함수의 매개변수와 인자 매핑
-        # 함수의 매개변수 목록 가져오기
-        function_params = function_cfg.parameters  # 매개변수 이름의 리스트 또는 딕셔너리
+        # 함수의 매개변수 목록 가져오기 (매개변수 이름의 리스트)
+        function_params = function_cfg.parameters  # 예: ['_account']
+
         # 함수 호출 시 전달된 인자 가져오기
         arguments = function_expr.arguments if function_expr.arguments else []
         named_arguments = function_expr.named_arguments if function_expr.named_arguments else {}
 
         # 인자와 매개변수 수 일치 여부 확인
-        if len(function_params) != len(arguments) + len(named_arguments):
+        total_params = len(function_params)
+        total_args = len(arguments) + len(named_arguments)
+        if total_params != total_args:
             raise ValueError(f"Argument count mismatch in function call to '{function_name}'.")
 
-        # 매개변수 이름과 인자 값을 매핑하여 새로운 변수 환경 생성
-        function_variables = {}
+        # 4. 함수의 변수 환경을 설정
+        # 기존 변수 환경을 저장
+        previous_variables = self.get_current_block().variables
 
+        # 5. 매개변수에 인자 값 할당
         # 위치 기반 인자 처리
-        for param, arg_expr in zip(function_params, arguments):
-            arg_value = self.evaluate_expression(arg_expr, self.get_current_block().variables)
-            # 변수 생성 및 값 할당
-            param_var = Variables(identifier=param.name, value=arg_value, typeInfo=param.typeInfo)
-            function_variables[param.name] = param_var
+        for param_name, arg_expr in zip(function_params, arguments):
+            arg_value = self.evaluate_expression(arg_expr, previous_variables)
+            if param_name in function_cfg.related_variables:
+                function_cfg.related_variables[param_name].value = arg_value
+            else:
+                raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
 
         # 이름 기반 인자 처리
         for param_name, arg_expr in named_arguments.items():
             if param_name not in function_params:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}'.")
-            arg_value = self.evaluate_expression(arg_expr, self.get_current_block().variables)
-            # 변수 생성 및 값 할당
-            param_var = Variables(identifier=param_name, value=arg_value, typeInfo=function_params[param_name].typeInfo)
-            function_variables[param_name] = param_var
+            arg_value = self.evaluate_expression(arg_expr, previous_variables)
+            if param_name in function_cfg.related_variables:
+                function_cfg.related_variables[param_name].value = arg_value
+                raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
 
-        # 4. 함수 CFG를 따라 abstract interpretation 수행
-        # 함수의 시작 블록 가져오기
-        entry_block = function_cfg.entry_block
+        # 6. 함수 내부에서 사용하는 변수 환경으로 교체
+        #self.get_current_block().variables = function_variables
 
-        # 함수의 변수 환경을 초기화 (매개변수와 로컬 변수)
-        # 기존 변수 환경을 저장
-        previous_variables = self.get_current_block().variables
-        # 새로운 변수 환경으로 교체
-        self.get_current_block().variables = function_variables
-
-        # 함수 CFG를 abstract interpretation
+        # 7. 함수 CFG를 abstract interpretation
         return_value = self.interpret_function_cfg(function_cfg)
 
-        # 함수 호출 후 변수 환경 복원
-        self.get_current_block().variables = previous_variables
+        # 8. 함수 호출 후 변수 환경 복원
+        #self.get_current_block().variables = previous_variables
 
-        # 5. 반환 값 처리
+        # 9. 반환 값 처리
         return return_value
 
     def interpret_function_cfg(self, function_cfg):
@@ -3641,43 +3644,122 @@ class ContractAnalyzer:
         :return: 함수의 반환 값 (Interval 또는 기타 값)
         """
         # 함수의 시작 블록 가져오기
-        current_block = function_cfg.entry_block
+        entry_block = function_cfg.entry_block
 
         # 함수의 반환 값 초기화
         return_value = None
 
         # CFG를 순회하면서 abstract interpretation 수행
         visited_blocks = set()
-        block_stack = [current_block]
+        block_stack = [(entry_block, self.copy_variables(function_cfg.related_variables))]  # (블록, 변수 환경)
 
         while block_stack:
-            current_block = block_stack.pop()
+            current_block, current_variables = block_stack.pop()
 
+            # 노드 방문 여부 확인
             if current_block in visited_blocks:
                 continue
             visited_blocks.add(current_block)
 
+            # 현재 노드의 변수 환경 설정
+            # 이 부분은 현재 함수 내부에서 사용되므로, 필요한 경우 설정
+            # self.get_current_block().variables = current_variables
+
+            # 조건 노드 처리
+            if current_block.condition_node:
+                condition_expr = current_block.condition_expr
+
+                # 조건식 평가를 위한 변수 환경 복사
+                true_variables = self.copy_variables(current_variables)
+                false_variables = self.copy_variables(current_variables)
+
+                # 조건식에 따라 변수의 범위를 업데이트
+                self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
+                self.update_variables_with_condition(condition_expr, false_variables, condition_value=False)
+
+                # 참 분기 처리
+                true_successors = [succ for succ in function_cfg.graph.successors(current_block)
+                                   if self.is_true_branch(current_block, succ, function_cfg)]
+                for succ in true_successors:
+                    block_stack.append((succ, true_variables))
+
+                # 거짓 분기 처리
+                false_successors = [succ for succ in function_cfg.graph.successors(current_block)
+                                    if self.is_false_branch(current_block, succ, function_cfg)]
+                for succ in false_successors:
+                    block_stack.append((succ, false_variables))
+
+                continue  # 현재 노드의 문장 처리는 건너뜀 (조건 노드이므로)
+
             # 블록 내의 문장들을 해석
             for stmt in current_block.statements:
                 if stmt.statement_type == 'assignment':
-                    self.process_assignment_statement(stmt)
+                    self.process_assignment_statement(stmt, current_variables)
                 elif stmt.statement_type == 'variable_declaration':
-                    self.process_variable_declaration_statement(stmt)
-                elif stmt.statement_type == 'if':
-                    self.process_if_statement(stmt)
-                elif stmt.statement_type == 'while':
-                    self.process_while_statement(stmt)
+                    self.process_variable_declaration_statement(stmt, current_variables)
                 elif stmt.statement_type == 'return':
-                    return_value = self.evaluate_expression(stmt.expression, self.get_current_block().variables)
+                    return_value = self.evaluate_expression(stmt.expression, current_variables)
                     # 함수 내에서 return이 발생하면 해석을 종료
                     return return_value
                 # 기타 필요한 문장 유형 처리
 
-            # 다음 블록으로 이동
-            for successor in current_block.successors:
-                block_stack.append(successor)
+            # 다음 블록으로 이동, join point node가 여기서 처리되는 형태 이겠네
+            for successor in function_cfg.graph.successors(current_block):
+                block_stack.append((successor, self.copy_variables(current_variables)))
 
         return return_value
+
+    def is_true_branch(self, current_block, successor_node, function_cfg):
+        """
+        successor_node가 참 분기인지 확인합니다.
+        :param current_block: 현재 CFGNode (조건 노드)
+        :param successor_node: successor CFGNode
+        :param function_cfg: 현재 함수의 CFG
+        :return: True 또는 False
+        """
+        edge_data = function_cfg.graph.get_edge_data(current_block, successor_node)
+        return edge_data.get('condition') == True
+
+    def is_false_branch(self, current_block, successor_node, function_cfg):
+        """
+        successor_node가 거짓 분기인지 확인합니다.
+        :param current_block: 현재 CFGNode (조건 노드)
+        :param successor_node: successor CFGNode
+        :param function_cfg: 현재 함수의 CFG
+        :return: True 또는 False
+        """
+        edge_data = function_cfg.graph.get_edge_data(current_block, successor_node)
+        return edge_data.get('condition') == False
+
+    def merge_variables_from_predecessors(self, current_block, function_cfg):
+        """
+        조인 포인트 노드에서 predecessor들의 변수 환경을 합칩니다.
+        :param current_block: 현재 CFGNode (조인 포인트 노드)
+        :param function_cfg: 현재 함수의 CFG
+        :return: 합쳐진 변수 환경 (dict)
+        """
+        merged_variables = {}
+
+        # 각 predecessor의 변수 환경을 가져옴
+        predecessor_variables_list = []
+        for pred in function_cfg.graph.predecessors(current_block):
+            # 각 predecessor 노드에서 변수 환경을 가져와야 함
+            # 이를 위해 노드와 변수 환경을 매핑하는 구조가 필요함
+            # 예를 들어, 노드 객체에 변수 환경을 저장하거나 별도의 딕셔너리를 사용
+            pred_variables = pred.variables if hasattr(pred, 'variables') else {}
+            predecessor_variables_list.append(pred_variables)
+
+        # 변수별로 범위를 합침
+        variable_names = set()
+        for vars in predecessor_variables_list:
+            variable_names.update(vars.keys())
+
+        for var_name in variable_names:
+            var_objs = [vars[var_name] for vars in predecessor_variables_list if var_name in vars]
+            merged_var = self.merge_variable_intervals(var_objs)
+            merged_variables[var_name] = merged_var
+
+        return merged_variables
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
         """

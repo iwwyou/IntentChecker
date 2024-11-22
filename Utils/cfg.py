@@ -61,7 +61,7 @@ class CFGNode:
         :param operator: 할당 연산자
         """
         assignment_stmt = Statement(
-            statement_type='assignment',
+            statement_type='array_assignment',
             left=Expression(identifier=variable_obj.identifier),
             operator=operator,
             right=expr,
@@ -85,7 +85,7 @@ class CFGNode:
         :param operator: 할당 연산자
         """
         assignment_stmt = Statement(
-            statement_type='assignment',
+            statement_type='struct_assignment',
             left=Expression(identifier=variable_obj.identifier),
             operator=operator,
             right=expr,
@@ -113,7 +113,7 @@ class CFGNode:
         """
         # Statement 생성
         assignment_stmt = Statement(
-            statement_type='assignment',
+            statement_type='mapping_assignment',
             left=left_expr,
             operator=operator,
             right=right_expr,
@@ -126,6 +126,9 @@ class CFGNode:
 
         # 매핑 변수의 정보 업데이트는 필요에 따라 수행
         self.variables[mapping_var.identifier] = mapping_var
+
+    def add_function_call_statement(self):
+        return
 
     def add_return_statement(self, return_expr: Expression = None, evaluated_value=None):
         """
@@ -141,9 +144,6 @@ class CFGNode:
         self.statements.append(return_stmt)
         self.return_val = evaluated_value  # exit 노드에 저장할 반환 값으로 사용
 
-    def copy_variables_to_node(self):
-        return
-
     def get_variable(self, var_name: str) -> Variables:
         """
         변수 이름을 받아 관련 변수를 반환합니다.
@@ -151,14 +151,6 @@ class CFGNode:
         :return: Variables 객체
         """
         return self.variables.get(var_name)
-
-    def add_if_statement(self):
-        return
-
-    def add_expression_statement(self, expr):
-        self.statements.append(expr)
-
-
 
 class CFG:
     def __init__(self, cfg_type):
@@ -169,7 +161,6 @@ class CFG:
         self.graph.add_node(self.entry_node)
         self.graph.add_node(self.exit_node)
         self.graph.add_edge(self.entry_node, self.exit_node)
-
 
     def get_entry_node(self):
         return self.entry_node
