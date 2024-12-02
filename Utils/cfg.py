@@ -127,8 +127,18 @@ class CFGNode:
         # 매핑 변수의 정보 업데이트는 필요에 따라 수행
         self.variables[mapping_var.identifier] = mapping_var
 
-    def add_function_call_statement(self):
-        return
+    def add_function_call_statement(self, function_expr: Expression, evaluated_value=None):
+        """
+        함수 호출문을 CFG에 추가합니다.
+        :param function_expr: 함수 호출 Expression 객체
+        :param evaluated_value: 함수 호출의 평가 결과 (필요한 경우)
+        """
+        function_call_stmt = Statement(
+            statement_type='function_call',
+            function_call_expr=function_expr,
+            evaluated_value=evaluated_value
+        )
+        self.statements.append(function_call_stmt)
 
     def add_return_statement(self, return_expr: Expression = None, evaluated_value=None):
         """

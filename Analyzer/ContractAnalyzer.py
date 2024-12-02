@@ -2378,52 +2378,6 @@ class ContractAnalyzer:
 
     import copy
 
-    class Variables:
-        def __init__(self, identifier=None, value=None,
-                     isConstant=False, scope=None, typeInfo=None):
-            # 기본 속성
-            self.identifier = identifier  # 변수명
-            self.scope = scope  # 변수의 스코프 (local, state 등)
-            self.isConstant = isConstant  # 상수 여부
-            self.typeInfo = typeInfo  # SolType 객체
-
-            # 값 정보
-            self.value = value  # Interval 또는 기타 값
-
-    class ArrayVariable(Variables):
-        def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,
-                     isConstant=False, scope=None):
-            super().__init__(identifier, value, isConstant, scope)
-            self.typeInfo = SolType()
-            self.typeInfo.typeCategory = 'array'
-            self.typeInfo.arrayBaseType = base_type  # SolType 객체
-            self.typeInfo.arrayLength = array_length
-            self.typeInfo.isDynamicArray = is_dynamic
-            self.elements = []  # 배열 요소들: Variables 객체의 리스트
-
-    class MappingVariable(Variables):
-        def __init__(self, identifier=None, key_type=None, value_type=None, value=None,
-                     isConstant=False, scope=None):
-            super().__init__(identifier, value, isConstant, scope)
-            self.typeInfo = SolType()
-            self.typeInfo.typeCategory = 'mapping'
-            self.typeInfo.mappingKeyType = key_type  # SolType 객체
-            self.typeInfo.mappingValueType = value_type  # SolType 객체
-            self.mapping = {}  # 매핑된 키-값 쌍 저장: key -> Variables 객체 또는 값
-
-    class StructVariable(Variables):
-        def __init__(self, identifier=None, struct_type=None, value=None, isConstant=False, scope=None):
-            super().__init__(identifier, value, isConstant, scope)
-            self.typeInfo = SolType()
-            self.typeInfo.typeCategory = 'struct'
-            self.typeInfo.structTypeName = struct_type  # 구조체 이름
-            self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
-
-    class SolType:
-        def __init__(self):
-            self.typeCategory = None  # 'elementary', 'array', 'mapping', 'struct', 'function', 'enum'
-            # 기타 타입 정보 생략
-
     def copy_variables(self, variables):
         """
         주어진 변수 딕셔너리(variables)를 깊은 복사하여 반환합니다.
@@ -3079,11 +3033,11 @@ class ContractAnalyzer:
             if cfg_node.condition_node_type == "while":
                 # while 루프의 경우 고정점 분석 수행
                 join_point_node = cfg_node
-                pred = self.current_target_function_cfg.get_predecessor_node(cfg_node)
-                if len(pred) == 1 :
+                pred = list(self.current_target_function_cfg.graph.predecessors(cfg_node))
+                if len(pred) == 1:
                     join_point_node = pred[0]
-                else :
-                    raise ValueError(f"There are too much precedecssors of {cfg_node}")
+                else:
+                    raise ValueError(f"There are too many predecessors of {cfg_node}")
                 newBlock = self.find_fixpoint(join_point_node)
                 # while 조건 노드의 false branch에 결과 반영
                 self.update_variables_at_node(join_point_node.false_branch, newBlock.variables)
@@ -3094,6 +3048,18 @@ class ContractAnalyzer:
 
         if hasNode and outSideIfNode:
             newBlock = self.join_leaf_nodes(outSideIfNode)
+
+            # **새로운 블록을 그래프에 추가 및 연결**
+            # 조건 노드의 successor들을 새로운 블록의 successor로 설정
+            successors = list(self.current_target_function_cfg.graph.successors(outSideIfNode))
+            for succ in successors:
+                # 조건 노드와 successor 간의 에지를 제거하고, 새로운 블록과 successor를 연결
+                self.current_target_function_cfg.graph.remove_edge(outSideIfNode, succ)
+                self.current_target_function_cfg.graph.add_edge(newBlock, succ)
+
+            # 조건 노드에서 새로운 블록으로 에지를 추가
+            self.current_target_function_cfg.graph.add_edge(outSideIfNode, newBlock)
+
             return newBlock
         else:
             # 블록 아웃 처리가 완료되지 않았거나 처리할 노드가 없는 경우
@@ -3130,7 +3096,7 @@ class ContractAnalyzer:
         # 리프 노드들의 변수 정보를 조인
         joined_variables = {}
         for node in leaf_nodes:
-            if node.function_exit_node :
+            if node.function_exit_node:
                 continue
             for var_name, var_value in node.variables.items():
                 if var_name in joined_variables:
@@ -3143,6 +3109,21 @@ class ContractAnalyzer:
         # 새로운 블록 생성 및 변수 정보 저장
         new_block = CFGNode(name=f"JoinBlock_{self.current_start_line}")
         new_block.variables = joined_variables
+
+        # **CFG 그래프에 새로운 블록 추가**
+        self.current_target_function_cfg.graph.add_node(new_block)
+
+        # **리프 노드들과 새로운 블록을 에지로 연결**
+        for node in leaf_nodes:
+            # 기존의 successor가 없으므로, 리프 노드에서 new_block으로 에지를 연결
+            self.current_target_function_cfg.graph.add_edge(node, new_block)
+
+        # **조건 노드의 successor를 새로운 블록으로 연결**
+        successors = list(self.current_target_function_cfg.graph.successors(condition_node))
+        for succ in successors:
+            # 조건 노드와 successor 간의 에지를 제거하고, 새로운 블록과 successor를 연결
+            self.current_target_function_cfg.graph.remove_edge(condition_node, succ)
+            self.current_target_function_cfg.graph.add_edge(new_block, succ)
 
         return new_block
 
@@ -3651,63 +3632,210 @@ class ContractAnalyzer:
 
         # CFG를 순회하면서 abstract interpretation 수행
         visited_blocks = set()
-        block_stack = [(entry_block, self.copy_variables(function_cfg.related_variables))]  # (블록, 변수 환경)
+        block_queue = deque()
+        block_queue.append((entry_block, self.copy_variables(function_cfg.related_variables)))  # (블록, 변수 환경)
 
-        while block_stack:
-            current_block, current_variables = block_stack.pop()
+        while block_queue:
+            current_block, current_variables = block_queue.popleft()
 
             # 노드 방문 여부 확인
             if current_block in visited_blocks:
+                # 이전에 방문한 변수 환경과 현재 변수 환경을 조인
+                previous_variables = current_block.variables
+                merged_variables = self.join_variables(previous_variables, current_variables)
+                current_block.variables = merged_variables
                 continue
-            visited_blocks.add(current_block)
-
-            # 현재 노드의 변수 환경 설정
-            # 이 부분은 현재 함수 내부에서 사용되므로, 필요한 경우 설정
-            # self.get_current_block().variables = current_variables
+            else:
+                current_block.variables = current_variables
+                visited_blocks.add(current_block)
 
             # 조건 노드 처리
             if current_block.condition_node:
-                condition_expr = current_block.condition_expr
+                if current_block.condition_node_type in ["if", "else if"]:
+                    condition_expr = current_block.condition_expr
 
-                # 조건식 평가를 위한 변수 환경 복사
-                true_variables = self.copy_variables(current_variables)
-                false_variables = self.copy_variables(current_variables)
+                    # 조건식 평가를 위한 변수 환경 복사
+                    true_variables = self.copy_variables(current_variables)
+                    false_variables = self.copy_variables(current_variables)
 
-                # 조건식에 따라 변수의 범위를 업데이트
-                self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
-                self.update_variables_with_condition(condition_expr, false_variables, condition_value=False)
+                    # 조건식에 따라 변수의 범위를 업데이트
+                    self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
+                    self.update_variables_with_condition(condition_expr, false_variables, condition_value=False)
 
-                # 참 분기 처리
-                true_successors = [succ for succ in function_cfg.graph.successors(current_block)
-                                   if self.is_true_branch(current_block, succ, function_cfg)]
-                for succ in true_successors:
-                    block_stack.append((succ, true_variables))
+                    # 참 분기 처리
+                    true_successors = [succ for succ in function_cfg.graph.successors(current_block)
+                                       if self.is_true_branch(current_block, succ, function_cfg)]
+                    for succ in true_successors:
+                        block_queue.append((succ, true_variables))
 
-                # 거짓 분기 처리
-                false_successors = [succ for succ in function_cfg.graph.successors(current_block)
-                                    if self.is_false_branch(current_block, succ, function_cfg)]
-                for succ in false_successors:
-                    block_stack.append((succ, false_variables))
+                    # 거짓 분기 처리
+                    false_successors = [succ for succ in function_cfg.graph.successors(current_block)
+                                        if self.is_false_branch(current_block, succ, function_cfg)]
+                    for succ in false_successors:
+                        block_queue.append((succ, false_variables))
 
-                continue  # 현재 노드의 문장 처리는 건너뜀 (조건 노드이므로)
+                    continue  # 현재 노드의 문장 처리는 건너뜀 (조건 노드이므로)
 
-            # 블록 내의 문장들을 해석
-            for stmt in current_block.statements:
-                if stmt.statement_type == 'assignment':
-                    self.process_assignment_statement(stmt, current_variables)
-                elif stmt.statement_type == 'variable_declaration':
-                    self.process_variable_declaration_statement(stmt, current_variables)
-                elif stmt.statement_type == 'return':
-                    return_value = self.evaluate_expression(stmt.expression, current_variables)
-                    # 함수 내에서 return이 발생하면 해석을 종료
-                    return return_value
-                # 기타 필요한 문장 유형 처리
+                elif current_block.condition_node_type in ["while", "for", "do_while"]:
+                    # 고정점 계산 수행
+                    self.fixpoint(current_block)
+                    continue
 
-            # 다음 블록으로 이동, join point node가 여기서 처리되는 형태 이겠네
-            for successor in function_cfg.graph.successors(current_block):
-                block_stack.append((successor, self.copy_variables(current_variables)))
+                elif current_block.condition_node_type in ["require", "assert"]:
+                    condition_expr = current_block.condition_expr
+
+                    # 조건식 평가를 위한 변수 환경 복사
+                    true_variables = self.copy_variables(current_variables)
+
+                    # 조건식에 따라 변수의 범위를 업데이트
+                    self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
+
+                    # 참 분기 처리
+                    true_successors = [succ for succ in function_cfg.graph.successors(current_block)
+                                       if self.is_true_branch(current_block, succ, function_cfg)]
+                    for succ in true_successors:
+                        block_queue.append((succ, true_variables))
+
+                    continue  # False 분기는 처리하지 않음 (revert되므로)
+
+            elif current_block.join_point_node:
+                # 이전 노드들의 변수 환경을 조인
+                predecessors = list(function_cfg.graph.predecessors(current_block))
+                merged_variables = self.copy_variables(function_cfg.related_variables)
+                for pred in predecessors:
+                    if pred.variables:
+                        merged_variables = self.join_variables(merged_variables, pred.variables)
+                current_block.variables = merged_variables
+
+            else:
+                # 블록 내의 문장들을 해석
+                for stmt in current_block.statements:
+                    if stmt.statement_type == 'assignment':
+                        self.interpret_assignment_statement(stmt, current_block.variables)
+                    elif stmt.statement_type == 'array_assignment':
+                        self.interpret_array_assignment_statement(stmt, current_block.variables)
+                    elif stmt.statement_type == 'struct_assignment':
+                        self.interpret_struct_assignment_statement(stmt, current_block.variables)
+                    elif stmt.statement_type == 'mapping_assignment':
+                        self.interpret_mapping_assignment_statement(stmt, current_block.variables)
+                    elif stmt.statement_type == 'function_call':
+                        self.interpret_function_call_statement(stmt, current_block.variables)
+                    elif stmt.statement_type == 'return':
+                        return_value = self.evaluate_expression(stmt.return_expr, current_block.variables)
+                        # 함수 내에서 return이 발생하면 해석을 종료
+                        return return_value
+                    elif stmt.statement_type == 'revert':
+                        # revert 문 처리 (예: 함수 해석 종료)
+                        return None
+                    else:
+                        # 기타 문장 유형에 대한 처리
+                        pass
+
+            # 다음 블록으로 이동
+            successors = list(function_cfg.graph.successors(current_block))
+            for successor in successors:
+                block_queue.append((successor, self.copy_variables(current_block.variables)))
 
         return return_value
+
+    def interpret_assignment_statement(self, stmt, variables):
+        """
+        일반 변수에 대한 할당문을 해석합니다.
+        :param stmt: Statement 객체 (assignment)
+        :param variables: 현재 변수 환경 (dict)
+        """
+        var_name = stmt.left.identifier
+        variable_obj = variables.get(var_name)
+        if not variable_obj:
+            raise ValueError(f"Variable '{var_name}' not found in current variables.")
+
+        # 우변 표현식 평가
+        right_value = self.evaluate_expression(stmt.right, variables)
+
+        # 복합 할당 연산자 처리
+        if stmt.operator != '=':
+            new_value = self.process_compound_assignment(variable_obj.value, right_value, stmt.operator)
+        else:
+            new_value = right_value
+
+        # 변수 값 업데이트
+        variable_obj.value = new_value
+        variables[var_name] = variable_obj
+
+    def interpret_array_assignment_statement(self, stmt, variables):
+        """
+        배열 변수에 대한 할당문을 해석합니다.
+        :param stmt: Statement 객체 (array_assignment)
+        :param variables: 현재 변수 환경 (dict)
+        """
+        var_name = stmt.left.identifier
+        variable_obj = variables.get(var_name)
+        if not variable_obj or not isinstance(variable_obj, ArrayVariable):
+            raise ValueError(f"Array variable '{var_name}' not found in current variables.")
+
+        # 우변 표현식 평가 (배열 요소들의 값 리스트)
+        elements_value = self.evaluate_array_expression(stmt.right, variables)
+
+        # 배열 요소 값 업데이트
+        variable_obj.elements = elements_value
+        variables[var_name] = variable_obj
+
+    def interpret_struct_assignment_statement(self, stmt, variables):
+        """
+        구조체 변수에 대한 할당문을 해석합니다.
+        :param stmt: Statement 객체 (struct_assignment)
+        :param variables: 현재 변수 환경 (dict)
+        """
+        var_name = stmt.left.identifier
+        variable_obj = variables.get(var_name)
+        if not variable_obj or not isinstance(variable_obj, StructVariable):
+            raise ValueError(f"Struct variable '{var_name}' not found in current variables.")
+
+        # 우변 표현식 평가 (구조체 멤버들의 값 딕셔너리)
+        members_value = self.evaluate_struct_expression(stmt.right, variables)
+
+        # 구조체 멤버 값 업데이트
+        variable_obj.members = members_value
+        variables[var_name] = variable_obj
+
+    def interpret_mapping_assignment_statement(self, stmt, variables):
+        """
+        매핑 변수에 대한 할당문을 해석합니다.
+        :param stmt: Statement 객체 (mapping_assignment)
+        :param variables: 현재 변수 환경 (dict)
+        """
+        # 좌변 표현식에서 매핑 키와 변수명 추출
+        mapping_var_name = stmt.left.base.identifier
+        key_expr = stmt.left.index
+        key_value = self.evaluate_expression(key_expr, variables)
+
+        mapping_var = variables.get(mapping_var_name)
+        if not mapping_var or not isinstance(mapping_var, MappingVariable):
+            raise ValueError(f"Mapping variable '{mapping_var_name}' not found in current variables.")
+
+        # 우변 표현식 평가
+        right_value = self.evaluate_expression(stmt.right, variables)
+
+        # 매핑 변수의 특정 키에 대한 값 업데이트
+        mapping_var.mapping[key_value] = right_value
+        variables[mapping_var_name] = mapping_var
+
+    def interpret_function_call_statement(self, stmt, variables):
+        """
+        함수 호출문을 해석합니다.
+        :param stmt: Statement 객체 (function_call)
+        :param variables: 현재 변수 환경 (dict)
+        """
+        # 함수 호출 표현식에서 함수명과 인자 추출
+        function_name = stmt.function_call_expr.identifier
+        arguments = stmt.function_call_expr.arguments
+
+        # 함수 요약 정보를 이용하여 해석하거나, 재귀적으로 함수 해석을 수행
+        # 여기서는 간단히 함수 호출의 부수 효과를 처리하는 것으로 가정
+        # 실제 구현에서는 함수 요약 정보를 활용해야 합니다.
+
+        # 예시: 함수가 상태 변수를 변경하는 경우, 해당 변수를 업데이트
+        pass  # 구체적인 구현 필요
 
     def is_true_branch(self, current_block, successor_node, function_cfg):
         """
