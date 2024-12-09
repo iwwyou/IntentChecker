@@ -882,10 +882,10 @@ class ContractAnalyzer:
 
         if current_block.is_while_body:
             # while문 안에서 새로 생긴 값에 대해 bottom으로 join point node에 저장
-            join_point_node = self.find_join_point_node(current_block)
+            fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
 
-            # identifier가 join_point_node의 variables에 없는 경우 처리
-            if for_joint_node_variables.identifier not in join_point_node.variables:
+            # identifier가 fixpoint_evaluation_node의 variables에 없는 경우 처리
+            if for_joint_node_variables.identifier not in fixpoint_evaluation_node.variables:
                 # 타입에 따라 bottom 값을 설정
                 if isinstance(variable_obj, ArrayVariable):
                     self.set_bottom_for_array(variable_obj)
@@ -897,9 +897,9 @@ class ContractAnalyzer:
                     # 기본 타입 처리
                     variable_obj.value.bottom()
 
-                # join_point_node에 변수 추가
-                join_point_node.join_point_node_vars[for_joint_node_variables.identifier] = variable_obj
-                join_point_node.variables[for_joint_node_variables.identifier] = variable_obj
+                # fixpoint_evaluation_node에 변수 추가
+                fixpoint_evaluation_node.fixpoint_evaluation_node_vars[for_joint_node_variables.identifier] = variable_obj
+                fixpoint_evaluation_node.variables[for_joint_node_variables.identifier] = variable_obj
 
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
@@ -1901,11 +1901,11 @@ class ContractAnalyzer:
 
         # 3. Create the join point node (entry point for the loop)
         join_node = CFGNode(name=f"while_join_{self.current_start_line}",
-                            join_point_node=True)
+                            fixpoint_evaluation_node=True)
 
         # Copy variables from current_block to join_node
         join_node.variables = self.copy_variables(current_block.variables) # while문 이전에서 들어온 변수의 상태
-        join_node.join_point_node_vars = self.copy_variables(current_block.variables) # join 하면서 변하는 변수의 상태
+        join_node.fixpoint_evaluation_node_vars = self.copy_variables(current_block.variables) # join 하면서 변하는 변수의 상태
 
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1981,9 +1981,9 @@ class ContractAnalyzer:
         continue_statement = Statement(statement_type="continue")
         current_block.statements.append(continue_statement)
 
-        # 4. 재귀적으로 join_point_node 찾기
-        join_point_node = self.find_join_point_node(current_block, self.current_target_function_cfg)
-        if not join_point_node:
+        # 4. 재귀적으로 fixpoint_evaluation_node 찾기
+        fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block, self.current_target_function_cfg)
+        if not fixpoint_evaluation_node:
             raise ValueError("No corresponding loop join node found for continue statement.")
 
         # 5. 현재 블록의 모든 successor와의 edge 제거
@@ -1991,8 +1991,8 @@ class ContractAnalyzer:
         for successor in successors:
             self.current_target_function_cfg.graph.remove_edge(current_block, successor)
 
-        # 6. 현재 블록을 join_point_node로 연결 (loop로 다시 돌아감)
-        self.current_target_function_cfg.graph.add_edge(current_block, join_point_node)
+        # 6. 현재 블록을 fixpoint_evaluation_node로 연결 (loop로 다시 돌아감)
+        self.current_target_function_cfg.graph.add_edge(current_block, fixpoint_evaluation_node)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -2059,42 +2059,42 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def find_join_point_node(self, current_node):
+    def find_fixpoint_evaluation_node(self, current_node):
         """
-        재귀적으로 predecessor를 탐색하여 join_point_node를 찾는 함수
+        재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾는 함수
         """
-        # 현재 노드가 join_point_node라면 반환
-        if current_node.join_point_node:
+        # 현재 노드가 fixpoint_evaluation_node라면 반환
+        if current_node.fixpoint_evaluation_node:
             return current_node
 
         # 직접적인 predecessor를 탐색
         predecessors = list(self.current_target_function_cfg.graph.predecessors(current_node))
         for pred in predecessors:
-            # 재귀적으로 predecessor를 탐색하여 join_point_node를 찾음
-            join_point_node = self.find_join_point_node(pred)
-            if join_point_node:
-                return join_point_node
+            # 재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾음
+            fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(pred)
+            if fixpoint_evaluation_node:
+                return fixpoint_evaluation_node
 
-        # join_point_node를 찾지 못하면 None 반환
+        # fixpoint_evaluation_node를 찾지 못하면 None 반환
         return None
 
     def find_while_condition_node(self, current_node):
         """
-                재귀적으로 predecessor를 탐색하여 join_point_node를 찾는 함수
+                재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾는 함수
                 """
-        # 현재 노드가 join_point_node라면 반환
+        # 현재 노드가 fixpoint_evaluation_node라면 반환
         if current_node.condition_node and current_node.condition_node_type == "while":
             return current_node
 
         # 직접적인 predecessor를 탐색
         predecessors = list(self.current_target_function_cfg.graph.predecessors(current_node))
         for pred in predecessors:
-            # 재귀적으로 predecessor를 탐색하여 join_point_node를 찾음
+            # 재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾음
             while_condition_node = self.find_while_condition_node(pred)
             if while_condition_node:
                 return while_condition_node
 
-        # join_point_node를 찾지 못하면 None 반환
+        # fixpoint_evaluation_node를 찾지 못하면 None 반환
         return None
 
     def process_return_statement(self, return_expr=None):
@@ -2565,9 +2565,9 @@ class ContractAnalyzer:
         :param current_block: 현재 블록 (CFGNode)
         :return: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
         """
-        # 1. join_point_node 찾기
-        join_point_node = self.find_join_point_node(current_block)
-        if not join_point_node:
+        # 1. fixpoint_evaluation_node 찾기
+        fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
+        if not fixpoint_evaluation_node:
             raise ValueError("Join point node not found for the current block.")
 
         while_condition_node = self.find_while_condition_node(current_block)
@@ -2584,7 +2584,7 @@ class ContractAnalyzer:
             in_vars[node] = {}
             out_vars[node] = {}
             if node == while_condition_node:
-                in_vars[node] = self.copy_variables(join_point_node.join_point_node_vars)
+                in_vars[node] = self.copy_variables(fixpoint_evaluation_node.fixpoint_evaluation_node_vars)
 
         # 4. 워크리스트 알고리즘 초기화 (집합 사용)
         #worklist = set(loop_nodes)
@@ -2615,9 +2615,9 @@ class ContractAnalyzer:
                 else:
                     # pred가 루프 밖의 노드인 경우
                     if new_in_vars is None:
-                        new_in_vars = self.copy_variables(join_point_node.variables)
+                        new_in_vars = self.copy_variables(fixpoint_evaluation_node.variables)
                     else:
-                        new_in_vars = self.join_variables(new_in_vars, join_point_node.variables)
+                        new_in_vars = self.join_variables(new_in_vars, fixpoint_evaluation_node.variables)
 
             # 6. in_vars 변화 확인
             if new_in_vars:
@@ -2644,13 +2644,13 @@ class ContractAnalyzer:
             node.variables = out_vars[node]
 
         # 10. 수렴된 변수 상태 반환
-        return out_vars[join_point_node]
+        return out_vars[fixpoint_evaluation_node]
 
 
     def traverse_loop_nodes(self, loop_node):
         """
         루프 내의 모든 노드를 수집합니다.
-        :param loop_node: 루프의 시작 노드 (join_point_node)
+        :param loop_node: 루프의 시작 노드 (fixpoint_evaluation_node)
         :return: 루프 내의 노드 집합 (set)
         """
         visited = set()
@@ -2784,7 +2784,7 @@ class ContractAnalyzer:
         if node.condition_node:
             # 조건 노드 처리
             self.update_variables_with_condition(out_vars, node.condition_expr, is_true_branch=True)
-        elif node.join_point_node:
+        elif node.fixpoint_evaluation_node:
             return out_vars
         else:
             # 일반 노드 처리: 노드의 모든 statement 평가
@@ -2798,13 +2798,13 @@ class ContractAnalyzer:
         :param variables: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
         :param current_block: 현재 블록 (CFGNode)
         """
-        # 1. join_point_node 찾기
-        join_point_node = self.find_join_point_node(current_block)
-        if not join_point_node:
+        # 1. fixpoint_evaluation_node 찾기
+        fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
+        if not fixpoint_evaluation_node:
             raise ValueError("Join point node not found for the current block.")
 
         # 2. 루프 내의 모든 노드 수집
-        loop_nodes = self.traverse_loop_nodes(join_point_node)
+        loop_nodes = self.traverse_loop_nodes(fixpoint_evaluation_node)
 
         # 3. 각 노드의 문장들에 대해 Interval 업데이트
         for node in loop_nodes:
@@ -3008,11 +3008,11 @@ class ContractAnalyzer:
 
         # 블록 아웃 처리
         if closeBraceQueue:
-            return self.process_block_out(closeBraceQueue)
+            return self.process_flow_join(closeBraceQueue)
         else:
             raise ValueError("No active function CFG found.")
 
-    def process_block_out(self, closeBraceQueue):
+    def process_flow_join(self, closeBraceQueue):
         """
         블록 아웃을 처리하는 함수입니다.
         :param closeBraceQueue: 블록 아웃이 감지된 라인 번호의 리스트
@@ -3032,15 +3032,7 @@ class ContractAnalyzer:
 
             if cfg_node.condition_node_type == "while":
                 # while 루프의 경우 고정점 분석 수행
-                join_point_node = cfg_node
-                pred = list(self.current_target_function_cfg.graph.predecessors(cfg_node))
-                if len(pred) == 1:
-                    join_point_node = pred[0]
-                else:
-                    raise ValueError(f"There are too many predecessors of {cfg_node}")
-                newBlock = self.find_fixpoint(join_point_node)
-                # while 조건 노드의 false branch에 결과 반영
-                self.update_variables_at_node(join_point_node.false_branch, newBlock.variables)
+                newBlock = self.apply_fixpoint_to_exit_node(cfg_node)
                 break  # while 루프의 블록 아웃 처리는 여기서 종료
             elif not hasNode and cfg_node.condition_node_type == "if":
                 outSideIfNode = cfg_node
@@ -3064,6 +3056,124 @@ class ContractAnalyzer:
         else:
             # 블록 아웃 처리가 완료되지 않았거나 처리할 노드가 없는 경우
             return None
+
+    def apply_fixpoint_to_exit_node(self, while_node):
+        """
+        함수 호출 시 while 루프의 exit 노드에 고정점 계산된 변수 상태를 적용하고 exit 노드를 반환합니다.
+        :param while_node: while 루프의 조건 노드 (CFGNode)
+        :return: while 루프의 exit 노드 (CFGNode)
+        """
+        # 1. 루프의 exit 노드 찾기
+        exit_nodes = self.find_loop_exit_nodes(while_node)
+        if not exit_nodes:
+            raise ValueError("While loop does not have an exit node.")
+        exit_node = exit_nodes[0]  # 일반적으로 exit 노드는 하나일 것입니다.
+
+        # 2. 루프 내의 모든 노드 수집
+        loop_nodes = self.traverse_loop_nodes(while_node)
+
+        # 3. 변수 상태 초기화
+        in_vars = {}
+        out_vars = {}
+        for node in loop_nodes:
+            in_vars[node] = {}
+            out_vars[node] = {}
+            if node == while_node:
+                # while 루프의 진입 시점 변수 상태 초기화
+                in_vars[node] = self.copy_variables(while_node.variables)
+
+        # 4. 워크리스트 알고리즘 초기화
+        worklist = deque([while_node])
+        max_iterations = 30  # 최대 반복 횟수 설정
+        iteration = 0
+
+        while worklist and iteration < max_iterations:
+            iteration += 1
+            node = worklist.popleft()
+
+            # 5. 선행 노드들의 out_vars를 조인하여 in_vars 계산
+            predecessors = list(self.current_target_function_cfg.graph.predecessors(node))
+            new_in_vars = None  # None으로 초기화하여 첫 번째 조인 시 설정되도록 함
+            for pred in predecessors:
+                if pred in loop_nodes:
+                    # pred가 루프 내의 노드인 경우
+                    if pred in out_vars and out_vars[pred]:
+                        if new_in_vars is None:
+                            new_in_vars = self.copy_variables(out_vars[pred])
+                        else:
+                            new_in_vars = self.join_variables(new_in_vars, out_vars[pred])
+                else:
+                    # pred가 루프 밖의 노드인 경우
+                    if new_in_vars is None:
+                        new_in_vars = self.copy_variables(pred.variables)
+                    else:
+                        new_in_vars = self.join_variables(new_in_vars, pred.variables)
+
+            # 6. in_vars 변화 확인
+            if new_in_vars:
+                if not self.variables_equal(in_vars[node], new_in_vars):
+                    in_vars[node] = new_in_vars
+
+            # 7. 노드의 transfer function 적용하여 out_vars 계산
+            old_out_vars = out_vars[node]
+            out_vars[node] = self.transfer_function(node, in_vars[node])
+
+            # 8. out_vars 변화 확인 및 워크리스트 업데이트
+            if not self.variables_equal(old_out_vars, out_vars[node]):
+                successors = list(self.current_target_function_cfg.graph.successors(node))
+                for succ in successors:
+                    if succ in loop_nodes:
+                        worklist.append(succ)
+
+            if iteration == max_iterations:
+                print("Fixpoint analysis did not converge within max iterations.")
+                break
+
+        # 9. 수렴된 변수 상태를 exit 노드에 반영
+        exit_node.variables = out_vars[exit_node]
+
+        # 10. exit 노드 반환
+        return exit_node
+
+    def find_loop_exit_nodes(self, while_node):
+        """
+        주어진 while 노드의 루프 exit 노드를 찾습니다.
+        :param while_node: while 루프의 조건 노드
+        :return: 루프 exit 노드들의 리스트
+        """
+        exit_nodes = []
+        visited = set()
+        stack = [while_node]
+
+        while stack:
+            current_node = stack.pop()
+            if current_node in visited:
+                continue
+            visited.add(current_node)
+
+            successors = list(self.current_target_function_cfg.graph.successors(current_node))
+            for succ in successors:
+                if succ == while_node:
+                    # 루프 백 엣지이므로 무시
+                    continue
+                if not self.is_node_in_loop(succ, while_node):
+                    # 루프 밖의 노드이면 exit 노드로 추가
+                    exit_nodes.append(succ)
+                else:
+                    stack.append(succ)
+
+        return exit_nodes
+
+    def is_node_in_loop(self, node, while_node):
+        """
+        주어진 노드가 while 루프 내에 속해 있는지 확인합니다.
+        :param node: 확인할 노드
+        :param while_node: while 루프의 조건 노드
+        :return: True 또는 False
+        """
+        # while_node에서 시작하여 루프 내의 모든 노드를 수집하고, 그 안에 node가 있는지 확인
+        loop_nodes = self.traverse_loop_nodes(while_node)
+        return node in loop_nodes
 
     def find_corresponding_open_brace(self, close_line):
         """
@@ -3640,10 +3750,6 @@ class ContractAnalyzer:
 
             # 노드 방문 여부 확인
             if current_block in visited_blocks:
-                # 이전에 방문한 변수 환경과 현재 변수 환경을 조인
-                previous_variables = current_block.variables
-                merged_variables = self.join_variables(previous_variables, current_variables)
-                current_block.variables = merged_variables
                 continue
             else:
                 current_block.variables = current_variables
@@ -3676,11 +3782,6 @@ class ContractAnalyzer:
 
                     continue  # 현재 노드의 문장 처리는 건너뜀 (조건 노드이므로)
 
-                elif current_block.condition_node_type in ["while", "for", "do_while"]:
-                    # 고정점 계산 수행
-                    self.fixpoint(current_block)
-                    continue
-
                 elif current_block.condition_node_type in ["require", "assert"]:
                     condition_expr = current_block.condition_expr
 
@@ -3698,14 +3799,17 @@ class ContractAnalyzer:
 
                     continue  # False 분기는 처리하지 않음 (revert되므로)
 
-            elif current_block.join_point_node:
-                # 이전 노드들의 변수 환경을 조인
-                predecessors = list(function_cfg.graph.predecessors(current_block))
-                merged_variables = self.copy_variables(function_cfg.related_variables)
-                for pred in predecessors:
-                    if pred.variables:
-                        merged_variables = self.join_variables(merged_variables, pred.variables)
-                current_block.variables = merged_variables
+                elif current_block.condition_node_type in ["while", "for", "do_while"]:
+                    # 함수 호출 시의 while 루프 처리
+                    exit_node = self.apply_fixpoint_to_exit_node(current_block)
+                    # exit_node의 변수 환경을 사용하여 다음 노드로 이동
+                    successors = list(self.current_target_function_cfg.graph.successors(exit_node))
+                    for successor in successors:
+                        block_queue.append((successor, self.copy_variables(exit_node.variables)))
+                    continue
+
+            elif current_block.fixpoint_evaluation_node:
+                continue
 
             else:
                 # 블록 내의 문장들을 해석
@@ -3728,13 +3832,12 @@ class ContractAnalyzer:
                         # revert 문 처리 (예: 함수 해석 종료)
                         return None
                     else:
-                        # 기타 문장 유형에 대한 처리
-                        pass
+                        raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
 
-            # 다음 블록으로 이동
-            successors = list(function_cfg.graph.successors(current_block))
-            for successor in successors:
-                block_queue.append((successor, self.copy_variables(current_block.variables)))
+                # 다음 블록으로 이동
+                successors = list(function_cfg.graph.successors(current_block))
+                for successor in successors:
+                    block_queue.append((successor, self.copy_variables(current_block.variables)))
 
         return return_value
 

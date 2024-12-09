@@ -142,7 +142,6 @@ test_inputs = [
         'endLine': 7
     },
 
-
     {
         'code': 'mapping(address => RebaseOptions) private _rebaseState;',
         'startLine': 9,
