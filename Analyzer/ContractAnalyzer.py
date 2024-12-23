@@ -448,7 +448,7 @@ class ContractAnalyzer:
         }
 
         # 4. 상태 변수를 ContractCFG에 추가
-        contract_cfg.add_state_variable(variable_obj, expr=expr, evaluatedValue=variable_obj.value)
+        contract_cfg.add_state_variable(variable_obj, expr=expr)
 
         # 5. ContractCFG에 있는 모든 FunctionCFG에 상태 변수 추가
         for function_cfg in contract_cfg.functions.values():
@@ -620,7 +620,7 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        for_joint_node_variables = variable_obj
+        #for_joint_node_variables = variable_obj
 
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
@@ -631,7 +631,7 @@ class ContractAnalyzer:
             # 우변 표현식 생성 (리터럴 값)
             expr = Expression(literal=interval)
             # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-            current_block.add_assign_statement(variable_obj, expr, evaluated_value=interval)
+            current_block.add_assign_statement(variable_obj, expr)
 
         else:
             if init_expr.context == 'FunctionCallContext' :
@@ -657,8 +657,7 @@ class ContractAnalyzer:
                         elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                         variable_obj.elements.append(elem_var)
                     # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-                    current_block.add_array_assign_statement(variable_obj, init_expr,
-                                                             evaluated_value=variable_obj.elements)
+                    current_block.add_array_assign_statement(variable_obj, init_expr)
                 elif init_expr.context == 'MemberAccessContext':
                     # MemberAccess인 경우 base 확인
                     base_identifier = init_expr.base.identifier
@@ -679,8 +678,7 @@ class ContractAnalyzer:
                             )
                             elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                             variable_obj.elements.append(elem_var)
-                        current_block.add_array_assign_statement(variable_obj, init_expr,
-                                                                 evaluated_value=variable_obj.elements)
+                        current_block.add_array_assign_statement(variable_obj, init_expr)
                     elif isinstance(base_variable, StructVariable):
                         # base가 구조체면 구조체 관련 평가 함수 호출
                         member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
@@ -695,8 +693,7 @@ class ContractAnalyzer:
                             )
                             member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
                             variable_obj.members[member_name] = member_var
-                        current_block.add_struct_assign_statement(variable_obj, init_expr,
-                                                                  evaluated_value=variable_obj.members)
+                        current_block.add_struct_assign_statement(variable_obj, init_expr)
                     else:
                         raise ValueError(
                             f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
@@ -714,8 +711,7 @@ class ContractAnalyzer:
                         )
                         elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                         variable_obj.elements.append(elem_var)
-                    current_block.add_array_assign_statement(variable_obj, init_expr,
-                                                             evaluated_value=variable_obj.elements)
+                    current_block.add_array_assign_statement(variable_obj, init_expr)
 
             elif isinstance(variable_obj, EnumVariable):
                 # 초기화 식이 있는 경우
@@ -730,8 +726,7 @@ class ContractAnalyzer:
                             variable_obj.set_member_value(member_name)
                             variable_obj.value = enum_value
                             # Statement에 우변 표현식과 평가된 값 저장
-                            current_block.add_assign_statement(variable_obj, init_expr,
-                                                               evaluated_value=variable_obj.value)
+                            current_block.add_assign_statement(variable_obj, init_expr)
                         else:
                             raise ValueError(
                                 f"Enum value '{enum_value}' is out of range for enum '{variable_obj.typeInfo.enumTypeName}'.")
@@ -762,8 +757,7 @@ class ContractAnalyzer:
                             )
                             elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                             variable_obj.elements.append(elem_var)
-                        current_block.add_array_assign_statement(variable_obj, init_expr,
-                                                                 evaluated_value=variable_obj.elements)
+                        current_block.add_array_assign_statement(variable_obj, init_expr)
                     elif isinstance(base_variable, StructVariable):
                         # base가 구조체면 구조체 관련 평가 함수 호출
                         member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
@@ -778,8 +772,7 @@ class ContractAnalyzer:
                             )
                             member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
                             variable_obj.members[member_name] = member_var
-                        current_block.add_struct_assign_statement(variable_obj, init_expr,
-                                                                  evaluated_value=variable_obj.members)
+                        current_block.add_struct_assign_statement(variable_obj, init_expr)
                     else:
                         raise ValueError(
                             f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
@@ -797,8 +790,7 @@ class ContractAnalyzer:
                         )
                         member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
                         variable_obj.members[member_name] = member_var
-                    current_block.add_struct_assign_statement(variable_obj, init_expr,
-                                                              evaluated_value=variable_obj.members)
+                    current_block.add_struct_assign_statement(variable_obj, init_expr)
             else:
                 # 6. `init_expr`의 context에 따른 분기 처리
                 if init_expr.context == 'IndexAccessContext':
@@ -828,14 +820,14 @@ class ContractAnalyzer:
                             base_variable.mapping[key_value] = Variables(value=interval)
 
                         variable_obj.value = interval
-                        current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                        current_block.add_assign_statement(variable_obj, init_expr)
 
                     elif isinstance(base_variable, ArrayVariable):
                         # 배열 인덱스 접근 처리
                         result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
                         interval = result[0] if isinstance(result, list) else result
                         variable_obj.value = interval
-                        current_block.add_array_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                        current_block.add_array_assign_statement(variable_obj, init_expr)
                 elif init_expr.context == 'MemberAccessContext':
                     # MemberAccess일 때 base 확인
                     base = init_expr.base
@@ -849,13 +841,13 @@ class ContractAnalyzer:
                             result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
                             interval = result[0] if isinstance(result, list) else result
                             variable_obj.value = interval
-                            current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                            current_block.add_assign_statement(variable_obj, init_expr)
                         elif isinstance(base_variable, StructVariable):
                             # base가 구조체면 구조체 관련 평가 함수 호출
                             member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
                             interval = next(iter(member_intervals.values()))
                             variable_obj.value = interval
-                            current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                            current_block.add_assign_statement(variable_obj, init_expr)
                         else:
                             raise ValueError(
                                 f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
@@ -869,18 +861,19 @@ class ContractAnalyzer:
                                     if init_expr.member == "length" :
                                         interval = UnsignedIntegerInterval(0, 2**32 - 1, 32)
                                         variable_obj.value = interval
-                                        current_block.add_assign_statement(variable_obj, init_expr,
-                                                                           evaluated_value=interval)
+                                        current_block.add_assign_statement(variable_obj, init_expr)
                 else:
                     # 기본 표현식 처리
                     interval = self.evaluate_expression(init_expr)
                     variable_obj.value = interval
-                    current_block.add_assign_statement(variable_obj, init_expr, evaluated_value=interval)
+                    current_block.add_assign_statement(variable_obj, init_expr)
 
         # 7. 함수 CFG의 related_variables에 추가
         self.current_target_function_cfg.add_related_variable(variable_obj)
 
         if current_block.is_while_body:
+            """
+            # 이거 왜 있는건지 모르겠네..
             # while문 안에서 새로 생긴 값에 대해 bottom으로 join point node에 저장
             fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
 
@@ -900,7 +893,7 @@ class ContractAnalyzer:
                 # fixpoint_evaluation_node에 변수 추가
                 fixpoint_evaluation_node.fixpoint_evaluation_node_vars[for_joint_node_variables.identifier] = variable_obj
                 fixpoint_evaluation_node.variables[for_joint_node_variables.identifier] = variable_obj
-
+            """
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
@@ -1018,31 +1011,32 @@ class ContractAnalyzer:
         # 4. 좌변 변수 정보 가져오기
         variable_obj, var_name, element_var, key_or_index = self.get_variable_from_expression(expr.left,
                                                                                               current_block.variables)
-
         if not variable_obj:
             raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
 
         # 5. 우변 표현식 평가 (좌변 변수의 타입과 우변 context에 따른 분기)
         right_expr = expr.right  # 미리 선언하여 모든 분기에서 참조 가능하도록 함
-        right_value = self.evaluate_expression(right_expr, current_block.variables)  # 우변 표현식
+
+        if right_expr.context == 'FunctionCallContext':
+            return_var = self.function_abstract_interpretation(right_expr)
 
         # 6. 좌변 변수의 타입에 따른 처리
         if isinstance(variable_obj, MappingVariable):
             # 좌변이 매핑 변수인 경우
             mapping_var = variable_obj
-            if element_var and key_or_index is not None:
+            if key_or_index is not None:
                 key_str = str(key_or_index)
 
+                right_value = self.evaluate_expression(right_expr, current_block.variables)  # 우변 표현식
                 # 복합 할당 연산자 처리
                 if expr.operator != '=':
                     new_value = self.process_compound_assignment(element_var.value, right_value, expr.operator)
-                    element_var.value = new_value
+                    variable_obj.mapping[key_or_index] = new_value
                 else:
-                    element_var.value = right_value
+                    variable_obj.mapping[key_or_index] = right_value
 
                 # Statement에 우변 표현식과 평가된 값 저장
-                current_block.add_mapping_assign_statement(mapping_var, element_var, expr.left, right_expr,
-                                                           evaluated_value=element_var.value, operator=expr.operator)
+                current_block.add_mapping_assign_statement(mapping_var, expr.left, right_expr, operator=expr.operator)
             else:
                 raise ValueError(f"Cannot assign value directly to mapping variable '{variable_obj.identifier}'")
 
@@ -1063,8 +1057,7 @@ class ContractAnalyzer:
                     elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                     variable_obj.elements.append(elem_var)
                 # Statement에 우변 표현식과 평가된 값 저장
-                current_block.add_array_assign_statement(variable_obj, right_expr,
-                                                         evaluated_value=variable_obj.elements)
+                current_block.add_array_assign_statement(variable_obj, right_expr)
             elif right_expr.context == 'IndexAccessContext':
                 # 우변이 배열의 인덱스 접근인 경우
                 result = self.evaluate_array_expression(right_expr, variables=current_block.variables)
@@ -1078,13 +1071,12 @@ class ContractAnalyzer:
                         elem.value = new_interval
                         new_elements.append(elem)
                     # Statement에 우변 표현식과 평가된 값 저장
-                    current_block.add_array_assign_statement(variable_obj, right_expr, evaluated_value=new_elements)
+                    current_block.add_array_assign_statement(variable_obj, right_expr)
                 else:
                     for elem in variable_obj.elements:
                         elem.value = right_interval
                     # Statement에 우변 표현식과 평가된 값 저장
-                    current_block.add_array_assign_statement(variable_obj, right_expr,
-                                                             evaluated_value=variable_obj.elements)
+                    current_block.add_array_assign_statement(variable_obj, right_expr)
             elif right_expr.context == 'MemberAccessContext':
                 # 우변이 MemberAccess인 경우 (배열의 length 등)
                 result = self.evaluate_array_expression(right_expr, variables=current_block.variables)
@@ -1097,12 +1089,11 @@ class ContractAnalyzer:
                         new_interval = self.process_compound_assignment(elem.value, right_interval, expr.operator)
                         elem.value = new_interval
                         new_elements.append(elem)
-                    current_block.add_array_assign_statement(variable_obj, right_expr, evaluated_value=new_elements)
+                    current_block.add_array_assign_statement(variable_obj, right_expr)
                 else:
                     for elem in variable_obj.elements:
                         elem.value = right_interval
-                    current_block.add_array_assign_statement(variable_obj, right_expr,
-                                                             evaluated_value=variable_obj.elements)
+                    current_block.add_array_assign_statement(variable_obj, right_expr)
             else:
                 # 일반 배열 처리
                 intervals = self.evaluate_array_expression(right_expr, variables=current_block.variables)
@@ -1117,8 +1108,7 @@ class ContractAnalyzer:
                     )
                     elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
                     variable_obj.elements.append(elem_var)
-                current_block.add_array_assign_statement(variable_obj, right_expr,
-                                                         evaluated_value=variable_obj.elements)
+                current_block.add_array_assign_statement(variable_obj, right_expr)
 
         elif isinstance(variable_obj, EnumVariable):
             # 좌변이 EnumVariable인 경우
@@ -1135,7 +1125,7 @@ class ContractAnalyzer:
                         variable_obj.set_member_value(member_name)
                         variable_obj.value = enum_value
                         # Statement에 우변 표현식과 평가된 값 저장
-                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=variable_obj.value)
+                        current_block.add_assign_statement(variable_obj, right_expr)
                     else:
                         raise ValueError(
                             f"Enum value '{enum_value}' is out of range for enum '{variable_obj.typeInfo.enumTypeName}'.")
@@ -1161,14 +1151,13 @@ class ContractAnalyzer:
                             new_members[member_name] = member_var
                         else:
                             raise ValueError(f"Struct member '{member_name}' not found in '{variable_obj.identifier}'")
-                    current_block.add_struct_assign_statement(variable_obj, right_expr, evaluated_value=new_members)
+                    current_block.add_struct_assign_statement(variable_obj, right_expr)
                 else:
                     for member_name, right_interval in right_member_intervals.items():
                         if member_name in variable_obj.members:
                             member_var = variable_obj.members[member_name]
                             member_var.value = right_interval
-                    current_block.add_struct_assign_statement(variable_obj, right_expr,
-                                                              evaluated_value=variable_obj.members)
+                    current_block.add_struct_assign_statement(variable_obj, right_expr)
             else:
                 # 일반 구조체 처리
                 right_member_intervals = self.evaluate_struct_expression(right_expr, variables=current_block.variables)
@@ -1183,8 +1172,7 @@ class ContractAnalyzer:
                     )
                     member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
                     variable_obj.members[member_name] = member_var
-                current_block.add_struct_assign_statement(variable_obj, right_expr,
-                                                          evaluated_value=variable_obj.members)
+                current_block.add_struct_assign_statement(variable_obj, right_expr)
 
         else:
             # 좌변이 일반 변수인 경우
@@ -1195,10 +1183,10 @@ class ContractAnalyzer:
                 if expr.operator != '=':
                     new_interval = self.process_compound_assignment(variable_obj.value, right_interval, expr.operator)
                     variable_obj.value = new_interval
-                    current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval)
+                    current_block.add_assign_statement(variable_obj, right_expr)
                 else:
                     variable_obj.value = right_interval
-                    current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=right_interval)
+                    current_block.add_assign_statement(variable_obj, right_expr)
             elif right_expr.context == 'MemberAccessContext':
                 # 우변이 MemberAccessContext인 경우
                 base_identifier = right_expr.base.identifier
@@ -1213,10 +1201,10 @@ class ContractAnalyzer:
                         new_interval = self.process_compound_assignment(variable_obj.value, right_interval,
                                                                         expr.operator)
                         variable_obj.value = new_interval
-                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval)
+                        current_block.add_assign_statement(variable_obj, right_expr)
                     else:
                         variable_obj.value = right_interval
-                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=right_interval)
+                        current_block.add_assign_statement(variable_obj, right_expr)
                 elif isinstance(base_variable, StructVariable):
                     # 구조체 멤버 접근 처리
                     right_interval = self.evaluate_struct_expression(right_expr, variables=current_block.variables)
@@ -1225,10 +1213,10 @@ class ContractAnalyzer:
                         new_interval = self.process_compound_assignment(variable_obj.value, right_interval,
                                                                         expr.operator)
                         variable_obj.value = new_interval
-                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval)
+                        current_block.add_assign_statement(variable_obj, right_expr)
                     else:
                         variable_obj.value = right_interval
-                        current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=right_interval)
+                        current_block.add_assign_statement(variable_obj, right_expr)
                 else:
                     raise ValueError(f"Unsupported base type for MemberAccess: {type(base_variable)}")
             else:
@@ -1238,10 +1226,10 @@ class ContractAnalyzer:
                 if expr.operator != '=':
                     new_interval = self.process_compound_assignment(variable_obj.value, right_interval, expr.operator)
                     variable_obj.value = new_interval
-                    current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval)
+                    current_block.add_assign_statement(variable_obj, right_expr)
                 else:
                     variable_obj.value = right_interval
-                    current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=right_interval)
+                    current_block.add_assign_statement(variable_obj, right_expr)
 
         # 6. 관련 변수 정보 추출 및 분석 결과 저장
         related_vars = self.extract_related_variables(right_expr, current_block, self.current_target_function_cfg)
@@ -1421,17 +1409,15 @@ class ContractAnalyzer:
         if isinstance(variable_obj, ArrayVariable):
             # 배열 요소에 대한 할당문 추가
             variable_obj.elements[index_value].value = new_interval  # 요소 값 업데이트
-            current_block.add_array_assign_statement(variable_obj, right_expr, evaluated_value=[new_interval],
-                                                     operator='=')
+            current_block.add_array_assign_statement(variable_obj, right_expr, operator='=')
         elif isinstance(variable_obj, StructVariable):
             # 구조체 멤버에 대한 할당문 추가
             variable_obj.members[member_name].value = new_interval  # 멤버 값 업데이트
-            current_block.add_struct_assign_statement(variable_obj, right_expr,
-                                                      evaluated_value={member_name: new_interval}, operator='=')
+            current_block.add_struct_assign_statement(variable_obj, right_expr, operator='=')
         else:
             # 기본 변수에 대한 할당문 추가
             variable_obj.value = new_interval  # 변수 값 업데이트
-            current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval, operator='=')
+            current_block.add_assign_statement(variable_obj, right_expr, operator='=')
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -1536,17 +1522,15 @@ class ContractAnalyzer:
         if isinstance(variable_obj, ArrayVariable):
             # 배열 요소에 대한 할당문 추가
             variable_obj.elements[index_value].value = new_interval  # 요소 값 업데이트
-            current_block.add_array_assign_statement(variable_obj, right_expr, evaluated_value=[new_interval],
-                                                     operator='=')
+            current_block.add_array_assign_statement(variable_obj, right_expr, operator='=')
         elif isinstance(variable_obj, StructVariable):
             # 구조체 멤버에 대한 할당문 추가
             variable_obj.members[member_name].value = new_interval  # 멤버 값 업데이트
-            current_block.add_struct_assign_statement(variable_obj, right_expr,
-                                                      evaluated_value={member_name: new_interval}, operator='=')
+            current_block.add_struct_assign_statement(variable_obj, right_expr, operator='=')
         else:
             # 기본 변수에 대한 할당문 추가
             variable_obj.value = new_interval  # 변수 값 업데이트
-            current_block.add_assign_statement(variable_obj, right_expr, evaluated_value=new_interval, operator='=')
+            current_block.add_assign_statement(variable_obj, right_expr, operator='=')
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -3658,21 +3642,21 @@ class ContractAnalyzer:
             self.update_variables_with_condition(variables, left_expr, is_true_branch)
             self.update_variables_with_condition(variables, right_expr, is_true_branch)
 
-    def function_abstract_interpretation(self, function_expr):
+    def function_abstract_interpretation(self, function_expr, current_variables):
         """
         주어진 함수 호출 표현식을 abstract interpretation하여 반환 값을 돌려줍니다.
         :param function_expr: Expression 객체 (FunctionCallContext)
+        :param current_variables: 현재 변수 상태 딕셔너리
         :return: 함수의 반환 값 (Interval 또는 기타 값)
         """
-        # 1. 호출할 함수의 이름 또는 식별자 추출
+        # 1. 호출할 함수 이름 추출
         if function_expr.function.identifier:
             function_name = function_expr.function.identifier
         else:
-            # 함수 표현식이 식별자가 아닌 경우 처리
             raise ValueError("Unsupported function expression for function call.")
 
-        # 2. 현재 컨트랙트의 CFG에서 해당 함수의 CFG 가져오기
-        contract_cfg = self.contract_cfgs[self.current_target_contract]
+        # 2. 현재 컨트랙트의 CFG 가져오기
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
@@ -3680,173 +3664,229 @@ class ContractAnalyzer:
         if not function_cfg:
             raise ValueError(f"Function '{function_name}' not found in contract '{self.current_target_contract}'.")
 
-        # 3. 함수의 매개변수와 인자 매핑
-        # 함수의 매개변수 목록 가져오기 (매개변수 이름의 리스트)
-        function_params = function_cfg.parameters  # 예: ['_account']
+        # 이전 함수 컨텍스트 저장
+        saved_current_target_function = self.current_target_function
+        self.current_target_function = function_name
 
-        # 함수 호출 시 전달된 인자 가져오기
+        # 3. 함수 파라미터, 인자 매핑
+        function_params = function_cfg.parameters
         arguments = function_expr.arguments if function_expr.arguments else []
         named_arguments = function_expr.named_arguments if function_expr.named_arguments else {}
 
-        # 인자와 매개변수 수 일치 여부 확인
         total_params = len(function_params)
         total_args = len(arguments) + len(named_arguments)
         if total_params != total_args:
             raise ValueError(f"Argument count mismatch in function call to '{function_name}'.")
 
-        # 4. 함수의 변수 환경을 설정
-        # 기존 변수 환경을 저장
-        previous_variables = self.get_current_block().variables
-
-        # 5. 매개변수에 인자 값 할당
-        # 위치 기반 인자 처리
+        # function_cfg.related_variables 내 파라미터 변수들에 인자값 할당
         for param_name, arg_expr in zip(function_params, arguments):
-            arg_value = self.evaluate_expression(arg_expr, previous_variables)
+            arg_value = self.evaluate_expression(arg_expr, current_variables)
             if param_name in function_cfg.related_variables:
                 function_cfg.related_variables[param_name].value = arg_value
             else:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
 
-        # 이름 기반 인자 처리
         for param_name, arg_expr in named_arguments.items():
             if param_name not in function_params:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}'.")
-            arg_value = self.evaluate_expression(arg_expr, previous_variables)
+            arg_value = self.evaluate_expression(arg_expr, current_variables)
             if param_name in function_cfg.related_variables:
                 function_cfg.related_variables[param_name].value = arg_value
+            else:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
 
-        # 6. 함수 내부에서 사용하는 변수 환경으로 교체
-        #self.get_current_block().variables = function_variables
-
-        # 7. 함수 CFG를 abstract interpretation
+        # 4. 함수 CFG 해석
+        # 함수 CFG를 재귀적으로 해석
+        # interpret_function_cfg가 함수 해석 로직을 가지고 있으며,
+        # 함수 내에서 또 다른 함수 호출 시 function_abstract_interpretation이 재귀 호출될 수 있음
         return_value = self.interpret_function_cfg(function_cfg)
 
-        # 8. 함수 호출 후 변수 환경 복원
-        #self.get_current_block().variables = previous_variables
+        # 컨텍스트 복원
+        self.current_target_function = saved_current_target_function
 
-        # 9. 반환 값 처리
         return return_value
 
     def interpret_function_cfg(self, function_cfg):
         """
-        함수의 CFG를 abstract interpretation하여 반환 값을 돌려줍니다.
-        :param function_cfg: FunctionCFG 객체
-        :return: 함수의 반환 값 (Interval 또는 기타 값)
+        수정된 interpret_function_cfg 로직 예시
         """
-        # 함수의 시작 블록 가져오기
-        entry_block = function_cfg.entry_block
+        entry_block = function_cfg.get_entry_node()
+        successors = list(function_cfg.graph.successors(entry_block))
+        if len(successors) != 1:
+            raise ValueError("Entry block must have exactly one successor.")
+        start_block = successors[0]
 
-        # 함수의 반환 값 초기화
-        return_value = None
-
-        # CFG를 순회하면서 abstract interpretation 수행
-        visited_blocks = set()
+        # block_queue에는 now just nodes, no variables
         block_queue = deque()
-        block_queue.append((entry_block, self.copy_variables(function_cfg.related_variables)))  # (블록, 변수 환경)
+        block_queue.append(start_block)
+
+        # 함수 내 변수 환경은 CFG 노드에 저장됨.
+        # entry_block의 successor 시작 시, entry_block.variables를 start_block에 전달
+        # entry_block.variables는 아마 constructor나 state_variable_node 해석 후 초기값이 세팅되어 있을 것이라 가정
+        # start_block은 predecessor가 entry_block 하나이므로 그냥 그 값 복사
+        start_block.variables = self.copy_variables(entry_block.variables)
+
+        # return_values를 모아둘 자료구조 (나중에 exit node에서 join)
+        return_values = []
+
+        visited = set()
 
         while block_queue:
-            current_block, current_variables = block_queue.popleft()
-
-            # 노드 방문 여부 확인
-            if current_block in visited_blocks:
+            analyzingNode = block_queue.popleft()
+            if analyzingNode in visited:
                 continue
+            visited.add(analyzingNode)
+
+            # 이전 block 분석 결과 반영
+            # join_point_node인 경우 predecessor들의 결과를 join한뒤 analyzingNode에 반영
+            # 아니면 predecessor 하나가 있을 것이므로 그 predecessor의 variables를 복사
+            predecessors = list(function_cfg.graph.predecessors(analyzingNode))
+
+            if analyzingNode.join_point_node:
+                # join node 처리
+                # predecessor들의 variables를 join
+                joined_vars = None
+                for pred in predecessors:
+                    if joined_vars is None:
+                        joined_vars = self.copy_variables(pred.variables)
+                    else:
+                        joined_vars = self.join_variables(joined_vars, pred.variables)
+                analyzingNode.variables = joined_vars
             else:
-                current_block.variables = current_variables
-                visited_blocks.add(current_block)
+                # join point가 아니라면 predecessor가 하나라고 가정
+                if len(predecessors) == 1:
+                    analyzingNode.variables = self.copy_variables(predecessors[0].variables)
+                else:
+                    raise ValueError("Non-join node with multiple predecessors is unexpected.")
 
-            # 조건 노드 처리
+            current_block = analyzingNode
+            current_variables = current_block.variables
+
+            # condition node 처리
             if current_block.condition_node:
-                if current_block.condition_node_type in ["if", "else if"]:
-                    condition_expr = current_block.condition_expr
+                condition_expr = current_block.condition_expr
 
-                    # 조건식 평가를 위한 변수 환경 복사
+                if current_block.condition_node_type in ["if", "else if"]:
+                    # true/false branch 각각 하나의 successor 가정
+                    true_successors = [s for s in function_cfg.graph.successors(current_block) if
+                                       function_cfg.graph.edges[current_block, s].get('condition') == True]
+                    false_successors = [s for s in function_cfg.graph.successors(current_block) if
+                                        function_cfg.graph.edges[current_block, s].get('condition') == False]
+
+                    # 각각 한 개라 가정
+                    if len(true_successors) != 1 or len(false_successors) != 1:
+                        raise ValueError(
+                            "if/else if node must have exactly one true successor and one false successor.")
+
                     true_variables = self.copy_variables(current_variables)
                     false_variables = self.copy_variables(current_variables)
 
-                    # 조건식에 따라 변수의 범위를 업데이트
-                    self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
-                    self.update_variables_with_condition(condition_expr, false_variables, condition_value=False)
+                    self.update_variables_with_condition(true_variables, condition_expr, is_true_branch=True)
+                    self.update_variables_with_condition(false_variables, condition_expr, is_true_branch=False)
 
-                    # 참 분기 처리
-                    true_successors = [succ for succ in function_cfg.graph.successors(current_block)
-                                       if self.is_true_branch(current_block, succ, function_cfg)]
-                    for succ in true_successors:
-                        block_queue.append((succ, true_variables))
+                    # true branch로 이어지는 successor enqueue
+                    true_succ = true_successors[0]
+                    true_succ.variables = true_variables
+                    block_queue.append(true_succ)
 
-                    # 거짓 분기 처리
-                    false_successors = [succ for succ in function_cfg.graph.successors(current_block)
-                                        if self.is_false_branch(current_block, succ, function_cfg)]
-                    for succ in false_successors:
-                        block_queue.append((succ, false_variables))
+                    # false branch로 이어지는 successor enqueue
+                    false_succ = false_successors[0]
+                    false_succ.variables = false_variables
+                    block_queue.append(false_succ)
 
-                    continue  # 현재 노드의 문장 처리는 건너뜀 (조건 노드이므로)
-
-                elif current_block.condition_node_type in ["require", "assert"]:
-                    condition_expr = current_block.condition_expr
-
-                    # 조건식 평가를 위한 변수 환경 복사
-                    true_variables = self.copy_variables(current_variables)
-
-                    # 조건식에 따라 변수의 범위를 업데이트
-                    self.update_variables_with_condition(condition_expr, true_variables, condition_value=True)
-
-                    # 참 분기 처리
-                    true_successors = [succ for succ in function_cfg.graph.successors(current_block)
-                                       if self.is_true_branch(current_block, succ, function_cfg)]
-                    for succ in true_successors:
-                        block_queue.append((succ, true_variables))
-
-                    continue  # False 분기는 처리하지 않음 (revert되므로)
-
-                elif current_block.condition_node_type in ["while", "for", "do_while"]:
-                    # 함수 호출 시의 while 루프 처리
-                    exit_node = self.apply_fixpoint_to_exit_node(current_block)
-                    # exit_node의 변수 환경을 사용하여 다음 노드로 이동
-                    successors = list(self.current_target_function_cfg.graph.successors(exit_node))
-                    for successor in successors:
-                        block_queue.append((successor, self.copy_variables(exit_node.variables)))
+                    # 현재 노드 해석 종료
                     continue
 
-            elif current_block.fixpoint_evaluation_node:
-                continue
+                elif current_block.condition_node_type in ["require", "assert"]:
+                    # true branch만 존재한다고 가정
+                    true_successors = [s for s in function_cfg.graph.successors(current_block) if
+                                       function_cfg.graph.edges[current_block, s].get('condition') == True]
+
+                    if len(true_successors) != 1:
+                        raise ValueError("require/assert node must have exactly one true successor.")
+
+                    true_variables = self.copy_variables(current_variables)
+                    self.update_variables_with_condition(true_variables, condition_expr, is_true_branch=True)
+
+                    true_succ = true_successors[0]
+                    true_succ.variables = true_variables
+                    block_queue.append(true_succ)
+
+                    # false branch는 exit node로 가거나 revert하므로 별도 처리 필요 없음
+                    continue
+
+                elif current_block.condition_node_type in ["while", "for", "do_while"]:
+                    # while 루프 처리
+                    # fixpoint 계산 후 exit_node 반환
+                    exit_node = self.apply_fixpoint_to_exit_node(current_block)
+                    # exit_node의 successor는 하나라고 가정
+                    successors = list(function_cfg.graph.successors(exit_node))
+                    if len(successors) == 1:
+                        next_node = successors[0]
+                        next_node.variables = self.copy_variables(exit_node.variables)
+                        block_queue.append(next_node)
+                    elif len(successors) == 0:
+                        # while 종료 후 아무 successor도 없으면 끝
+                        pass
+                    else:
+                        raise ValueError("While exit node must have exactly one successor.")
+                    continue
+
+                elif current_block.fixpoint_evaluation_node:
+                    # 그냥 continue
+                    continue
+                else:
+                    raise ValueError(f"Unknown condition node type: {current_block.condition_node_type}")
 
             else:
-                # 블록 내의 문장들을 해석
+                # condition node가 아닌 일반 블록
+                # 블록 내 문장 해석
                 for stmt in current_block.statements:
                     if stmt.statement_type == 'assignment':
-                        self.interpret_assignment_statement(stmt, current_block.variables)
+                        variables = self.interpret_assignment_statement(stmt, current_variables)
                     elif stmt.statement_type == 'array_assignment':
-                        self.interpret_array_assignment_statement(stmt, current_block.variables)
+                        variables = self.interpret_array_assignment_statement(stmt, current_variables)
                     elif stmt.statement_type == 'struct_assignment':
-                        self.interpret_struct_assignment_statement(stmt, current_block.variables)
+                        variables = self.interpret_struct_assignment_statement(stmt, current_variables)
                     elif stmt.statement_type == 'mapping_assignment':
-                        self.interpret_mapping_assignment_statement(stmt, current_block.variables)
+                        variables = self.interpret_mapping_assignment_statement(stmt, current_variables)
                     elif stmt.statement_type == 'function_call':
-                        self.interpret_function_call_statement(stmt, current_block.variables)
+                        variables = self.interpret_function_call_statement(stmt, current_variables)
                     elif stmt.statement_type == 'return':
-                        return_value = self.evaluate_expression(stmt.return_expr, current_block.variables)
-                        # 함수 내에서 return이 발생하면 해석을 종료
-                        return return_value
+                        ret_val = self.evaluate_expression(stmt.return_expr, current_variables)
+                        return_values.append(ret_val)
+                        break
                     elif stmt.statement_type == 'revert':
-                        # revert 문 처리 (예: 함수 해석 종료)
-                        return None
+                        break
                     else:
                         raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
 
-                # 다음 블록으로 이동
-                successors = list(function_cfg.graph.successors(current_block))
-                for successor in successors:
-                    block_queue.append((successor, self.copy_variables(current_block.variables)))
 
-        return return_value
+                # return이나 revert를 만나지 않았다면 successors 방문
+                successors = list(function_cfg.graph.successors(current_block))
+                if len(successors) == 1:
+                    next_node = successors[0]
+                    # next_node에 현재 변수 상태를 반영
+                    next_node.variables = self.copy_variables(current_variables)
+                    block_queue.append(next_node)
+                elif len(successors) > 1:
+                    raise ValueError("Non-condition, non-join node should not have multiple successors.")
+                # successors가 없으면 리프노드이므로 그냥 끝.
+
+        # exit node에 도달했다면 return_values join
+        # 모든 return을 모아 exit node에서 join 처리할 수 있으나, 여기서는 단순히 top-level에서 return_values를 join
+        if len(return_values) == 0:
+            return None
+        elif len(return_values) == 1:
+            return return_values[0]
+        else:
+            # 여러 return 값 join 로직 필요 (정수 interval join 등)
+            joined_ret = return_values[0]
+            for rv in return_values[1:]:
+                joined_ret = joined_ret.join(rv)
+            return joined_ret
 
     def interpret_assignment_statement(self, stmt, variables):
-        """
-        일반 변수에 대한 할당문을 해석합니다.
-        :param stmt: Statement 객체 (assignment)
-        :param variables: 현재 변수 환경 (dict)
-        """
         var_name = stmt.left.identifier
         variable_obj = variables.get(var_name)
         if not variable_obj:
@@ -3864,13 +3904,9 @@ class ContractAnalyzer:
         # 변수 값 업데이트
         variable_obj.value = new_value
         variables[var_name] = variable_obj
+        return variables
 
     def interpret_array_assignment_statement(self, stmt, variables):
-        """
-        배열 변수에 대한 할당문을 해석합니다.
-        :param stmt: Statement 객체 (array_assignment)
-        :param variables: 현재 변수 환경 (dict)
-        """
         var_name = stmt.left.identifier
         variable_obj = variables.get(var_name)
         if not variable_obj or not isinstance(variable_obj, ArrayVariable):
@@ -3882,13 +3918,9 @@ class ContractAnalyzer:
         # 배열 요소 값 업데이트
         variable_obj.elements = elements_value
         variables[var_name] = variable_obj
+        return variables
 
     def interpret_struct_assignment_statement(self, stmt, variables):
-        """
-        구조체 변수에 대한 할당문을 해석합니다.
-        :param stmt: Statement 객체 (struct_assignment)
-        :param variables: 현재 변수 환경 (dict)
-        """
         var_name = stmt.left.identifier
         variable_obj = variables.get(var_name)
         if not variable_obj or not isinstance(variable_obj, StructVariable):
@@ -3900,14 +3932,9 @@ class ContractAnalyzer:
         # 구조체 멤버 값 업데이트
         variable_obj.members = members_value
         variables[var_name] = variable_obj
+        return variables
 
     def interpret_mapping_assignment_statement(self, stmt, variables):
-        """
-        매핑 변수에 대한 할당문을 해석합니다.
-        :param stmt: Statement 객체 (mapping_assignment)
-        :param variables: 현재 변수 환경 (dict)
-        """
-        # 좌변 표현식에서 매핑 키와 변수명 추출
         mapping_var_name = stmt.left.base.identifier
         key_expr = stmt.left.index
         key_value = self.evaluate_expression(key_expr, variables)
@@ -3922,23 +3949,14 @@ class ContractAnalyzer:
         # 매핑 변수의 특정 키에 대한 값 업데이트
         mapping_var.mapping[key_value] = right_value
         variables[mapping_var_name] = mapping_var
+        return variables
 
     def interpret_function_call_statement(self, stmt, variables):
-        """
-        함수 호출문을 해석합니다.
-        :param stmt: Statement 객체 (function_call)
-        :param variables: 현재 변수 환경 (dict)
-        """
-        # 함수 호출 표현식에서 함수명과 인자 추출
-        function_name = stmt.function_call_expr.identifier
-        arguments = stmt.function_call_expr.arguments
-
-        # 함수 요약 정보를 이용하여 해석하거나, 재귀적으로 함수 해석을 수행
-        # 여기서는 간단히 함수 호출의 부수 효과를 처리하는 것으로 가정
-        # 실제 구현에서는 함수 요약 정보를 활용해야 합니다.
-
-        # 예시: 함수가 상태 변수를 변경하는 경우, 해당 변수를 업데이트
-        pass  # 구체적인 구현 필요
+        function_expr = stmt.function_call_expr
+        return_value = self.function_abstract_interpretation(function_expr, variables)
+        # 함수 호출 결과를 어느 변수에 할당하는 로직이 필요하다면 추가.
+        # 현재는 단순 호출만 가정하므로 변수 환경 변화 없음.
+        return variables
 
     def is_true_branch(self, current_block, successor_node, function_cfg):
         """

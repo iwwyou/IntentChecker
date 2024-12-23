@@ -73,20 +73,20 @@ class IntegerInterval(Interval):
         return IntegerInterval(max(self.min_value, other.min_value), min(self.max_value, other.max_value),
                                self.type_length)
 
-    def subtract(self, other):
-        # != 연산을 처리하기 위해 두 인터벌의 교차를 뺌 (즉, 교집합을 제외한 나머지를 의미)
-        return IntegerInterval(float('-inf'), float('inf'), self.type_length) if self == other else self
-
     def less_than(self, other):
+        # a < b 상황에서 a의 상한을 b.min_value - 1로 줄여나감
         return IntegerInterval(self.min_value, min(self.max_value, other.min_value - 1), self.type_length)
 
     def greater_than(self, other):
+        # a > b 상황에서 a의 하한을 b.max_value + 1로 올려나감
         return IntegerInterval(max(self.min_value, other.max_value + 1), self.max_value, self.type_length)
 
     def less_than_or_equal(self, other):
+        # a <= b 상황에서 a의 상한을 b.max_value로 줄여나감
         return IntegerInterval(self.min_value, min(self.max_value, other.max_value), self.type_length)
 
     def greater_than_or_equal(self, other):
+        # a >= b 상황에서 a의 하한을 b.min_value로 올려나감
         return IntegerInterval(max(self.min_value, other.min_value), self.max_value, self.type_length)
 
     def widen(self, current_interval):
@@ -225,35 +225,34 @@ class IntegerInterval(Interval):
 
         return IntegerInterval(min_product, max_product, self.type_length)
 
-    def divide(self, other_interval):  # aexp
-        def safe_divide(numerator, denominator):
-            if numerator is None or denominator is None or denominator == 0:
-                return None
-            return numerator // denominator
-
-        if self.type_length != other_interval.type_length:
-            raise ValueError("Cannot divide intervals of different type lengths")
-
-        if 0 in [other_interval.min_value, other_interval.max_value]:
+    def divide(self, other_interval):
+        # 개선된 예:
+        # 0 division 체크
+        if (other_interval.min_value is not None and other_interval.min_value == 0) or \
+                (other_interval.max_value is not None and other_interval.max_value == 0):
+            # 나눌 수 없음(0포함), 불확실로 처리
             return IntegerInterval(None, None, self.type_length)
 
-        possible_results = [
-            safe_divide(self.min_value, other_interval.min_value),
-            safe_divide(self.min_value, other_interval.max_value),
-            safe_divide(self.max_value, other_interval.min_value),
-            safe_divide(self.max_value, other_interval.max_value),
+        # 음수 범위 처리
+        # 일단 간단히 min, max로 // 수행
+        possible_results = []
+
+        def safe_div(n, d):
+            if n is not None and d is not None and d != 0:
+                return n // d
+            return None
+
+        candidates = [
+            safe_div(self.min_value, other_interval.min_value),
+            safe_div(self.min_value, other_interval.max_value),
+            safe_div(self.max_value, other_interval.min_value),
+            safe_div(self.max_value, other_interval.max_value)
         ]
-
-        # Remove None values from possible results
-        filtered_results = [x for x in possible_results if x is not None]
-
-        if not filtered_results:
+        candidates = [c for c in candidates if c is not None]
+        if not candidates:
             return IntegerInterval(None, None, self.type_length)
 
-        min_quotient = min(filtered_results)
-        max_quotient = max(filtered_results)
-
-        return IntegerInterval(min_quotient, max_quotient, self.type_length)
+        return IntegerInterval(min(candidates), max(candidates), self.type_length)
 
     def exponentiation(self, exponent_interval):  # aexp
         if self.min_value is None or exponent_interval.min_value is None:
@@ -452,10 +451,6 @@ class UnsignedIntegerInterval(Interval):
                                        min(self.max_value, other.max_value),
                                        self.type_length)
 
-    def subtract(self, other):
-        # == 연산을 제외한 값들의 interval
-        return UnsignedIntegerInterval(float('-inf'), float('inf'), self.type_length) if self == other else self
-
     def less_than(self, other):
         return UnsignedIntegerInterval(self.min_value, min(self.max_value, other.min_value - 1), self.type_length)
 
@@ -528,11 +523,67 @@ class UnsignedIntegerInterval(Interval):
         return UnsignedIntegerInterval(min_sum, max_sum, self.type_length)
 
     def subtract(self, other_interval):
-        # 결과가 음수가 되지 않도록 조정
-        min_diff = max(self.min_value - other_interval.max_value, 0)
-        max_diff = max(self.max_value - other_interval.min_value, 0)
+        """
+        var_interval에서 other_interval을 제외한 집합 차집합을 의미.
+        즉 var_interval ∖ other_interval을 interval 형태로 근사하여 반환.
+        가능한 단순화:
+        1. 교집합 없으면 var_interval 그대로 반환
+        2. 교집합이 var_interval 전체를 덮으면 bottom 반환
+        3. 교집합이 var_interval 일부를 덮을 경우 단순화.
+        """
+        # 교집합 계산
+        inter_min = max(self.min_value, other_interval.min_value)
+        inter_max = min(self.max_value, other_interval.max_value)
 
-        return UnsignedIntegerInterval(min_diff, max_diff, self.type_length)
+        if inter_min > inter_max:
+            # 교집합 없음
+            return self  # 그대로 반환
+
+        # 여기서 inter_min ≤ inter_max 이므로 교집합 존재
+        # 교집합 [inter_min, inter_max]
+
+        if inter_min <= self.min_value and inter_max >= self.max_value:
+            # 교집합이 var_interval 전체를 덮음
+            return self.bottom()
+
+        # 교집합이 부분 덮는 경우 처리
+        # Case A: 교집합이 시작부분(하한 포함) 덮음
+        if inter_min <= self.min_value:
+            # [self.min_value, self.max_value]에서 [self.min_value, inter_max]를 제외하면
+            # [inter_max+1, self.max_value] 반환 (정수 interval 가정)
+            new_min = inter_max + 1
+            if new_min > self.max_value:
+                # 오버플로우시 bottom
+                return self.bottom()
+            return type(self)(new_min, self.max_value, self.type_length)
+
+        # Case B: 교집합이 끝부분(상한 포함) 덮음
+        if inter_max >= self.max_value:
+            # [self.min_value, self.max_value]에서 [inter_min, self.max_value] 제외
+            # [self.min_value, inter_min-1] 반환
+            new_max = inter_min - 1
+            if new_max < self.min_value:
+                return self.bottom()
+            return type(self)(self.min_value, new_max, self.type_length)
+
+        # Case C: 교집합이 내부에 있어서 구멍이 생김 (예: var = [0,10], other=[5,5])
+        # 단일 interval로 표현 곤란. 여기서는 단순히 교집합 상한 이후 부분만 남기거나,
+        # 하한 이전 부분만 남기는 식으로 근사.
+        # 여기서는 inter_min > self.min_value이고 inter_max < self.max_value 이므로
+        # 내부에서 잘리는 경우.
+        # 일단 lower 파트를 반환 (self.min_value ~ inter_min - 1)
+        # 또는 upper 파트를 반환 (inter_max+1 ~ self.max_value)
+        # 여기서는 하한쪽 부분을 남기기로 함.
+        new_max = inter_min - 1
+        if new_max < self.min_value:
+            # 하한쪽 아무것도 남지 않으면 상한쪽을 시도
+            new_min = inter_max + 1
+            if new_min > self.max_value:
+                # 양쪽 다 안되면 bottom
+                return self.bottom()
+            return type(self)(new_min, self.max_value, self.type_length)
+        else:
+            return type(self)(self.min_value, new_max, self.type_length)
 
     def multiply(self, other_interval):
         min_product = self.min_value * other_interval.min_value
@@ -626,14 +677,46 @@ class BoolInterval(Interval):
             raise ValueError(f"Unsupported operator for bool: {operator}")
 
     def intersect(self, other):
-        return BoolInterval(
-            is_true=self.is_true and other.is_true,
-            is_false=self.is_false and other.is_false
-        )
+        # 교집합: 두 인터벌이 모두 참일 수 있는 경우는?
+        # 참일 가능성을 계산
+        # self와 other 각각 0 또는 1 범위
+        # min_value가 1이면 True 가능, max_value가 0이면 False만 가능
+        # 교집합은 가능한 부분의 교차를 의미
+
+        if self.min_value is None or other.min_value is None:
+            return self.bottom()
+
+        new_min = max(self.min_value, other.min_value)
+        new_max = min(self.max_value, other.max_value)
+        if new_min > new_max:
+            return self.bottom()
+        return BoolInterval(new_min, new_max)
 
     def subtract(self, other):
-        # != 연산을 처리하기 위해 부정 연산을 수행
-        return BoolInterval(not self.is_true, not self.is_false) if self == other else self
+        # 현재 subtract는 == 연산과 관련되었던 것으로 보이나
+        # 불리언 범위에서 다른 범위를 빼는 연산 정의가 명확치 않음
+        # 여기서는 단순히 self와 other 교집합 부분을 제외한다고 가정
+        # 즉 self와 other가 공유하는 부분을 제거
+        inter = self.intersect(other)
+        if inter.min_value is None:
+            # 교집합 없으면 self 그대로
+            return self
+        # 교집합 있으면 self에서 교집합 제거
+        # 예: self = (0,1), other = (1,1) 이면 교집합 = (1,1)
+        # self - 교집합 = (0,0)
+        # 비트 단위로 단순 처리
+        candidates = []
+        # false만 남길 수 있으면
+        if self.min_value == 0 and self.max_value == 1 and inter.min_value == 1:
+            # True를 제거하면 False만 남음
+            candidates.append(BoolInterval(0,0))
+        if self.min_value == 0 and self.max_value == 1 and inter.min_value == 0:
+            # False를 제거하면 True만 남음
+            candidates.append(BoolInterval(1,1))
+        if not candidates:
+            return self.bottom()
+        # 일단 candidates 중 하나 반환(여기선 첫번째)
+        return candidates[0]
 
     def less_than(self, other):
         # Boolean에선 less_than 비교가 의미가 없으므로 그대로 반환
@@ -688,27 +771,42 @@ class BoolInterval(Interval):
         return BoolInterval(new_min, new_max)
 
     def logical_and(self, other_interval):
-        # 최소값이 0이면 결과는 0이 될 수 있음
-        min_value = 0 if self.min_value == 0 or other_interval.min_value == 0 else 1
-        # 최대값이 1이면 결과는 1이 될 수 있음
-        max_value = 1 if self.max_value == 1 and other_interval.max_value == 1 else 0
-        return BoolInterval(min_value, max_value)
+        # AND 논리:
+        # 둘 다 참(1,1)일 때만 항상 참이 됨
+        # 한 쪽이라도 False 확정(0,0)이면 항상 False
+        # 나머지는 불확실(0,1)
+        if self.min_value == 1 and self.max_value == 1 and other_interval.min_value == 1 and other_interval.max_value == 1:
+            # 둘 다 항상 true
+            return BoolInterval(1,1)
+        if (self.max_value == 0) or (other_interval.max_value == 0):
+            # 한쪽이라도 항상 false
+            return BoolInterval(0,0)
+        # 그 외는 불확실
+        return BoolInterval(0,1)
 
     def logical_or(self, other_interval):
-        # 최소값이 1이면 결과는 1이 될 수 있음
-        min_value = 1 if self.min_value == 1 or other_interval.min_value == 1 else 0
-        # 최대값이 1이면 결과는 1이 될 수 있음
-        max_value = 1 if self.max_value == 1 or other_interval.max_value == 1 else 0
-        return BoolInterval(min_value, max_value)
+        # OR 논리:
+        # 한 쪽이라도 항상 True(1,1)이면 항상 True
+        # 둘 다 항상 False(0,0)이면 항상 False
+        if (self.min_value == 1 and self.max_value == 1) or (
+                other_interval.min_value == 1 and other_interval.max_value == 1):
+            return BoolInterval(1, 1)
+        if self.max_value == 0 and other_interval.max_value == 0:
+            return BoolInterval(0, 0)
+        # 나머지는 불확실
+        return BoolInterval(0, 1)
 
     def logical_not(self):
-        if self.min_value is None or self.max_value is None:
-            return BoolInterval(None, None)
-
-        # NOT 연산 결과 계산
-        min_value = 0 if self.max_value == 1 else 1
-        max_value = 1 if self.min_value == 0 else 0
-        return BoolInterval(min_value, max_value)
+        # NOT:
+        # True->False, False->True, 불확실->불확실
+        if self.min_value == 1 and self.max_value == 1:
+            return BoolInterval(0,0)  # 항상True -> 항상False
+        if self.min_value == 0 and self.max_value == 0:
+            return BoolInterval(1,1)  # 항상False -> 항상True
+        if self.min_value is None and self.max_value is None:
+            return self.bottom()
+        # 불확실 -> 여전히 불확실
+        return BoolInterval(0,1)
 
     def equality(self, other_interval):
         # 결과는 불리언 값 (0 또는 1)

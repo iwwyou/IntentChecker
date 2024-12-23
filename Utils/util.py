@@ -85,26 +85,31 @@ class ArrayVariable(Variables):
         """
         정적 배열의 요소들을 초기화하는 메소드.
         기본 타입이 배열인 경우 재귀적으로 요소들을 초기화합니다.
-        :param initial_interval: 각 배열 요소에 할당될 초기 interval 값
         """
         if self.typeInfo.arrayLength is not None:
             for i in range(self.typeInfo.arrayLength):
-                # 배열의 기본 타입이 또 다른 배열인 경우 처리 (이중 배열)
-                if isinstance(self.typeInfo.arrayBaseType, SolType) and self.typeInfo.arrayBaseType.typeCategory == 'array':
+                elem_id = f"{self.identifier}[{i}]"
+                # 하위 타입이 또 다른 배열이면 재귀적으로 ArrayVariable 생성
+                if (isinstance(self.typeInfo.arrayBaseType, SolType) and
+                        self.typeInfo.arrayBaseType.typeCategory == 'array'):
+
                     sub_array = ArrayVariable(
-                        identifier=f"{self.identifier}[{i}]",
-                        base_type=self.typeInfo.arrayBaseType.arrayBaseType,  # 하위 배열의 타입
+                        identifier=elem_id,
+                        base_type=self.typeInfo.arrayBaseType.arrayBaseType,
                         array_length=self.typeInfo.arrayBaseType.arrayLength,
                         is_dynamic=self.typeInfo.arrayBaseType.isDynamicArray,
                         scope=self.scope
                     )
-                    sub_array.initialize_elements(initial_interval)  # 재귀적으로 초기화
+                    sub_array.initialize_elements(initial_interval)
                     self.elements.append(sub_array)
                 else:
-                    # 일반 배열 요소인 경우 Variables 객체로 처리
-                    element = Variables(identifier=f"{self.identifier}[{i}]", value=initial_interval,
-                                        typeInfo=self.typeInfo.arrayBaseType)
-                    self.elements.append(element)
+                    # 기본 타입인 경우 Variables 객체로 요소 생성
+                    element_var = Variables(identifier=elem_id,
+                                            value=initial_interval,
+                                            isConstant=False,
+                                            scope=self.scope,
+                                            typeInfo=self.typeInfo.arrayBaseType)
+                    self.elements.append(element_var)
 
 class MappingVariable(Variables):
     def __init__(self, identifier=None, key_type=None, value_type=None, value=None,
@@ -112,68 +117,68 @@ class MappingVariable(Variables):
         super().__init__(identifier, value, isConstant, scope)
         self.typeInfo = SolType()
         self.typeInfo.typeCategory = 'mapping'
-        self.typeInfo.mappingKeyType = key_type  # 키 타입: SolType 객체
-        self.typeInfo.mappingValueType = value_type  # 값 타입: SolType 객체
-        self.mapping = {}  # 매핑된 키-값 쌍 저장: key -> Variables 객체
+        self.typeInfo.mappingKeyType = key_type    # SolType 객체
+        self.typeInfo.mappingValueType = value_type # SolType 객체
+        self.mapping = {}  # key(str) -> Variables 객체
 
-    def add_mapping(self, key, value):
+    def add_mapping(self, key_str, value_var):
         """
         매핑에 새로운 키-값 쌍을 추가합니다.
-        :param key: 매핑 키 (키 타입에 맞는 값이어야 함)
-        :param value: 매핑 값 (Variables 객체 또는 그 하위 클래스)
+        key_str: 문자열 형태의 키 (identifier)
+        value_var: Variables 객체 (값)
         """
-        if not isinstance(key, Variables):
-            raise ValueError(f"Invalid key type: {key} is not a valid Variables object.")
-        if not isinstance(value, Variables):
-            raise ValueError(f"Invalid value type: {value} is not a valid Variables object.")
 
-        # 키와 값의 타입이 적합한지 확인
-        if key.typeInfo.elementaryTypeName != self.typeInfo.mappingKeyType.elementaryTypeName:
-            raise TypeError(
-                f"Key type mismatch: Expected {self.typeInfo.mappingKeyType.elementaryTypeName}, but got {key.typeInfo.elementaryTypeName}")
+        if not isinstance(value_var, Variables):
+            raise ValueError(f"Invalid value type for mapping: {value_var} is not a Variables object.")
 
-        # 매핑의 값 타입이 다른 매핑, 배열, 구조체인 경우 처리
-        if isinstance(value, MappingVariable):
-            # 이중 매핑의 경우
-            if value.typeInfo.typeCategory != 'mapping':
-                raise TypeError(f"Value type mismatch: Expected 'mapping', but got {value.typeInfo.typeCategory}")
-        elif isinstance(value, ArrayVariable):
-            # 값이 배열일 경우
-            if value.typeInfo.typeCategory != 'array':
-                raise TypeError(f"Value type mismatch: Expected 'array', but got {value.typeInfo.typeCategory}")
-        elif isinstance(value, StructVariable):
-            # 값이 구조체일 경우
-            if value.typeInfo.typeCategory != 'struct':
-                raise TypeError(f"Value type mismatch: Expected 'struct', but got {value.typeInfo.typeCategory}")
+        # 타입 검증 로직 (필요하다면 여기서 더 정교하게 할 수 있음)
+        # 여기서는 기본 타입 checking만 간단히 예시로 유지
+        expected_type = self.typeInfo.mappingValueType.elementaryTypeName
+        actual_type = value_var.typeInfo.elementaryTypeName if value_var.typeInfo else None
+
+        # 만약 elementary type인 경우 타입 이름이 맞는지 확인
+        if self.typeInfo.mappingValueType.typeCategory == 'elementary':
+            if actual_type != expected_type:
+                raise TypeError(f"Value type mismatch: Expected {expected_type}, got {actual_type}")
+
+        self.mapping[key_str] = value_var
+
+    def get_mapping(self, key_str):
+        """
+        주어진 문자열 키에 해당하는 Variables 객체를 반환합니다.
+        키가 없으면 기본값(Interval bottom 등)을 가진 Variables를 생성해서 반환할 수도 있음.
+        """
+        if key_str in self.mapping:
+            return self.mapping[key_str]
         else:
-            # 기본 타입의 경우 처리
-            if value.typeInfo.elementaryTypeName != self.typeInfo.mappingValueType.elementaryTypeName:
-                raise TypeError(
-                    f"Value type mismatch: Expected {self.typeInfo.mappingValueType.elementaryTypeName}, but got {value.typeInfo.elementaryTypeName}")
+            # 키가 없는 경우 새로운 Variables 생성 (기본 Interval)
+            # 여기서 기본 interval을 만드는 헬퍼 함수가 있다고 가정 (예: get_default_interval)
+            default_interval = self.get_default_interval_for_type(self.typeInfo.mappingValueType)
+            new_var = Variables(identifier=f"{self.identifier}[{key_str}]",
+                                value=default_interval,
+                                scope=self.scope,
+                                typeInfo=self.typeInfo.mappingValueType)
+            self.mapping[key_str] = new_var
+            return new_var
 
-        # 매핑 추가
-        self.mapping[key.identifier] = value
-
-    def get_mapping(self, key):
-        """
-        주어진 키에 해당하는 값을 반환합니다.
-        :param key: 매핑 키 (키 타입에 맞는 값이어야 함)
-        :return: 매핑된 Variables 객체 또는 None
-        """
-        if key in self.mapping:
-            return self.mapping[key]
+    def remove_mapping(self, key_str):
+        if key_str in self.mapping:
+            del self.mapping[key_str]
         else:
-            raise KeyError(f"Key '{key}' not found in the mapping.")
+            raise KeyError(f"Key '{key_str}' not found in the mapping.")
 
-    def remove_mapping(self, key):
-        """
-        매핑에서 주어진 키를 제거합니다.
-        :param key: 매핑 키
-        """
-        if key in self.mapping:
-            del self.mapping[key]
-        else:
-            raise KeyError(f"Key '{key}' not found in the mapping.")
+    def get_default_interval_for_type(self, sol_type):
+        # 예시 구현: elementary int/uint/bool만 처리
+        if sol_type.typeCategory == 'elementary':
+            etype = sol_type.elementaryTypeName
+            if etype.startswith("int"):
+                return IntegerInterval(float('-inf'), float('inf'), sol_type.intTypeLength)
+            elif etype.startswith("uint"):
+                return UnsignedIntegerInterval(0, float('inf'), sol_type.intTypeLength)
+            elif etype == "bool":
+                return BoolInterval(False, True)
+        # 기타 타입일 경우 None
+        return None
 
 
 class StructVariable(Variables):

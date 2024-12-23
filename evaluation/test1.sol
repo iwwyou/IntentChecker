@@ -9,6 +9,10 @@ contract USDs {
     mapping(address => RebaseOptions) private _rebaseState;
     enum RebaseOptions { NotSet, Rebased }
 
+    constructor () {
+
+    }
+
     function _isNonRebasingAccount(address _account) internal view returns (bool) {
         bool isContract = _isContract(_account);
         if (isContract && _rebaseState[_account] == RebaseOptions.NotSet) {
