@@ -1153,12 +1153,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
         # 4. lineComment(개발자의 의도)가 있는 경우 처리
-        line_comment = None
-        if ctx.lineComment():
-            line_comment = ctx.lineComment().getText()
+        intent = None
+        if ctx.intent():
+            intent = ctx.intent().getText()
 
         # 5. ContractAnalyzer로 Variables 객체 및 lineComment 전달
-        self.contract_analyzer.process_variable_declaration(variable_obj, init_expr, line_comment)
+        self.contract_analyzer.process_variable_declaration(variable_obj, init_expr, intent)
 
         return
 
@@ -1169,7 +1169,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         expr = self.visitExpression(expr_ctx)
 
         # 2. lineComment(개발자의 의도)가 있는 경우 처리
-        line_comment = ctx.lineComment().getText() if ctx.lineComment() else None
+        intent = ctx.intent().getText() if ctx.intent() else None
 
         # Handle assignment expressions
         if isinstance(expr_ctx, SolidityParser.AssignmentContext):
@@ -1178,26 +1178,26 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
             # Check for specific expression types on the right-hand side
             if isinstance(rhs_expr_ctx, SolidityParser.FunctionCallContext):
-                self.contract_analyzer.process_assignment_function_call(expr, line_comment)
+                self.contract_analyzer.process_assignment_function_call(expr, intent)
             elif isinstance(rhs_expr_ctx, SolidityParser.FunctionCallOptionsContext):
-                self.contract_analyzer.process_assignment_function_call_options(expr, line_comment)
+                self.contract_analyzer.process_assignment_function_call_options(expr, intent)
             elif isinstance(rhs_expr_ctx, SolidityParser.PayableFunctionCallContext):
-                self.contract_analyzer.process_assignment_payable_function_call(expr, line_comment)
+                self.contract_analyzer.process_assignment_payable_function_call(expr, intent)
             elif isinstance(rhs_expr_ctx, SolidityParser.ConditionalExpContext):
-                self.contract_analyzer.process_assignment_conditional_expression(expr, line_comment)
+                self.contract_analyzer.process_assignment_conditional_expression(expr, intent)
             else:
                 # Regular assignment
-                self.contract_analyzer.process_assignment_expression(expr, line_comment)
+                self.contract_analyzer.process_assignment_expression(expr, intent)
         elif isinstance(expr_ctx, SolidityParser.UnaryPrefixOpContext):
-            self.contract_analyzer.process_unary_prefix_operation(expr, line_comment)
+            self.contract_analyzer.process_unary_prefix_operation(expr, intent)
         elif isinstance(expr_ctx, SolidityParser.UnarySuffixOpContext):
-            self.contract_analyzer.process_unary_suffix_operation(expr, line_comment)
+            self.contract_analyzer.process_unary_suffix_operation(expr, intent)
         elif isinstance(expr_ctx, SolidityParser.FunctionCallContext):
-            self.contract_analyzer.process_function_call(expr, line_comment)
+            self.contract_analyzer.process_function_call(expr, intent)
         elif isinstance(expr_ctx, SolidityParser.PayableFunctionCallContext):
-            self.contract_analyzer.process_payable_function_call(expr, line_comment)
+            self.contract_analyzer.process_payable_function_call(expr, intent)
         elif isinstance(expr_ctx, SolidityParser.FunctionCallOptionsContext):
-            self.contract_analyzer.process_function_call_options(expr, line_comment)
+            self.contract_analyzer.process_function_call_options(expr, intent)
         else:
             raise ValueError(f"Unsupported expression context in interactiveExpressionStatement: {ctx}")
 

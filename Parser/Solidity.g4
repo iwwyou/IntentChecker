@@ -250,6 +250,14 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
+interactiveParameter
+  : (
+    parameter
+  ) * EOF;
+
+parameter
+  : '//@parameter' expression '=' expression ;
+
 // for interactive parsing
 interactiveStateVariableElement
   : interactiveEnumDefinition
@@ -450,7 +458,7 @@ interactiveStatement
   | assertStatement
   | assemblyStatement; // assembly는 추후 확장 하는걸로 하자 일단
 
-lineComment
+intent
   : '//' '@intent' comparisonExpression (logicalOperator comparisonExpression)* ;
 
 comparisonExpression
@@ -487,11 +495,11 @@ interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
 
 interactiveVariableDeclarationStatement
-  : (variableDeclaration ('=' expression)?) ';' lineComment?
-  | (variableDeclarationTuple '=' expression) ';' lineComment? ;
+  : (variableDeclaration ('=' expression)?) ';' intent?
+  | (variableDeclarationTuple '=' expression) ';' intent? ;
 
 interactiveExpressionStatement
-  : expression ';' lineComment? ;
+  : expression ';' intent? ;
 
 interactiveIfStatement
   : 'if' '(' expression ')' '{' '}' ;

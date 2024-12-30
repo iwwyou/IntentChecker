@@ -2,15 +2,16 @@
 pragma solidity ^0.8.0;
 
 contract USDs {
+    enum RebaseOptions { NotSet, Rebased }
+
     mapping(address => uint256) private _creditBalances;
     mapping(address => uint256) private nonRebasingCreditsPerToken;
     uint256 private rebasingCreditsPerToken = 10;
     uint256 private nonRebasingSupply;
     mapping(address => RebaseOptions) private _rebaseState;
-    enum RebaseOptions { NotSet, Rebased }
 
     constructor () {
-
+        _creditBalances['0x1234567890abcdef1234567890abcdef12345678'] = 100;
     }
 
     function _isNonRebasingAccount(address _account) internal view returns (bool) {
@@ -32,7 +33,7 @@ contract USDs {
         }
     }
 
-    function _balanceOf(address _account) private view returns (uint256) {
+    function _balanceOf(address _account) private view returns (uint256) {  //@param _account = '0x1234567890abcdef1234567890abcdef12345678';
         uint256 credits = _creditBalances[_account];
         if (credits > 0) {
             if (nonRebasingCreditsPerToken[_account] > 0) {
