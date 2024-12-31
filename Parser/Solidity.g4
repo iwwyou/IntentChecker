@@ -250,13 +250,13 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
-interactiveParameter
+interactiveTesting
   : (
-    parameter
+    testing
   ) * EOF;
 
-parameter
-  : '//@parameter' expression '=' expression ;
+testing
+  : '//' identifier '@testing' expression '=' expression ;
 
 // for interactive parsing
 interactiveStateVariableElement

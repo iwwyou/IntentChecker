@@ -494,6 +494,24 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#interactiveTesting.
+    def enterInteractiveTesting(self, ctx:SolidityParser.InteractiveTestingContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#interactiveTesting.
+    def exitInteractiveTesting(self, ctx:SolidityParser.InteractiveTestingContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#testing.
+    def enterTesting(self, ctx:SolidityParser.TestingContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#testing.
+    def exitTesting(self, ctx:SolidityParser.TestingContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#interactiveStateVariableElement.
     def enterInteractiveStateVariableElement(self, ctx:SolidityParser.InteractiveStateVariableElementContext):
         pass
@@ -899,12 +917,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#lineComment.
-    def enterLineComment(self, ctx:SolidityParser.LineCommentContext):
+    # Enter a parse tree produced by SolidityParser#intent.
+    def enterIntent(self, ctx:SolidityParser.IntentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#lineComment.
-    def exitLineComment(self, ctx:SolidityParser.LineCommentContext):
+    # Exit a parse tree produced by SolidityParser#intent.
+    def exitIntent(self, ctx:SolidityParser.IntentContext):
         pass
 
 

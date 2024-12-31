@@ -279,6 +279,16 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#interactiveTesting.
+    def visitInteractiveTesting(self, ctx:SolidityParser.InteractiveTestingContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#testing.
+    def visitTesting(self, ctx:SolidityParser.TestingContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#interactiveStateVariableElement.
     def visitInteractiveStateVariableElement(self, ctx:SolidityParser.InteractiveStateVariableElementContext):
         return self.visitChildren(ctx)
@@ -504,8 +514,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#lineComment.
-    def visitLineComment(self, ctx:SolidityParser.LineCommentContext):
+    # Visit a parse tree produced by SolidityParser#intent.
+    def visitIntent(self, ctx:SolidityParser.IntentContext):
         return self.visitChildren(ctx)
 
 

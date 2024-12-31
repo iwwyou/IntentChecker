@@ -10,10 +10,6 @@ contract USDs {
     uint256 private nonRebasingSupply;
     mapping(address => RebaseOptions) private _rebaseState;
 
-    constructor () {
-        _creditBalances['0x1234567890abcdef1234567890abcdef12345678'] = 100;
-    }
-
     function _isNonRebasingAccount(address _account) internal view returns (bool) {
         bool isContract = _isContract(_account);
         if (isContract && _rebaseState[_account] == RebaseOptions.NotSet) {
@@ -33,7 +29,9 @@ contract USDs {
         }
     }
 
-    function _balanceOf(address _account) private view returns (uint256) {  //@param _account = '0x1234567890abcdef1234567890abcdef12345678';
+    // _balanceOf @testing _account = "0x1234567890abcdef1234567890abcdef12345678"
+    // _balanceOf @testing _creditBalances[_account] = 100
+    function _balanceOf(address _account) private view returns (uint256) {
         uint256 credits = _creditBalances[_account];
         if (credits > 0) {
             if (nonRebasingCreditsPerToken[_account] > 0) {

@@ -114,8 +114,8 @@ class ContractAnalyzer:
                 self.current_target_contract = self.find_contract_context(start_line)
                 self.current_target_function = self.find_function_context(start_line)
 
-        elif '@parameter' in stripped_code:
-            self.current_context_type = "functionParameter"
+        elif '@testing' in stripped_code:
+            self.current_context_type = "functionTesting"
 
         elif ',' in stripped_code:
             # 함수 정의인지 확인 (괄호 열고 닫힌 경우는 함수 파라미터로 가정)
