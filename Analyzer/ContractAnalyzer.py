@@ -29,6 +29,8 @@ class ContractAnalyzer:
         # 고정된 address 값 설정
         self.fixed_address = "0x1234567890abcdef1234567890abcdef12345678"
 
+        self.testingCommentStack = []
+
         self.analysis_results = None
 
     """
@@ -607,6 +609,75 @@ class ContractAnalyzer:
 
         # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = function_cfg.get_entry_node()
+
+    def process_function_testing(self, function_name, left_expr, right_expr):
+        """
+        @testing 주석에서 추출된 정보를 이용해,
+        (1) 해당 함수 CFG를 찾고,
+        (2) left_expr(예: _creditBalances[_account])에 대하여 right_expr(예: 100) 값을 적용
+        (3) 그 후 함수 CFG를 재해석 (interpret_function_cfg)하여 Interval 갱신 + intent 검사
+        """
+
+        # 1) 현재 컨트랙트 CFG 가져오기
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if not contract_cfg:
+            raise ValueError(f"Contract CFG not found for {self.current_target_contract}")
+
+        # 2) 함수 CFG 찾기
+        function_cfg = contract_cfg.functions.get(function_name)
+        if not function_cfg:
+            # 함수가 아직 선언되지 않았거나, 이름이 잘못된 경우
+            print(f"Warning: function '{function_name}' not found in current contract '{self.current_target_contract}'")
+            return
+
+        # 3) 함수 CFG의 related_variables에서, left_expr에 해당하는 변수를 찾아서 값 세팅
+        #    예: left_expr가 `_creditBalances[_account]` 형태라면,
+        #    mapping이나 array 접근이라 가정 -> evaluate_expression로 IndexAccessContext 해석
+        #    아니면 단순 식별자(identifier)인 경우 -> function_cfg.related_variables[var_name]
+        #    아래는 간단 예시
+        temp_vars = {}  # 임시 변수 환경(함수 해석용) - 실제론 function_cfg.entry_node.variables 같은 걸 사용 가능
+
+        # (3-1) 기존 function CFG의 entry_block이나 start_block 변수 환경 복사
+        entry_block = function_cfg.get_entry_node()
+        successors = list(function_cfg.graph.successors(entry_block))
+        if successors:
+            start_block = successors[0]  # 가정: entry_node의 successor는 하나
+            # start_block.variables에는 해석 이전의 변수 상태가 들어있을 수 있음
+            temp_vars = self.copy_variables(start_block.variables)
+        else:
+            # 함수가 아직 제대로 연결되지 않은 경우
+            temp_vars = {}
+
+        # (3-2) 왼쪽 expression(LHS)을 evaluate하여 실제 어떤 변수/키인지 찾기
+        #       일반적으로 self.evaluate_expression(left_expr, temp_vars)를 통해 Mapping/Array/Struct/등 파악
+        #       그리고 'right_expr'도 evaluate_expression으로 구체 값(Interval)을 얻어옴
+        lhs_var_info = self.get_variable_info_from_expr(left_expr, temp_vars)
+        rhs_value = self.evaluate_expression(right_expr, temp_vars)
+
+        # (3-3) lhs_var_info에 rhs_value를 대입
+        #       실제로는 MappingVariable, ArrayVariable, StructVariable 등 상황에 따라 처리
+        #       아래는 간단히 “기본 변수 = interval” 예시
+        if lhs_var_info['var_obj'] is not None:
+            # 예: var_obj == MappingVariable
+            self.assign_testing_value(lhs_var_info, rhs_value, temp_vars)
+        else:
+            print(f"Warning: Could not map the LHS expression: {left_expr}")
+
+        # (4) 함수 CFG를 다시 interpret하여 Interval 갱신
+        #     interpret_function_cfg는 함수 단독 해석 로직
+        ret_val = self.interpret_function_cfg(function_cfg)
+        # interpret_function_cfg 내부에서, 각 block statements 해석 + intent 검사 등 수행
+
+        # (5) 분석 결과를 self.analysis_results에 반영
+        self.analysis_results = {
+            "line": self.current_start_line,
+            "function_testing": {
+                "function_name": function_name,
+                "LHS": str(left_expr),
+                "RHS": str(right_expr),
+                "return_value": str(ret_val)  # 필요하다면 Interval -> str
+            }
+        }
 
     def process_variable_declaration(self, variable_obj, init_expr=None, line_comment=None):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
@@ -4247,6 +4318,63 @@ class ContractAnalyzer:
             raise ValueError(f"Unsupported comparison operator: {operator}")
 
         return BoolInterval(is_true, is_false)
+
+    def get_variable_info_from_expr(self, expr, current_variables):
+        """
+        expr( Expression )를 분석하여
+        - var_obj (실제 MappingVariable, ArrayVariable, Variables, etc.)
+        - key/index (만약 mapping이나 array면)
+        - member_name (만약 struct.member이면)
+        등등을 파악해 반환
+        예: { "var_obj": mappingVar, "mapping_key": addressValue, ... }
+        """
+        # 이 부분은 기존 process_assignment_expression에서 구현된 로직과 유사
+        # 아래는 매우 간단한 예시(식별자만 다룬다거나), 실제론 IndexAccessContext, MemberAccessContext 등을 다뤄야 함
+        result = {
+            "var_obj": None,
+            "key_or_index": None,
+            "member_name": None
+        }
+
+        if expr.identifier:
+            # 단순 변수 명
+            var_name = expr.identifier
+            var_obj = current_variables.get(var_name)
+            if var_obj is not None:
+                result["var_obj"] = var_obj
+            return result
+
+        # 나머지 IndexAccess, MemberAccess, etc.는 기존 evaluate_expression나 process_assignment_expression에서
+        # 어떻게 변수·인덱스를 찾아오는지 참고해서 구현
+        # ...
+
+        return result
+
+    def assign_testing_value(self, lhs_info, rhs_interval, current_variables):
+        """
+        LHS가 가리키는 변수를 찾아 RHS 값을 세팅
+        lhs_info: {'var_obj': ~, 'key_or_index': ~, ...}
+        rhs_interval: Interval
+        """
+        var_obj = lhs_info['var_obj']
+        if isinstance(var_obj, MappingVariable):
+            # 매핑 key를 알아야 함
+            key_val = lhs_info.get('key_or_index', None)
+            if key_val is None:
+                print("Warning: Could not find mapping key from LHS expr")
+                return
+            # ex) var_obj.mapping[key_val] = rhs_interval
+            # or if var_obj.mapping[key_val] is a Variables obj, set .value = rhs_interval
+            # ...
+        elif isinstance(var_obj, ArrayVariable):
+            # 비슷한 식
+            pass
+        else:
+            # 기본 타입 Variables
+            var_obj.value = rhs_interval
+
+        # current_variables에도 반영
+        current_variables[var_obj.identifier] = var_obj
 
     def get_variable_interval(self, var_name):
         """

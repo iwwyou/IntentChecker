@@ -37,7 +37,8 @@ def map_context_type(context_type):
         'doWhileWhile': 'interactiveDoWhileUnit',
         'catch': 'interactiveCatchClauseUnit',
         'else_if': 'interactiveIfElseUnit',
-        'else': 'interactiveIfElseUnit'
+        'else': 'interactiveIfElseUnit',
+        'functionTesting' : 'interactiveTesting'
     }
 
     try:
@@ -66,6 +67,8 @@ def generate_parse_tree(input_stream, context_type):
         tree = parser.interactiveIfElseUnit()
     elif context_rule == 'interactiveCatchClauseUnit':
         tree = parser.interactiveCatchClauseUnit()
+    elif context_rule == 'interactiveTesting' :
+        tree = parser.interactiveTesting()
     else:
         tree = parser.interactiveSourceUnit()
 

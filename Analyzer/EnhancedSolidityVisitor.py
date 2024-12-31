@@ -1268,6 +1268,28 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#interactiveTesting.
+    def visitInteractiveTesting(self, ctx: SolidityParser.InteractiveTestingContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#testing.
+    def visitTesting(self, ctx: SolidityParser.TestingContext):
+        # 1) 함수 이름 파싱
+        function_name = ctx.identifier().getText()
+
+        # 2) 왼쪽 expression 파싱
+        left_expr_ctx = ctx.expression(0)
+        left_expr = self.visitExpression(left_expr_ctx)  # Expression 객체
+
+        # 3) 오른쪽 expression 파싱
+        right_expr_ctx = ctx.expression(1)
+        right_expr = self.visitExpression(right_expr_ctx)  # Expression 객체
+
+        # 4) ContractAnalyzer에 전달
+        self.contract_analyzer.process_function_testing(function_name, left_expr, right_expr)
+
+        return
+
 
     # Visit a parse tree produced by SolidityParser#elementaryTypeName.
     def visitElementaryTypeName(self, ctx:SolidityParser.ElementaryTypeNameContext):
