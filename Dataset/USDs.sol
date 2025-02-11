@@ -35,7 +35,7 @@ contract USDs {
         uint256 credits = _creditBalances[_account];
         if (credits > 0) {
             if (nonRebasingCreditsPerToken[_account] > 0) {
-                return credits; // @intent @assign credits < @current credits
+                return credits; // @assign credits > @current credits
             }
             return credits / rebasingCreditsPerToken;
         }
