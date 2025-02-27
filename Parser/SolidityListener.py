@@ -494,21 +494,381 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#interactiveTesting.
-    def enterInteractiveTesting(self, ctx:SolidityParser.InteractiveTestingContext):
+    # Enter a parse tree produced by SolidityParser#intentUnit.
+    def enterIntentUnit(self, ctx:SolidityParser.IntentUnitContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#interactiveTesting.
-    def exitInteractiveTesting(self, ctx:SolidityParser.InteractiveTestingContext):
+    # Exit a parse tree produced by SolidityParser#intentUnit.
+    def exitIntentUnit(self, ctx:SolidityParser.IntentUnitContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#testing.
-    def enterTesting(self, ctx:SolidityParser.TestingContext):
+    # Enter a parse tree produced by SolidityParser#preExecutionGlobal.
+    def enterPreExecutionGlobal(self, ctx:SolidityParser.PreExecutionGlobalContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#testing.
-    def exitTesting(self, ctx:SolidityParser.TestingContext):
+    # Exit a parse tree produced by SolidityParser#preExecutionGlobal.
+    def exitPreExecutionGlobal(self, ctx:SolidityParser.PreExecutionGlobalContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockbaseFee.
+    def enterBlockbaseFee(self, ctx:SolidityParser.BlockbaseFeeContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockbaseFee.
+    def exitBlockbaseFee(self, ctx:SolidityParser.BlockbaseFeeContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockBlobbasefee.
+    def enterBlockBlobbasefee(self, ctx:SolidityParser.BlockBlobbasefeeContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockBlobbasefee.
+    def exitBlockBlobbasefee(self, ctx:SolidityParser.BlockBlobbasefeeContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockChainid.
+    def enterBlockChainid(self, ctx:SolidityParser.BlockChainidContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockChainid.
+    def exitBlockChainid(self, ctx:SolidityParser.BlockChainidContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockDifficulty.
+    def enterBlockDifficulty(self, ctx:SolidityParser.BlockDifficultyContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockDifficulty.
+    def exitBlockDifficulty(self, ctx:SolidityParser.BlockDifficultyContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockGaslimit.
+    def enterBlockGaslimit(self, ctx:SolidityParser.BlockGaslimitContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockGaslimit.
+    def exitBlockGaslimit(self, ctx:SolidityParser.BlockGaslimitContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockNumber.
+    def enterBlockNumber(self, ctx:SolidityParser.BlockNumberContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockNumber.
+    def exitBlockNumber(self, ctx:SolidityParser.BlockNumberContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockPrevrandao.
+    def enterBlockPrevrandao(self, ctx:SolidityParser.BlockPrevrandaoContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockPrevrandao.
+    def exitBlockPrevrandao(self, ctx:SolidityParser.BlockPrevrandaoContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#BlockTimestamp.
+    def enterBlockTimestamp(self, ctx:SolidityParser.BlockTimestampContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#BlockTimestamp.
+    def exitBlockTimestamp(self, ctx:SolidityParser.BlockTimestampContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#TxGasprice.
+    def enterTxGasprice(self, ctx:SolidityParser.TxGaspriceContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#TxGasprice.
+    def exitTxGasprice(self, ctx:SolidityParser.TxGaspriceContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#preExecutionState.
+    def enterPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#preExecutionState.
+    def exitPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#preExecutionLocal.
+    def enterPreExecutionLocal(self, ctx:SolidityParser.PreExecutionLocalContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#preExecutionLocal.
+    def exitPreExecutionLocal(self, ctx:SolidityParser.PreExecutionLocalContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#testingExpression.
+    def enterTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#testingExpression.
+    def exitTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#TestingMemberAccess.
+    def enterTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#TestingMemberAccess.
+    def exitTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#TestingIndexAccess.
+    def enterTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#TestingIndexAccess.
+    def exitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#numberBoolLiteral.
+    def enterNumberBoolLiteral(self, ctx:SolidityParser.NumberBoolLiteralContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#numberBoolLiteral.
+    def exitNumberBoolLiteral(self, ctx:SolidityParser.NumberBoolLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#postExecutionState.
+    def enterPostExecutionState(self, ctx:SolidityParser.PostExecutionStateContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#postExecutionState.
+    def exitPostExecutionState(self, ctx:SolidityParser.PostExecutionStateContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#postExecutionReturn.
+    def enterPostExecutionReturn(self, ctx:SolidityParser.PostExecutionReturnContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#postExecutionReturn.
+    def exitPostExecutionReturn(self, ctx:SolidityParser.PostExecutionReturnContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecution.
+    def enterDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecution.
+    def exitDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecutionComment.
+    def enterDuringExecutionComment(self, ctx:SolidityParser.DuringExecutionCommentContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecutionComment.
+    def exitDuringExecutionComment(self, ctx:SolidityParser.DuringExecutionCommentContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecutionBeforeAfter.
+    def enterDuringExecutionBeforeAfter(self, ctx:SolidityParser.DuringExecutionBeforeAfterContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecutionBeforeAfter.
+    def exitDuringExecutionBeforeAfter(self, ctx:SolidityParser.DuringExecutionBeforeAfterContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#beforeAfter.
+    def enterBeforeAfter(self, ctx:SolidityParser.BeforeAfterContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#beforeAfter.
+    def exitBeforeAfter(self, ctx:SolidityParser.BeforeAfterContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecutionAssignCurrent.
+    def enterDuringExecutionAssignCurrent(self, ctx:SolidityParser.DuringExecutionAssignCurrentContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecutionAssignCurrent.
+    def exitDuringExecutionAssignCurrent(self, ctx:SolidityParser.DuringExecutionAssignCurrentContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#assignCurrent.
+    def enterAssignCurrent(self, ctx:SolidityParser.AssignCurrentContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#assignCurrent.
+    def exitAssignCurrent(self, ctx:SolidityParser.AssignCurrentContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecutionReturn.
+    def enterDuringExecutionReturn(self, ctx:SolidityParser.DuringExecutionReturnContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecutionReturn.
+    def exitDuringExecutionReturn(self, ctx:SolidityParser.DuringExecutionReturnContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#ExpressionReturn.
+    def enterExpressionReturn(self, ctx:SolidityParser.ExpressionReturnContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#ExpressionReturn.
+    def exitExpressionReturn(self, ctx:SolidityParser.ExpressionReturnContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#VarReturn.
+    def enterVarReturn(self, ctx:SolidityParser.VarReturnContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#VarReturn.
+    def exitVarReturn(self, ctx:SolidityParser.VarReturnContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#returnVar.
+    def enterReturnVar(self, ctx:SolidityParser.ReturnVarContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#returnVar.
+    def exitReturnVar(self, ctx:SolidityParser.ReturnVarContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringExecutionGeneral.
+    def enterDuringExecutionGeneral(self, ctx:SolidityParser.DuringExecutionGeneralContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringExecutionGeneral.
+    def exitDuringExecutionGeneral(self, ctx:SolidityParser.DuringExecutionGeneralContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#comparisonExpression.
+    def enterComparisonExpression(self, ctx:SolidityParser.ComparisonExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#comparisonExpression.
+    def exitComparisonExpression(self, ctx:SolidityParser.ComparisonExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#logicalOperator.
+    def enterLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#logicalOperator.
+    def exitLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#comparisonOperator.
+    def enterComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#comparisonOperator.
+    def exitComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#arithmeticExpression.
+    def enterArithmeticExpression(self, ctx:SolidityParser.ArithmeticExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#arithmeticExpression.
+    def exitArithmeticExpression(self, ctx:SolidityParser.ArithmeticExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#multiplicativeExpression.
+    def enterMultiplicativeExpression(self, ctx:SolidityParser.MultiplicativeExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#multiplicativeExpression.
+    def exitMultiplicativeExpression(self, ctx:SolidityParser.MultiplicativeExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#primaryExpression.
+    def enterPrimaryExpression(self, ctx:SolidityParser.PrimaryExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#primaryExpression.
+    def exitPrimaryExpression(self, ctx:SolidityParser.PrimaryExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#accessExpression.
+    def enterAccessExpression(self, ctx:SolidityParser.AccessExpressionContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#accessExpression.
+    def exitAccessExpression(self, ctx:SolidityParser.AccessExpressionContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#additiveOperator.
+    def enterAdditiveOperator(self, ctx:SolidityParser.AdditiveOperatorContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#additiveOperator.
+    def exitAdditiveOperator(self, ctx:SolidityParser.AdditiveOperatorContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#multiplicativeOperator.
+    def enterMultiplicativeOperator(self, ctx:SolidityParser.MultiplicativeOperatorContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#multiplicativeOperator.
+    def exitMultiplicativeOperator(self, ctx:SolidityParser.MultiplicativeOperatorContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#interactiveSimpleStatement.
+    def enterInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#interactiveSimpleStatement.
+    def exitInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#interactiveVariableDeclarationStatement.
+    def enterInteractiveVariableDeclarationStatement(self, ctx:SolidityParser.InteractiveVariableDeclarationStatementContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#interactiveVariableDeclarationStatement.
+    def exitInteractiveVariableDeclarationStatement(self, ctx:SolidityParser.InteractiveVariableDeclarationStatementContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#interactiveExpressionStatement.
+    def enterInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#interactiveExpressionStatement.
+    def exitInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
         pass
 
 
@@ -914,123 +1274,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#interactiveStatement.
     def exitInteractiveStatement(self, ctx:SolidityParser.InteractiveStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#intent.
-    def enterIntent(self, ctx:SolidityParser.IntentContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#intent.
-    def exitIntent(self, ctx:SolidityParser.IntentContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#comparisonExpression.
-    def enterComparisonExpression(self, ctx:SolidityParser.ComparisonExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#comparisonExpression.
-    def exitComparisonExpression(self, ctx:SolidityParser.ComparisonExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#logicalOperator.
-    def enterLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#logicalOperator.
-    def exitLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#comparisonOperator.
-    def enterComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#comparisonOperator.
-    def exitComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#arithmeticExpression.
-    def enterArithmeticExpression(self, ctx:SolidityParser.ArithmeticExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#arithmeticExpression.
-    def exitArithmeticExpression(self, ctx:SolidityParser.ArithmeticExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#multiplicativeExpression.
-    def enterMultiplicativeExpression(self, ctx:SolidityParser.MultiplicativeExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#multiplicativeExpression.
-    def exitMultiplicativeExpression(self, ctx:SolidityParser.MultiplicativeExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#primaryExpression.
-    def enterPrimaryExpression(self, ctx:SolidityParser.PrimaryExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#primaryExpression.
-    def exitPrimaryExpression(self, ctx:SolidityParser.PrimaryExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#accessExpression.
-    def enterAccessExpression(self, ctx:SolidityParser.AccessExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#accessExpression.
-    def exitAccessExpression(self, ctx:SolidityParser.AccessExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#additiveOperator.
-    def enterAdditiveOperator(self, ctx:SolidityParser.AdditiveOperatorContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#additiveOperator.
-    def exitAdditiveOperator(self, ctx:SolidityParser.AdditiveOperatorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#multiplicativeOperator.
-    def enterMultiplicativeOperator(self, ctx:SolidityParser.MultiplicativeOperatorContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#multiplicativeOperator.
-    def exitMultiplicativeOperator(self, ctx:SolidityParser.MultiplicativeOperatorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#interactiveSimpleStatement.
-    def enterInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#interactiveSimpleStatement.
-    def exitInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#interactiveVariableDeclarationStatement.
-    def enterInteractiveVariableDeclarationStatement(self, ctx:SolidityParser.InteractiveVariableDeclarationStatementContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#interactiveVariableDeclarationStatement.
-    def exitInteractiveVariableDeclarationStatement(self, ctx:SolidityParser.InteractiveVariableDeclarationStatementContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#interactiveExpressionStatement.
-    def enterInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#interactiveExpressionStatement.
-    def exitInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
         pass
 
 

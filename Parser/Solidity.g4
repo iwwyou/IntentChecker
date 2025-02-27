@@ -250,13 +250,131 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
-interactiveTesting
+intentUnit
   : (
-    testing
+    preExecutionGlobal
+    | preExecutionState
+    | preExecutionLocal
+    | duringExecution
+    | postExecutionState
+    | postExecutionReturn
   ) * EOF;
 
-testing
-  : '//' identifier '@testing' expression '=' expression ;
+preExecutionGlobal
+  : '//' '@pre-execution-global' globalVariable '=' numberLiteral ;
+
+globalVariable
+  : 'block.basefee' # BlockbaseFee
+  | 'block.blobbasefee' # BlockBlobbasefee
+  | 'block.chainid' # BlockChainid
+  | 'block.difficulty' # BlockDifficulty
+  | 'block.gaslimit' # BlockGaslimit
+  | 'block.number' # BlockNumber
+  | 'block.prevrandao' # BlockPrevrandao
+  | 'block.timestamp' # BlockTimestamp
+  | 'tx.gasprice' # TxGasprice
+  ;
+
+preExecutionState
+  : '//' '@pre-execution-state' testingExpression '=' numberBoolLiteral
+  ;
+
+preExecutionLocal
+  : '//' '@pre-execution-local' testingExpression '=' numberBoolLiteral
+  ;
+
+testingExpression
+  : identifier subAccess*
+  ;
+
+subAccess
+  : '.' identifier # TestingMemberAccess
+  | '[' expression ']' # TestingIndexAccess
+  ;
+numberBoolLiteral
+  : '-'? numberLiteral
+  | booleanLiteral ;
+
+postExecutionState
+  : '//' '@post-execution-state' returnVar  ;
+
+postExecutionReturn
+  : '//' '@post-execution-return' returnType ;
+
+duringExecution
+  : '//' duringExecutionComment (',' duringExecutionComment)* ;
+
+duringExecutionComment
+  : duringExecutionBeforeAfter
+  | duringExecutionAssignCurrent
+  | duringExecutionReturn
+  | duringExecutionGeneral;
+
+duringExecutionBeforeAfter
+  : '@during-execution-before-after' testingExpression beforeAfter ;
+
+beforeAfter
+  : '(' 'Before' comparisonOperator 'After' ')';
+
+duringExecutionAssignCurrent
+  : '@during-execution-assign-current' testingExpression assignCurrent ;
+
+assignCurrent
+  : '(' 'assign' comparisonOperator 'current' ')';
+
+duringExecutionReturn
+  : '@during-execution-return' returnType ;
+
+returnType
+  : 'returnExpresion' comparisonOperator numberBoolLiteral # ExpressionReturn
+  | returnVar (',' returnVar)* # VarReturn
+  ;
+
+returnVar
+  : testingExpression comparisonOperator numberBoolLiteral ;
+
+duringExecutionGeneral
+  : '@during-execution-general' comparisonExpression (logicalOperator comparisonExpression)* ;
+
+comparisonExpression
+  : arithmeticExpression comparisonOperator arithmeticExpression ;
+
+logicalOperator
+  : '&&' | '||' ;
+
+comparisonOperator
+  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
+
+arithmeticExpression
+  : multiplicativeExpression (additiveOperator multiplicativeExpression)* ;
+
+multiplicativeExpression
+  : primaryExpression (multiplicativeOperator primaryExpression)* ;
+
+primaryExpression
+  : literal
+  | identifier
+  | accessExpression
+  | '(' arithmeticExpression ')' ;
+
+accessExpression
+  : identifier ('[' (literal|identifier)+ ']' | '.' identifier)* ;
+
+additiveOperator
+  : '+' | '-' ;
+
+multiplicativeOperator
+  : '*' | '/' ;
+
+interactiveSimpleStatement
+  : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
+
+interactiveVariableDeclarationStatement
+  : (variableDeclaration ('=' expression)?) ';' duringExecution?
+  | (variableDeclarationTuple '=' expression) ';' duringExecution? ;
+
+interactiveExpressionStatement
+  : expression ';' duringExecution? ;
 
 // for interactive parsing
 interactiveStateVariableElement
@@ -458,48 +576,7 @@ interactiveStatement
   | assertStatement
   | assemblyStatement; // assembly는 추후 확장 하는걸로 하자 일단
 
-intent
-  : '//' '@intent' comparisonExpression (logicalOperator comparisonExpression)* ;
 
-comparisonExpression
-  : arithmeticExpression comparisonOperator arithmeticExpression ;
-
-logicalOperator
-  : '&&' | '||' ;
-
-comparisonOperator
-  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
-
-arithmeticExpression
-  : multiplicativeExpression (additiveOperator multiplicativeExpression)* ;
-
-multiplicativeExpression
-  : primaryExpression (multiplicativeOperator primaryExpression)* ;
-
-primaryExpression
-  : literal
-  | identifier
-  | accessExpression
-  | '(' arithmeticExpression ')' ;
-
-accessExpression
-  : identifier ('[' (literal|identifier)+ ']' | '.' identifier)* ;
-
-additiveOperator
-  : '+' | '-' ;
-
-multiplicativeOperator
-  : '*' | '/' ;
-
-interactiveSimpleStatement
-  : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
-
-interactiveVariableDeclarationStatement
-  : (variableDeclaration ('=' expression)?) ';' intent?
-  | (variableDeclarationTuple '=' expression) ';' intent? ;
-
-interactiveExpressionStatement
-  : expression ';' intent? ;
 
 interactiveIfStatement
   : 'if' '(' expression ')' '{' '}' ;
