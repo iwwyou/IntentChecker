@@ -610,76 +610,7 @@ class ContractAnalyzer:
         # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = function_cfg.get_entry_node()
 
-    def process_function_testing(self, function_name, left_expr, right_expr):
-        """
-        @testing 주석에서 추출된 정보를 이용해,
-        (1) 해당 함수 CFG를 찾고,
-        (2) left_expr(예: _creditBalances[_account])에 대하여 right_expr(예: 100) 값을 적용
-        (3) 그 후 함수 CFG를 재해석 (interpret_function_cfg)하여 Interval 갱신 + intent 검사
-        """
-
-        # 1) 현재 컨트랙트 CFG 가져오기
-        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-        if not contract_cfg:
-            raise ValueError(f"Contract CFG not found for {self.current_target_contract}")
-
-        # 2) 함수 CFG 찾기
-        function_cfg = contract_cfg.functions.get(function_name)
-        if not function_cfg:
-            # 함수가 아직 선언되지 않았거나, 이름이 잘못된 경우
-            print(f"Warning: function '{function_name}' not found in current contract '{self.current_target_contract}'")
-            return
-
-        # 3) 함수 CFG의 related_variables에서, left_expr에 해당하는 변수를 찾아서 값 세팅
-        #    예: left_expr가 `_creditBalances[_account]` 형태라면,
-        #    mapping이나 array 접근이라 가정 -> evaluate_expression로 IndexAccessContext 해석
-        #    아니면 단순 식별자(identifier)인 경우 -> function_cfg.related_variables[var_name]
-        #    아래는 간단 예시
-        temp_vars = {}  # 임시 변수 환경(함수 해석용) - 실제론 function_cfg.entry_node.variables 같은 걸 사용 가능
-
-        # (3-1) 기존 function CFG의 entry_block이나 start_block 변수 환경 복사
-        entry_block = function_cfg.get_entry_node()
-        successors = list(function_cfg.graph.successors(entry_block))
-        if successors:
-            start_block = successors[0]  # 가정: entry_node의 successor는 하나
-            # start_block.variables에는 해석 이전의 변수 상태가 들어있을 수 있음
-            temp_vars = self.copy_variables(start_block.variables)
-        else:
-            # 함수가 아직 제대로 연결되지 않은 경우
-            temp_vars = {}
-
-        # (3-2) 왼쪽 expression(LHS)을 evaluate하여 실제 어떤 변수/키인지 찾기
-        #       일반적으로 self.evaluate_expression(left_expr, temp_vars)를 통해 Mapping/Array/Struct/등 파악
-        #       그리고 'right_expr'도 evaluate_expression으로 구체 값(Interval)을 얻어옴
-        lhs_var_info = self.get_variable_info_from_expr(left_expr, temp_vars)
-        rhs_value = self.evaluate_expression(right_expr, temp_vars)
-
-        # (3-3) lhs_var_info에 rhs_value를 대입
-        #       실제로는 MappingVariable, ArrayVariable, StructVariable 등 상황에 따라 처리
-        #       아래는 간단히 “기본 변수 = interval” 예시
-        if lhs_var_info['var_obj'] is not None:
-            # 예: var_obj == MappingVariable
-            self.assign_testing_value(lhs_var_info, rhs_value, temp_vars)
-        else:
-            print(f"Warning: Could not map the LHS expression: {left_expr}")
-
-        # (4) 함수 CFG를 다시 interpret하여 Interval 갱신
-        #     interpret_function_cfg는 함수 단독 해석 로직
-        ret_val = self.interpret_function_cfg(function_cfg)
-        # interpret_function_cfg 내부에서, 각 block statements 해석 + intent 검사 등 수행
-
-        # (5) 분석 결과를 self.analysis_results에 반영
-        self.analysis_results = {
-            "line": self.current_start_line,
-            "function_testing": {
-                "function_name": function_name,
-                "LHS": str(left_expr),
-                "RHS": str(right_expr),
-                "return_value": str(ret_val)  # 필요하다면 Interval -> str
-            }
-        }
-
-    def process_variable_declaration(self, variable_obj, init_expr=None, line_comment=None):
+    def process_variable_declaration(self, variable_obj, init_expr=None):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -1000,28 +931,10 @@ class ContractAnalyzer:
         # 9. 의도 체크 결과 저장 (line_comment가 있을 경우)
         intent_result = {"expected": [], "actual": interval_result["value"], "message": ""}
 
-        if line_comment is not None:
-            # 개발자의 의도 파싱
-            expected_interval = self.parse_intent(line_comment)
-
-            # 실제 interval이 의도된 interval 안에 포함되는지 확인
-            if expected_interval:
-                if isinstance(variable_obj, ArrayVariable):
-                    for idx, elem_var in enumerate(variable_obj.elements):
-                        if not elem_var.value.encompass(expected_interval):
-                            intent_result["expected"].append([expected_interval.min_value, expected_interval.max_value])
-                            intent_result[
-                                "message"] = f"Error: {variable_obj.identifier}[{idx}] out of intended range {expected_interval.min_value} to {expected_interval.max_value}"
-                elif not variable_obj.value.encompass(expected_interval):
-                    intent_result["expected"] = [expected_interval.min_value, expected_interval.max_value]
-                    intent_result[
-                        "message"] = f"Error: {variable_obj.identifier} out of intended range {expected_interval.min_value} to {expected_interval.max_value}"
-
         # 10. 분석 결과를 저장
         result = {
             "line": self.current_start_line,
-            "interval": interval_result,
-            "intent_check": intent_result
+            "interval": interval_result
         }
 
         # get_analysis_result에 사용될 결과 저장
@@ -1067,7 +980,7 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported operator '{operator}' in compound assignment")
 
-    def process_assignment_expression(self, expr, line_comment=None):
+    def process_assignment_expression(self, expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -1329,22 +1242,10 @@ class ContractAnalyzer:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 7. 개발자의 의도 파싱 및 비교
-        intent_result = {"expected": [], "actual": [], "message": ""}
-        if line_comment is not None:
-            expected_interval = self.parse_intent(line_comment)
-            if expected_interval and var_name in expected_interval:
-                intended_interval = expected_interval[var_name]
-                if right_interval and not right_interval.encompass(intended_interval):
-                    intent_result["expected"] = [intended_interval.min_value, intended_interval.max_value]
-                    intent_result["actual"] = [right_interval.min_value, right_interval.max_value]
-                    intent_result["message"] = f"Variable '{var_name}' is out of the intended range."
-
         # 8. 분석 결과 저장
         result = {
             "line": self.current_start_line,
-            "variables_info": intervals_info,
-            "intent_check": intent_result
+            "variables_info": intervals_info
         }
 
         self.analysis_results = result
@@ -1363,7 +1264,7 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_assignment_function_call(self, expr, line_comment=None):
+    def process_assignment_function_call(self, expr):
         # 1. 좌변 변수 이름 추출
         if expr.left.identifier:
             var_name = expr.left.identifier
@@ -1394,29 +1295,17 @@ class ContractAnalyzer:
         # 9. 함수 호출의 사이드 이펙트 처리
         self.handle_function_side_effects(function_name, function_args)
 
-        # 10. 개발자의 의도 파싱 및 비교
-        intent_result = {"expected": [], "actual": [], "message": ""}
-        if line_comment is not None:
-            expected_interval = self.parse_intent(line_comment)
-            if expected_interval and var_name in expected_interval:
-                intended_interval = expected_interval[var_name]
-                if not return_interval.encompass(intended_interval):
-                    intent_result["expected"] = [intended_interval.min_value, intended_interval.max_value]
-                    intent_result["actual"] = [return_interval.min_value, return_interval.max_value]
-                    intent_result["message"] = f"Variable '{var_name}' is out of the intended range."
-
         # 11. 분석 결과 저장
         result = {
             "line": self.current_start_line,
             "variable": var_name,
-            "assigned_interval": [return_interval.min_value, return_interval.max_value],
-            "intent_check": intent_result
+            "assigned_interval": [return_interval.min_value, return_interval.max_value]
         }
 
         # get_analysis_result에 사용될 결과 저장
         self.analysis_results = result
 
-    def process_unary_prefix_operation(self, expr, line_comment=None):
+    def process_unary_prefix_operation(self, expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -1496,23 +1385,11 @@ class ContractAnalyzer:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 8. 개발자의 의도 파싱 및 비교
-        intent_result = {"expected": [], "actual": [], "message": ""}
-        if line_comment is not None:
-            expected_interval = self.parse_intent(line_comment)
-            if expected_interval and var_name in expected_interval:
-                intended_interval = expected_interval[var_name]
-                if not new_interval.encompass(intended_interval):
-                    intent_result["expected"] = [intended_interval.min_value, intended_interval.max_value]
-                    intent_result["actual"] = [new_interval.min_value, new_interval.max_value]
-                    intent_result["message"] = f"Variable '{var_name}' is out of the intended range."
-
         # 9. 분석 결과 저장
         result = {
             "line": self.current_start_line,
             "variable": var_name,
-            "assigned_interval": [new_interval.min_value, new_interval.max_value],
-            "intent_check": intent_result
+            "assigned_interval": [new_interval.min_value, new_interval.max_value]
         }
 
         # get_analysis_result에 사용될 결과 저장
@@ -1529,7 +1406,7 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_unary_suffix_operation(self, expr, line_comment=None):
+    def process_unary_suffix_operation(self, expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -1609,23 +1486,11 @@ class ContractAnalyzer:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
-        # 8. 개발자의 의도 파싱 및 비교
-        intent_result = {"expected": [], "actual": [], "message": ""}
-        if line_comment is not None:
-            expected_interval = self.parse_intent(line_comment)
-            if expected_interval and var_name in expected_interval:
-                intended_interval = expected_interval[var_name]
-                if not new_interval.encompass(intended_interval):
-                    intent_result["expected"] = [intended_interval.min_value, intended_interval.max_value]
-                    intent_result["actual"] = [new_interval.min_value, new_interval.max_value]
-                    intent_result["message"] = f"Variable '{var_name}' is out of the intended range."
-
         # 9. 분석 결과 저장
         result = {
             "line": self.current_start_line,
             "variable": var_name,
-            "assigned_interval": [new_interval.min_value, new_interval.max_value],
-            "intent_check": intent_result
+            "assigned_interval": [new_interval.min_value, new_interval.max_value]
         }
 
         # get_analysis_result에 사용될 결과 저장
@@ -1752,11 +1617,11 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_payable_function_call(self, expr, line_comment=None):
+    def process_payable_function_call(self, expr):
         # Handle payable function calls
         pass
 
-    def process_function_call_options(self, expr, line_comment=None):
+    def process_function_call_options(self, expr):
         # Handle function calls with options
         pass
 

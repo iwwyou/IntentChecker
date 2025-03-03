@@ -370,11 +370,11 @@ interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
 
 interactiveVariableDeclarationStatement
-  : (variableDeclaration ('=' expression)?) ';' duringExecution?
-  | (variableDeclarationTuple '=' expression) ';' duringExecution? ;
+  : (variableDeclaration ('=' expression)?) ';'
+  | (variableDeclarationTuple '=' expression) ';' ;
 
 interactiveExpressionStatement
-  : expression ';' duringExecution? ;
+  : expression ';' ;
 
 // for interactive parsing
 interactiveStateVariableElement
