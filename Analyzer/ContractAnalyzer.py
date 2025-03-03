@@ -38,35 +38,90 @@ class ContractAnalyzer:
     """
 
     def update_code(self, start_line, end_line, new_code):
+        """
+        1) 기존 로직 그대로 유지: 라인들을 self.full_code_lines에 삽입/갱신
+        2) 만약 new_code가 "@during-execution" 주석이라면, 기존 라인을 수정 (append) 하여 코드가 '밀리지' 않도록 처리
+        """
+
         self.current_start_line = start_line
         self.current_end_line = end_line
 
         lines = new_code.split('\n')
 
-        if not self.full_code_lines:  # initialize
-            for i, line in enumerate(range(start_line, end_line + 1)):
-                self.full_code_lines[line] = lines[i]
-                self.update_brace_count(line, lines[i])
+        # STEP A) 먼저, 'lines'가 딱 한 줄이고, 해당 줄이 '@during-execution' 주석인지 검사
+        #        (여러 줄 주석이 들어오면 아래 별도 처리 필요)
+        is_single_line = (len(lines) == 1)
+        stripped_line = lines[0].strip() if is_single_line else None
 
-        else:  # 이미 있는 경우
+        # 체크: 이 라인이 '@during-execution'인지
+        # (혹은 startswith("// @during-execution")로 더 정확히 해도 됨)
+        is_during_execution_comment = False
+        if is_single_line and stripped_line.startswith('// @during-execution'):
+            is_during_execution_comment = True
+
+        if is_during_execution_comment:
+            # --- STEP B) 인라인 주석을 기존 line 끝에 추가 ---
+
+            # 1) 기존 라인 가져오기
+            #    만약 기존에 해당 line이 없으면? (ex: new code appended at end) -> fallback?
+            if start_line in self.full_code_lines:
+                original = self.full_code_lines[start_line]
+
+                # 2) 혹시 이미 세미콜론 등 공백이 있는지 확인 후
+                #    (원하는 대로 spacing/줄바꿈을 조정)
+                updated_line = original.rstrip() + " " + new_code.lstrip()
+                # -> 이렇게 하면 "int256 _magCorrection = toInt256(...);" 뒤에
+                #    "// @during-execution ..."을 이어붙임
+
+                self.full_code_lines[start_line] = updated_line
+                # brace_count 갱신
+                self.update_brace_count(start_line, updated_line)
+            else:
+                # 만약 해당 줄이 존재하지 않으면, fallback 로직: 그냥 새 줄로 삽입
+                self.full_code_lines[start_line] = new_code
+                self.update_brace_count(start_line, new_code)
+
+            # 3) full_code 다시 합치기
+            self.full_code = '\n'.join(
+                [self.full_code_lines[line_no] for line_no in sorted(self.full_code_lines.keys())]
+            )
+
+            # 4) 굳이 analyze_context 할 필요가 없다면 여기서 종료
+            #    만약 intentUnit 파싱을 원하면,
+            #    self.current_context_type = "intentUnit" 등 설정.
+            #    여기서는 일단 끝낸다.
+            return
+
+        # --- STEP C) 그 외의 경우(기존 로직) ---
+        # 새 라인들 삽입/밀기 등
+        if not self.full_code_lines:  # initialize
+            for i, line_no in enumerate(range(start_line, end_line + 1)):
+                self.full_code_lines[line_no] = lines[i]
+                self.update_brace_count(line_no, lines[i])
+        else:
             offset = end_line - start_line + 1
 
-            # 새 코드가 들어갈 위치 이후의 기존 라인들을 뒤로 밀기
-            keys_to_shift = sorted([line for line in self.full_code_lines.keys() if line >= start_line], reverse=True)
-            for line in keys_to_shift:
-                self.full_code_lines[line + offset] = self.full_code_lines.pop(line)
-                self.update_brace_count(line + offset, self.full_code_lines[line + offset])
+            # 1. 기존 라인 뒤로 밀기
+            keys_to_shift = sorted(
+                [line_no for line_no in self.full_code_lines.keys() if line_no >= start_line],
+                reverse=True
+            )
+            for old_line_no in keys_to_shift:
+                self.full_code_lines[old_line_no + offset] = self.full_code_lines.pop(old_line_no)
+                self.update_brace_count(old_line_no + offset, self.full_code_lines[old_line_no + offset])
 
-            # 새로운 코드를 해당 위치에 추가
-            for i, line in enumerate(range(start_line, end_line + 1)):
-                self.full_code_lines[line] = lines[i]
-                self.update_brace_count(line, lines[i])
+            # 2. 새로운 코드 라인 삽입
+            for i, line_no in enumerate(range(start_line, end_line + 1)):
+                self.full_code_lines[line_no] = lines[i]
+                self.update_brace_count(line_no, lines[i])
 
-        # 전체 코드를 다시 합쳐서 full_code 갱신
-        self.full_code = '\n'.join([self.full_code_lines[line] for line in sorted(self.full_code_lines.keys())])
+        # 3. full_code 재구성
+        self.full_code = '\n'.join(
+            [self.full_code_lines[line_no] for line_no in sorted(self.full_code_lines.keys())]
+        )
 
-        # 문법 오류 체크 및 컨텍스트 분석
-        if new_code != "\n":  # 단순 엔터 입력이 아닌 경우에만 분석 실행
+        # 4. analyze_context
+        if new_code != "\n":
             self.analyze_context(start_line, new_code)
 
     def compile_check(self):
@@ -92,6 +147,16 @@ class ContractAnalyzer:
     def analyze_context(self, start_line, new_code):
         stripped_code = new_code.strip()
 
+        # (1) 만약 이 라인이 "@pre-execution-global", "@pre-execution-state", 등 Intent가 들어간 주석인지 확인
+        if stripped_code.startswith('// @'):
+            # 여기서 좀 더 세밀하게 검사할 수도 있음
+            # 예: if '@pre-execution-global' in stripped_code, etc.
+            # 일단은 intent라는 결론만 내리고:
+            self.current_context_type = "intentUnit"
+            # 만약 intent 주석에서는 contract 찾을 필요가 없다면 아래 기호들이 불필요할 수도..
+            # 그러나 필요하다면, self.current_target_contract = ...
+            return  # 이 함수 종료
+
         # 매 분석마다 초기화
         self.current_context_type = None
         self.current_target_contract = None
@@ -107,7 +172,6 @@ class ContractAnalyzer:
             if parent_context == "contract" : # 시작 규칙 : interactiveSourceUnit
                 self.current_context_type = "stateVariableDeclaration"
                 self.current_target_contract = self.find_contract_context(start_line)
-
             elif parent_context == "struct" : # 시작 규칙 : interactiveStructUnit
                 self.current_context_type = "structMember"
                 self.current_target_contract = self.find_contract_context(start_line)
@@ -115,9 +179,6 @@ class ContractAnalyzer:
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
                 self.current_target_function = self.find_function_context(start_line)
-
-        elif '@testing' in stripped_code:
-            self.current_context_type = "functionTesting"
 
         elif ',' in stripped_code:
             # 함수 정의인지 확인 (괄호 열고 닫힌 경우는 함수 파라미터로 가정)

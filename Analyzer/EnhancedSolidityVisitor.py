@@ -993,11 +993,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#continueStatement.
     def visitContinueStatement(self, ctx:SolidityParser.ContinueStatementContext):
-        return self.visitChildren(ctx)
+        return self.contract_analyzer.process_continue_statement()
 
     # Visit a parse tree produced by SolidityParser#breakStatement.
     def visitBreakStatement(self, ctx:SolidityParser.BreakStatementContext):
-        return self.visitChildren(ctx)
+        return self.contract_analyzer.process_break_statement()
 
     # Visit a parse tree produced by SolidityParser#returnStatement.
     def visitReturnStatement(self, ctx:SolidityParser.ReturnStatementContext):
@@ -1015,7 +1015,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#emitStatement.
     def visitEmitStatement(self, ctx:SolidityParser.EmitStatementContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#revertStatement.
     def visitRevertStatement(self, ctx:SolidityParser.RevertStatementContext):
@@ -1037,7 +1036,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         self.contract_analyzer.process_revert_statement(revert_identifier, string_literal, call_argument_list)
         return
 
-
     # Visit a parse tree produced by SolidityParser#requireStatement.
     def visitRequireStatement(self, ctx:SolidityParser.RequireStatementContext):
         # 1. 'require'의 조건식(expression)을 방문하여 추출
@@ -1054,7 +1052,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return
 
-
     # Visit a parse tree produced by SolidityParser#assertStatement.
     def visitAssertStatement(self, ctx:SolidityParser.AssertStatementContext):
         # 1. expression을 방문해서 조건식을 가져옴
@@ -1063,11 +1060,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # 2. ContractAnalyzer에서 process_assert_statement 호출
         self.contract_analyzer.process_assert_statement(condition_expr)
 
-
     # Visit a parse tree produced by SolidityParser#variableDeclarationStatement.
     def visitVariableDeclarationStatement(self, ctx:SolidityParser.VariableDeclarationStatementContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#interactiveStatement.
     def visitInteractiveStatement(self, ctx:SolidityParser.InteractiveStatementContext):
@@ -1938,51 +1933,41 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitLiteral(self, ctx:SolidityParser.LiteralContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#literalWithSubDenomination.
     def visitLiteralWithSubDenomination(self, ctx:SolidityParser.LiteralWithSubDenominationContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#tupleExpression.
     def visitTupleExpression(self, ctx:SolidityParser.TupleExpressionContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#numberLiteral.
     def visitNumberLiteral(self, ctx:SolidityParser.NumberLiteralContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#identifier.
     def visitIdentifier(self, ctx:SolidityParser.IdentifierContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#userDefinedValueTypeDefinition.
     def visitUserDefinedValueTypeDefinition(self, ctx:SolidityParser.UserDefinedValueTypeDefinitionContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#booleanLiteral.
     def visitBooleanLiteral(self, ctx:SolidityParser.BooleanLiteralContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#hexStringLiteral.
     def visitHexStringLiteral(self, ctx:SolidityParser.HexStringLiteralContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#unicodeStringLiteral.
     def visitUnicodeStringLiteral(self, ctx:SolidityParser.UnicodeStringLiteralContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#stringLiteral.
     def visitStringLiteral(self, ctx:SolidityParser.StringLiteralContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by SolidityParser#overrideSpecifier.
     def visitOverrideSpecifier(self, ctx:SolidityParser.OverrideSpecifierContext):

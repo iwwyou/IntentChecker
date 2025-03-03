@@ -13,7 +13,7 @@ abstract contract AbstractRewards {
         require(_shares != 0, "AbstractRewards._correctPointsForTransfer: shares cannot be zero");
 
         //SWC-101-Integer Overflow and Underflow: L107
-        int256 _magCorrection = toInt256(pointsPerShare * _shares); //@intent _magCorrection > -2^^255 && _magCorrection < 2^^255-1
+        int256 _magCorrection = toInt256(pointsPerShare * _shares);
         pointsCorrection[_from] = pointsCorrection[_from] + _magCorrection;
         pointsCorrection[_to] = pointsCorrection[_to] - _magCorrection;
 
