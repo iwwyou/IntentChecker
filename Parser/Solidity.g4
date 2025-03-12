@@ -250,6 +250,7 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
+
 intentUnit
   : (
     preExecutionGlobal
@@ -261,18 +262,7 @@ intentUnit
   ) * EOF;
 
 preExecutionGlobal
-  : '//' '@pre-execution-global' globalVariable '=' numberLiteral ;
-
-globalVariable
-  : 'block.basefee' # BlockbaseFee
-  | 'block.blobbasefee' # BlockBlobbasefee
-  | 'block.chainid' # BlockChainid
-  | 'block.difficulty' # BlockDifficulty
-  | 'block.gaslimit' # BlockGaslimit
-  | 'block.number' # BlockNumber
-  | 'block.prevrandao' # BlockPrevrandao
-  | 'block.timestamp' # BlockTimestamp
-  | 'tx.gasprice' # TxGasprice
+  : '//' '@pre-execution-global' identifier'.'identifier '=' numberLiteral
   ;
 
 preExecutionState
@@ -652,7 +642,6 @@ expression
   | literalWithSubDenomination                            # LiteralSubDenomination
   | elementaryTypeName                                    # TypeNameExp
   ;
-
 
 literal
   : (stringLiteral | numberLiteral | booleanLiteral | hexStringLiteral | unicodeStringLiteral);

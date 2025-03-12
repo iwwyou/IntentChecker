@@ -131,13 +131,11 @@ test_inputs = [
         'endLine': 5
     },
 
-
     {
         'code': 'enum RebaseOptions { \n };',
         'startLine': 6,
         'endLine': 7
     },
-
 
     {
         'code': 'NotSet, Rebased',
@@ -160,7 +158,7 @@ test_inputs = [
 
     # _isContract 함수 내용 - size 체크
     {
-        'code': 'uint32 size = _account.code.length;',
+        'code': 'uint256 size = block.timestamp;',
         'startLine': 11,
         'endLine': 11
     },

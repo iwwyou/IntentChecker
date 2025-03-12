@@ -1,20 +1,12 @@
-// @pre-execution-global block.timestamp = 10;
-
 contract AloeBlend {
+    // @pre-execution-global block.timestamp = 10;
 
-    /// @inheritdoc IAloeBlendImmutables
+    uint256 public temp;
     uint24 public constant MIN_WIDTH = 201; // 1% of inventory in primary Uniswap position
-
-    /// @inheritdoc IAloeBlendImmutables
     uint24 public constant MAX_WIDTH = 13864; // 50% of inventory in primary Uniswap position
-
-    /// @inheritdoc IAloeBlendImmutables
     uint8 public constant K = 10;
-
-    /// @inheritdoc IAloeBlendImmutables
     uint8 public constant B = 2; // primary Uniswap position should cover 95% of trading activity
 
-      
     function _getDetailedInventory(uint160 sqrtPriceX96, bool includeLimit)
         private
         view
@@ -25,9 +17,8 @@ contract AloeBlend {
             uint256 availableForLimit1
         )
     {
-        // @pre-execution-state sqrtPriceX96 = 10; 
-        // @pre-execution-local sqrtPriceX96 = 10;  
-        
+        // @pre-execution-state temp = 10;
+        // @pre-execution-local sqrtPriceX96 = 10;          
 
         if (includeLimit) {
             (availableForLimit0, availableForLimit1) = limit.collectableAmountsAsOfLastPoke(UNI_POOL, sqrtPriceX96);

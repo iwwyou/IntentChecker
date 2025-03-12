@@ -289,51 +289,6 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#BlockbaseFee.
-    def visitBlockbaseFee(self, ctx:SolidityParser.BlockbaseFeeContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockBlobbasefee.
-    def visitBlockBlobbasefee(self, ctx:SolidityParser.BlockBlobbasefeeContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockChainid.
-    def visitBlockChainid(self, ctx:SolidityParser.BlockChainidContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockDifficulty.
-    def visitBlockDifficulty(self, ctx:SolidityParser.BlockDifficultyContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockGaslimit.
-    def visitBlockGaslimit(self, ctx:SolidityParser.BlockGaslimitContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockNumber.
-    def visitBlockNumber(self, ctx:SolidityParser.BlockNumberContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockPrevrandao.
-    def visitBlockPrevrandao(self, ctx:SolidityParser.BlockPrevrandaoContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BlockTimestamp.
-    def visitBlockTimestamp(self, ctx:SolidityParser.BlockTimestampContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#TxGasprice.
-    def visitTxGasprice(self, ctx:SolidityParser.TxGaspriceContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SolidityParser#preExecutionState.
     def visitPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
         return self.visitChildren(ctx)

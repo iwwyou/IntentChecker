@@ -28,9 +28,6 @@ class ContractAnalyzer:
 
         # 고정된 address 값 설정
         self.fixed_address = "0x1234567890abcdef1234567890abcdef12345678"
-
-        self.testingCommentStack = []
-
         self.analysis_results = None
 
     """
@@ -76,21 +73,12 @@ class ContractAnalyzer:
                 self.full_code_lines[start_line] = updated_line
                 # brace_count 갱신
                 self.update_brace_count(start_line, updated_line)
-            else:
-                # 만약 해당 줄이 존재하지 않으면, fallback 로직: 그냥 새 줄로 삽입
-                self.full_code_lines[start_line] = new_code
-                self.update_brace_count(start_line, new_code)
 
             # 3) full_code 다시 합치기
             self.full_code = '\n'.join(
                 [self.full_code_lines[line_no] for line_no in sorted(self.full_code_lines.keys())]
             )
 
-            # 4) 굳이 analyze_context 할 필요가 없다면 여기서 종료
-            #    만약 intentUnit 파싱을 원하면,
-            #    self.current_context_type = "intentUnit" 등 설정.
-            #    여기서는 일단 끝낸다.
-            return
 
         # --- STEP C) 그 외의 경우(기존 로직) ---
         # 새 라인들 삽입/밀기 등
@@ -124,9 +112,11 @@ class ContractAnalyzer:
         if new_code != "\n":
             self.analyze_context(start_line, new_code)
 
+        self.compile_check()
+
     def compile_check(self):
         try:
-            install_solc('0.8.6')  # 필요한 Solidity 컴파일러 버전을 설치합니다.
+            install_solc('0.8.0')  # 필요한 Solidity 컴파일러 버전을 설치합니다.
             compile_source(self.full_code)
         except solcx.exceptions.SolcError as e:
             print("Solidity 컴파일 오류: ", e)
@@ -149,12 +139,11 @@ class ContractAnalyzer:
 
         # (1) 만약 이 라인이 "@pre-execution-global", "@pre-execution-state", 등 Intent가 들어간 주석인지 확인
         if stripped_code.startswith('// @'):
-            # 여기서 좀 더 세밀하게 검사할 수도 있음
-            # 예: if '@pre-execution-global' in stripped_code, etc.
-            # 일단은 intent라는 결론만 내리고:
             self.current_context_type = "intentUnit"
-            # 만약 intent 주석에서는 contract 찾을 필요가 없다면 아래 기호들이 불필요할 수도..
-            # 그러나 필요하다면, self.current_target_contract = ...
+            self.current_target_contract = self.find_contract_context(start_line)
+            if 'pre-execution-global' in stripped_code :
+                return
+            self.current_target_function = self.find_function_context(start_line)
             return  # 이 함수 종료
 
         # 매 분석마다 초기화
@@ -2273,6 +2262,9 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         self.current_target_function_cfg = None
+
+    def process_pre_execution_global(self, var_name, value):
+        return
 
     def extract_variable_name(self, expression):
         """

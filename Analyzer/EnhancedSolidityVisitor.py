@@ -589,160 +589,157 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#intentUnit.
-    def visitIntentUnit(self, ctx:SolidityParser.IntentUnitContext):
+    def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#preExecutionGlobal.
-    def visitPreExecutionGlobal(self, ctx:SolidityParser.PreExecutionGlobalContext):
-        return self.visitChildren(ctx)
+    def visitPreExecutionGlobal(self, ctx: SolidityParser.PreExecutionGlobalContext):
+        # (Optional) parse_number_literal helper
+        def parse_number_literal(literal_str):
+            """
+            Very basic parse:
+              - if starts with '0x' or '0X', parse as int(..., 16)
+              - else parse as int decimal
+            More robust logic can be implemented if needed.
+            """
+            lit = literal_str.lower()
+            if lit.startswith("0x"):
+                return int(lit, 16)
+            else:
+                return int(lit)  # decimal by default
 
-    # Visit a parse tree produced by SolidityParser#BlockbaseFee.
-    def visitBlockbaseFee(self, ctx:SolidityParser.BlockbaseFeeContext):
-        return self.visitChildren(ctx)
+        """
+        Grammar:
+          preExecutionGlobal
+            : '//' '@pre-execution-global' globalVariable '=' numberLiteral
+        """
+        # 1) globalVariable 문자열
+        var_name = ctx.globalVariable().getText()  # e.g. "block.timestamp"
 
-    # Visit a parse tree produced by SolidityParser#BlockBlobbasefee.
-    def visitBlockBlobbasefee(self, ctx:SolidityParser.BlockBlobbasefeeContext):
-        return self.visitChildren(ctx)
+        # 2) numberLiteral 문자열
+        literal_str = ctx.numberLiteral().getText()  # e.g. "10", "0xFF", ...
 
-    # Visit a parse tree produced by SolidityParser#BlockChainid.
-    def visitBlockChainid(self, ctx:SolidityParser.BlockChainidContext):
-        return self.visitChildren(ctx)
+        # 3) parse numberLiteral -> int
+        #    SolidityParser numberLiteral might be hex or decimal
+        value = parse_number_literal(literal_str)
 
-    # Visit a parse tree produced by SolidityParser#BlockDifficulty.
-    def visitBlockDifficulty(self, ctx:SolidityParser.BlockDifficultyContext):
-        return self.visitChildren(ctx)
+        # 4) call contract_analyzer
+        self.contract_analyzer.process_pre_execution_global(var_name, value)
 
-    # Visit a parse tree produced by SolidityParser#BlockGaslimit.
-    def visitBlockGaslimit(self, ctx:SolidityParser.BlockGaslimitContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#BlockNumber.
-    def visitBlockNumber(self, ctx:SolidityParser.BlockNumberContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#BlockPrevrandao.
-    def visitBlockPrevrandao(self, ctx:SolidityParser.BlockPrevrandaoContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#BlockTimestamp.
-    def visitBlockTimestamp(self, ctx:SolidityParser.BlockTimestampContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#TxGasprice.
-    def visitTxGasprice(self, ctx:SolidityParser.TxGaspriceContext):
-        return self.visitChildren(ctx)
+        return None
 
     # Visit a parse tree produced by SolidityParser#preExecutionState.
-    def visitPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
+    def visitPreExecutionState(self, ctx: SolidityParser.PreExecutionStateContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#preExecutionLocal.
-    def visitPreExecutionLocal(self, ctx:SolidityParser.PreExecutionLocalContext):
+    def visitPreExecutionLocal(self, ctx: SolidityParser.PreExecutionLocalContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#testingExpression.
-    def visitTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
+    def visitTestingExpression(self, ctx: SolidityParser.TestingExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
-    def visitTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
+    def visitTestingMemberAccess(self, ctx: SolidityParser.TestingMemberAccessContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#TestingIndexAccess.
-    def visitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
+    def visitTestingIndexAccess(self, ctx: SolidityParser.TestingIndexAccessContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#numberBoolLiteral.
-    def visitNumberBoolLiteral(self, ctx:SolidityParser.NumberBoolLiteralContext):
+    def visitNumberBoolLiteral(self, ctx: SolidityParser.NumberBoolLiteralContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#postExecutionState.
-    def visitPostExecutionState(self, ctx:SolidityParser.PostExecutionStateContext):
+    def visitPostExecutionState(self, ctx: SolidityParser.PostExecutionStateContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#postExecutionReturn.
-    def visitPostExecutionReturn(self, ctx:SolidityParser.PostExecutionReturnContext):
+    def visitPostExecutionReturn(self, ctx: SolidityParser.PostExecutionReturnContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecution.
-    def visitDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+    def visitDuringExecution(self, ctx: SolidityParser.DuringExecutionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecutionComment.
-    def visitDuringExecutionComment(self, ctx:SolidityParser.DuringExecutionCommentContext):
+    def visitDuringExecutionComment(self, ctx: SolidityParser.DuringExecutionCommentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecutionBeforeAfter.
-    def visitDuringExecutionBeforeAfter(self, ctx:SolidityParser.DuringExecutionBeforeAfterContext):
+    def visitDuringExecutionBeforeAfter(self, ctx: SolidityParser.DuringExecutionBeforeAfterContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#beforeAfter.
-    def visitBeforeAfter(self, ctx:SolidityParser.BeforeAfterContext):
+    def visitBeforeAfter(self, ctx: SolidityParser.BeforeAfterContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecutionAssignCurrent.
-    def visitDuringExecutionAssignCurrent(self, ctx:SolidityParser.DuringExecutionAssignCurrentContext):
+    def visitDuringExecutionAssignCurrent(self, ctx: SolidityParser.DuringExecutionAssignCurrentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#assignCurrent.
-    def visitAssignCurrent(self, ctx:SolidityParser.AssignCurrentContext):
+    def visitAssignCurrent(self, ctx: SolidityParser.AssignCurrentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecutionReturn.
-    def visitDuringExecutionReturn(self, ctx:SolidityParser.DuringExecutionReturnContext):
+    def visitDuringExecutionReturn(self, ctx: SolidityParser.DuringExecutionReturnContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#ExpressionReturn.
-    def visitExpressionReturn(self, ctx:SolidityParser.ExpressionReturnContext):
+    def visitExpressionReturn(self, ctx: SolidityParser.ExpressionReturnContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#VarReturn.
-    def visitVarReturn(self, ctx:SolidityParser.VarReturnContext):
+    def visitVarReturn(self, ctx: SolidityParser.VarReturnContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#returnVar.
-    def visitReturnVar(self, ctx:SolidityParser.ReturnVarContext):
+    def visitReturnVar(self, ctx: SolidityParser.ReturnVarContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringExecutionGeneral.
-    def visitDuringExecutionGeneral(self, ctx:SolidityParser.DuringExecutionGeneralContext):
+    def visitDuringExecutionGeneral(self, ctx: SolidityParser.DuringExecutionGeneralContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#comparisonExpression.
-    def visitComparisonExpression(self, ctx:SolidityParser.ComparisonExpressionContext):
+    def visitComparisonExpression(self, ctx: SolidityParser.ComparisonExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#logicalOperator.
-    def visitLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+    def visitLogicalOperator(self, ctx: SolidityParser.LogicalOperatorContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#comparisonOperator.
-    def visitComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+    def visitComparisonOperator(self, ctx: SolidityParser.ComparisonOperatorContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#arithmeticExpression.
-    def visitArithmeticExpression(self, ctx:SolidityParser.ArithmeticExpressionContext):
+    def visitArithmeticExpression(self, ctx: SolidityParser.ArithmeticExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#multiplicativeExpression.
-    def visitMultiplicativeExpression(self, ctx:SolidityParser.MultiplicativeExpressionContext):
+    def visitMultiplicativeExpression(self, ctx: SolidityParser.MultiplicativeExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#primaryExpression.
-    def visitPrimaryExpression(self, ctx:SolidityParser.PrimaryExpressionContext):
+    def visitPrimaryExpression(self, ctx: SolidityParser.PrimaryExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#accessExpression.
-    def visitAccessExpression(self, ctx:SolidityParser.AccessExpressionContext):
+    def visitAccessExpression(self, ctx: SolidityParser.AccessExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#additiveOperator.
-    def visitAdditiveOperator(self, ctx:SolidityParser.AdditiveOperatorContext):
+    def visitAdditiveOperator(self, ctx: SolidityParser.AdditiveOperatorContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#multiplicativeOperator.
-    def visitMultiplicativeOperator(self, ctx:SolidityParser.MultiplicativeOperatorContext):
+    def visitMultiplicativeOperator(self, ctx: SolidityParser.MultiplicativeOperatorContext):
         return self.visitChildren(ctx)
+
 
     # Visit a parse tree produced by SolidityParser#interactiveSimpleStatement.
     def visitInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
@@ -833,7 +830,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveEnumDefinition.
     def visitInteractiveEnumDefinition(self, ctx:SolidityParser.InteractiveEnumDefinitionContext):
-        return self.visitChildren(ctx)
+        enum_name = ctx.identifier().getText()
+        self.contract_analyzer.process_enum_definition(enum_name)
+        return
 
     # Visit a parse tree produced by SolidityParser#interactiveStructDefinition.
     def visitInteractiveStructDefinition(self, ctx:SolidityParser.InteractiveStructDefinitionContext):
