@@ -674,8 +674,6 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        #for_joint_node_variables = variable_obj
-
         # 4. 변수 선언 시 초기화 값이 있는 경우 처리
         if init_expr is None:
             # 초기화 값이 없는 경우 기본 Interval 설정
@@ -2263,8 +2261,342 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_pre_execution_global(self, var_name, value):
-        return
+    def process_pre_execution_global(self, global_var: str, value: int):
+        """
+        Called by visitPreExecutionGlobal to store something like:
+          'block.timestamp' = 999
+        in the current contract's CFG.
+        """
+        # 1) 현재 타겟 컨트랙트의 CFG 가져오기
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        # 2) pre_exec_globals에 기록
+        contract_cfg.pre_exec_globals[global_var] = value
+
+    def process_pre_execution_state(self, lhs_expr, value):
+        """
+        Process a pre-execution-state comment.
+          e.g. // @pre-execution-state myMapping[0x123] = 100
+               // @pre-execution-state myVar = true
+
+        :param lhs_expr: Expression object (from testingExpression)
+                         possible forms:
+                           - identifier only    -> myVar
+                           - index access       -> myArray[3] or myMapping[0x123]
+                           - member access      -> myStruct.member
+                           - nested form        -> myStruct.nestedArray[7]
+        :param value:    int or bool from numberBoolLiteral
+        """
+        # 1) Get the current contract CFG
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if contract_cfg is None:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        # 2) Get the function CFG (since it's 'pre-execution-state', we assume we are inside a function)
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if function_cfg is None:
+            raise ValueError(f"Unable to find function CFG for {self.current_target_function}")
+
+        # 3) Save it in function_cfg.pre_exec_state
+        #    - build a string key from lhs_expr if needed
+        lhs_key = lhs_expr.to_string() if hasattr(lhs_expr, "to_string") else self._expression_to_str(lhs_expr)
+
+        if not hasattr(function_cfg, "pre_exec_state"):
+            function_cfg.pre_exec_state = {}
+        function_cfg.pre_exec_state[lhs_key] = value
+
+        # 4) Actually update the corresponding variable object in function_cfg.related_variables
+        #    The main logic: we follow the Expression to find the final variable.
+
+        # --- Start from the root Expression (lhs_expr) and recursively descend. ---
+        # e.g. myVar, myArray[3], myStruct.member, myNestedMapping[key].member ...
+        updated_var = self._resolve_and_update_expr(lhs_expr, function_cfg, value)
+
+        # 5) (Optional) re-run abstract interpretation to reflect the changes
+        # self.re_run_abstract_interpretation(function_cfg)
+
+    def process_pre_execution_local(self, lhs_expr, value):
+        """
+               Process a pre-execution-state comment.
+                 e.g. // @pre-execution-state myMapping[0x123] = 100
+                      // @pre-execution-state myVar = true
+
+               :param lhs_expr: Expression object (from testingExpression)
+                                possible forms:
+                                  - identifier only    -> myVar
+                                  - index access       -> myArray[3] or myMapping[0x123]
+                                  - member access      -> myStruct.member
+                                  - nested form        -> myStruct.nestedArray[7]
+               :param value:    int or bool from numberBoolLiteral
+               """
+        # 1) Get the current contract CFG
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if contract_cfg is None:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+
+        # 2) Get the function CFG (since it's 'pre-execution-state', we assume we are inside a function)
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if function_cfg is None:
+            raise ValueError(f"Unable to find function CFG for {self.current_target_function}")
+
+        # 3) Save it in function_cfg.pre_exec_state
+        #    - build a string key from lhs_expr if needed
+        lhs_key = lhs_expr.to_string() if hasattr(lhs_expr, "to_string") else self._expression_to_str(lhs_expr)
+
+        if not hasattr(function_cfg, "pre_exec_state"):
+            function_cfg.pre_exec_local = {}
+        function_cfg.pre_exec_local[lhs_key] = value
+
+        # 4) Actually update the corresponding variable object in function_cfg.related_variables
+        #    The main logic: we follow the Expression to find the final variable.
+
+        # --- Start from the root Expression (lhs_expr) and recursively descend. ---
+        # e.g. myVar, myArray[3], myStruct.member, myNestedMapping[key].member ...
+        updated_var = self._resolve_and_update_expr(lhs_expr, function_cfg, value)
+
+        # 5) (Optional) re-run abstract interpretation to reflect the changes
+        # self.re_run_abstract_interpretation(function_cfg)
+
+    def _expression_to_str(self, expr):
+        """
+        Helper to convert a (testing) Expression into a string representation.
+        e.g.
+          Expression(identifier='myVar') -> "myVar"
+          Expression(base=..., member='memberName') -> "base.memberName"
+          Expression(base=..., index=someExpr) -> "base[someExpr]"
+        This is just for storing in a dict key if we want.
+        """
+        # If expr is just identifier:
+        if expr.member is None and expr.index is None and expr.base is None:
+            return expr.identifier  # e.g. "myVar"
+        # If it's member access
+        if expr.member is not None:
+            # build base string, then ".member"
+            base_str = self._expression_to_str(expr.base)
+            return f"{base_str}.{expr.member}"
+        # If it's index access
+        if expr.index is not None:
+            base_str = self._expression_to_str(expr.base)
+            # index part: if index is literal or identifier
+            if expr.index.literal is not None:
+                idx_str = str(expr.index.literal)
+            elif expr.index.identifier is not None:
+                idx_str = expr.index.identifier
+            else:
+                # fallback
+                idx_str = self._expression_to_str(expr.index)
+            return f"{base_str}[{idx_str}]"
+
+        # fallback: if none of the above logic
+        return "EXPR?"
+
+    def _resolve_and_update_expr(self, expr, function_cfg, new_value):
+        """
+        Recursively resolve expr to find the actual Variables (or MappingVariable, etc.) and update its 'value'.
+        Return the updated Variables object if found.
+
+        expr: Expression object
+        function_cfg: current function CFG
+        new_value: int or bool
+        """
+        # if expr has no base, we are at root identifier
+        if expr.base is None:
+            # e.g. "myVar"
+            var_name = expr.identifier
+            var_obj = function_cfg.get_related_variable(var_name)
+            if var_obj is not None:
+                self._apply_new_value_to_variable(var_obj, new_value)
+                return var_obj
+            else:
+                print(f"[Warning] var '{var_name}' not found in function '{function_cfg.function_name}'.")
+                return None
+        else:
+            # there's a base expression
+            base_obj = self._resolve_and_update_expr(expr.base, function_cfg, None)
+            # we don't update the base with new_value, but we do want to navigate
+            if base_obj is None:
+                # cannot proceed
+                return None
+
+            # If it's member access
+            if expr.member is not None:
+                # base_obj should be e.g. a StructVariable or similar
+                if isinstance(base_obj, StructVariable):
+                    member_name = expr.member
+                    if member_name in base_obj.members:
+                        member_var = base_obj.members[member_name]
+                        if expr.index is None:
+                            # we want to update member_var with new_value (if new_value != None)
+                            if new_value is not None:
+                                self._apply_new_value_to_variable(member_var, new_value)
+                            return member_var
+                        else:
+                            # theoretically structVar.member[...]?
+                            print("[Warning] structVar.member[...] not typical, skipping.")
+                            return None
+                    else:
+                        print(f"[Warning] struct '{base_obj.identifier}' has no member '{member_name}'")
+                        return None
+                else:
+                    print(f"[Warning] Attempting member access on non-struct var '{base_obj.identifier}'")
+                    return None
+
+            # If it's index access
+            if expr.index is not None:
+                # base_obj should be e.g. ArrayVariable or MappingVariable
+                if isinstance(base_obj, ArrayVariable):
+                    # index might be literal or maybe an expression
+                    idx_val = self._extract_index_val(expr.index)
+                    idx_int = int(idx_val)  # enforce int
+                    if 0 <= idx_int < len(base_obj.elements):
+                        element_var = base_obj.elements[idx_int]
+                        if new_value is not None:
+                            self._apply_new_value_to_variable(element_var, new_value)
+                        return element_var
+                    else:
+                        print(f"[Warning] array index out of range: {idx_int}")
+                        return None
+
+                elif isinstance(base_obj, MappingVariable):
+                    idx_val = self._extract_index_val(expr.index)  # string or int
+                    # we store it as string, typically
+                    key_str = str(idx_val)
+                    # get or create mapping entry
+                    mapped_var = base_obj.mapping.get(key_str)
+                    if mapped_var is None:
+                        # create new
+                        mapped_var = self._create_new_mapping_value(base_obj, key_str)
+                        base_obj.mapping[key_str] = mapped_var
+                    # update mapped_var if new_value is not None
+                    if new_value is not None:
+                        self._apply_new_value_to_variable(mapped_var, new_value)
+                    return mapped_var
+                else:
+                    print(
+                        f"[Warning] Attempting index access on var '{base_obj.identifier}' which is not array/mapping.")
+                    return None
+
+            # fallback
+            return None
+
+    def _apply_new_value_to_variable(self, var_obj, new_value):
+        """
+        Given var_obj (Variables, ArrayVariable, etc.) and new_value (int or bool),
+        interpret typeInfo and update var_obj.value accordingly.
+        """
+        if not hasattr(var_obj, "typeInfo") or var_obj.typeInfo is None:
+            # no type info => just store as integer?
+            var_obj.value = new_value
+            return
+
+        # e.g. elementary type?
+        etype = var_obj.typeInfo.elementaryTypeName
+        if etype is None:
+            # might be array/mapping/struct but let's see typeCategory
+            if var_obj.typeInfo.typeCategory == 'array':
+                print(f"[Info] _apply_new_value_to_variable: array type update not supported directly.")
+                return
+            elif var_obj.typeInfo.typeCategory == 'mapping':
+                print(f"[Info] _apply_new_value_to_variable: mapping type update not supported directly.")
+                return
+            elif var_obj.typeInfo.typeCategory == 'struct':
+                print(f"[Info] _apply_new_value_to_variable: struct type update not supported directly.")
+                return
+            else:
+                print("[Warning] unknown typeCategory in var_obj.typeInfo")
+                return
+
+        # if we do have something like "int", "uint", "bool"
+        if etype.startswith("int"):
+            bit_len = var_obj.typeInfo.intTypeLength if var_obj.typeInfo.intTypeLength else 256
+            if isinstance(new_value, bool):
+                # treat as int(0 or 1)
+                int_val = 1 if new_value else 0
+                var_obj.value = IntegerInterval(int_val, int_val, bit_len)
+            else:
+                var_obj.value = IntegerInterval(new_value, new_value, bit_len)
+        elif etype.startswith("uint"):
+            bit_len = var_obj.typeInfo.intTypeLength if var_obj.typeInfo.intTypeLength else 256
+            if isinstance(new_value, bool):
+                int_val = 1 if new_value else 0
+                var_obj.value = UnsignedIntegerInterval(int_val, int_val, bit_len)
+            else:
+                var_obj.value = UnsignedIntegerInterval(new_value, new_value, bit_len)
+        elif etype == "bool":
+            if isinstance(new_value, bool):
+                var_obj.value = BoolInterval(new_value, new_value)
+            else:
+                # interpret non-zero => True
+                bool_val = (new_value != 0)
+                var_obj.value = BoolInterval(bool_val, bool_val)
+        else:
+            print(f"[Warning] _apply_new_value_to_variable: unrecognized elementary type '{etype}'")
+
+    def _extract_index_val(self, index_expr):
+        """
+        Attempt to get a concrete index from index_expr (Expression).
+        If it's literal: return int(index_expr.literal)
+        If it's identifier: we might not have a direct integer => handle carefully
+        etc.
+        """
+        if index_expr.literal is not None:
+            return int(index_expr.literal, 0)  # parse w/ base=0 => auto 0x => hex
+        elif index_expr.identifier is not None:
+            # we could look up if that identifier is known => partial for now
+            return index_expr.identifier
+        else:
+            # fallback => to_string or something
+            return "???"
+
+    def _create_new_mapping_value(self, map_var, key_str):
+        """
+        Create a new default Variables object for the given mapping key if not existing.
+        We can look up map_var.typeInfo.mappingValueType and build a suitable variable.
+        """
+        # e.g. an elementary
+        val_type = map_var.typeInfo.mappingValueType
+        if val_type.typeCategory == 'elementary':
+            etype = val_type.elementaryTypeName
+            if etype.startswith('int'):
+                bit_len = val_type.intTypeLength if val_type.intTypeLength else 256
+                default_val = IntegerInterval(0, 0, bit_len)
+                new_obj = Variables(identifier=f"{map_var.identifier}[{key_str}]",
+                                    value=default_val,
+                                    scope=map_var.scope,
+                                    typeInfo=val_type)
+                return new_obj
+            elif etype.startswith('uint'):
+                bit_len = val_type.intTypeLength if val_type.intTypeLength else 256
+                default_val = UnsignedIntegerInterval(0, 0, bit_len)
+                new_obj = Variables(identifier=f"{map_var.identifier}[{key_str}]",
+                                    value=default_val,
+                                    scope=map_var.scope,
+                                    typeInfo=val_type)
+                return new_obj
+            elif etype == 'bool':
+                default_val = BoolInterval(False, False)
+                new_obj = Variables(identifier=f"{map_var.identifier}[{key_str}]",
+                                    value=default_val,
+                                    scope=map_var.scope,
+                                    typeInfo=val_type)
+                return new_obj
+            else:
+                # fallback
+                new_obj = Variables(identifier=f"{map_var.identifier}[{key_str}]",
+                                    value=None,
+                                    scope=map_var.scope,
+                                    typeInfo=val_type)
+                return new_obj
+        else:
+            # array / struct / mapping => we'd have to create ArrayVariable, StructVariable, etc.
+            print("[Info] _create_new_mapping_value: non-elementary value type => returning simple placeholder.")
+            new_obj = Variables(identifier=f"{map_var.identifier}[{key_str}]",
+                                value=None,
+                                scope=map_var.scope,
+                                typeInfo=val_type)
+            return new_obj
 
     def extract_variable_name(self, expression):
         """

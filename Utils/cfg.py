@@ -177,6 +177,9 @@ class ContractCFG(CFG):
         self.modifiers = {}  # name -> FunctionCFG
         self.functions = {}  # name -> FunctionCFG
 
+        # 새로 추가: pre-execution 글로벌 설정
+        self.pre_exec_globals = {}  # e.g. { "block.timestamp": 100, ... }
+
     # Enum 정의 추가
     def define_enum(self, enum_name, enum_def):
         if enum_name not in self.enums:
@@ -263,6 +266,9 @@ class FunctionCFG(CFG):
         self.modifiers = {}
         self.related_variables = {}
         self.exit_node.function_exit_node = True
+
+        self.pre_exec_state = {}
+        self.pre_exec_local = {}
 
     def update_block(self, block_node):
         """

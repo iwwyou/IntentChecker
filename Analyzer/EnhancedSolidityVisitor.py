@@ -594,51 +594,135 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#preExecutionGlobal.
     def visitPreExecutionGlobal(self, ctx: SolidityParser.PreExecutionGlobalContext):
-        # (Optional) parse_number_literal helper
-        def parse_number_literal(literal_str):
-            """
-            Very basic parse:
-              - if starts with '0x' or '0X', parse as int(..., 16)
-              - else parse as int decimal
-            More robust logic can be implemented if needed.
-            """
-            lit = literal_str.lower()
-            if lit.startswith("0x"):
-                return int(lit, 16)
-            else:
-                return int(lit)  # decimal by default
+        def isValidGlobalVariable(text: str) -> bool:
+            valid_globals = {
+                "block.basefee",
+                "block.blobbasefee",
+                "block.chainid",
+                "block.difficulty",
+                "block.gaslimit",
+                "block.number",
+                "block.prevrandao",
+                "block.timestamp",
+                "tx.gasprice"
+            }
+            return text in valid_globals
 
         """
-        Grammar:
+        Grammar rule:
           preExecutionGlobal
-            : '//' '@pre-execution-global' globalVariable '=' numberLiteral
+            : '//' '@pre-execution-global' identifier '.' identifier '=' numberLiteral
+            ;
+        
+        Example code line:
+          // @pre-execution-global block.timestamp = 999
         """
-        # 1) globalVariable 문자열
-        var_name = ctx.globalVariable().getText()  # e.g. "block.timestamp"
+        # 1) 식별자 2개 추출 (예: block, timestamp)
+        left_id = ctx.identifier(0).getText()   # e.g. "block"
+        right_id = ctx.identifier(1).getText()  # e.g. "timestamp"
 
-        # 2) numberLiteral 문자열
-        literal_str = ctx.numberLiteral().getText()  # e.g. "10", "0xFF", ...
+        # 합쳐서 "block.timestamp"
+        global_var_full = left_id + "." + right_id
 
-        # 3) parse numberLiteral -> int
-        #    SolidityParser numberLiteral might be hex or decimal
-        value = parse_number_literal(literal_str)
+        # 2) numberLiteral 추출
+        number_literal_text = ctx.numberLiteral().getText()  # e.g. "999"
+        # 간단히 int 변환 (16진, 10진 여부에 따라 필요한 경우 int(value, 0) 등 사용)
+        # 여기서는 예시로 10진으로만 변환
+        pre_exec_value = int(number_literal_text, 0)   # "0x..." 도 처리하려면 base=0
 
-        # 4) call contract_analyzer
-        self.contract_analyzer.process_pre_execution_global(var_name, value)
+        # 3) 유효성 검사
+        if not self.isValidGlobalVariable(global_var_full):
+            raise ValueError(f"Invalid global variable '{global_var_full}'")
 
-        return None
+        # 4) ContractAnalyzer에 전달
+        self.contract_analyzer.process_pre_execution_global(global_var_full, pre_exec_value)
 
     # Visit a parse tree produced by SolidityParser#preExecutionState.
     def visitPreExecutionState(self, ctx: SolidityParser.PreExecutionStateContext):
-        return self.visitChildren(ctx)
+        """
+                Handles comments like:
+                  // @pre-execution-state someMapping[0x123] = 100
+                  // @pre-execution-state myVar = true
+                """
+        # (1) LHS: parse testingExpression into an Expression object.
+        lhs_expr = self.visitTestingExpression(ctx.testingExpression())
+        # (2) RHS: parse the literal (number or boolean)
+        rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
+        value = self.parse_number_bool_literal(rhs_text)
+        # (3) Call process function in the analyzer
+        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        return None
 
     # Visit a parse tree produced by SolidityParser#preExecutionLocal.
     def visitPreExecutionLocal(self, ctx: SolidityParser.PreExecutionLocalContext):
-        return self.visitChildren(ctx)
+        """
+                        Handles comments like:
+                          // @pre-execution-state someMapping[0x123] = 100
+                          // @pre-execution-state myVar = true
+                        """
+        # (1) LHS: parse testingExpression into an Expression object.
+        lhs_expr = self.visitTestingExpression(ctx.testingExpression())
+        # (2) RHS: parse the literal (number or boolean)
+        rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
+        value = self.parse_number_bool_literal(rhs_text)
+        # (3) Call process function in the analyzer
+        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        return None
 
     # Visit a parse tree produced by SolidityParser#testingExpression.
     def visitTestingExpression(self, ctx: SolidityParser.TestingExpressionContext):
-        return self.visitChildren(ctx)
+        """
+                testingExpression : identifier subAccess* ;
+                subAccess : '.' identifier | '[' expression ']' ;
+                Build an Expression object representing the testing expression.
+                """
+        # 시작 식별자
+        root = Expression(
+            identifier=ctx.identifier().getText(),
+            context="IdentifierExpContext"
+        )
+        # subAccess 처리 (있다면)
+        if ctx.subAccess():
+            for sub in ctx.subAccess():
+                # 각 subAccess의 label는 우리 문법에서 두 종류로 구분됨
+                # (1) TestingMemberAccess: '.' identifier
+                # (2) TestingIndexAccess: '[' expression ']'
+                if sub.getChild(0).getText() == '.':
+                    member = sub.identifier().getText()
+                    root = Expression(
+                        base=root,
+                        member=member,
+                        operator='.',
+                        context="TestingMemberAccess"
+                    )
+                elif sub.getChild(0).getText() == '[':
+                    # index 접근: 내부 표현식을 방문해서 Expression 생성
+                    index_expr = self.visitExpression(sub.expression())
+                    root = Expression(
+                        base=root,
+                        index=index_expr,
+                        access="index_access",
+                        context="TestingIndexAccess"
+                    )
+                else:
+                    raise ValueError("Unknown subAccess type.")
+        return root
+
+    def parse_number_bool_literal(self, literal_str: str):
+        """
+        Parses a literal string into an integer or boolean.
+          "100"     -> 100 (int)
+          "-20"     -> -20 (int)
+          "true"    -> True (bool)
+          "false"   -> False (bool)
+        """
+        if literal_str.lower() == "true":
+            return True
+        elif literal_str.lower() == "false":
+            return False
+        else:
+            # 숫자 파싱 (예: 0x.., decimal, negative 등)
+            return int(literal_str, 0)
 
     # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
     def visitTestingMemberAccess(self, ctx: SolidityParser.TestingMemberAccessContext):
