@@ -168,7 +168,9 @@ class ContractCFG(CFG):
         self.contract_name = contract_name
         self.state_variable_node = None
         self.enums = {}  # name -> EnumDefinition 객체
-        self.structs = {}  # name -> StructDefinition 객체
+
+        self.structDefs = {}  # name -> StructDefinition 객체
+        self.structVars = {} # name -> StructVariable 객체
 
         self.constructor = None  # FunctionCFG (Constructor Type)
         self.fallback = None
@@ -188,11 +190,8 @@ class ContractCFG(CFG):
             raise ValueError(f"Enum {enum_name} is already defined.")
 
     # Struct 정의 추가
-    def define_struct(self, struct_name, struct_def):
-        if struct_name not in self.structs:
-            self.structs[struct_name] = struct_def
-        else:
-            raise ValueError(f"Struct {struct_name} is already defined.")
+    def define_struct(self, struct_def_obj):
+        self.structDefs[struct_def_obj.struct_name] = struct_def_obj
 
     def add_enum_member(self, enum_name, member_name):
         if enum_name in self.enums:
@@ -200,8 +199,11 @@ class ContractCFG(CFG):
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
-    def add_struct_member(self, struct_name, var_name, var_type):
-        return
+    def add_struct_member(self, struct_def_name, var_name, var_obj):
+        if struct_def_name in self.structDefs :
+            self.structDefs[struct_def_name].add_member(var_name, var_obj)
+        else :
+            raise ValueError(f"Struct {struct_def_name} is not defined/")
 
     def add_state_variable(self, variable, expr=None): # variable : Variables, expr : Interval
         # 상태 변수 노드가 없는 경우 생성

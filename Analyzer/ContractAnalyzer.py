@@ -379,7 +379,7 @@ class ContractAnalyzer:
         # brace_count 업데이트
         self.brace_count[self.current_start_line]['structs'] = contract_cfg.structs
 
-    def process_struct_member(self, var_name, var_type):
+    def process_struct_member(self, var_name, var_obj):
         # 1. 현재 타겟 컨트랙트의 CFG를 가져옴
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -389,7 +389,7 @@ class ContractAnalyzer:
         if not self.current_target_struct:
             raise ValueError("No target struct to add members to.")
 
-        contract_cfg.add_struct_member(self.current_target_struct, var_name, var_type)
+        contract_cfg.add_struct_member(self.current_target_struct, var_name, var_obj)
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -405,96 +405,13 @@ class ContractAnalyzer:
         interval_result = None
 
         # 우변 표현식을 저장하기 위해 init_expr를 확인
-        if init_expr is not None:
-            # 우변 표현식 평가
-            if isinstance(variable_obj, ArrayVariable):
-                # 배열 변수 처리
-                intervals = self.evaluate_array_expression(variable_obj=variable_obj, init_expr=init_expr)
-                variable_obj.elements = intervals  # 배열 요소들의 Interval 값 업데이트
-                # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-
-            elif isinstance(variable_obj, StructVariable):
-                # 구조체 변수 처리
-                member_intervals = self.evaluate_struct_expression(variable_obj=variable_obj, init_expr=init_expr)
-                for member_name, interval in member_intervals.items():
-                    variable_obj.members[member_name].value = interval  # 구조체 멤버들의 Interval 값 업데이트
-                # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-
-            else:
-                # 일반 변수 처리
-                interval_result = self.evaluate_expression(init_expr)
-                variable_obj.value = interval_result
-                # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-
-        else:
-            # 초기화 식이 없는 경우 기본값 설정
-            # ArrayVariable 처리
-            if isinstance(variable_obj, ArrayVariable):
-                if variable_obj.typeInfo.isDynamicArray:
-                    # 동적 배열인 경우 interval 설정을 건너뜀
-                    interval_result = None  # push 전에는 초기화 불가
-                else:
-                    # 정적 배열인 경우 arrayLength만큼 초기화
-                    interval_result = IntegerInterval(0, 0)  # 기본값
-                    variable_obj.initialize_elements(interval_result)  # 배열 요소 초기화
-                # 배열 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
-                expr = Expression(literal=interval_result)
-
-            # MappingVariable 처리
-            elif isinstance(variable_obj, MappingVariable):
-                # Mapping은 기본적으로 동적이므로 초기화할 수 없습니다.
-                interval_result = None  # Mapping 자체는 interval이 없음
-                variable_obj.mapping = {}  # 초기에는 빈 매핑으로 설정
-                if variable_obj.typeInfo.mappingKeyType.typeCategory == "elementary" :
-                    if variable_obj.typeInfo.mappingKeyType.elementaryTypeName == 'address' :
-                        value_type = variable_obj.typeInfo.mappingValueType
-
-                        # Value가 Enum 타입일 경우 처리
-                        if value_type.typeCategory == "enum":
-                            # EnumDefinition에서 초기 멤버 가져오기
-                            enum_definition = contract_cfg.enums[value_type.enumTypeName]
-                            sample_value = EnumVariable(enum_type=value_type.enumTypeName,
-                                                        scope='state')
-                            sample_value.members = {member: index for index, member in
-                                                    enumerate(enum_definition.members)}
-                            sample_value.set_member_value(enum_definition.get_member(0))  # 첫 번째 멤버로 초기화
-
-                            variable_obj.mapping[self.fixed_address] = sample_value  # Mapping에 추가
-
-                        else :
-                            sample_value = None
-                            if value_type.elementaryTypeName.startswith("int"):
-                                # Integer interval 초기화
-                                sample_value = IntegerInterval(float('-inf'), float('inf'), value_type.intTypeLength)
-                            elif value_type.elementaryTypeName.startswith("uint"):
-                                # Unsigned integer 초기화
-                                sample_value = UnsignedIntegerInterval(0, float('inf'), value_type.intTypeLength)
-                            elif value_type.elementaryTypeName == "bool":
-                                # Boolean 초기화
-                                sample_value = BoolInterval(False, True)
-
-                            variable_obj.mapping[self.fixed_address] = sample_value
-
-                # Mapping 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
-                expr = Expression(literal=None)
-
-            # 일반 변수 처리 (Variables)
-            elif isinstance(variable_obj, Variables) and variable_obj.typeInfo.typeCategory == "elementary":
-                elementary_type = variable_obj.typeInfo.elementaryTypeName
-                int_length = variable_obj.typeInfo.intTypeLength if variable_obj.typeInfo.intTypeLength else 256
-
-                if elementary_type.startswith("int"):
-                    interval_result = IntegerInterval(0, 0, int_length)
-                elif elementary_type.startswith("uint"):
-                    interval_result = UnsignedIntegerInterval(0, 0, int_length)
-                elif elementary_type == "bool":
-                    interval_result = BoolInterval(False, False)
-
-                # 변수 값 업데이트
-                variable_obj.value = interval_result
-                # 변수의 초기화에 대한 Statement 생성 (우변 표현식은 없음)
-                expr = Expression(literal=interval_result)
-
+        if init_expr is None: # 초기화가 없으면
+            if isinstance(variable_obj, ArrayVariable) :
+                return
+            elif isinstance(variable_obj, MappingVariable) :
+                return
+            elif isinstance(variable_obj, StructVariable) :
+                return
 
         # 3. 분석 결과 저장
         intervals_info = {
@@ -2070,6 +1987,9 @@ class ContractAnalyzer:
 
         # 5) (Optional) re-run abstract interpretation to reflect the changes
         # self.re_run_abstract_interpretation(function_cfg)
+
+    def initialize_array_variable_without_init_expr(self, array_obj):
+        if array_obj
 
     def _expression_to_str(self, expr):
         """

@@ -20,7 +20,6 @@ class Statement:
             self.evaluated_value = kwargs.get('evaluated_value')
 
 
-
 class Expression:
     def __init__(self, left=None, operator=None, right=None, identifier=None, literal=None, var_type=None,
                  function=None, arguments=None, named_arguments=None, base=None, access=None,
@@ -55,7 +54,6 @@ class Expression:
         self.context = context
 
 
-
 class Variables:
     def __init__(self, identifier=None, value=None,
                  isConstant=False, scope=None, typeInfo=None):
@@ -67,7 +65,6 @@ class Variables:
 
         # 값 정보
         self.value = value  # interval
-
 
 
 class ArrayVariable(Variables):
@@ -97,7 +94,6 @@ class ArrayVariable(Variables):
                         identifier=elem_id,
                         base_type=self.typeInfo.arrayBaseType.arrayBaseType,
                         array_length=self.typeInfo.arrayBaseType.arrayLength,
-                        is_dynamic=self.typeInfo.arrayBaseType.isDynamicArray,
                         scope=self.scope
                     )
                     sub_array.initialize_elements(initial_interval)
@@ -110,6 +106,34 @@ class ArrayVariable(Variables):
                                             scope=self.scope,
                                             typeInfo=self.typeInfo.arrayBaseType)
                     self.elements.append(element_var)
+
+    def initialize_elements_of_not_abstracted_type (self, var_name) :
+        if self.typeInfo.arrayLength is not None:
+            for i in range(self.typeInfo.arrayLength):
+                elem_id = f"{self.identifier}[{i}]"
+                # 하위 타입이 또 다른 배열이면 재귀적으로 ArrayVariable 생성
+                if (isinstance(self.typeInfo.arrayBaseType, SolType) and
+                        self.typeInfo.arrayBaseType.typeCategory == 'array'):
+
+                    value_symbol = str("symbol" + var_name + i)
+
+                    sub_array = ArrayVariable(
+                        identifier=elem_id,
+                        base_type=self.typeInfo.arrayBaseType.arrayBaseType,
+                        array_length=self.typeInfo.arrayBaseType.arrayLength,
+                        scope=self.scope
+                    )
+                    sub_array.initialize_elements(value_symbol)
+                    self.elements.append(sub_array)
+                else:
+                    # 기본 타입인 경우 Variables 객체로 요소 생성
+                    element_var = Variables(identifier=elem_id,
+                                            value=str(var_name+i),
+                                            isConstant=False,
+                                            scope=self.scope,
+                                            typeInfo=self.typeInfo.arrayBaseType)
+                    self.elements.append(element_var)
+
 
 class MappingVariable(Variables):
     def __init__(self, identifier=None, key_type=None, value_type=None, value=None,

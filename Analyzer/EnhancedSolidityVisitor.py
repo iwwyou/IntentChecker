@@ -187,8 +187,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # 3. 변수 객체 생성 (타입에 따라 다름)
         if type_obj.typeCategory == 'array':
             variable_obj = ArrayVariable(identifier=var_name, base_type=type_obj.arrayBaseType,
-                                         array_length=type_obj.arrayLength, is_dynamic=type_obj.isDynamicArray,
-                                         scope='state')
+                                         array_length=type_obj.arrayLength, scope='state')
         elif type_obj.typeCategory == 'struct':
             variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName, scope='state')
         elif type_obj.typeCategory == 'mapping':
@@ -232,12 +231,32 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#structMember.
     def visitStructMember(self, ctx: SolidityParser.StructMemberContext):
-        # 1. 타입과 변수 이름 가져오기
-        var_type = ctx.typeName().getText()
         var_name = ctx.identifier().getText()
 
+        # 1. 기본 Variables 객체 생성 (초기에는 타입을 모름)
+        variable_obj = None
+
+        # 2. 타입 분석
+        type_ctx = ctx.typeName()
+        type_obj = SolType()
+        type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
+
+        # 3. 변수 객체 생성 (타입에 따라 다름)
+        if type_obj.typeCategory == 'array':
+            variable_obj = ArrayVariable(identifier=var_name, base_type=type_obj.arrayBaseType,
+                                         array_length=type_obj.arrayLength)
+        elif type_obj.typeCategory == 'struct':
+            variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName)
+        elif type_obj.typeCategory == 'mapping':
+            variable_obj = MappingVariable(identifier=var_name,
+                                           key_type=type_obj.mappingKeyType,
+                                           value_type=type_obj.mappingValueType)
+        else:
+            variable_obj = Variables(identifier=var_name)
+            variable_obj.typeInfo = type_obj
+
         # 2. ContractAnalyzer로 전달하여 처리
-        self.contract_analyzer.process_struct_member(var_name, var_type)
+        self.contract_analyzer.process_struct_member(var_name, variable_obj)
 
     # Visit a parse tree produced by SolidityParser#modifierDefinition.
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
@@ -346,11 +365,22 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     identifier=var_name,
                     base_type=type_obj.arrayBaseType,
                     array_length=type_obj.arrayLength,
-                    is_dynamic=type_obj.isDynamicArray,
                     scope="local"
                 )
+
+                baseType = type_obj.arrayBaseType
+
                 # 배열 요소 초기화
-                variable_obj.initialize_elements(IntegerInterval(0, 0))  # 기본 interval 설정
+                if baseType.startswith('int') :
+                    length = int(baseType[3:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(IntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType.startswith('uint') :
+                    length = int(baseType[4:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType == 'bool' :
+                    variable_obj.initialize_elements(BoolInterval.bottom())
+                elif baseType == 'address' :
+                    variable_obj.initialize_elements_of_not_abstracted_type(var_name)
 
             elif type_obj.typeCategory == 'struct':
                 # 구조체 타입인 경우 StructVariable 생성
