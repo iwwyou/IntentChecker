@@ -631,7 +631,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         pre_exec_value = int(number_literal_text, 0)   # "0x..." 도 처리하려면 base=0
 
         # 3) 유효성 검사
-        if not self.isValidGlobalVariable(global_var_full):
+        if not isValidGlobalVariable(global_var_full):
             raise ValueError(f"Invalid global variable '{global_var_full}'")
 
         # 4) ContractAnalyzer에 전달
@@ -848,12 +848,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             # 배열 타입인 경우 ArrayVariable 생성
             base_type = type_obj.arrayBaseType
             array_length = type_obj.arrayLength
-            is_dynamic = type_obj.isDynamicArray
             variable_obj = ArrayVariable(identifier=var_name, base_type=base_type,
-                                         array_length=array_length, is_dynamic=is_dynamic, scope='local')
-            if not is_dynamic:
-                # 정적 배열의 경우 초기화
-                variable_obj.initialize_elements(IntegerInterval(0, 0))
+                                         array_length=array_length, scope='local')
 
         elif type_obj.typeCategory == 'struct':
             # 구조체 타입인 경우 StructVariable 생성

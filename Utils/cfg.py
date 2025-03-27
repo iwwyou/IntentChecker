@@ -200,6 +200,9 @@ class ContractCFG(CFG):
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
+    def add_struct_member(self, struct_name, var_name, var_type):
+        return
+
     def add_state_variable(self, variable, expr=None): # variable : Variables, expr : Interval
         # 상태 변수 노드가 없는 경우 생성
         if not self.state_variable_node:

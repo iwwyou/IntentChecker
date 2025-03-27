@@ -108,8 +108,8 @@ class IntegerInterval(Interval):
         max_value = 2 ** (self.type_length - 1) - 1
         return IntegerInterval(min_value, max_value, self.type_length)
 
-    def bottom(self):
-        return IntegerInterval(None, None, self.type_length)
+    def bottom(self, length=None):
+        return IntegerInterval(None, None, length)
 
     def join(self, other_interval):
         if self.type_length != other_interval.type_length:
@@ -136,7 +136,7 @@ class IntegerInterval(Interval):
         new_min = max(self.min_value, other_interval.min_value)
         new_max = min(self.max_value, other_interval.max_value)
         if new_min > new_max:
-            return self.bottom()
+            return self.bottom(self.type_length)
         return IntegerInterval(new_min, new_max, self.type_length)
 
     def negate(self):
@@ -482,8 +482,8 @@ class UnsignedIntegerInterval(Interval):
         max_value = 2 ** self.type_length - 1
         return UnsignedIntegerInterval(min_value, max_value, self.type_length)
 
-    def bottom(self):
-        return UnsignedIntegerInterval(None, None, self.type_length)
+    def bottom(self, length=None):
+        return UnsignedIntegerInterval(None, None, length)
 
     def join(self, other_interval):
         if self.type_length != other_interval.type_length:
@@ -503,12 +503,12 @@ class UnsignedIntegerInterval(Interval):
             raise ValueError("Cannot meet intervals of different type lengths")
 
         if self.min_value is None or other_interval.min_value is None:
-            return self.bottom()
+            return self.bottom(self.type_length)
 
         new_min = max(self.min_value, other_interval.min_value)
         new_max = min(self.max_value, other_interval.max_value)
         if new_min > new_max:
-            return self.bottom()
+            return self.bottom(self.type_length)
         return UnsignedIntegerInterval(new_min, new_max, self.type_length)
 
     def add(self, other_interval):
@@ -544,7 +544,7 @@ class UnsignedIntegerInterval(Interval):
 
         if inter_min <= self.min_value and inter_max >= self.max_value:
             # 교집합이 var_interval 전체를 덮음
-            return self.bottom()
+            return self.bottom(self.type_length)
 
         # 교집합이 부분 덮는 경우 처리
         # Case A: 교집합이 시작부분(하한 포함) 덮음
@@ -554,7 +554,7 @@ class UnsignedIntegerInterval(Interval):
             new_min = inter_max + 1
             if new_min > self.max_value:
                 # 오버플로우시 bottom
-                return self.bottom()
+                return self.bottom(self.type_length)
             return type(self)(new_min, self.max_value, self.type_length)
 
         # Case B: 교집합이 끝부분(상한 포함) 덮음
@@ -563,7 +563,7 @@ class UnsignedIntegerInterval(Interval):
             # [self.min_value, inter_min-1] 반환
             new_max = inter_min - 1
             if new_max < self.min_value:
-                return self.bottom()
+                return self.bottom(self.type_length)
             return type(self)(self.min_value, new_max, self.type_length)
 
         # Case C: 교집합이 내부에 있어서 구멍이 생김 (예: var = [0,10], other=[5,5])
@@ -580,7 +580,7 @@ class UnsignedIntegerInterval(Interval):
             new_min = inter_max + 1
             if new_min > self.max_value:
                 # 양쪽 다 안되면 bottom
-                return self.bottom()
+                return self.bottom(self.type_length)
             return type(self)(new_min, self.max_value, self.type_length)
         else:
             return type(self)(self.min_value, new_max, self.type_length)

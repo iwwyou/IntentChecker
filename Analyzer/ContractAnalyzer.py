@@ -22,6 +22,7 @@ class ContractAnalyzer:
         self.current_target_contract = None
         self.current_target_function = None
         self.current_target_function_cfg = None
+        self.current_target_struct = None
 
         # for Multiple Contract
         self.contract_cfgs = {} # name -> CFG
@@ -78,7 +79,6 @@ class ContractAnalyzer:
             self.full_code = '\n'.join(
                 [self.full_code_lines[line_no] for line_no in sorted(self.full_code_lines.keys())]
             )
-
 
         # --- STEP C) 그 외의 경우(기존 로직) ---
         # 새 라인들 삽입/밀기 등
@@ -150,6 +150,7 @@ class ContractAnalyzer:
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
+        self.current_target_struct = None
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
         if stripped_code.endswith(';'):
@@ -164,6 +165,7 @@ class ContractAnalyzer:
             elif parent_context == "struct" : # 시작 규칙 : interactiveStructUnit
                 self.current_context_type = "structMember"
                 self.current_target_contract = self.find_contract_context(start_line)
+                self.current_target_struct = self.find_struct_context(start_line)
             else : # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
@@ -242,6 +244,15 @@ class ContractAnalyzer:
                     function_name = function_name.split('(')[0]  # 함수 이름만 추출
                     return function_name
         return None
+
+    def find_struct_context(self, line_number):
+        # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
+        for line in range(line_number, 0, -1):
+            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            if brace_info['open'] > 0 and brace_info['cfg_node']:
+                context_type = self.determine_top_level_context(self.full_code_lines[line])
+                if context_type == "struct":
+                    return self.full_code_lines[line].split()[1]
 
     def determine_top_level_context(self, code_line):
         try:
@@ -360,7 +371,7 @@ class ContractAnalyzer:
 
         struct_def = StructDefinition(struct_name=struct_name)
 
-        contract_cfg.define_enum(struct_def)
+        contract_cfg.define_struct(struct_def)
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -674,7 +685,7 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 선언 시 초기화 값이 있는 경우 처리
+        # 4. 변수 선언 시 초기화 값이 없는 경우 처리
         if init_expr is None:
             # 초기화 값이 없는 경우 기본 Interval 설정
             interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
@@ -686,307 +697,8 @@ class ContractAnalyzer:
             current_block.add_assign_statement(variable_obj, expr)
 
         else:
-            if init_expr.context == 'FunctionCallContext' :
+            if init_expr.context == 'FunctionCallContext':
                 return_var = self.function_abstract_interpretation(init_expr)
-
-            # 5. 타입에 따른 분기 처리
-            if isinstance(variable_obj, ArrayVariable):
-                # 배열 변수 처리
-                if init_expr.context == 'IndexAccessContext':
-                    # 배열의 인덱스 접근
-                    result = self.evaluate_array_expression(varaible_obj=variable_obj, init_expr=init_expr)
-                    intervals = result if isinstance(result, list) else [result]
-                    # 배열 요소들을 Variables 객체로 생성하여 저장
-                    variable_obj.elements = []
-                    for idx, interval in enumerate(intervals):
-                        elem_identifier = f"{variable_obj.identifier}[{idx}]"
-                        elem_var = Variables(
-                            identifier=elem_identifier,
-                            value=interval,
-                            isConstant=False,
-                            scope=variable_obj.scope
-                        )
-                        elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
-                        variable_obj.elements.append(elem_var)
-                    # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-                    current_block.add_array_assign_statement(variable_obj, init_expr)
-                elif init_expr.context == 'MemberAccessContext':
-                    # MemberAccess인 경우 base 확인
-                    base_identifier = init_expr.base.identifier
-                    base_variable = self.current_target_function_cfg.get_related_variable(base_identifier)
-
-                    if isinstance(base_variable, ArrayVariable):
-                        # base가 배열이면 배열 관련 평가 함수 호출
-                        result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
-                        intervals = result if isinstance(result, list) else [result]
-                        variable_obj.elements = []
-                        for idx, interval in enumerate(intervals):
-                            elem_identifier = f"{variable_obj.identifier}[{idx}]"
-                            elem_var = Variables(
-                                identifier=elem_identifier,
-                                value=interval,
-                                isConstant=False,
-                                scope=variable_obj.scope
-                            )
-                            elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
-                            variable_obj.elements.append(elem_var)
-                        current_block.add_array_assign_statement(variable_obj, init_expr)
-                    elif isinstance(base_variable, StructVariable):
-                        # base가 구조체면 구조체 관련 평가 함수 호출
-                        member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
-                        variable_obj.members = {}
-                        for member_name, interval in member_intervals.items():
-                            member_identifier = f"{variable_obj.identifier}.{member_name}"
-                            member_var = Variables(
-                                identifier=member_identifier,
-                                value=interval,
-                                isConstant=False,
-                                scope=variable_obj.scope
-                            )
-                            member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
-                            variable_obj.members[member_name] = member_var
-                        current_block.add_struct_assign_statement(variable_obj, init_expr)
-                    else:
-                        raise ValueError(
-                            f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
-                else:
-                    # 배열 초기화 등 일반적인 배열 처리
-                    intervals = self.evaluate_array_expression(variable_obj=variable_obj, init_expr=init_expr)
-                    variable_obj.elements = []
-                    for idx, interval in enumerate(intervals):
-                        elem_identifier = f"{variable_obj.identifier}[{idx}]"
-                        elem_var = Variables(
-                            identifier=elem_identifier,
-                            value=interval,
-                            isConstant=False,
-                            scope=variable_obj.scope
-                        )
-                        elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
-                        variable_obj.elements.append(elem_var)
-                    current_block.add_array_assign_statement(variable_obj, init_expr)
-
-            elif isinstance(variable_obj, EnumVariable):
-                # 초기화 식이 있는 경우
-                right_interval = self.evaluate_enum_expression(init_expr, variables=current_block.variables)
-                if isinstance(right_interval, IntegerInterval):
-                    enum_value = right_interval.min_value
-                    enum_def = self.contract_cfgs[self.current_target_contract].enums.get(
-                        variable_obj.typeInfo.enumTypeName)
-                    if enum_def:
-                        if 0 <= enum_value < len(enum_def.members):
-                            member_name = enum_def.members[enum_value]
-                            variable_obj.set_member_value(member_name)
-                            variable_obj.value = enum_value
-                            # Statement에 우변 표현식과 평가된 값 저장
-                            current_block.add_assign_statement(variable_obj, init_expr)
-                        else:
-                            raise ValueError(
-                                f"Enum value '{enum_value}' is out of range for enum '{variable_obj.typeInfo.enumTypeName}'.")
-                    else:
-                        raise ValueError(f"Enum '{variable_obj.typeInfo.enumTypeName}' is not defined.")
-                else:
-                    raise ValueError("Assigned value to EnumVariable must be an integer interval.")
-
-            elif isinstance(variable_obj, StructVariable):
-                # 구조체 변수 처리
-                if init_expr.context == 'MemberAccessContext':
-                    # MemberAccess인 경우 base 확인
-                    base_identifier = init_expr.base.identifier
-                    base_variable = self.current_target_function_cfg.get_related_variable(base_identifier)
-
-                    if isinstance(base_variable, ArrayVariable):
-                        # base가 배열이면 배열 관련 평가 함수 호출
-                        result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
-                        intervals = result if isinstance(result, list) else [result]
-                        variable_obj.elements = []
-                        for idx, interval in enumerate(intervals):
-                            elem_identifier = f"{variable_obj.identifier}[{idx}]"
-                            elem_var = Variables(
-                                identifier=elem_identifier,
-                                value=interval,
-                                isConstant=False,
-                                scope=variable_obj.scope
-                            )
-                            elem_var.typeInfo = variable_obj.typeInfo.arrayBaseType
-                            variable_obj.elements.append(elem_var)
-                        current_block.add_array_assign_statement(variable_obj, init_expr)
-                    elif isinstance(base_variable, StructVariable):
-                        # base가 구조체면 구조체 관련 평가 함수 호출
-                        member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
-                        variable_obj.members = {}
-                        for member_name, interval in member_intervals.items():
-                            member_identifier = f"{variable_obj.identifier}.{member_name}"
-                            member_var = Variables(
-                                identifier=member_identifier,
-                                value=interval,
-                                isConstant=False,
-                                scope=variable_obj.scope
-                            )
-                            member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
-                            variable_obj.members[member_name] = member_var
-                        current_block.add_struct_assign_statement(variable_obj, init_expr)
-                    else:
-                        raise ValueError(
-                            f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
-                else:
-                    # 일반적인 구조체 처리
-                    member_intervals = self.evaluate_struct_expression(variable_obj, init_expr)
-                    variable_obj.members = {}
-                    for member_name, interval in member_intervals.items():
-                        member_identifier = f"{variable_obj.identifier}.{member_name}"
-                        member_var = Variables(
-                            identifier=member_identifier,
-                            value=interval,
-                            isConstant=False,
-                            scope=variable_obj.scope
-                        )
-                        member_var.typeInfo = variable_obj.typeInfo.structType.members[member_name]
-                        variable_obj.members[member_name] = member_var
-                    current_block.add_struct_assign_statement(variable_obj, init_expr)
-            else:
-                # 6. `init_expr`의 context에 따른 분기 처리
-                if init_expr.context == 'IndexAccessContext':
-                    base = init_expr.base  # 인덱스 접근 대상
-
-                    # base가 매핑인지 배열인지 확인 (기존 함수 CFG에서 관련 변수 가져오기)
-                    base_variable = self.current_target_function_cfg.get_related_variable(base.identifier)
-                    if isinstance(base_variable, MappingVariable):
-                        # 매핑 인덱스 접근 처리
-                        key_expr = init_expr.index
-                        key_value = self.evaluate_expression(key_expr)  # 키 값 평가
-
-                        # 매핑에서 특정 키의 값 가져오기
-                        if key_value in base_variable.mapping:
-                            interval = base_variable.mapping[key_value]  # 키에 해당하는 값의 interval
-                        else:
-                            # 키가 매핑에 없는 경우 기본 interval 설정 (new entry)
-                            value_type = base_variable.typeInfo.mappingValueType
-                            if value_type.elementaryTypeName.startswith("int"):
-                                interval = IntegerInterval()  # 기본 interval 설정
-                            elif value_type.elementaryTypeName.startswith("uint"):
-                                interval = UnsignedIntegerInterval()
-                            elif value_type.elementaryTypeName == "bool":
-                                interval = BoolInterval()
-
-                            # 매핑에 새로운 키-값 쌍 추가
-                            base_variable.mapping[key_value] = Variables(value=interval)
-
-                        variable_obj.value = interval
-                        current_block.add_assign_statement(variable_obj, init_expr)
-
-                    elif isinstance(base_variable, ArrayVariable):
-                        # 배열 인덱스 접근 처리
-                        result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
-                        interval = result[0] if isinstance(result, list) else result
-                        variable_obj.value = interval
-                        current_block.add_array_assign_statement(variable_obj, init_expr)
-                elif init_expr.context == 'MemberAccessContext':
-                    # MemberAccess일 때 base 확인
-                    base = init_expr.base
-                    if hasattr(base, 'identifier') and base.identifier is not None:
-                        # base가 유효한 identifier인 경우 기존 로직 유지
-                        base_identifier = base.identifier
-                        base_variable = self.current_target_function_cfg.get_related_variable(base_identifier)
-
-                        if isinstance(base_variable, ArrayVariable):
-                            # base가 배열이면 배열 관련 평가 함수 호출
-                            result = self.evaluate_array_expression(variable_obj=base_variable, init_expr=init_expr)
-                            interval = result[0] if isinstance(result, list) else result
-                            variable_obj.value = interval
-                            current_block.add_assign_statement(variable_obj, init_expr)
-                        elif isinstance(base_variable, StructVariable):
-                            # base가 구조체면 구조체 관련 평가 함수 호출
-                            member_intervals = self.evaluate_struct_expression(base_variable, init_expr)
-                            interval = next(iter(member_intervals.values()))
-                            variable_obj.value = interval
-                            current_block.add_assign_statement(variable_obj, init_expr)
-                        else:
-                            raise ValueError(
-                                f"Unsupported base type for MemberAccess: {base_variable.typeInfo.typeCategory}")
-                    else:
-                        # address.code.length와 같은 경우를 처리
-                        if base.base.context == "IdentifierExpContext":
-                            base_variable = self.current_target_function_cfg.get_related_variable(base.base.identifier)
-                            if base_variable.typeInfo.typeCategory == "elementary" \
-                                    and base_variable.typeInfo.elementaryTypeName == "address" :
-                                if base.member == "code" :
-                                    if init_expr.member == "length" :
-                                        interval = UnsignedIntegerInterval(0, 2**32 - 1, 32)
-                                        variable_obj.value = interval
-                                        current_block.add_assign_statement(variable_obj, init_expr)
-                else:
-                    # 기본 표현식 처리
-                    interval = self.evaluate_expression(init_expr)
-                    variable_obj.value = interval
-                    current_block.add_assign_statement(variable_obj, init_expr)
-
-        # 7. 함수 CFG의 related_variables에 추가
-        self.current_target_function_cfg.add_related_variable(variable_obj)
-
-        if current_block.is_while_body:
-            """
-            # 이거 왜 있는건지 모르겠네..
-            # while문 안에서 새로 생긴 값에 대해 bottom으로 join point node에 저장
-            fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
-
-            # identifier가 fixpoint_evaluation_node의 variables에 없는 경우 처리
-            if for_joint_node_variables.identifier not in fixpoint_evaluation_node.variables:
-                # 타입에 따라 bottom 값을 설정
-                if isinstance(variable_obj, ArrayVariable):
-                    self.set_bottom_for_array(variable_obj)
-                elif isinstance(variable_obj, StructVariable):
-                    self.set_bottom_for_struct(variable_obj)
-                elif isinstance(variable_obj, MappingVariable):
-                    self.set_bottom_for_mapping(variable_obj)
-                else:
-                    # 기본 타입 처리
-                    variable_obj.value.bottom()
-
-                # fixpoint_evaluation_node에 변수 추가
-                fixpoint_evaluation_node.fixpoint_evaluation_node_vars[for_joint_node_variables.identifier] = variable_obj
-                fixpoint_evaluation_node.variables[for_joint_node_variables.identifier] = variable_obj
-            """
-            vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
-
-        # 8. 분석 결과에 interval 값 저장 (배열 및 구조체 처리 추가)
-        if isinstance(variable_obj, ArrayVariable):
-            interval_result = {
-                "variable": variable_obj.identifier,
-                "type": variable_obj.typeInfo.elementaryTypeName,
-                "value": [[elem.value.min_value, elem.value.max_value] for elem in variable_obj.elements],
-                "scope": variable_obj.scope,
-                "is_constant": variable_obj.isConstant
-            }
-        elif isinstance(variable_obj, StructVariable):
-            interval_result = {
-                "variable": variable_obj.identifier,
-                "type": variable_obj.typeInfo.elementaryTypeName,
-                "value": {member_name: [member_var.value.min_value, member_var.value.max_value]
-                          for member_name, member_var in variable_obj.members.items()},
-                "scope": variable_obj.scope,
-                "is_constant": variable_obj.isConstant
-            }
-        else:
-            interval_result = {
-                "variable": variable_obj.identifier,
-                "type": variable_obj.typeInfo.elementaryTypeName,
-                "value": [variable_obj.value.min_value, variable_obj.value.max_value],
-                "scope": variable_obj.scope,
-                "is_constant": variable_obj.isConstant
-            }
-
-        # 9. 의도 체크 결과 저장 (line_comment가 있을 경우)
-        intent_result = {"expected": [], "actual": interval_result["value"], "message": ""}
-
-        # 10. 분석 결과를 저장
-        result = {
-            "line": self.current_start_line,
-            "interval": interval_result
-        }
-
-        # get_analysis_result에 사용될 결과 저장
-        self.analysis_results = result
 
         # 11. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -2754,118 +2466,6 @@ class ContractAnalyzer:
 
         return copied_variables
 
-    def update_variables_with_condition(self, variables, condition_expr, is_true_branch):
-        """
-        조건식을 분석하여 변수들의 상태(Interval)를 True/False 분기에서 업데이트합니다.
-        variables: var_name -> Variables 객체
-        condition_expr: 조건식(Expression 객체)
-        is_true_branch: True 분기일 경우 True, False 분기일 경우 False
-        """
-
-        # 조건 연산자에 따른 변수 업데이트
-        if condition_expr.operator in ['==', '!=', '<', '>', '<=', '>=']:
-            left_expr = condition_expr.left
-            right_expr = condition_expr.right
-
-            # 좌측 표현식이 MemberAccessContext인 경우 처리 (배열 또는 구조체 멤버 접근)
-            if left_expr.context == 'MemberAccessContext':
-                base_expr = left_expr.base
-                var_name = base_expr.identifier
-
-                # 변수 찾기 (배열 또는 구조체 변수 확인)
-                if var_name in variables:
-                    var_obj = variables[var_name]
-
-                    if isinstance(var_obj, ArrayVariable):
-                        left_interval = self.evaluate_array_expression(variable_obj=var_obj, init_expr=left_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        left_interval = self.evaluate_struct_expression(var_obj, left_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
-            else:
-                # 일반적인 표현식 처리
-                left_interval = self.evaluate_expression(left_expr)
-
-            # 우측 표현식 처리 (MemberAccessContext 체크)
-            if right_expr.context == 'MemberAccessContext':
-                base_expr = right_expr.base
-                var_name = base_expr.identifier
-
-                if var_name in variables:
-                    var_obj = variables[var_name]
-
-                    if isinstance(var_obj, ArrayVariable):
-                        right_interval = self.evaluate_array_expression(variable_obj=var_obj, init_expr=right_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        right_interval = self.evaluate_struct_expression(var_obj, right_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
-            else:
-                # 일반적인 표현식 처리
-                right_interval = self.evaluate_expression(right_expr)
-
-            # 좌측 표현식이 변수인 경우
-            if left_expr.identifier:
-                var_name = left_expr.identifier
-                var_obj = variables.get(var_name)
-
-                if var_obj:
-                    # 조건에 따라 변수 Interval 업데이트
-                    if is_true_branch:
-                        # True 분기에서 조건이 성립하는 경우 Interval 좁히기
-                        var_obj.value = self.refine_interval(var_obj.value, right_interval, condition_expr.operator)
-                    else:
-                        # False 분기에서 조건이 성립하지 않는 경우 Interval 좁히기
-                        negated_operator = self.negate_operator(condition_expr.operator)
-                        var_obj.value = self.refine_interval(var_obj.value, right_interval, negated_operator)
-
-        elif condition_expr.operator in ['&&', '||']:
-            # 논리 연산자가 포함된 복합 조건식 처리
-            left_expr = condition_expr.left
-            right_expr = condition_expr.right
-
-            # 좌측 조건식이 MemberAccessContext인 경우 처리
-            if left_expr.context == 'MemberAccessContext':
-                base_expr = left_expr.base
-                var_name = base_expr.identifier
-
-                if var_name in variables:
-                    var_obj = variables[var_name]
-
-                    if isinstance(var_obj, ArrayVariable):
-                        self.evaluate_array_expression(variable_obj=var_obj, init_expr=left_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        self.evaluate_struct_expression(var_obj, left_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
-
-            # 우측 조건식이 MemberAccessContext인 경우 처리
-            if right_expr.context == 'MemberAccessContext':
-                base_expr = right_expr.base
-                var_name = base_expr.identifier
-
-                if var_name in variables:
-                    var_obj = variables[var_name]
-
-                    if isinstance(var_obj, ArrayVariable):
-                        self.evaluate_array_expression(variable_obj=var_obj, init_expr=right_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        self.evaluate_struct_expression(var_obj, right_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
-
-            # 좌우 조건식에 대해 재귀적으로 처리
-            self.update_variables_with_condition(variables, left_expr, is_true_branch)
-            self.update_variables_with_condition(variables, right_expr, is_true_branch)
-
     def fixpoint(self, current_block):
         """
         고정점 분석을 수행하여 루프 내의 변수 상태를 수렴시킵니다.
@@ -3241,12 +2841,6 @@ class ContractAnalyzer:
         else:
             # 알 수 없는 함수의 경우 보수적인 Interval 반환
             return IntegerInterval(None, None, 256)
-
-    def handle_function_side_effects(self, function_name, function_args):
-        # 함수 호출로 인해 상태 변수가 변경되는 경우 등을 처리
-        # 함수의 정의를 분석하여 상태 변수의 업데이트를 추적
-        # 여기서는 예시로 아무 작업도 수행하지 않음
-        pass
 
     def get_current_block(self):
         """
@@ -3693,12 +3287,12 @@ class ContractAnalyzer:
         # 1. int 타입 처리
         if var_type.startswith("int"):
             length = int(var_type[3:]) if var_type != "int" else 256  # int 타입의 길이 (기본값은 256)
-            return IntegerInterval(-2 ** (length - 1), 2 ** (length - 1) - 1, length)  # int의 기본 범위 반환
+            return IntegerInterval.bottom(length)  # int의 기본 범위 반환
 
         # 2. uint 타입 처리
         elif var_type.startswith("uint"):
             length = int(var_type[4:]) if var_type != "uint" else 256  # uint 타입의 길이 (기본값은 256)
-            return UnsignedIntegerInterval(0, 2 ** length - 1, length)  # uint의 기본 범위 반환
+            return UnsignedIntegerInterval.bottom(length)  # uint의 기본 범위 반환
 
         # 3. bool 타입 처리
         elif var_type == "bool":
@@ -4600,31 +4194,6 @@ class ContractAnalyzer:
 
         return result
 
-    def assign_testing_value(self, lhs_info, rhs_interval, current_variables):
-        """
-        LHS가 가리키는 변수를 찾아 RHS 값을 세팅
-        lhs_info: {'var_obj': ~, 'key_or_index': ~, ...}
-        rhs_interval: Interval
-        """
-        var_obj = lhs_info['var_obj']
-        if isinstance(var_obj, MappingVariable):
-            # 매핑 key를 알아야 함
-            key_val = lhs_info.get('key_or_index', None)
-            if key_val is None:
-                print("Warning: Could not find mapping key from LHS expr")
-                return
-            # ex) var_obj.mapping[key_val] = rhs_interval
-            # or if var_obj.mapping[key_val] is a Variables obj, set .value = rhs_interval
-            # ...
-        elif isinstance(var_obj, ArrayVariable):
-            # 비슷한 식
-            pass
-        else:
-            # 기본 타입 Variables
-            var_obj.value = rhs_interval
-
-        # current_variables에도 반영
-        current_variables[var_obj.identifier] = var_obj
 
     def get_variable_interval(self, var_name):
         """
@@ -4778,23 +4347,6 @@ class ContractAnalyzer:
             parsed_intervals[var_name] = Interval(min_val, max_val)
 
         return parsed_intervals
-
-    """
-    analysis result
-    {
-  "line": <start_line>,
-  "interval": {
-    "variable": <var_name>,
-    "type": <var_type>,
-    "value": [<min_value>, <max_value>]
-  },
-  "intent_check": {
-    "expected": [<expected_min>, <expected_max>],
-    "actual": [<actual_min>, <actual_max>],
-    "message": <error_message>  # 없을 경우는 빈 문자열
-  }
-}
-    """
 
     def get_analysis_result(self):
         # 가장 최근의 분석 결과를 반환

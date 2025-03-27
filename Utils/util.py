@@ -192,7 +192,10 @@ class StructVariable(Variables):
 class StructDefinition:
     def __init__(self, struct_name):
         self.struct_name = struct_name
-        self.members = {}  # 멤버 변수들: 필드명 -> SolType 객체
+        self.members = {}
+
+    def add_member(self, var_name, var_obj):
+        self.members[var_name] = var_obj
 
 class EnumVariable(Variables):
     def __init__(self, identifier=None, enum_type=None, value=None, isConstant=False, scope=None):
