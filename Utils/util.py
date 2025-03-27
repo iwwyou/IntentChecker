@@ -213,13 +213,18 @@ class StructVariable(Variables):
         self.typeInfo.structTypeName = struct_type  # 구조체 이름
         self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
 
+    def initialize_struct(self, struct_def):
+        for member_name, member_object in struct_def.members.items():
+            if
+
+
 class StructDefinition:
     def __init__(self, struct_name):
         self.struct_name = struct_name
-        self.members = {}
+        self.members = []
 
-    def add_member(self, var_name, var_obj):
-        self.members[var_name] = var_obj
+    def add_member(self, var_name, type_obj):
+        self.members.append({'member_name' : var_name, 'member_type' : type_obj)
 
 class EnumVariable(Variables):
     def __init__(self, identifier=None, enum_type=None, value=None, isConstant=False, scope=None):

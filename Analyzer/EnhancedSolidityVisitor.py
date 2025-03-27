@@ -354,52 +354,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     # 2. 변수 이름 추출
                     var_name = elem.getText()
 
-            # var_name이 없으면 객체 생성하지 않고 건너뜀
-            if var_name is None:
-                continue
-
-            # 타입에 따라 적절한 변수 클래스를 생성
-            if type_obj.typeCategory == 'array':
-                # 배열 타입인 경우 ArrayVariable 생성
-                variable_obj = ArrayVariable(
-                    identifier=var_name,
-                    base_type=type_obj.arrayBaseType,
-                    array_length=type_obj.arrayLength,
-                    scope="local"
-                )
-
-                baseType = type_obj.arrayBaseType
-
-                # 배열 요소 초기화
-                if baseType.startswith('int') :
-                    length = int(baseType[3:]) if baseType != "int" else 256
-                    variable_obj.initialize_elements(IntegerInterval.bottom(length))  # 기본 interval 설정
-                elif baseType.startswith('uint') :
-                    length = int(baseType[4:]) if baseType != "int" else 256
-                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom(length))  # 기본 interval 설정
-                elif baseType == 'bool' :
-                    variable_obj.initialize_elements(BoolInterval.bottom())
-                elif baseType == 'address' :
-                    variable_obj.initialize_elements_of_not_abstracted_type(var_name)
-
-            elif type_obj.typeCategory == 'struct':
-                # 구조체 타입인 경우 StructVariable 생성
-                variable_obj = StructVariable(
-                    identifier=var_name,
-                    struct_type=type_obj.structTypeName,
-                    scope="local"
-                )
-
-            else:
-                # 기본 타입인 경우 Variables 객체 생성
-                variable_obj = Variables(identifier=var_name, scope="local")
-                variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
-                if type_obj.typeCategory == "elementary":
-                    if type_obj.elementaryTypeName == "address":
-                        variable_obj.value = self.contract_analyzer.fixed_address
-
-            # 리스트에 Variables 객체 추가
-            parameters.append(variable_obj)
+            parameters.append([type_obj, var_name])
 
         return parameters
 

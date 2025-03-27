@@ -561,8 +561,64 @@ class ContractAnalyzer:
         # 2. 함수에 대한 FunctionCFG 생성
         function_cfg = FunctionCFG(function_type='function', function_name=function_name)
 
-        # 3. 파라미터 추가
-        for variable in parameters:
+        # 3. 파라미터 처리
+        for type_obj, var_name in parameters:
+            # 타입에 따라 적절한 변수 클래스를 생성
+            if type_obj.typeCategory == 'array':
+                # 배열 타입인 경우 ArrayVariable 생성
+                variable_obj = ArrayVariable(
+                    identifier=var_name,
+                    base_type=type_obj.arrayBaseType,
+                    array_length=type_obj.arrayLength,
+                    scope="local"
+                )
+
+                baseType = type_obj.arrayBaseType
+
+                # 배열 요소 초기화
+                if baseType.startswith('int') :
+                    length = int(baseType[3:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(IntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType.startswith('uint') :
+                    length = int(baseType[4:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType == 'bool' :
+                    variable_obj.initialize_elements(BoolInterval.bottom())
+                elif baseType in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"] :
+                    variable_obj.initialize_elements_of_not_abstracted_type(var_name)
+
+            elif type_obj.typeCategory == 'struct':
+                if type_obj.structTypeName in contract_cfg.structDefs :
+                    struct_def = contract_cfg.structDefs[type_obj.structTypeName]
+
+                    struct_var_obj = StructVariable(
+                        identifier = var_name,
+                        struct_type = type_obj.structTypeName,
+                        socpe="local" # 이거 나중에 storage인지 memory인지 보고 고쳐야됨
+                    )
+
+                    struct_var_obj.initialize_struct(struct_def)
+
+                else :
+                    raise ValueError (f"This struct definition {type_obj.structTypeName} is not defined")
+
+
+
+                # 구조체 타입인 경우 StructVariable 생성
+                variable_obj = StructVariable(
+                    identifier=var_name,
+                    struct_type=type_obj.structTypeName,
+                    scope="local"
+                )
+
+            else:
+                # 기본 타입인 경우 Variables 객체 생성
+                variable_obj = Variables(identifier=var_name, scope="local")
+                variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+                if type_obj.typeCategory == "elementary":
+                    if type_obj.elementaryTypeName == "address":
+                        variable_obj.value = self.contract_analyzer.fixed_address
+
             function_cfg.add_related_variable(variable)
 
         # 4. Modifier 처리 및 CFG 통합
@@ -632,9 +688,6 @@ class ContractAnalyzer:
         self.current_target_function_cfg = None
 
     def process_compound_assignment(self, left_interval, right_interval, operator):
-        """
-        좌변과 우변의 Interval을 연산자에 맞게 처리합니다.
-        """
         if operator == '+=':
             return left_interval.add(right_interval)
         elif operator == '-=':
@@ -1987,9 +2040,6 @@ class ContractAnalyzer:
 
         # 5) (Optional) re-run abstract interpretation to reflect the changes
         # self.re_run_abstract_interpretation(function_cfg)
-
-    def initialize_array_variable_without_init_expr(self, array_obj):
-        if array_obj
 
     def _expression_to_str(self, expr):
         """
