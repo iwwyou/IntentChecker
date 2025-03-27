@@ -241,22 +241,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = SolType()
         type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
 
-        # 3. 변수 객체 생성 (타입에 따라 다름)
-        if type_obj.typeCategory == 'array':
-            variable_obj = ArrayVariable(identifier=var_name, base_type=type_obj.arrayBaseType,
-                                         array_length=type_obj.arrayLength)
-        elif type_obj.typeCategory == 'struct':
-            variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName)
-        elif type_obj.typeCategory == 'mapping':
-            variable_obj = MappingVariable(identifier=var_name,
-                                           key_type=type_obj.mappingKeyType,
-                                           value_type=type_obj.mappingValueType)
-        else:
-            variable_obj = Variables(identifier=var_name)
-            variable_obj.typeInfo = type_obj
-
         # 2. ContractAnalyzer로 전달하여 처리
-        self.contract_analyzer.process_struct_member(var_name, variable_obj)
+        self.contract_analyzer.process_struct_member(var_name, type_obj)
 
     # Visit a parse tree produced by SolidityParser#modifierDefinition.
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):

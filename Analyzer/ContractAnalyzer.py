@@ -379,7 +379,7 @@ class ContractAnalyzer:
         # brace_count 업데이트
         self.brace_count[self.current_start_line]['structs'] = contract_cfg.structs
 
-    def process_struct_member(self, var_name, var_obj):
+    def process_struct_member(self, var_name, type_obj):
         # 1. 현재 타겟 컨트랙트의 CFG를 가져옴
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -389,7 +389,7 @@ class ContractAnalyzer:
         if not self.current_target_struct:
             raise ValueError("No target struct to add members to.")
 
-        contract_cfg.add_struct_member(self.current_target_struct, var_name, var_obj)
+        contract_cfg.add_struct_member(self.current_target_struct, var_name, type_obj)
 
         # 10. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -601,23 +601,17 @@ class ContractAnalyzer:
 
                 else :
                     raise ValueError (f"This struct definition {type_obj.structTypeName} is not defined")
-
-
-
-                # 구조체 타입인 경우 StructVariable 생성
-                variable_obj = StructVariable(
-                    identifier=var_name,
-                    struct_type=type_obj.structTypeName,
-                    scope="local"
-                )
-
             else:
                 # 기본 타입인 경우 Variables 객체 생성
                 variable_obj = Variables(identifier=var_name, scope="local")
                 variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
+
                 if type_obj.typeCategory == "elementary":
-                    if type_obj.elementaryTypeName == "address":
-                        variable_obj.value = self.contract_analyzer.fixed_address
+                    if type_obj.elementaryTypeName.startswith('int', 'uint', 'bool')
+                        variable_obj.value = self.calculate_default_interval(type_obj.elementaryTypeName)
+
+                    if type_obj.elementaryTypeName in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"]
+                        variable_obj.value = str("symbol" + var_name)
 
             function_cfg.add_related_variable(variable)
 

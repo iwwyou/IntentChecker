@@ -214,8 +214,35 @@ class StructVariable(Variables):
         self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
 
     def initialize_struct(self, struct_def):
-        for member_name, member_object in struct_def.members.items():
-            if
+        for member in struct_def.members
+            m_name = member['member_name']
+            m_type = member['member_type']
+            variable_obj = None
+
+            if m_type.typeCategory == 'array':
+                variable_obj = ArrayVariable(identifier=m_name, base_type=m_type.arrayBaseType,
+                                             array_length=m_type.arrayLength)
+
+                baseType = m_type.arrayBaseType
+                # 배열 요소 초기화
+                if baseType.startswith('int'):
+                    length = int(baseType[3:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(IntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType.startswith('uint'):
+                    length = int(baseType[4:]) if baseType != "int" else 256
+                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom(length))  # 기본 interval 설정
+                elif baseType == 'bool':
+                    variable_obj.initialize_elements(BoolInterval.bottom())
+                elif baseType in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"]:
+                    variable_obj.initialize_elements_of_not_abstracted_type(m_name)
+
+            elif type_obj.typeCategory == 'mapping': # 이거 좀 수정 필요
+                variable_obj = MappingVariable(identifier=m_name,
+                                               key_type=m_type.mappingKeyType,
+                                               value_type=m_type.mappingValueType)
+            else:
+                variable_obj = Variables(identifier=var_name)
+                variable_obj.typeInfo = type_obj
 
 
 class StructDefinition:
