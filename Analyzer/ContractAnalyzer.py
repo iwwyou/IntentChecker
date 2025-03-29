@@ -27,8 +27,6 @@ class ContractAnalyzer:
         # for Multiple Contract
         self.contract_cfgs = {} # name -> CFG
 
-        # 고정된 address 값 설정
-        self.fixed_address = "0x1234567890abcdef1234567890abcdef12345678"
         self.analysis_results = None
 
     """
@@ -407,11 +405,20 @@ class ContractAnalyzer:
         # 우변 표현식을 저장하기 위해 init_expr를 확인
         if init_expr is None: # 초기화가 없으면
             if isinstance(variable_obj, ArrayVariable) :
-                return
+                if variable_obj.typeInfo.arrayBaseType.startswith("int") :
+                    variable_obj.initialize_elements(IntegerInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType.startswith("uint") :
+                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType.startswith("bool") :
+                    variable_obj.initialize_elements(BoolInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"] :
+                    variable_obj.initialize_elements_of_not_abstracted_type(variable_obj.identifier)
             elif isinstance(variable_obj, MappingVariable) :
                 return
             elif isinstance(variable_obj, StructVariable) :
                 return
+        else : # 초기화 식이 있으면
+            return
 
         # 3. 분석 결과 저장
         intervals_info = {
@@ -563,6 +570,8 @@ class ContractAnalyzer:
 
         # 3. 파라미터 처리
         for type_obj, var_name in parameters:
+            variable_obj = None
+
             # 타입에 따라 적절한 변수 클래스를 생성
             if type_obj.typeCategory == 'array':
                 # 배열 타입인 경우 ArrayVariable 생성
@@ -591,29 +600,25 @@ class ContractAnalyzer:
                 if type_obj.structTypeName in contract_cfg.structDefs :
                     struct_def = contract_cfg.structDefs[type_obj.structTypeName]
 
-                    struct_var_obj = StructVariable(
+                    variable_obj = StructVariable(
                         identifier = var_name,
                         struct_type = type_obj.structTypeName,
                         socpe="local" # 이거 나중에 storage인지 memory인지 보고 고쳐야됨
                     )
 
-                    struct_var_obj.initialize_struct(struct_def)
+                    variable_obj.initialize_struct(struct_def)
 
                 else :
                     raise ValueError (f"This struct definition {type_obj.structTypeName} is not defined")
-            else:
+            elif type_obj.typeCategory == "elementary":
                 # 기본 타입인 경우 Variables 객체 생성
                 variable_obj = Variables(identifier=var_name, scope="local")
                 variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
-                if type_obj.typeCategory == "elementary":
-                    if type_obj.elementaryTypeName.startswith('int', 'uint', 'bool')
-                        variable_obj.value = self.calculate_default_interval(type_obj.elementaryTypeName)
-
-                    if type_obj.elementaryTypeName in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"]
-                        variable_obj.value = str("symbol" + var_name)
-
-            function_cfg.add_related_variable(variable)
+                if type_obj.elementaryTypeName.startswith('int', 'uint', 'bool') :
+                    variable_obj.value = self.calculate_default_interval(type_obj.elementaryTypeName)
+                elif type_obj.elementaryTypeName in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"] :
+                    variable_obj.value = str("symbol" + var_name)
 
         # 4. Modifier 처리 및 CFG 통합
         for modifier_name in modifiers:

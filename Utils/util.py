@@ -105,6 +105,7 @@ class ArrayVariable(Variables):
                                             isConstant=False,
                                             scope=self.scope,
                                             typeInfo=self.typeInfo.arrayBaseType)
+
                     self.elements.append(element_var)
 
     def initialize_elements_of_not_abstracted_type (self, var_name) :
@@ -115,7 +116,7 @@ class ArrayVariable(Variables):
                 if (isinstance(self.typeInfo.arrayBaseType, SolType) and
                         self.typeInfo.arrayBaseType.typeCategory == 'array'):
 
-                    value_symbol = str("symbol" + var_name + i)
+                    value_symbol = str("arraySymbol" + var_name + i)
 
                     sub_array = ArrayVariable(
                         identifier=elem_id,
@@ -128,7 +129,7 @@ class ArrayVariable(Variables):
                 else:
                     # 기본 타입인 경우 Variables 객체로 요소 생성
                     element_var = Variables(identifier=elem_id,
-                                            value=str(var_name+i),
+                                            value=str("symbol" + var_name+ i),
                                             isConstant=False,
                                             scope=self.scope,
                                             typeInfo=self.typeInfo.arrayBaseType)
@@ -214,7 +215,7 @@ class StructVariable(Variables):
         self.members = {}  # 멤버 변수들: 필드명 -> Variables 객체
 
     def initialize_struct(self, struct_def):
-        for member in struct_def.members
+        for member in struct_def.members :
             m_name = member['member_name']
             m_type = member['member_type']
             variable_obj = None
@@ -236,13 +237,25 @@ class StructVariable(Variables):
                 elif baseType in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"]:
                     variable_obj.initialize_elements_of_not_abstracted_type(m_name)
 
-            elif type_obj.typeCategory == 'mapping': # 이거 좀 수정 필요
+            elif m_type.typeCategory == 'mapping': # 이거 좀 수정 필요
                 variable_obj = MappingVariable(identifier=m_name,
                                                key_type=m_type.mappingKeyType,
                                                value_type=m_type.mappingValueType)
-            else:
-                variable_obj = Variables(identifier=var_name)
-                variable_obj.typeInfo = type_obj
+            elif m_type.typeCategory == 'elementary' :
+                variable_obj = Variables(identifier=m_name)
+                variable_obj.typeInfo = m_type
+
+                if m_type.startswith("int") :
+                    length = int(m_type[3:]) if m_type != "int" else 256  # int 타입의 길이 (기본값은 256)
+                    variable_obj.value = IntegerInterval.bottom(length)  # int의 기본 범위 반환
+                elif m_type.startswith("uint") :
+                    length = int(m_type[4:]) if m_type != "int" else 256  # int 타입의 길이 (기본값은 256)
+                    variable_obj.value = UnsignedIntegerInterval.bottom(length)  # int의 기본 범위 반환
+                elif m_type.startswith("bool") :
+                    variable_obj.value = BoolInterval.bottom()
+                    variable_obj.value = str("structSymbol" +struct_def.struct_name + "memberSymbol" + m_name)
+
+
 
 
 class StructDefinition:
