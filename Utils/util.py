@@ -255,9 +255,6 @@ class StructVariable(Variables):
                     variable_obj.value = BoolInterval.bottom()
                     variable_obj.value = str("structSymbol" +struct_def.struct_name + "memberSymbol" + m_name)
 
-
-
-
 class StructDefinition:
     def __init__(self, struct_name):
         self.struct_name = struct_name
