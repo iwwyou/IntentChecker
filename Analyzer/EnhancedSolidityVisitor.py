@@ -563,6 +563,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#preExecution.
+    def visitPreExecution(self, ctx: SolidityParser.PreExecutionContext):
+        return self.visitChildren(ctx)
+
     # Visit a parse tree produced by SolidityParser#preExecutionGlobal.
     def visitPreExecutionGlobal(self, ctx: SolidityParser.PreExecutionGlobalContext):
         def isValidGlobalVariable(text: str) -> bool:
@@ -707,8 +711,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitNumberBoolLiteral(self, ctx: SolidityParser.NumberBoolLiteralContext):
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#postExecution.
+    def visitPostExecution(self, ctx: SolidityParser.PostExecutionContext):
+        return self.visitChildren(ctx)
+
     # Visit a parse tree produced by SolidityParser#postExecutionState.
     def visitPostExecutionState(self, ctx: SolidityParser.PostExecutionStateContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#entryExit.
+    def visitEntryExit(self, ctx:SolidityParser.EntryExitContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#postExecutionReturn.

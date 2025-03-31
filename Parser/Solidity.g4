@@ -253,13 +253,16 @@ interactiveCatchClauseUnit
 
 intentUnit
   : (
-    preExecutionGlobal
-    | preExecutionState
-    | preExecutionLocal
+    preExecution
     | duringExecution
-    | postExecutionState
-    | postExecutionReturn
+    | postExecution
   ) * EOF;
+
+preExecution
+  : preExecutionGlobal
+  | preExecutionState
+  | preExecutionLocal
+  ;
 
 preExecutionGlobal
   : '//' '@pre-execution-global' identifier'.'identifier '=' numberLiteral
@@ -286,11 +289,21 @@ numberBoolLiteral
   : '-'? numberLiteral
   | booleanLiteral ;
 
+postExecution
+  : postExecutionState
+  | postExecutionReturn
+  ;
+
 postExecutionState
-  : '//' '@post-execution-state' returnVar  ;
+  : '//' '@post-execution-state' testingExpression entryExit
+  | '//' '@post-execution-state' testingExpression comparisonOperator numberBoolLiteral
+  ;
+
+entryExit
+  : '(' 'Entry' comparisonOperator 'Exit' ')' ;
 
 postExecutionReturn
-  : '//' '@post-execution-return' returnType ;
+  : '//' '@post-execution' 'returnValues' comparisonOperator numberBoolLiteral ;
 
 duringExecution
   : '//' duringExecutionComment (',' duringExecutionComment)* ;
@@ -302,19 +315,19 @@ duringExecutionComment
   | duringExecutionGeneral;
 
 duringExecutionBeforeAfter
-  : '@during-execution-before-after' testingExpression beforeAfter ;
+  : '@during-execution' testingExpression beforeAfter ;
 
 beforeAfter
   : '(' 'Before' comparisonOperator 'After' ')';
 
 duringExecutionAssignCurrent
-  : '@during-execution-assign-current' testingExpression assignCurrent ;
+  : '@during-execution' testingExpression assignCurrent ;
 
 assignCurrent
-  : '(' 'assign' comparisonOperator 'current' ')';
+  : '(' 'Assign' comparisonOperator 'Current' ')';
 
 duringExecutionReturn
-  : '@during-execution-return' returnType ;
+  : '@during-execution' returnType ;
 
 returnType
   : 'returnExpresion' comparisonOperator numberBoolLiteral # ExpressionReturn
@@ -325,7 +338,7 @@ returnVar
   : testingExpression comparisonOperator numberBoolLiteral ;
 
 duringExecutionGeneral
-  : '@during-execution-general' comparisonExpression (logicalOperator comparisonExpression)* ;
+  : '@during-execution' comparisonExpression (logicalOperator comparisonExpression)* ;
 
 comparisonExpression
   : arithmeticExpression comparisonOperator arithmeticExpression ;

@@ -24,7 +24,11 @@ contract AloeBlend {
             (availableForLimit0, availableForLimit1) = limit.collectableAmountsAsOfLastPoke(UNI_POOL, sqrtPriceX96);
         }
         // Everything in silos + everything in the contract, except maintenance budget
-        availableForLimit0 += silo0.balanceOf(address(this)) + _balance0(); // @during-execution-ba availableForLimit0 < , @during-execution-ac availableForLimit0 <, @during-execution-return >0,  @during-execution availableForLimit0 > 0
+        // @during-execution availableForLimit0 (Before < After)
+        // @during-execution availableForLimit0 (Assign < Current),
+        // @during-execution returnExpression > 0,
+        // @during-execution availableForLimit0 > 0, availableForLimit1 > availableForLimit0
+        availableForLimit0 += silo0.balanceOf(address(this)) + _balance0();
         availableForLimit1 += silo1.balanceOf(address(this)) + _balance1();
         // Everything in primary Uniswap position. Limit order is placed without moving this, so its
         // amounts don't get added to availableForLimitX.
@@ -32,7 +36,8 @@ contract AloeBlend {
         inventory0 += availableForLimit0;
         inventory1 += availableForLimit1;
 
-        // @post-execution-state 변수이름 * 수식
-        // @post-execution-return 수식
+        // @post-execution-state k (Entry > Exit)
+        // @post-execution-state k > 0
+        // @post-execution-return returnValues > 0 (리턴문장이 하나의 함수에서 여러개일 수 있음)
     }
 }
