@@ -133,7 +133,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             init_expr = None
 
         # ContractAnalyzer 호출
-        self.contract_analyzer.process_constant_variable(variable_obj, init_expr)
+        #self.contract_analyzer.process_constant_variable(variable_obj, init_expr)
 
         return
 
@@ -158,11 +158,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 modifiers.append(modifier_name)
 
         # ContractAnalyzer로 전달하여 처리
-        self.contract_analyzer.process_constructor_definition(
-            constructor_name=constructor_name,
-            parameters=parameters,
-            modifiers=modifiers
-        )
+        #self.contract_analyzer.process_constructor_definition(
+        #    constructor_name=constructor_name,
+        #    parameters=parameters,
+        #    modifiers=modifiers
+        #)
 
     # Visit a parse tree produced by SolidityParser#fallbackFunctionDefinition.
     def visitFallbackFunctionDefinition(self, ctx:SolidityParser.FallbackFunctionDefinitionContext):
@@ -207,7 +207,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             init_expr = None
 
         # 5. ContractAnalyzer 호출 (processStateVariable)
-        self.contract_analyzer.process_state_variable(variable_obj, init_expr)
+        #self.contract_analyzer.process_state_variable(variable_obj, init_expr)
 
     # Visit a parse tree produced by SolidityParser#errorDefinition.
     def visitErrorDefinition(self, ctx:SolidityParser.ErrorDefinitionContext):
@@ -242,7 +242,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
 
         # 2. ContractAnalyzer로 전달하여 처리
-        self.contract_analyzer.process_struct_member(var_name, type_obj)
+        #self.contract_analyzer.process_struct_member(var_name, type_obj)
 
     # Visit a parse tree produced by SolidityParser#modifierDefinition.
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
@@ -254,7 +254,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         if ctx.parameterList():
             parameters = self.visitParameterList(ctx.parameterList())
 
-        self.contract_analyzer.process_modifier_definition(modifier_name, parameters)
+        #self.contract_analyzer.process_modifier_definition(modifier_name, parameters)
 
     # Visit a parse tree produced by SolidityParser#visibility.
     def visitVisibility(self, ctx:SolidityParser.VisibilityContext):
@@ -289,12 +289,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             returns = self.visitParameterList(ctx.parameterList(1))
 
         # 5. FunctionDefinition을 처리하여 ContractAnalyzer에 넘김
-        self.contract_analyzer.process_function_definition(
-            function_name=function_name,
-            parameters=parameters,
-            modifiers=modifiers,
-            returns=returns
-        )
+        #self.contract_analyzer.process_function_definition(
+        #    function_name=function_name,
+        #    parameters=parameters,
+        #    modifiers=modifiers,
+        #    returns=returns
+        #)
 
     # Visit a parse tree produced by SolidityParser#eventDefinition.
     def visitEventDefinition(self, ctx:SolidityParser.EventDefinitionContext):
@@ -610,7 +610,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             raise ValueError(f"Invalid global variable '{global_var_full}'")
 
         # 4) ContractAnalyzer에 전달
-        self.contract_analyzer.process_pre_execution_global(global_var_full, pre_exec_value)
+        #self.contract_analyzer.process_pre_execution_global(global_var_full, pre_exec_value)
 
     # Visit a parse tree produced by SolidityParser#preExecutionState.
     def visitPreExecutionState(self, ctx: SolidityParser.PreExecutionStateContext):
@@ -625,7 +625,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
         value = self.parse_number_bool_literal(rhs_text)
         # (3) Call process function in the analyzer
-        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        #self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#preExecutionLocal.
@@ -641,7 +641,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
         value = self.parse_number_bool_literal(rhs_text)
         # (3) Call process function in the analyzer
-        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        #self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#testingExpression.

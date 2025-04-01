@@ -3280,7 +3280,7 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr: Expression, variables: Variables):
+    def evaluate_expression(self, expr: Expression, variables: Variables, context=None):
         if expr.context == "LiteralExpContext" :
             if expr.expr_type == "uint" :
                 return UnsignedIntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
@@ -3291,13 +3291,20 @@ class ContractAnalyzer:
                     return BoolInterval(1,1)
                 else :
                     return BoolInterval(0,0)
+            elif expr.expr_type == "string" :
+                return expr.literal
+            else :
+                raise ValueError(f"Unsupported expression type "{expr.expr_type})
 
-        if expr.context == "IdentifierExpContext" :
+        elif expr.context == "IdentifierExpContext" :
+            if var_name in variables:
+                return variables[var_name].value
+            else:
+                raise ValueError(f"Variable '{var_name}' not found in current context.")
 
+        elif expr.context == 'MemberAccessContext' :
+            
 
-
-
-        return
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
         return
