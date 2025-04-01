@@ -3280,278 +3280,33 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr, variables=None):
-        """
-        주어진 Expression 객체를 평가하여 그 Interval을 반환합니다.
-        :param expr: Expression 객체
-        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: Interval 객체
-        """
+    def evaluate_expression(self, expr: Expression, variables: Variables):
+        if expr.context == "LiteralExpContext" :
+            if expr.expr_type == "uint" :
+                return UnsignedIntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
+            elif expr.expr_type == "int" :
+                return IntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
+            elif expr.expr_type == "bool" :
+                if expr.literal.lower() == 'true' :
+                    return BoolInterval(1,1)
+                else :
+                    return BoolInterval(0,0)
 
-        # 1. 리터럴 값인 경우 처리
-        if expr.literal is not None:
-            # Handle numeric literals
-            if expr.expr_type in ['int', 'uint']:
-                numeric_value = int(expr.literal, 0)
-                if expr.expr_type == 'int':
-                    return IntegerInterval(numeric_value, numeric_value, expr.type_length or 256)
-                elif expr.expr_type == 'uint':
-                    return UnsignedIntegerInterval(numeric_value, numeric_value, expr.type_length or 256)
-                else:
-                    return numeric_value
+        if expr.context == "IdentifierExpContext" :
 
-            # Handle boolean literals
-            elif expr.expr_type == 'bool':
-                return expr.literal.lower() == 'true'
-            # Handle string literals
-            elif expr.expr_type == 'string':
-                return expr.literal.strip('"')
-            # Handle address literals
-            elif expr.expr_type == 'address':
-                return expr.literal  # Assuming address literals are valid
-            # Handle bytes literals
-            elif expr.expr_type.startswith('bytes'):
-                return expr.literal  # May require parsing
-            else:
-                raise ValueError(f"Unsupported literal type '{expr.expr_type}'")
 
-        # 2. 식별자인 경우 (변수)
-        elif expr.identifier is not None:
-            var_name = expr.identifier
-            if variables is not None:
-                if var_name in variables:
-                    return variables[var_name].value
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in current context.")
-            else:
-                return self.get_variable_interval(var_name)
 
-        # 3. 단항 연산자 처리
-        if expr.operator in ['-', '!', '~'] and expr.expression:
-            operand_interval = self.evaluate_expression(expr.expression, variables)
-            if operand_interval is not None:
-                if expr.operator == '-':
-                    return operand_interval.negate()
-                elif expr.operator == '!':
-                    return operand_interval.logical_not()
-                elif expr.operator == '~':
-                    return operand_interval.bitwise_not()
-            else:
-                raise ValueError(f"Unable to evaluate operand in unary expression: {expr}")
 
-        # 4. 이항 연산자 처리
-        left_interval = self.evaluate_expression(expr.left, variables) if expr.left else None
-        right_interval = self.evaluate_expression(expr.right, variables) if expr.right else None
-
-        if left_interval is not None and right_interval is not None:
-            operator = expr.operator
-            # 산술 연산자 처리
-            if operator == '+':
-                return left_interval.add(right_interval)
-            elif operator == '-':
-                return left_interval.subtract(right_interval)
-            elif operator == '*':
-                return left_interval.multiply(right_interval)
-            elif operator == '/':
-                return left_interval.divide(right_interval)
-            elif operator == '%':
-                return left_interval.modulo(right_interval)
-            elif operator == '**':
-                return left_interval.exponentiate(right_interval)
-            # 시프트 연산자 처리
-            elif operator in ['<<', '>>', '>>>']:
-                if 'int' in expr.expr_type:
-                    return IntegerInterval.shift(left_interval, right_interval, operator)
-                elif 'uint' in expr.expr_type:
-                    return UnsignedIntegerInterval.shift(left_interval, right_interval, operator)
-                else:
-                    raise ValueError(f"Unsupported type '{expr.expr_type}' for shift operation")
-            # 비교 연산자 처리
-            elif operator in ['==', '!=', '<', '>', '<=', '>=']:
-                result_interval = self.compare_intervals(left_interval, right_interval, operator)
-                return result_interval
-            # 논리 연산자 처리
-            elif operator in ['&&', '||']:
-                return left_interval.logical_op(right_interval, operator)
-            else:
-                raise ValueError(f"Unsupported operator '{operator}' in expression: {expr}")
-        else:
-            # 피연산자 중 하나라도 None인 경우 예외 발생
-            raise ValueError(f"Unable to evaluate expression due to missing operand intervals: {expr}")
-
+        return
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
-        """
-        배열에 대한 초기화 표현식을 처리하고 값을 반환합니다.
-        :param variable_obj: ArrayVariable 객체
-        :param init_expr: 배열 초기화 표현식 (예: [1, 2, 3, 4, 5])
-        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: 배열 요소들의 값 (리스트 또는 단일 Interval 값)
-        """
-
-        # 1. InlineArrayExpression 처리: 배열의 각 요소 값을 리스트로 반환
-        if init_expr.context == 'InlineArrayExpressionContext':
-            intervals = []
-            for i, expr in enumerate(init_expr.elements):
-                # 배열 요소의 타입에 따라 평가 함수 선택
-                if variable_obj.typeInfo.arrayBaseType.typeCategory == 'enum':
-                    interval = self.evaluate_enum_expression(expr, variables)
-                else:
-                    interval = self.evaluate_expression(expr, variables)
-                if i < len(variable_obj.elements):
-                    variable_obj.elements[i].value = interval
-                    intervals.append(interval)
-                else:
-                    raise IndexError(f"Array index out of bounds: {i}")
-            return intervals  # 갱신된 배열 값들을 리스트로 반환
-
-        # 2. MemberAccess 처리: 배열의 length 값 반환
-        elif init_expr.context == 'MemberAccessContext':
-            base_var = self.find_variable_by_identifier(init_expr.base)
-            member_name = init_expr.member
-
-            if isinstance(base_var, ArrayVariable) and member_name == 'length':
-                if base_var.typeInfo.isDynamicArray:
-                    if base_var.scope == "state":
-                        return UnsignedIntegerInterval(len(base_var.elements), len(base_var.elements))
-                    elif base_var.scope == "local":
-                        return UnsignedIntegerInterval(0, float('inf'))
-                    else:
-                        raise ValueError(f"Unknown scope for array variable '{base_var.identifier}'")
-                else:
-                    return UnsignedIntegerInterval(base_var.typeInfo.arrayLength, base_var.typeInfo.arrayLength)
-            else:
-                raise ValueError(f"Unsupported member access: {member_name} on {base_var}")
-
-        # 3. IndexAccess 처리: 배열의 특정 인덱스 값 반환
-        elif init_expr.context == 'IndexAccessContext':
-            base_var = self.find_variable_by_identifier(init_expr.base)
-            index_interval = self.evaluate_expression(init_expr.index, variables)
-
-            if isinstance(base_var, ArrayVariable):
-                if base_var.typeInfo.arrayLength is not None:
-                    index_min = index_interval.min_value
-                    index_max = index_interval.max_value
-                    if index_min < 0 or index_max >= base_var.typeInfo.arrayLength:
-                        raise IndexError(f"Array index out of bounds: {index_min} to {index_max}")
-
-                    return base_var.elements[index_min].value if index_min == index_max else IntegerInterval(
-                        min(base_var.elements[index_min].value.min_value, base_var.elements[index_max].value.min_value),
-                        max(base_var.elements[index_min].value.max_value, base_var.elements[index_max].value.max_value)
-                    )
-                else:
-                    raise ValueError("Dynamic arrays are not fully supported for index access yet.")
-            else:
-                raise TypeError(f"Index access on non-array variable: {base_var}")
-
-        # 4. IndexRangeAccess 처리: 배열의 범위 값 반환
-        elif init_expr.context == 'IndexRangeAccessContext':
-            base_var = self.find_variable_by_identifier(init_expr.base, variables)
-
-            if isinstance(base_var, ArrayVariable):
-                array_length = base_var.typeInfo.arrayLength
-
-                start_index = self.evaluate_expression(init_expr.start_index,
-                                                       variables) if init_expr.start_index else IntegerInterval(0, 0)
-                end_index = self.evaluate_expression(init_expr.end_index,
-                                                     variables) if init_expr.end_index else IntegerInterval(
-                    array_length - 1, array_length - 1)
-
-                if start_index.min_value < 0 or end_index.max_value >= array_length:
-                    raise IndexError(
-                        f"Array index range out of bounds: {start_index.min_value} to {end_index.max_value}")
-
-                sub_intervals = [element.value for element in
-                                 base_var.elements[start_index.min_value:end_index.max_value + 1]]
-                if len(sub_intervals) == 1:
-                    return sub_intervals[0]
-                else:
-                    min_value = min(interval.min_value for interval in sub_intervals)
-                    max_value = max(interval.max_value for interval in sub_intervals)
-                    return IntegerInterval(min_value, max_value)
-            else:
-                raise TypeError(f"Index range access on non-array variable: {base_var}")
-
-        else:
-            raise ValueError(f"Unsupported context: {init_expr.context}")
+        return
 
     def evaluate_enum_expression(self, expr, variables=None):
-        """
-        주어진 Enum 표현식을 평가하여 그 Interval을 반환합니다.
-        :param expr: Expression 객체 (Enum 표현식)
-        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: IntegerInterval 객체 (Enum 멤버의 인덱스 값)
-        """
-        # 1. 리터럴인 경우 (예: EnumType.Member)
-        if expr.literal is not None:
-            enum_literal = expr.literal
-            if '.' in enum_literal:
-                enum_type_name, member_name = enum_literal.split('.')
-                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(enum_type_name)
-                if enum_def and member_name in enum_def.members:
-                    enum_value = enum_def.members.index(member_name)
-                    return IntegerInterval(enum_value, enum_value)
-                else:
-                    raise ValueError(f"Enum member '{enum_literal}' not found.")
-            else:
-                raise ValueError(f"Invalid enum literal '{enum_literal}'. Expected format 'EnumType.Member'.")
-        # 2. 식별자인 경우 (Enum 변수)
-        elif expr.identifier is not None:
-            var_name = expr.identifier
-            if variables is not None:
-                if var_name in variables:
-                    var_obj = variables[var_name]
-                    if isinstance(var_obj, EnumVariable):
-                        enum_value = var_obj.value  # 정수 값 (멤버 인덱스)
-                        return IntegerInterval(enum_value, enum_value)
-                    else:
-                        raise ValueError(f"Variable '{var_name}' is not an EnumVariable.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in current context.")
-            else:
-                raise ValueError("Variables dictionary is required to evaluate enum variable.")
-        # 3. 멤버 접근인 경우 (MemberAccessContext)
-        elif expr.context == 'MemberAccessContext':
-            base_expr = expr.base
-            member_name = expr.member
-            if base_expr.identifier is not None:
-                enum_type_name = base_expr.identifier
-                enum_def = self.contract_cfgs[self.current_target_contract].enums.get(enum_type_name)
-                if enum_def and member_name in enum_def.members:
-                    enum_value = enum_def.members.index(member_name)
-                    return IntegerInterval(enum_value, enum_value)
-                else:
-                    raise ValueError(f"Enum member '{enum_type_name}.{member_name}' not found.")
-            else:
-                raise ValueError("Invalid base expression for enum member access.")
-        else:
-            raise ValueError("Unsupported expression type for enum evaluation.")
+        return
 
     def evaluate_struct_expression(self, variable_obj, init_expr):
-        """
-        구조체에 대한 초기화 표현식을 처리합니다.
-        :param variable_obj: StructVariable 객체
-        :param init_expr: 구조체 초기화 표현식
-        """
-        # 구조체의 각 멤버를 초기화하는 표현식을 평가
-        for member_name, member_expr in init_expr.named_arguments.items():
-            if member_name in variable_obj.members:
-                interval = self.evaluate_expression(member_expr)
-                variable_obj.members[member_name].value = interval
-            else:
-                raise ValueError(f"Struct member {member_name} not found in {variable_obj.identifier}")
-
-    def evaluate_address_code_length(self, expr):
-        """
-        address.code.length 표현식을 평가하여 Uint32 범위로 반환합니다.
-        :param expr: Expression 객체
-        :return: Uint32 범위의 UnsignedIntegerInterval
-        """
-        # Expression이 address.code.length를 의미하는지 확인
-        if expr.expr_type == 'address' and expr.member_access == 'code.length':
-            return UnsignedIntegerInterval(0, 2 ** 32 - 1, 32)  # Uint32의 범위에 맞게 설정
-        else:
-            raise ValueError("Expression does not represent address.code.length")
+        return
 
     def update_variables_with_condition(self, variables, condition_expr, is_true_branch):
         """

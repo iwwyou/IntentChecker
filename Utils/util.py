@@ -261,7 +261,7 @@ class StructDefinition:
         self.members = []
 
     def add_member(self, var_name, type_obj):
-        self.members.append({'member_name' : var_name, 'member_type' : type_obj)
+        self.members.append({'member_name' : var_name, 'member_type' : type_obj})
 
 class EnumVariable(Variables):
     def __init__(self, identifier=None, enum_type=None, value=None, isConstant=False, scope=None):
