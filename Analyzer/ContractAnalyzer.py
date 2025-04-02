@@ -3280,31 +3280,120 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr: Expression, variables: Variables, context=None):
+    def evaluate_expression(self, expr: Expression, variables: Variables, callerContext=None):
         if expr.context == "LiteralExpContext" :
-            if expr.expr_type == "uint" :
-                return UnsignedIntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
-            elif expr.expr_type == "int" :
-                return IntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
-            elif expr.expr_type == "bool" :
-                if expr.literal.lower() == 'true' :
-                    return BoolInterval(1,1)
-                else :
-                    return BoolInterval(0,0)
-            elif expr.expr_type == "string" :
-                return expr.literal
+            if callerContext == None :
+                if expr.expr_type == "uint":
+                    return UnsignedIntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
+                elif expr.expr_type == "int":
+                    return IntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
+                elif expr.expr_type == "bool":
+                    if expr.literal.lower() == 'true':
+                        return BoolInterval(1, 1)
+                    else:
+                        return BoolInterval(0, 0)
+                elif expr.expr_type == "string":
+                    return expr.literal
+                else:
+                    raise ValueError(f"Unsupported expression type "{expr.expr_type})
             else :
-                raise ValueError(f"Unsupported expression type "{expr.expr_type})
+                return expr.literal
 
         elif expr.context == "IdentifierExpContext" :
-            if var_name in variables:
-                return variables[var_name].value
-            else:
-                raise ValueError(f"Variable '{var_name}' not found in current context.")
+            if callerContext == None :
+                if expr.identifier in variables:
+                    return variables[expr.identifier].value
+                else:
+                    raise ValueError(f"Variable '{expr.identifier}' not found in current context.")
+            else :
+                return str(expr.identifier)
 
         elif expr.context == 'MemberAccessContext' :
-            
+            return self.evaluate_member_access(expr, variables, 'MemberAccessContext')
 
+    def evaluate_member_access(self, expr: Expression, variables, callerContext):
+        """
+        MemberAccessContext를 평가하여 값을 리턴하는 함수.
+        expr: MemberAccess expression (base와 member를 포함)
+        variables: 현재 변수 상태 딕셔너리
+        callerContext: 호출 context (예: "library" 등, 기본값은 None)
+        """
+
+        # 1. base expression 재귀적으로 평가
+        base_val = self.evaluate_expression(expr.base, variables, callerContext)
+        member = expr.member  # member 이름 (문자열)
+
+        # 2. 글로벌 변수 접근 (예: block, msg, tx)
+        if isinstance(base_val, str) and base_val in ["block", "msg", "tx"]:
+            full_name = f"{base_val}.{member}"
+            # 예시 글로벌 변수 매핑 (실제 구현 시 더 구체적인 값/Interval 필요)
+            global_map = {
+                "block.timestamp": UnsignedIntegerInterval(1600000000, 1600000000, 256),
+                "block.gaslimit": UnsignedIntegerInterval(8000000, 8000000, 256),
+                "tx.gasprice": UnsignedIntegerInterval(1000000000, 1000000000, 256),
+            }
+            if full_name in global_map:
+                return global_map[full_name]
+            else:
+                # 글로벌 변수로 정의되지 않은 경우 심볼릭하게 리턴
+                return f"symbolic({full_name})"
+
+        # 3. 배열의 내장 속성 접근 (예: myArray.length)
+        if isinstance(base_val, list):
+            if member == "length":
+                return UnsignedIntegerInterval(len(base_val), len(base_val), 256)
+            else:
+                # 배열에는 일반적으로 length 외의 멤버는 없으므로 심볼릭하게 처리
+                return f"symbolic(array.{member})"
+
+        # 4. 구조체 필드 접근 (base가 dict인 경우)
+        if isinstance(base_val, dict):
+            if member in base_val:
+                return base_val[member]
+            else:
+                raise ValueError(f"Struct has no member named '{member}' in {base_val}")
+
+        # 5. 타입 정보 접근 (예: type(uint256).max, type(uint256).min)
+        if isinstance(base_val, dict) and base_val.get("isType", False):
+            T = base_val["typeName"]
+            if member == "max":
+                if T.startswith("uint"):
+                    length = int(T[4:]) if len(T) > 4 else 256
+                    return UnsignedIntegerInterval(2 ** length - 1, 2 ** length - 1, length)
+                elif T.startswith("int"):
+                    length = int(T[3:]) if len(T) > 3 else 256
+                    return IntegerInterval(2 ** (length - 1) - 1, 2 ** (length - 1) - 1, length)
+                else:
+                    raise ValueError(f"Unsupported type for max: {T}")
+            elif member == "min":
+                if T.startswith("uint"):
+                    return UnsignedIntegerInterval(0, 0, 256)
+                elif T.startswith("int"):
+                    length = int(T[3:]) if len(T) > 3 else 256
+                    return IntegerInterval(-2 ** (length - 1), -2 ** (length - 1), length)
+                else:
+                    raise ValueError(f"Unsupported type for min: {T}")
+            else:
+                raise ValueError(f"Unsupported type member '{member}' for type '{T}'")
+
+        # 6. Enum 멤버 접근 (base가 enum type을 나타내는 dict)
+        if isinstance(base_val, dict) and "enumType" in base_val:
+            enum_type = base_val["enumType"]
+            # 심볼릭하게 "EnumType.Member"를 리턴 (실제 구현은 contract_cfg에서 값 조회 필요)
+            return f"{enum_type}.{member}"
+
+        # 7. 컨트랙트 인스턴스 접근 (base가 contract instance를 나타내는 dict)
+        if isinstance(base_val, dict) and "contractInstance" in base_val:
+            if member == "address":
+                return base_val["address"]
+            return f"{base_val['contractInstance']}.{member}"
+
+        # 8. 라이브러리 확장 메소드 (callerContext가 "library")
+        if callerContext == "library":
+            return f"library_function({base_val}).{member}"
+
+        # 9. 만약 위 케이스에 해당하지 않으면 심볼릭하게 표현
+        return f"symbolic({base_val}.{member})"
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
         return

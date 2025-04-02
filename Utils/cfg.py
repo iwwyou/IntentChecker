@@ -223,7 +223,6 @@ class ContractCFG(CFG):
         # 상태 변수 정보를 노드에 추가
         self.state_variable_node.add_assign_statement(variable_obj=variable, expr=expr)
 
-
     def add_constant_variable(self, variable, expr=None):
         if not self.state_variable_node:
             self.state_variable_node = CFGNode('State_Variable')
