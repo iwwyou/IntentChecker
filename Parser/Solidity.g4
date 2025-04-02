@@ -265,15 +265,20 @@ preExecution
   ;
 
 preExecutionGlobal
-  : '//' '@pre-execution-global' identifier'.'identifier '=' numberLiteral
+  : '//' '@pre-execution-global' identifier'.'identifier '=' globalValue
+  ;
+
+globalValue
+  : '[' numberLiteral ',' numberLiteral ']' # GlobalIntValue
+  | 'address' numberLiteral # GlobalAddressValue
   ;
 
 preExecutionState
-  : '//' '@pre-execution-state' testingExpression '=' numberBoolLiteral
+  : '//' '@pre-execution-state' testingExpression '=' stateLocalValue
   ;
 
 preExecutionLocal
-  : '//' '@pre-execution-local' testingExpression '=' numberBoolLiteral
+  : '//' '@pre-execution-local' testingExpression '=' stateLocalValue
   ;
 
 testingExpression
@@ -283,6 +288,12 @@ testingExpression
 subAccess
   : '.' identifier # TestingMemberAccess
   | '[' expression ']' # TestingIndexAccess
+  ;
+
+stateLocalValue
+  : '[' '-'? numberLiteral ',' '-'? numberLiteral ']' #StateLocalIntValue
+  | 'address' numberLiteral # StateLocalAddressValue
+  | '[' booleanLiteral ',' booleanLiteral ']' # StateLocalBooleanValue
   ;
 
 numberBoolLiteral

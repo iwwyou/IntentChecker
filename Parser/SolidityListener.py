@@ -521,6 +521,24 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#GlobalIntValue.
+    def enterGlobalIntValue(self, ctx:SolidityParser.GlobalIntValueContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#GlobalIntValue.
+    def exitGlobalIntValue(self, ctx:SolidityParser.GlobalIntValueContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#GlobalAddressValue.
+    def enterGlobalAddressValue(self, ctx:SolidityParser.GlobalAddressValueContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#GlobalAddressValue.
+    def exitGlobalAddressValue(self, ctx:SolidityParser.GlobalAddressValueContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#preExecutionState.
     def enterPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
         pass
@@ -563,6 +581,33 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#TestingIndexAccess.
     def exitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#StateLocalIntValue.
+    def enterStateLocalIntValue(self, ctx:SolidityParser.StateLocalIntValueContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#StateLocalIntValue.
+    def exitStateLocalIntValue(self, ctx:SolidityParser.StateLocalIntValueContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#StateLocalAddressValue.
+    def enterStateLocalAddressValue(self, ctx:SolidityParser.StateLocalAddressValueContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#StateLocalAddressValue.
+    def exitStateLocalAddressValue(self, ctx:SolidityParser.StateLocalAddressValueContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#StateLocalBooleanValue.
+    def enterStateLocalBooleanValue(self, ctx:SolidityParser.StateLocalBooleanValueContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#StateLocalBooleanValue.
+    def exitStateLocalBooleanValue(self, ctx:SolidityParser.StateLocalBooleanValueContext):
         pass
 
 

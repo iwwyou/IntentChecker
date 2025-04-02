@@ -294,6 +294,16 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#GlobalIntValue.
+    def visitGlobalIntValue(self, ctx:SolidityParser.GlobalIntValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#GlobalAddressValue.
+    def visitGlobalAddressValue(self, ctx:SolidityParser.GlobalAddressValueContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#preExecutionState.
     def visitPreExecutionState(self, ctx:SolidityParser.PreExecutionStateContext):
         return self.visitChildren(ctx)
@@ -316,6 +326,21 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#TestingIndexAccess.
     def visitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#StateLocalIntValue.
+    def visitStateLocalIntValue(self, ctx:SolidityParser.StateLocalIntValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#StateLocalAddressValue.
+    def visitStateLocalAddressValue(self, ctx:SolidityParser.StateLocalAddressValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#StateLocalBooleanValue.
+    def visitStateLocalBooleanValue(self, ctx:SolidityParser.StateLocalBooleanValueContext):
         return self.visitChildren(ctx)
 
 

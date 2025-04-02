@@ -66,6 +66,9 @@ class Variables:
         # 값 정보
         self.value = value  # interval
 
+class GlobalVariable(Variables):
+    def __init__(self, identifier):
+
 
 class ArrayVariable(Variables):
     def __init__(self, identifier=None, base_type=None, array_length=None, is_dynamic=False, value=None,

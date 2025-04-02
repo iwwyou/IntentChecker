@@ -3327,6 +3327,7 @@ class ContractAnalyzer:
         if isinstance(base_val, str) and base_val in ["block", "msg", "tx"]:
             full_name = f"{base_val}.{member}"
             # 예시 글로벌 변수 매핑 (실제 구현 시 더 구체적인 값/Interval 필요)
+
             global_map = {
                 "block.timestamp": UnsignedIntegerInterval(1600000000, 1600000000, 256),
                 "block.gaslimit": UnsignedIntegerInterval(8000000, 8000000, 256),
