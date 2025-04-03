@@ -3281,47 +3281,9 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr: Expression, variables: Variables, callerContext=None):
+    def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None):
         if expr.context == "LiteralExpContext":
-            literal_str = expr.literal  # 예: "123", "0x1A", "true", "false", "Hello", ...
-            expr_type = expr.expr_type  # 예: 'uint', 'int', 'bool', 'string'
-
-            # 1) callerContext가 None이 아니면 => 상위에서 index/mapping key 등으로만 쓴다고 가정
-            #    => 문자열 그대로 반환
-            if callerContext is not None:
-                return literal_str
-
-            # 2) callerContext가 None => "실제 계산 대상"이므로, expr_type에 맞춰 Interval(또는 값) 반환
-            if expr_type == "uint":
-                # int() with base=0로 파싱해 다양한 16진/10진 포맷 허용
-                val = int(literal_str, 0)
-                if val < 0:
-                    raise ValueError(f"Literal '{literal_str}' is negative, not valid for uint.")
-                # 기본 비트 길이 설정
-                length = expr.type_length if expr.type_length else 256
-                return UnsignedIntegerInterval(val, val, length)
-
-            elif expr_type == "int":
-                val = int(literal_str, 0)
-                length = expr.type_length if expr.type_length else 256
-                return IntegerInterval(val, val, length)
-
-            elif expr_type == "bool":
-                lower_str = literal_str.lower()
-                if lower_str == "true":
-                    return BoolInterval(1, 1)
-                elif lower_str == "false":
-                    return BoolInterval(0, 0)
-                else:
-                    raise ValueError(f"Invalid boolean literal '{literal_str}'")
-
-            elif expr_type == "string":
-                # 여기서 그대로 문자열 반환.
-                # 필요하면 앞뒤 따옴표 제거 로직도 추가할 수 있음.
-                return literal_str
-
-            else:
-                raise ValueError(f"Unsupported literal expr_type '{expr_type}'")
+            return self.evaluate_literal_context(expr, variables, callerObject)
 
         elif expr.context == "IdentifierExpContext" :
             if callerContext is None :
@@ -3335,7 +3297,62 @@ class ContractAnalyzer:
         elif expr.context == 'MemberAccessContext' :
             return self.evaluate_member_access(expr, variables, None)
 
-    def evaluate_member_access(self, expr: Expression, variables, callerContext):
+    def evaluate_literal_context(self, expr: Expression, variables, callerObject=None):
+        literal_str = expr.literal  # 예: "123", "0x1A", "true", "false", "Hello", ...
+        expr_type = expr.expr_type  # 예: 'uint', 'int', 'bool', 'string'
+
+        # 1) if we have a callerObject that is an ArrayVariable, and the literal is a digit
+        if callerObject is not None :
+            if isinstance(callerObject, ArrayVariable) :
+                if literal_str.isdigit():
+                    # 인덱스로 해석
+                    idx = int(literal_str)
+                    # 경계 검사 (동적/정적 배열 길이를 넘어가는지)
+                    if idx < 0 or idx >= len(callerObject.elements):
+                        raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
+                    return callerObject.elements[idx]  # element: Variables, ArrayVariable, etc.
+                else:
+                    return ValueError(f"Type of object is array but {literal_str} is not integer.")
+            elif isinstance(callerObject, MappingVariable) :
+                if literal_str in callerObject.mapping :
+                    return callerObject.mapping[literal_str]
+
+        # 2) callerContext가 None => "실제 계산 대상"이므로, expr_type에 맞춰 Interval(또는 값) 반환
+        if expr_type == "uint":
+            # int() with base=0로 파싱해 다양한 16진/10진 포맷 허용
+            val = int(literal_str, 0)
+            if val < 0:
+                raise ValueError(f"Literal '{literal_str}' is negative, not valid for uint.")
+            # 기본 비트 길이 설정
+            length = expr.type_length if expr.type_length else 256
+            return UnsignedIntegerInterval(val, val, length)
+
+        elif expr_type == "int":
+            val = int(literal_str, 0)
+            length = expr.type_length if expr.type_length else 256
+            return IntegerInterval(val, val, length)
+
+        elif expr_type == "bool":
+            lower_str = literal_str.lower()
+            if lower_str == "true":
+                return BoolInterval(1, 1)
+            elif lower_str == "false":
+                return BoolInterval(0, 0)
+            else:
+                raise ValueError(f"Invalid boolean literal '{literal_str}'")
+
+        elif expr_type == "string":
+            # 여기서 그대로 문자열 반환.
+            # 필요하면 앞뒤 따옴표 제거 로직도 추가할 수 있음.
+            return literal_str
+
+        else:
+            raise ValueError(f"Unsupported literal expr_type '{expr_type}'")
+
+    def evaluate_identifier_context(self, expr:Expression, variables, callerObject=None):
+        return
+
+    def evaluate_member_access(self, expr: Expression, variables, callerObject=None):
         """
         MemberAccessContext를 평가하여 값을 리턴하는 함수.
         expr: MemberAccess expression (base와 member를 포함)
@@ -3353,53 +3370,59 @@ class ContractAnalyzer:
 
         # 1. base expression 재귀적으로 평가
         base_val = self.evaluate_expression(expr.base, variables, "MemberAccessContext")
-        member = self.evaluate_expression(expr.member, variables, "MemberAccessContext")
+        member = expr.member
 
         # 2. 글로벌 변수 접근 (예: block, msg, tx)
         if isinstance(base_val, str) and base_val in ["block", "msg", "tx"]:
-            full_name = f"{base_val}.{member}"
-            # 예시 글로벌 변수 매핑 (실제 구현 시 더 구체적인 값/Interval 필요)
-            contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+            if isinstance(member, str) :
+                full_name = f"{base_val}.{member}"
+                # 예시 글로벌 변수 매핑 (실제 구현 시 더 구체적인 값/Interval 필요)
+                contract_cfg = self.contract_cfgs.get(self.current_target_contract)
 
-            if full_name in contract_cfg.pre_exec_globals :
-                return contract_cfg.pre_exec_globals[full_name].value
+                if full_name in contract_cfg.pre_exec_globals:
+                    return contract_cfg.pre_exec_globals[full_name].value
+                else:
+                    global_map = {
+                        "block.basefee": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.blobbasefee": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.chainid": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.coinbase": "address 0",
+                        "block.difficulty": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.gaslimit": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.number": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.prevrandao": UnsignedIntegerInterval(1000, 1000, 256),
+                        "block.timestamp": UnsignedIntegerInterval(1000, 1000, 256),
+                        "msg.sender": "address 100",
+                        "msg.value": UnsignedIntegerInterval(1000, 1000, 256),
+                        "tx.gasprice": UnsignedIntegerInterval(1000, 1000, 256),
+                        "tx.origin": "address 10"
+                    }
+                    return global_map[full_name]
             else :
-                global_map = {
-                    "block.basefee" : UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.blobbasefee": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.chainid": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.coinbase": "address 0",
-                    "block.difficulty": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.gaslimit": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.number": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.prevrandao": UnsignedIntegerInterval(1000, 1000, 256),
-                    "block.timestamp": UnsignedIntegerInterval(1000, 1000, 256),
-                    "msg.sender" : "address 100",
-                    "msg.value" : UnsignedIntegerInterval(1000, 1000, 256),
-                    "tx.gasprice": UnsignedIntegerInterval(1000, 1000, 256),
-                    "tx.origin" : "address 10"
-                }
-                return global_map[full_name]
+                ValueError(f"member '{member}' is not global variable member'.")
 
-        if isinstance(base_val, str) and base_val in variables :
+        elif isinstance(base_val, str) and base_val in variables :
             variable_obj = variables[base_val]
             # 3. 배열의 내장 속성 접근 (예: myArray.length)
             if isinstance(variable_obj, ArrayVariable) :
-                if member == "length":
-                    # 배열 크기 = elements 길이
-                    length_val = len(base_val.elements)
-                    return UnsignedIntegerInterval(length_val, length_val, 256)
+                if isinstance(member, str) :
+                    if member == "length":
+                        # 배열 크기 = elements 길이
+                        length_val = len(variable_obj.elements)
+                        return UnsignedIntegerInterval(length_val, length_val, 256)
 
-            if isinstance(variable_obj, StructVariable) :
+            # 4. 구조체 필드 접근 (base가 dict인 경우)
+            elif isinstance(variable_obj, StructVariable) :
+                if isinstance(member, Expression) :
+                    if member.context == IndexAccess
 
 
+                elif isinstance(member, str) :
+                    if member in variable_obj.members :
+                        return variable_obj.members[member]
+                    else :
+                        raise ValueError(f"member '{member}' is not found in struct '{variable_obj.identifier}'.")
 
-        # 4. 구조체 필드 접근 (base가 dict인 경우)
-        if isinstance(base_val, dict):
-            if member in base_val:
-                return base_val[member]
-            else:
-                raise ValueError(f"Struct has no member named '{member}' in {base_val}")
 
         # 5. 타입 정보 접근 (예: type(uint256).max, type(uint256).min)
         if isinstance(base_val, dict) and base_val.get("isType", False):
