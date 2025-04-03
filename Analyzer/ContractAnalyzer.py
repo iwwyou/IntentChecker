@@ -3282,7 +3282,7 @@ class ContractAnalyzer:
 
     def evaluate_expression(self, expr: Expression, variables: Variables, callerContext=None):
         if expr.context == "LiteralExpContext" :
-            if callerContext == None :
+            if callerContext is None :
                 if expr.expr_type == "uint":
                     return UnsignedIntegerInterval(int(expr.literal), int(expr.literal), expr.type_length)
                 elif expr.expr_type == "int":
@@ -3295,12 +3295,12 @@ class ContractAnalyzer:
                 elif expr.expr_type == "string":
                     return expr.literal
                 else:
-                    raise ValueError(f"Unsupported expression type "{expr.expr_type})
+                    raise ValueError(f"Unsupported expression type '{expr.expr_type}'")
             else :
                 return expr.literal
 
         elif expr.context == "IdentifierExpContext" :
-            if callerContext == None :
+            if callerContext is None :
                 if expr.identifier in variables:
                     return variables[expr.identifier].value
                 else:

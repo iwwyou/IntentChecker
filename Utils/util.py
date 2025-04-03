@@ -66,8 +66,14 @@ class Variables:
         # 값 정보
         self.value = value  # interval
 
+
 class GlobalVariable(Variables):
-    def __init__(self, identifier):
+    def __init__(self, identifier=None, isConstant=False, scope=None, base=None, member=None, value=None, typeInfo=None):
+        super().__init__(identifier, value, isConstant, scope)
+        self.base = base
+        self.member = member
+        self.value = value  #Interval이 될수도 있고 그냥 address 1 이렇게 될수도 있음
+        self.typeInfo = SolType()
 
 
 class ArrayVariable(Variables):

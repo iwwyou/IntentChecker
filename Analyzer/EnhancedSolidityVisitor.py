@@ -612,6 +612,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # 4) ContractAnalyzer에 전달
         #self.contract_analyzer.process_pre_execution_global(global_var_full, pre_exec_value)
 
+    # Visit a parse tree produced by SolidityParser#GlobalIntValue.
+    def visitGlobalIntValue(self, ctx: SolidityParser.GlobalIntValueContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#GlobalAddressValue.
+    def visitGlobalAddressValue(self, ctx: SolidityParser.GlobalAddressValueContext):
+        return self.visitChildren(ctx)
+
     # Visit a parse tree produced by SolidityParser#preExecutionState.
     def visitPreExecutionState(self, ctx: SolidityParser.PreExecutionStateContext):
         """
@@ -705,6 +713,18 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#TestingIndexAccess.
     def visitTestingIndexAccess(self, ctx: SolidityParser.TestingIndexAccessContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#StateLocalIntValue.
+    def visitStateLocalIntValue(self, ctx: SolidityParser.StateLocalIntValueContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#StateLocalAddressValue.
+    def visitStateLocalAddressValue(self, ctx: SolidityParser.StateLocalAddressValueContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#StateLocalBooleanValue.
+    def visitStateLocalBooleanValue(self, ctx: SolidityParser.StateLocalBooleanValueContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#numberBoolLiteral.
