@@ -569,48 +569,85 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#preExecutionGlobal.
     def visitPreExecutionGlobal(self, ctx: SolidityParser.PreExecutionGlobalContext):
+        """
+        Handles global pre-execution intent comments.
+
+        Grammar rule:
+          preExecutionGlobal
+            : '//' '@pre-execution-global' identifier '.' identifier '=' globalValue
+            ;
+
+          globalValue:
+            : '[' numberLiteral ',' numberLiteral ']'   # GlobalIntValue
+            | 'address' numberLiteral                     # GlobalAddressValue
+
+        Examples:
+          // @pre-execution-global block.timestamp = [1000, 2000]
+          // @pre-execution-global msg.sender = address 1
+        """
+        # 1) 추출: 두 개의 identifier (예: "block", "timestamp")
+        left_id = ctx.identifier(0).getText()  # 예: "block"
+        right_id = ctx.identifier(1).getText()  # 예: "timestamp"
+        global_var_full = f"{left_id}.{right_id}"  # 예: "block.timestamp"
+
+        # 2) 글로벌 변수 유효성 검사 함수 (내부 함수)
         def isValidGlobalVariable(text: str) -> bool:
             valid_globals = {
                 "block.basefee",
                 "block.blobbasefee",
                 "block.chainid",
+                "block.coinbase",
                 "block.difficulty",
                 "block.gaslimit",
                 "block.number",
                 "block.prevrandao",
                 "block.timestamp",
-                "tx.gasprice"
+                "msg.sender",
+                "msg.value",
+                "tx.gasprice",
+                "tx.origin"
             }
             return text in valid_globals
 
-        """
-        Grammar rule:
-          preExecutionGlobal
-            : '//' '@pre-execution-global' identifier '.' identifier '=' numberLiteral
-            ;
-        
-        Example code line:
-          // @pre-execution-global block.timestamp = 999
-        """
-        # 1) 식별자 2개 추출 (예: block, timestamp)
-        left_id = ctx.identifier(0).getText()   # e.g. "block"
-        right_id = ctx.identifier(1).getText()  # e.g. "timestamp"
-
-        # 합쳐서 "block.timestamp"
-        global_var_full = left_id + "." + right_id
-
-        # 2) numberLiteral 추출
-        number_literal_text = ctx.numberLiteral().getText()  # e.g. "999"
-        # 간단히 int 변환 (16진, 10진 여부에 따라 필요한 경우 int(value, 0) 등 사용)
-        # 여기서는 예시로 10진으로만 변환
-        pre_exec_value = int(number_literal_text, 0)   # "0x..." 도 처리하려면 base=0
-
-        # 3) 유효성 검사
         if not isValidGlobalVariable(global_var_full):
             raise ValueError(f"Invalid global variable '{global_var_full}'")
 
-        # 4) ContractAnalyzer에 전달
-        #self.contract_analyzer.process_pre_execution_global(global_var_full, pre_exec_value)
+        # 3) 글로벌 값(globalValue) 처리
+        global_value_ctx = ctx.globalValue()
+        first_child = global_value_ctx.getChild(0).getText()
+
+        if first_child == '[':
+            # GlobalIntValue: [ numberLiteral , numberLiteral ]
+            min_lit = global_value_ctx.numberLiteral(0).getText()
+            max_lit = global_value_ctx.numberLiteral(1).getText()
+            min_val = int(min_lit, 0)  # base=0로 10진/16진 모두 처리
+            max_val = int(max_lit, 0)
+            value = UnsignedIntegerInterval(min_val, max_val, 256)  # 기본 256비트로 가정 (필요시 조정)
+        elif first_child == 'address':
+            # GlobalAddressValue: 'address' numberLiteral
+            addr_lit = global_value_ctx.numberLiteral().getText()
+            # address의 경우 심볼릭한 형태로 처리 (예: "address 1")
+            value = f"address {addr_lit}"
+        else:
+            raise ValueError("Unsupported global value format.")
+
+        # 4) GlobalVariable 객체 생성 (util.py에 정의된 GlobalVariable 사용)
+        global_var_obj = GlobalVariable(
+            identifier=global_var_full,
+            value=value,
+            typeInfo=SolType()
+        )
+        # 타입 정보 설정: 주소 타입이면 "address", 그렇지 않으면 uint로 가정
+        if global_var_full in {"block.coinbase", "msg.sender", "tx.origin"}:
+            global_var_obj.typeInfo.typeCategory = "elementary"
+            global_var_obj.typeInfo.elementaryTypeName = "address"
+        else:
+            global_var_obj.typeInfo.typeCategory = "elementary"
+            global_var_obj.typeInfo.elementaryTypeName = "uint"
+
+        # 5) ContractAnalyzer의 process_pre_execution_global 호출
+        #self.contract_analyzer.process_pre_execution_global(global_var_obj)
+        return None
 
     # Visit a parse tree produced by SolidityParser#GlobalIntValue.
     def visitGlobalIntValue(self, ctx: SolidityParser.GlobalIntValueContext):
