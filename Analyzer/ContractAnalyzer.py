@@ -3277,79 +3277,68 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
-    def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None):
+    def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":
-            return self.evaluate_literal_context(expr, variables, callerObject)
+            return self.evaluate_literal_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IdentifierExpContext" :
-            return self.evaluate_identifier_context(expr, variables, callerObject)
+            return self.evaluate_identifier_context(expr, variables, callerObject, callerContext)
         elif expr.context == 'MemberAccessContext' :
-            return self.evaluate_member_access_context(expr, variables, callerObject)
+            return self.evaluate_member_access_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IndexAccessContext" :
-            return self.evaluate_index_access_context(expr, variables, callerObject)
+            return self.evaluate_index_access_context(expr, variables, callerObject, callerContext)
         elif expr.context == "TypeConversionContext" :
-            return self.evaluate_type_conversion_context(expr, variables, callerObject)
+            return self.evaluate_type_conversion_context(expr, variables, callerObject, callerContext)
         elif expr.context == "ConditionalExpContext" :
-            return self.evaluate_conditional_expression_context(expr, variables, callerObject)
+            return self.evaluate_conditional_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "InlineArrayExpression" :
-            return self.evaluate_inline_array_expression_context(expr, variables, callerObject)
+            return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
 
         # 단항 연산자
         if expr.operator in ['-', '!', '~'] and expr.expression :
-            return self.evaluate_unary_operator(expr, variables, callerObject)
+            return self.evaluate_unary_operator(expr, variables, callerObject, callerContext)
 
         # 이항 연산자
         if expr.left is not None and expr.right is not None :
-            return self.evaluate_binary_operator(expr, variables, callerObject)
+            return self.evaluate_binary_operator(expr, variables, callerObject, callerContext)
 
-    def evaluate_literal_context(self, expr: Expression, variables, callerObject=None):
+    def evaluate_literal_context(self, expr: Expression, variables, callerObject=None, callerContext=None):
         literal_str = expr.literal  # 예: "123", "0x1A", "true", "false", "Hello", ...
         expr_type = expr.expr_type  # 예: 'uint', 'int', 'bool', 'string'
 
         # 1) if we have a callerObject that is an ArrayVariable, and the literal is a digit
         if callerObject is not None :
             if isinstance(callerObject, ArrayVariable) :
-                # 1-1) ArrayVariable
-                if isinstance(callerObject, ArrayVariable):
-                    if literal_str.isdigit() :
-                        # 인덱스로 해석 (음수인지도 체크 가능)
-                        idx = int(literal_str)
-                        if idx < 0 or idx >= len(callerObject.elements):
-                            raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
-                        return callerObject.elements[idx]  # element: Variables, ArrayVariable, etc.
-                    else:
-                        raise ValueError(
-                            f"Array '{callerObject.identifier}' index must be integer literal, got '{literal_str}'")
-            elif isinstance(callerObject, MappingVariable) :
-                if literal_str in callerObject.mapping :
+                if literal_str.isdigit() :
+                    # 인덱스로 해석 (음수인지도 체크 가능)
+                    idx = int(literal_str)
+                    if idx < 0 or idx >= len(callerObject.elements):
+                        raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
+                    return callerObject.elements[idx]  # element: Variables, ArrayVariable, etc.
+                else:
+                    raise ValueError(
+                        f"Array '{callerObject.identifier}' index must be integer literal, got '{literal_str}'")
+
+            # 1-2) MappingVariable
+            elif isinstance(callerObject, MappingVariable):
+                # 맵핑 키로 사용. Solidity에선 key가 uint/address/bytes 등 가능하나,
+                # 여기선 예시로 'string' key 로 처리
+                if literal_str in callerObject.mapping:
                     return callerObject.mapping[literal_str]
-                else :
-                    contract_cfg = self.contract_cfgs[self.current_target_contract]
-                    if not contract_cfg:
-                        raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+                else:
+                    # 새로 엔트리 생성
+                    new_var_obj = self.create_default_mapping_value(callerObject, literal_str)
 
-                    mapVarName = callerObject.identifier
+                    # callerObject.mapping[literal_str] = new_var_obj
+                    # state_variable_node / function_cfg 둘 다 업데이트
+                    self.update_mapping_in_cfg(callerObject.identifier, literal_str, new_var_obj)
 
-                    if mapVarName in contract_cfg.state_variable_node.variables :
-                        mapVar = contract_cfg.state_variable_node.variables[mapVarName]
-                        if mapVar.typeInfo.mappingValueType in ["int", "uint"] :
-                            mapVar.mapping[literal_str] = 0
-                        elif mapVar.typeInfo.mappingValueType == "bool" :
-                            mapVar.mapping[literal_str] = False
+                    return new_var_obj.value
 
-                    function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-                    if not function_cfg:
-                        raise ValueError("No active function to process the require statement.")
+        if callerContext is not None : # callerObject는 없고 callerContext가 있는 경우
+            if callerContext == "IndexAccessContext" : # ident_str이 literal 이면서 IndexAccess면 mapping key 호출 밖에 없을듯?
+                return literal_str
 
-                    if mapVarName in function_cfg.related_variables :
-                        mapVar = function_cfg.related_variables[mapVarName]
-                        if mapVar.typeInfo.mappingValueType in ["int", "uint"] :
-                            mapVar.mapping[literal_str] = 0
-                        elif mapVar.typeInfo.mappingValueType == "bool" :
-                            mapVar.mapping[literal_str] = False
-
-                    return mapVar.mapping[literal_str]
-
-        # 2) callerContext가 None => "실제 계산 대상"이므로, expr_type에 맞춰 Interval(또는 값) 반환
+        # callerObject, callerContext 둘다 없으면 그냥 값 리턴
         if expr_type == "uint":
             # int() with base=0로 파싱해 다양한 16진/10진 포맷 허용
             val = int(literal_str, 0)
@@ -3381,7 +3370,7 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported literal expr_type '{expr_type}'")
 
-    def evaluate_identifier_context(self, expr:Expression, variables, callerObject=None):
+    def evaluate_identifier_context(self, expr:Expression, variables, callerObject=None, callerContext=None):
         ident_str = expr.identifier
 
         if callerObject is not None:
@@ -3389,41 +3378,44 @@ class ContractAnalyzer:
                 if ident_str not in variables:
                     raise ValueError(f"Index identifier '{ident_str}' not found in variables.")
                 index_var_obj = variables[ident_str]
-                if isinstance(index_var_obj, Variables)
+                if isinstance(index_var_obj, Variables) :
                     if index_var_obj.value.min_value == index_var_obj.value.max_value:
                         idx = index_var_obj.value.min_value
                 else :
-                    raise ValueError(f"This excuse should be analyzed :  '{ident_str}'")
+                    raise ValueError(f"This excuse should be analyzed : '{ident_str}'")
 
                 # 경계검사
                 if idx < 0 or idx >= len(callerObject.elements):
                     raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
                 return callerObject.elements[idx]
 
-        else: # callerObject가 없으면 identifier는 변수
-            if ident_str in variables :
-                return variables[ident_str]
-            else :
-                raise ValueError(f"Variable '{expr.identifier}' not found in current context.")
+            elif isinstance(callerObject, StructVariable) :
+                if ident_str not in callerObject.members:
+                    raise ValueError(f"member identifier '{ident_str}' not found in struct variables.")
 
-    def evaluate_member_access_context(self, expr: Expression, variables, callerObject=None):
-        """
-        MemberAccessContext를 평가하여 값을 리턴하는 함수.
-        expr: MemberAccess expression (base와 member를 포함)
-        variables: 현재 변수 상태 딕셔너리
-        callerContext: 호출 context (예: "library" 등, 기본값은 None)
+                var = callerObject.members[ident_str]
 
-        this.something / super.something
+                if isinstance(var, Variables) :
+                    return var.value
 
-        배열의 push/pop → “MemberAccess + FunctionCall”라서 실제 처리 시엔 FunctionCallContext에서 판단
+        # callerObject가 없는 경우
+        if callerContext is not None :
+            if callerContext in ["IndexAccessContext", "MemberAccessContext", "IndexRangeAccessContext"] : # base에 대한 접근
+                if ident_str in variables :
+                    return variables[ident_str] # ArrayVariable, StructVariable 자체를 리턴
+                else :
+                    raise ValueError(f"This '{ident_str}' is may be array or struct but may not be declared")
 
-        interface/contract instance → “객체.상태변수 or 객체.함수()” 형태
+        # callerContext, callerObject 둘다 없는 경우
+        if ident_str in variables: # variables에 있으면
+            return variables[ident_str].value # 해당 value 리턴
+        else:
+            raise ValueError(f"This '{ident_str}' is may be elementary variable but may not be declared")
 
-        (선택) string/bytes => .length (bytes는 가능, string은 최신에선 불가)
-        """
+    def evaluate_member_access_context(self, expr: Expression, variables, callerObject=None, callerContext=None):
 
         # 1. base expression 재귀적으로 평가
-        base_val = self.evaluate_expression(expr.base, variables, "MemberAccessContext")
+        base_val = self.evaluate_expression(expr.base, variables, None, "MemberAccessContext")
         member = expr.member
 
         # 2. 글로벌 변수 접근 (예: block, msg, tx)
@@ -3455,28 +3447,28 @@ class ContractAnalyzer:
             else :
                 ValueError(f"member '{member}' is not global variable member'.")
 
-        elif isinstance(base_val, str) and base_val in variables :
+        elif isinstance(base_val, str) and base_val in variables : # base_val이 variables에 들어있는 경우
             variable_obj = variables[base_val]
+
             # 3. 배열의 내장 속성 접근 (예: myArray.length)
             if isinstance(variable_obj, ArrayVariable) :
-                if isinstance(member, str) :
-                    if member == "length":
-                        # 배열 크기 = elements 길이
-                        length_val = len(variable_obj.elements)
-                        return UnsignedIntegerInterval(length_val, length_val, 256)
+                if member.context == "IdentifierContext" :
+                    memberVal = self.evaluate_expression(member, variables, None, "MemberAccessContext")
+                    if isinstance(memberVal, str) :
+                        if memberVal == "length":
+                            # 배열 크기 = elements 길이
+                            length_val = len(variable_obj.elements)
+                            return UnsignedIntegerInterval(length_val, length_val, 256)
 
             # 4. 구조체 필드 접근 (base가 dict인 경우)
             elif isinstance(variable_obj, StructVariable) :
-                if isinstance(member, Expression) :
-                    if member.context == IndexAccessContext
-                        return
+                if member.context == "IdentifierContext" :
+                    return self.evaluate_expression(member, variables, variable_obj, "MemberAccessContext")
+                elif member.context == "MemberAccessContext" :
+                    memberBaseVal = self.evaluate_expression(member.base, variables, None, "MemberAccessContext")
+                elif member.context == "IndexAccessContext" :
+                    pass
 
-
-                elif isinstance(member, str) :
-                    if member in variable_obj.members :
-                        return variable_obj.members[member]
-                    else :
-                        raise ValueError(f"member '{member}' is not found in struct '{variable_obj.identifier}'.")
 
 
         # 5. 타입 정보 접근 (예: type(uint256).max, type(uint256).min)
@@ -3521,20 +3513,20 @@ class ContractAnalyzer:
         # 9. 만약 위 케이스에 해당하지 않으면 심볼릭하게 표현
         return f"symbolic({base_val}.{member})"
 
-    def evaluate_index_access_context(self, expr, variables, callerObject=None):
+    def evaluate_index_access_context(self, expr, variables, callerObject=None, callerContext=None):
         return
 
-    def evaluate_type_conversion_context(self, expr, variables, callerObject=None):
+    def evaluate_type_conversion_context(self, expr, variables, callerObject=None, callerContext=None):
         return
 
-    def evaluate_conditional_expression_context(self, expr, variables, callerObject=None):
+    def evaluate_conditional_expression_context(self, expr, variables, callerObject=None, callerContext=None):
         return
 
-    def evaluate_inline_array_expression_context(self, expr, variables, callerObject=None):
+    def evaluate_inline_array_expression_context(self, expr, variables, callerObject=None, callerContext=None):
         return
 
-    def evaluate_unary_operator(self, expr, variables, callerObject=None):
-        operand_interval = self.evaluate_expression(expr.expression, variables, "Unary")
+    def evaluate_unary_operator(self, expr, variables, callerObject=None, callerContext=None):
+        operand_interval = self.evaluate_expression(expr.expression, variables, None, "Unary")
         if operand_interval is not None:
             if expr.operator == '-':
                 return operand_interval.negate()
@@ -3545,9 +3537,9 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unable to evaluate operand in unary expression: {expr}")
 
-    def evaluate_binary_operator(self, expr, variables, callerObject=None):
-        leftInterval = self.evaluate_expression(expr.left, variables, "Binary")
-        rightRnterval = self.evaluate_expression(expr.right, variables, "Binary")
+    def evaluate_binary_operator(self, expr, variables, callerObject=None, callerContext=None):
+        leftInterval = self.evaluate_expression(expr.left, variables, None, "Binary")
+        rightInterval = self.evaluate_expression(expr.right, variables, None, "Binary")
         operator = expr.operator
 
         if operator == '+':
@@ -3572,10 +3564,10 @@ class ContractAnalyzer:
                 raise ValueError(f"Unsupported type '{expr.expr_type}' for shift operation")
         # 비교 연산자 처리
         elif operator in ['==', '!=', '<', '>', '<=', '>=']:
-            return self.compare_intervals(left_interval, right_interval, operator)
+            return self.compare_intervals(leftInterval, rightInterval, operator)
         # 논리 연산자 처리
         elif operator in ['&&', '||']:
-            return left_interval.logical_op(right_interval, operator)
+            return leftInterval.logical_op(rightInterval, operator)
         else:
             raise ValueError(f"Unsupported operator '{operator}' in expression: {expr}")
 
