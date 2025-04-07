@@ -502,7 +502,7 @@ class UnsignedIntegerInterval(Interval):
             raise ValueError(f"Unsupported operator: {operator}")
 
     # ---------- 산술 연산 (실제 빼기) ----------
-    def arith_sub(self, other):
+    def subtract(self, other):
         """
         unsigned a - b = [ (a.min - b.max), (a.max - b.min) ]
         단, 결과가 <0이면 0으로 컷? (Solidity에선 언더플로?)
