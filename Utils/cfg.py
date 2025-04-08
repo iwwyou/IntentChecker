@@ -20,7 +20,7 @@ class CFGNode:
 
         self.fixpoint_evaluation_node = fixpoint_evaluation_node
         self.loop_exit_node = loop_exit_node
-        self.is_while_body = False
+        self.is_loop_body = False
         self.fixpoint_evaluation_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태, join 하면서 변하는 변수의 상태
 
         self.statements = []  # 기본 블록 내의 명령어 리스트
@@ -29,7 +29,7 @@ class CFGNode:
         self.function_exit_node = False
         self.return_val = None
 
-    def add_assign_statement(self, variable_obj: Variables, expr: Expression, operator='='):
+    def add_assign_statement(self, variable_obj, expr: Expression, operator):
         """
         변수에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
         :param variable_obj: Variables 객체
@@ -50,65 +50,14 @@ class CFGNode:
         self.variables[variable_obj.identifier] = variable_obj
 
     def add_array_assign_statement(self, variable_obj: ArrayVariable, expr: Expression, operator='='):
-        """
-        배열 변수에 대한 할당문을 CFG에 추가합니다.
-        :param variable_obj: ArrayVariable 객체
-        :param expr: 우변 Expression 객체
-        :param evaluated_value: 배열 요소들의 Interval 값 리스트
-        :param operator: 할당 연산자
-        """
-        assignment_stmt = Statement(
-            statement_type='array_assignment',
-            left=Expression(identifier=variable_obj.identifier),
-            operator=operator,
-            right=expr
-        )
-        self.statements.append(assignment_stmt)
-
-        # 변수 정보 업데이트
-        self.variables[variable_obj.identifier] = variable_obj
+        return
 
     def add_struct_assign_statement(self, variable_obj: StructVariable, expr: Expression, operator='='):
-        """
-        구조체 변수에 대한 할당문을 CFG에 추가합니다.
-        :param variable_obj: StructVariable 객체
-        :param expr: 우변 Expression 객체
-        :param evaluated_value: 구조체 멤버들의 Interval 값 딕셔너리
-        :param operator: 할당 연산자
-        """
-        assignment_stmt = Statement(
-            statement_type='struct_assignment',
-            left=Expression(identifier=variable_obj.identifier),
-            operator=operator,
-            right=expr
-        )
-        self.statements.append(assignment_stmt)
-
-        # 변수 정보 업데이트
-        self.variables[variable_obj.identifier] = variable_obj
+        return
 
     def add_mapping_assign_statement(self, mapping_var: MappingVariable, left_expr: Expression,
                                      right_expr: Expression, operator='='):
-        """
-        매핑 변수의 특정 키에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
-        :param mapping_var: MappingVariable 객체 (매핑 변수)
-        :param element_var: Variables 객체 (매핑의 특정 키에 해당하는 변수)
-        :param left_expr: 좌변 Expression 객체
-        :param right_expr: 우변 Expression 객체
-        :param evaluated_value: 우변 표현식을 평가한 값
-        :param operator: 할당 연산자
-        """
-        # Statement 생성
-        assignment_stmt = Statement(
-            statement_type='mapping_assignment',
-            left=left_expr,
-            operator=operator,
-            right=right_expr
-        )
-        self.statements.append(assignment_stmt)
-
-        # 매핑 변수의 정보 업데이트는 필요에 따라 수행
-        self.variables[mapping_var.identifier] = mapping_var
+        return
 
     def add_function_call_statement(self, function_expr: Expression, evaluated_value=None):
         """
@@ -292,45 +241,7 @@ class FunctionCFG(CFG):
             raise ValueError(f"There is no {block_node} in functionCFG")
 
     def add_related_variable(self, variable_obj):
-        # 배열 타입 처리
-        if isinstance(variable_obj, ArrayVariable):
-            # 배열은 각 요소를 따로 처리해야 함
-            if not variable_obj.elements:
-                initial_interval = IntegerInterval() if variable_obj.typeInfo.arrayBaseType.elementaryTypeName.startswith(
-                    "int") \
-                    else UnsignedIntegerInterval()  # 기본 interval 설정
-                variable_obj.initialize_elements(initial_interval)
-            self.related_variables[variable_obj.identifier] = variable_obj
-
-        # 구조체 타입 처리
-        elif isinstance(variable_obj, StructVariable):
-            # 구조체 멤버 변수들 처리
-            for member_name, member_var in variable_obj.members.items():
-                self.add_related_variable(member_var)  # 각 멤버 변수에 대해 재귀적으로 처리
-
-        # 기본 elementary 타입 처리 (로컬 변수)
-        elif variable_obj.scope == 'local':
-            # int 또는 uint 타입 처리
-            if variable_obj.typeInfo.elementaryTypeName.startswith("int"):
-                if variable_obj.value is None:
-                    interval = IntegerInterval()
-                    variable_obj.value = interval.bottom()  # IntegerInterval의 기본 bottom 값
-
-            elif variable_obj.typeInfo.elementaryTypeName.startswith("uint"):
-                if variable_obj.value is None:
-                    interval = UnsignedIntegerInterval()
-                    variable_obj.value = interval.bottom()  # UnsignedIntegerInterval의 기본 bottom 값
-
-            # bool 타입 처리
-            elif variable_obj.typeInfo.elementaryTypeName == "bool":
-                if variable_obj.value is None:
-                    variable_obj.value = BoolInterval.bottom()  # BooleanInterval의 기본 bottom 값
-
-            self.related_variables[variable_obj.identifier] = variable_obj
-
-        else :
-            self.related_variables[variable_obj.identifier] = variable_obj
-
+        self.related_variables[variable_obj.identifier] = variable_obj
 
     def get_predecessor_node(self, cfg_node):
         if self.graph.has_node(cfg_node) :

@@ -280,6 +280,7 @@ class EnumVariable(Variables):
         self.typeInfo.enumTypeName = enum_type  # 열거형 이름
         self.members = {}  # 멤버 변수들: 멤버명 -> 정수 값 (열거형의 각 멤버는 정수 값에 매핑됨)
         self.value = None  # 현재 설정된 멤버의 이름
+        self.valueIndex = None
 
     def set_member_value(self, member_name):
         """
