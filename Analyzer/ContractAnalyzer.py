@@ -399,9 +399,6 @@ class ContractAnalyzer:
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        # 2. abstract interpretation 수행
-        interval_result = None
-
         # 우변 표현식을 저장하기 위해 init_expr를 확인
         if init_expr is None: # 초기화가 없으면
             if isinstance(variable_obj, ArrayVariable) :
@@ -414,11 +411,11 @@ class ContractAnalyzer:
                 elif variable_obj.typeInfo.arrayBaseType in ["address", "address payable", "string", "bytes", "Byte", "Fixed", "Ufixed"] :
                     variable_obj.initialize_elements_of_not_abstracted_type(variable_obj.identifier)
             elif isinstance(variable_obj, StructVariable) :
-                if variable_obj.struct_type in contract_cfg.structDefs.keys() :
-                    struct_def = contract_cfg.structDefs[variable_obj.struct_type]
+                if variable_obj.typeInfo.structTypeName in contract_cfg.structDefs.keys():
+                    struct_def = contract_cfg.structDefs[variable_obj.typeInfo.structTypeName]
                     variable_obj.initialize_struct(struct_def)
                 else :
-                    ValueError(f"This struct def {variable_obj.struct_type} is undefined")
+                    ValueError(f"This struct def {variable_obj.typeInfo.structTypeName} is undefined")
             elif isinstance(variable_obj, MappingVariable) :
                 pass
             elif isinstance(variable_obj,EnumVariable) :
@@ -430,7 +427,7 @@ class ContractAnalyzer:
                     variable_obj.value = str('symbol' + variable_obj.identifier)
         else : # 초기화 식이 있으면
             if isinstance(variable_obj, ArrayVariable) :
-                inlineArrayValues = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None)
+                inlineArrayValues = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None, None)
 
                 for value in inlineArrayValues :
                     variable_obj.elements.append(value)
@@ -439,7 +436,7 @@ class ContractAnalyzer:
             elif isinstance(variable_obj, MappingVariable) : # 관련된 경우 없을 듯
                 pass
             elif variable_obj.typeCategory == "elementary" :
-                variable_obj.value = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None)
+                variable_obj.value = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None, None)
 
         # 4. 상태 변수를 ContractCFG에 추가
         contract_cfg.add_state_variable(variable_obj, expr=init_expr)
@@ -662,20 +659,49 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 선언 시 초기화 값이 없는 경우 처리
-        if init_expr is None:
-            # 초기화 값이 없는 경우 기본 Interval 설정
-            interval = self.calculate_default_interval(variable_obj.typeInfo.elementaryTypeName)
-            variable_obj.value = interval  # 기본 interval 설정
+        # 우변 표현식을 저장하기 위해 init_expr를 확인
+        if init_expr is None:  # 초기화가 없으면
+            if isinstance(variable_obj, ArrayVariable):
+                if variable_obj.typeInfo.arrayBaseType.startswith("int"):
+                    variable_obj.initialize_elements(IntegerInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType.startswith("uint"):
+                    variable_obj.initialize_elements(UnsignedIntegerInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType.startswith("bool"):
+                    variable_obj.initialize_elements(BoolInterval.bottom())
+                elif variable_obj.typeInfo.arrayBaseType in ["address", "address payable", "string", "bytes", "Byte",
+                                                             "Fixed", "Ufixed"]:
+                    variable_obj.initialize_elements_of_not_abstracted_type(variable_obj.identifier)
+            elif isinstance(variable_obj, StructVariable):
+                if variable_obj.typeInfo.structTypeName in contract_cfg.structDefs.keys():
+                    struct_def = contract_cfg.structDefs[variable_obj.typeInfo.structTypeName]
+                    variable_obj.initialize_struct(struct_def)
+                else:
+                    ValueError(f"This struct def {variable_obj.struct_type} is undefined")
+            elif isinstance(variable_obj, MappingVariable): # 동적으로 할당되서 선언이 딱히 없음
+                pass
+            elif isinstance(variable_obj, EnumVariable):
+                if variable_obj.typeInfo.enumTypeName in contract_cfg_enumDefs.keys() :
 
-            # 우변 표현식 생성 (리터럴 값)
-            expr = Expression(literal=interval)
-            # Statement에 우변 표현식과 평가된 Interval 값을 함께 저장
-            current_block.add_assign_statement(variable_obj, expr)
+            elif variable_obj.typeCategory == "elementary":
+                if variable_obj.elementaryTypeName.startswith("int", "uint", "bool"):
+                    variable_obj.value = self.calculate_default_interval(variable_obj.elementaryTypeName)
+                elif variable_obj.elementaryTypeName in ["address", "address payable", "string", "bytes", "Byte",
+                                                         "Fixed", "Ufixed"]:
+                    variable_obj.value = str('symbol' + variable_obj.identifier)
 
-        else:
-            if init_expr.context == 'FunctionCallContext':
-                return_var = self.function_abstract_interpretation(init_expr)
+        else : # 초기화 식이 있으면
+            if isinstance(variable_obj, ArrayVariable) :
+                inlineArrayValues = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None)
+                for value in inlineArrayValues :
+                    variable_obj.elements.append(value)
+            elif isinstance(variable_obj, StructVariable) : # 관련된 경우 없을듯
+                pass
+            elif isinstance(variable_obj, MappingVariable) : # 관련된 경우 없을 듯
+                pass
+            elif variable_obj.typeCategory == "elementary" :
+                variable_obj.value = self.evaluate_expression(init_expr, contract_cfg.state_variable_node.variables, None)
+
+
 
         # 11. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -3292,6 +3318,8 @@ class ContractAnalyzer:
             return self.evaluate_conditional_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "InlineArrayExpression" :
             return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "FunctionCallContext" :
+            return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
 
         # 단항 연산자
         if expr.operator in ['-', '!', '~'] and expr.expression :
@@ -3550,14 +3578,130 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"There is no index expression")
 
-
     def evaluate_type_conversion_context(self, expr, variables, callerObject=None, callerContext=None):
-        return
+        """
+        expr: Expression(operator='type_conversion', type_name=..., expression=subExpr, context='TypeConversionContext')
+        예:  'uint256(x)', 'int8(y)', 'bool(z)', 'address w' 등
+
+        1) sub_val = evaluate_expression(expr.expression, variables, None, "TypeConversion")
+        2) if type_name.startswith('uint'):  -> UnsignedIntegerInterval로 클램핑
+           if type_name.startswith('int'):   -> IntegerInterval로 클램핑
+           if type_name == 'bool':           -> 0이면 False, 나머지면 True (또는 Interval [0,1])
+           if type_name == 'address':        -> int/Interval -> symbolic address, string '0x...' 등등
+        3) 반환
+        """
+
+        type_name = expr.type_name  # 예: "uint256", "int8", "bool", "address"
+        sub_val = self.evaluate_expression(expr.expression, variables, None, "TypeConversion")
+
+        # 1) 우선 sub_val이 Interval(혹은 BoolInterval), str, etc. 중 어느 것인가 확인
+        #    편의상, 아래에서 Interval이면 클램핑, BoolInterval이면 bool 변환 등 처리
+
+        # a. bool, int, uint, address 등으로 나누어 처리
+        if type_name.startswith("uint"):
+            # 예: "uint256", "uint8" 등
+            # 1) bits 추출
+            bits_str = "".join(ch for ch in type_name[4:] if ch.isdigit())  # "256" or "8" 등
+            bits = int(bits_str) if bits_str else 256
+
+            # 2) sub_val이 IntegerInterval/UnsignedIntegerInterval 이라면:
+            #    - 음수 부분은 0으로 clamp
+            #    - 상한은 2^bits - 1로 clamp
+            #    - 만약 sub_val이 BoolInterval, string, etc. => 대략 변환 로직 / symbolic
+            return self.convert_to_uint(sub_val, bits)
+
+        elif type_name.startswith("int"):
+            # 예: "int8", "int256"
+            bits_str = "".join(ch for ch in type_name[3:] if ch.isdigit())
+            bits = int(bits_str) if bits_str else 256
+            return self.convert_to_int(sub_val, bits)
+
+        elif type_name == "bool":
+            # sub_val이 Interval이면:
+            #   == 0 => bool false
+            #   != 0 => bool true
+            # 범위 넓으면 [0,1]
+            return self.convert_to_bool(sub_val)
+
+        elif type_name == "address":
+            # sub_val이 Interval이면 "address( interval )" → symbolic?
+            # sub_val이 string "0x..." -> parse or symbolic
+            return self.convert_to_address(sub_val)
+
+        else:
+            # 그 외( bytesNN, string, etc. ) => 필요 시 구현
+            return f"symbolicTypeConversion({type_name}, {sub_val})"
 
     def evaluate_conditional_expression_context(self, expr, variables, callerObject=None, callerContext=None):
-        return
+        """
+        삼항 연산자 (condition ? true_expr : false_expr)
+        expr: Expression(
+          condition=...,  # condition expression
+          true_expr=...,  # true-branch expression
+          false_expr=..., # false-branch expression
+          operator='?:',
+          context='ConditionalExpContext'
+        )
+        """
+
+        # 1) 조건식 해석
+        cond_val = self.evaluate_expression(expr.condition, variables, None, "ConditionalCondition")
+        # cond_val이 BoolInterval일 가능성이 높음
+        # 다른 경우(Interval 등) => symbolic or 0≠0 ?
+
+        if isinstance(cond_val, BoolInterval):
+            # (a) cond_val이 [1,1] => 항상 true
+            if cond_val.min_value == 1 and cond_val.max_value == 1:
+                return self.evaluate_expression(expr.true_expr, variables, callerObject, "ConditionalExp")
+
+            # (b) cond_val이 [0,0] => 항상 false
+            if cond_val.min_value == 0 and cond_val.max_value == 0:
+                return self.evaluate_expression(expr.false_expr, variables, callerObject, "ConditionalExp")
+
+            # (c) cond_val이 [0,1] => 부분적 => 두 branch 모두 해석 후 join
+            true_val = self.evaluate_expression(expr.true_expr, variables, callerObject, "ConditionalExp")
+            false_val = self.evaluate_expression(expr.false_expr, variables, callerObject, "ConditionalExp")
+
+            # 두 결과가 모두 Interval이면 => join
+            # (IntegerInterval, UnsignedIntegerInterval, BoolInterval 등)
+            if (hasattr(true_val, 'join') and hasattr(false_val, 'join')
+                    and type(true_val) == type(false_val)):
+                return true_val.join(false_val)
+            else:
+                # 타입이 다르거나, join 메서드 없는 경우 => symbolic
+                return f"symbolicConditional({true_val}, {false_val})"
+
+        # 2) cond_val이 BoolInterval가 아님 => symbolic
+        # 예: cond_val이 IntegerInterval => 0이 아닌 값은 true?
+        # 여기서는 간단히 [0,∞]? => partial => symbolic
+        return f"symbolicConditionalCondition({cond_val})"
 
     def evaluate_inline_array_expression_context(self, expr, variables, callerObject=None, callerContext=None):
+        """
+        expr: Expression(
+           elements = [ expr1, expr2, ... ],
+           expr_type = 'array',
+           context   = 'InlineArrayExpressionContext'
+        )
+
+        이 배열 표현식은 예: [1,2,3], [0x123, 0x456], [true, false], ...
+        각 요소를 재귀적으로 evaluate_expression으로 해석하고, 그 결과들을 리스트로 만든다.
+        """
+
+        results = []
+        for elem_expr in expr.elements:
+            # 각 요소를 재귀 해석
+            # callerObject, callerContext는 "inline array element"로 명시
+            val = self.evaluate_expression(elem_expr, variables, None, "InlineArrayElement")
+            results.append(val)
+
+        # -- 2) 여기서 optional로, 모든 요소가 Interval인지, BoolInterval인지, etc.를 확인해
+        #       "동일한 타입"인지 검사하거나, 적절히 symbolic 처리할 수도 있음.
+        # 여기서는 단순히 그대로 반환
+
+        return results
+
+    def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
         return
 
     def evaluate_unary_operator(self, expr, variables, callerObject=None, callerContext=None):
@@ -3621,6 +3765,146 @@ class ContractAnalyzer:
 
     def evaluate_struct_expression(self, variable_obj, init_expr):
         return
+
+    def convert_to_uint(self, sub_val, bits):
+        """
+        sub_val을 uintN 범위[0..(2^bits-1)]로 클램핑
+        """
+        type_max = 2 ** bits - 1
+
+        # Interval(UnsignedIntegerInterval or IntegerInterval)인 경우
+        if isinstance(sub_val, UnsignedIntegerInterval) or isinstance(sub_val, IntegerInterval):
+            # min_value < 0 => clamp to 0
+            new_min = max(0, sub_val.min_value)
+            new_max = min(type_max, sub_val.max_value)
+            if new_min > new_max:
+                # 불가능 => bottom
+                return UnsignedIntegerInterval(None, None, bits)
+
+            return UnsignedIntegerInterval(new_min, new_max, bits)
+
+        elif isinstance(sub_val, BoolInterval):
+            # false => [0,0], true => [1,1], top => [0,1]
+            # clamp to [0..1] (여전히 uintN 범위는 가능하니 문제 없음)
+            if sub_val.min_value == 1 and sub_val.max_value == 1:
+                return UnsignedIntegerInterval(1, 1, bits)
+            elif sub_val.min_value == 0 and sub_val.max_value == 0:
+                return UnsignedIntegerInterval(0, 0, bits)
+            else:
+                # [0,1]
+                return UnsignedIntegerInterval(0, 1, bits)
+
+        elif isinstance(sub_val, str):
+            # string -> parse as decimal? hex?
+            # 간단히 symbolic
+            return f"symbolicUint{bits}({sub_val})"
+
+        else:
+            # fallback
+            return f"symbolicUint{bits}({sub_val})"
+
+    def convert_to_int(self, sub_val, bits):
+        """
+        sub_val을 intN 범위[-2^(bits-1) .. 2^(bits-1)-1]로 클램핑
+        """
+        type_min = -(2 ** (bits - 1))
+        type_max = (2 ** (bits - 1)) - 1
+
+        # Interval
+        if isinstance(sub_val, IntegerInterval) or isinstance(sub_val, UnsignedIntegerInterval):
+            new_min = max(type_min, sub_val.min_value)
+            new_max = min(type_max, sub_val.max_value)
+            if new_min > new_max:
+                # bottom
+                return IntegerInterval(None, None, bits)
+            return IntegerInterval(new_min, new_max, bits)
+
+        elif isinstance(sub_val, BoolInterval):
+            # false => [0,0], true => [1,1], top => [0,1]
+            # clamp to [-2^(bits-1), 2^(bits-1)-1]
+            if sub_val.min_value == 1 and sub_val.max_value == 1:
+                val = 1
+                if val < type_min or val > type_max:
+                    # bottom
+                    return IntegerInterval(None, None, bits)
+                return IntegerInterval(val, val, bits)
+            elif sub_val.min_value == 0 and sub_val.max_value == 0:
+                val = 0
+                if val < type_min or val > type_max:
+                    return IntegerInterval(None, None, bits)
+                return IntegerInterval(val, val, bits)
+            else:
+                # [0,1]
+                # => [0,1] intersect with [type_min..type_max]
+                new_min = max(type_min, 0)
+                new_max = min(type_max, 1)
+                if new_min > new_max:
+                    return IntegerInterval(None, None, bits)
+                return IntegerInterval(new_min, new_max, bits)
+
+        elif isinstance(sub_val, str):
+            # parse or symbolic
+            return f"symbolicInt{bits}({sub_val})"
+
+        else:
+            return f"symbolicInt{bits}({sub_val})"
+
+    def convert_to_bool(self, sub_val):
+        """
+        int/uint interval -> 0 => false, !=0 => true => [0,1] 형태
+        """
+        if isinstance(sub_val, IntegerInterval) or isinstance(sub_val, UnsignedIntegerInterval):
+            if sub_val.is_bottom():
+                return BoolInterval(None, None)
+            # if entire range is strictly 0..0 => false
+            if sub_val.min_value == 0 and sub_val.max_value == 0:
+                return BoolInterval(0, 0)
+            # if entire range is non-zero => true => [1,1]
+            if sub_val.min_value > 0:
+                return BoolInterval(1, 1)
+            # if partial includes 0 and nonzero => [0,1]
+            return BoolInterval(0, 1)
+
+        elif isinstance(sub_val, BoolInterval):
+            # 이미 bool => 그대로 반환 가능
+            return sub_val
+
+        elif isinstance(sub_val, str):
+            # string => symbolic bool
+            return BoolInterval(0, 1)
+
+        # fallback
+        return BoolInterval(0, 1)
+
+    def convert_to_address(self, sub_val):
+        """
+        address(...) 변환 예시:
+        - int interval => symbolic address, 단일값 => 'address(0x..)'?
+        - string => if startswith("0x") => parse? else symbolic
+        """
+        # 실무에선 address는 160bit => [0..2^160-1]
+        # 여기선 간단히 symbolic
+        if isinstance(sub_val, IntegerInterval) or isinstance(sub_val, UnsignedIntegerInterval):
+            if sub_val.min_value == sub_val.max_value:
+                # 단일 값 => e.g. 'address(12345)'
+                return f"address({sub_val.min_value})"
+            else:
+                # symbolic
+                return f"symbolicAddressInterval([{sub_val.min_value}, {sub_val.max_value}])"
+
+        elif isinstance(sub_val, str):
+            # 간단히 '0x'로 시작하면 주소로 간주?
+            if sub_val.startswith("0x"):
+                return sub_val  # already address string
+            else:
+                return f"symbolicAddress({sub_val})"
+
+        elif isinstance(sub_val, BoolInterval):
+            # bool -> address => symbolic
+            return f"symbolicAddressFromBool({sub_val})"
+
+        else:
+            return f"symbolicAddress({sub_val})"
 
     def evaluate_binary_operator_of_index(self, result, callerObject):
         # 2) callerObject가 ArrayVariable이면 => 인덱스 접근 결과로 해석
@@ -3937,67 +4221,92 @@ class ContractAnalyzer:
             self.update_variables_with_condition(variables, left_expr, is_true_branch)
             self.update_variables_with_condition(variables, right_expr, is_true_branch)
 
-    def function_abstract_interpretation(self, function_expr, current_variables):
+    def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
         """
-        주어진 함수 호출 표현식을 abstract interpretation하여 반환 값을 돌려줍니다.
-        :param function_expr: Expression 객체 (FunctionCallContext)
-        :param current_variables: 현재 변수 상태 딕셔너리
-        :return: 함수의 반환 값 (Interval 또는 기타 값)
-        """
-        # 1. 호출할 함수 이름 추출
-        if function_expr.function.identifier:
-            function_name = function_expr.function.identifier
-        else:
-            raise ValueError("Unsupported function expression for function call.")
+        expr: Expression(
+           context='FunctionCallContext',
+           function=<Expression for the function identifier or memberAccess>,
+           arguments=[ expr1, expr2, ... ],
+           named_arguments={ 'key': exprN, ... },
+           ...
+        )
 
-        # 2. 현재 컨트랙트의 CFG 가져오기
+        1) 함수 이름 / 컨트랙트 CFG 찾기
+        2) 함수 CFG 가져오기
+        3) 파라미터 개수-인자 개수 매핑
+        4) interpret_function_cfg
+        5) 결과 반환
+        """
+
+        # 1) 함수 이름(또는 멤버 접근)
+        #    간단 케이스: expr.function.identifier가 존재 => function name
+        if expr.function and expr.function.identifier:
+            function_name = expr.function.identifier
+        else:
+            # 멤버 접근 / symbolic => 여기서는 간단히 에러 or symbolic
+            return f"symbolicFunctionCall({expr.function})"
+
+        # 2) 현재 컨트랙트 CFG 가져오기
         contract_cfg = self.contract_cfgs.get(self.current_target_contract)
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
+        # 3) 함수 CFG 가져오기
         function_cfg = contract_cfg.get_function_cfg(function_name)
         if not function_cfg:
-            raise ValueError(f"Function '{function_name}' not found in contract '{self.current_target_contract}'.")
+            return f"symbolicFunctionCall({function_name})"  # 또는 에러
 
-        # 이전 함수 컨텍스트 저장
-        saved_current_target_function = self.current_target_function
-        self.current_target_function = function_name
+        # 4) 함수 파라미터와 인자 매핑
+        #    expr.arguments -> 위치 기반 인자
+        #    expr.named_arguments -> 키워드 인자
+        arguments = expr.arguments if expr.arguments else []
+        named_arguments = expr.named_arguments if expr.named_arguments else {}
 
-        # 3. 함수 파라미터, 인자 매핑
-        function_params = function_cfg.parameters
-        arguments = function_expr.arguments if function_expr.arguments else []
-        named_arguments = function_expr.named_arguments if function_expr.named_arguments else {}
+        # 파라미터 목록 (이 예시에서는 function_cfg.parameters를 [paramName1, paramName2, ...]로 가정)
+        param_names = getattr(function_cfg, 'parameters', [])
+        # 또는 function_cfg가 paramName->type인 dict라면 list(paramName->type) 식으로 바꿔야 함
 
-        total_params = len(function_params)
+        total_params = len(param_names)
         total_args = len(arguments) + len(named_arguments)
         if total_params != total_args:
-            raise ValueError(f"Argument count mismatch in function call to '{function_name}'.")
+            raise ValueError(f"Argument count mismatch in function call to '{function_name}': "
+                             f"expected {total_params}, got {total_args}.")
 
-        # function_cfg.related_variables 내 파라미터 변수들에 인자값 할당
-        for param_name, arg_expr in zip(function_params, arguments):
-            arg_value = self.evaluate_expression(arg_expr, current_variables)
+        # 현재 함수 컨텍스트 저장
+        saved_function = self.current_target_function
+        self.current_target_function = function_name
+
+        # 5) 인자 해석
+        #    순서 기반 인자
+        for i, arg_expr in enumerate(arguments):
+            param_name = param_names[i]
+            arg_val = self.evaluate_expression(arg_expr, variables, None, f"CallArg({function_name})")
+
+            # function_cfg 내부의 related_variables에 param_name이 있어야
             if param_name in function_cfg.related_variables:
-                function_cfg.related_variables[param_name].value = arg_value
+                function_cfg.related_variables[param_name].value = arg_val
             else:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
 
-        for param_name, arg_expr in named_arguments.items():
-            if param_name not in function_params:
-                raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}'.")
-            arg_value = self.evaluate_expression(arg_expr, current_variables)
-            if param_name in function_cfg.related_variables:
-                function_cfg.related_variables[param_name].value = arg_value
-            else:
-                raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
+        #    named 인자
+        #    (예: foo(a=1,b=2)) => paramName->index 매핑이 필요할 수 있음
+        #    여기서는 paramName가 function_cfg.parameters[i]와 동일한지 가정
+        param_offset = len(arguments)
+        for i, (key, expr_val) in enumerate(named_arguments.items()):
+            if key not in param_names:
+                raise ValueError(f"Unknown named parameter '{key}' in function '{function_name}'.")
+            arg_val = self.evaluate_expression(expr_val, variables, None, f"CallNamedArg({function_name})")
 
-        # 4. 함수 CFG 해석
-        # 함수 CFG를 재귀적으로 해석
-        # interpret_function_cfg가 함수 해석 로직을 가지고 있으며,
-        # 함수 내에서 또 다른 함수 호출 시 function_abstract_interpretation이 재귀 호출될 수 있음
+            if key in function_cfg.related_variables:
+                function_cfg.related_variables[key].value = arg_val
+            else:
+                raise ValueError(f"Parameter '{key}' not found in function '{function_name}' variables.")
+
+        # 6) 실제 함수 CFG 해석
         return_value = self.interpret_function_cfg(function_cfg)
 
-        # 컨텍스트 복원
-        self.current_target_function = saved_current_target_function
+        # 7) 함수 컨텍스트 복원
+        self.current_target_function = saved_function
 
         return return_value
 

@@ -195,6 +195,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                                            key_type=type_obj.mappingKeyType,
                                            value_type=type_obj.mappingValueType,
                                            scope='state')
+        elif type_obj.typeCategory == 'enum' :
+            variable_obj = EnumVariable(identifier=var_name,
+                                        enum_type=type_obj.enumTypeName,
+                                        scope='state')
         else:
             variable_obj = Variables(identifier=var_name, scope='state')
             variable_obj.typeInfo = type_obj
