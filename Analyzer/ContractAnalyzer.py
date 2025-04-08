@@ -3373,8 +3373,9 @@ class ContractAnalyzer:
     def evaluate_identifier_context(self, expr:Expression, variables, callerObject=None, callerContext=None):
         ident_str = expr.identifier
 
+        # callerObject가 있는 경우
         if callerObject is not None:
-            if isinstance(callerObject, ArrayVariable) :
+            if isinstance(callerObject, ArrayVariable) : # ident_Str이 index면 index별 join 필요 (index의 interval 크기, array의 길이 참조)
                 if ident_str not in variables:
                     raise ValueError(f"Index identifier '{ident_str}' not found in variables.")
                 index_var_obj = variables[ident_str]
@@ -3395,14 +3396,27 @@ class ContractAnalyzer:
 
                 var = callerObject.members[ident_str]
 
-                if isinstance(var, Variables) :
+                if isinstance(var, Variables) : # int, uint, bool이면 interval address, string이면 symbol을 리턴
                     return var.value
+                else : # ArrayVariable, StructVariable
+                    return var # var 자체를 리턴 (배열, 다른 구조체일 수 있음)
 
-        # callerObject가 없는 경우
+            elif isinstance(callerObject, EnumDefinition) :
+                for enumMemberIndex in range(len(callerObject.members)) :
+                    if ident_str == callerObject.members[enumMemberIndex] :
+                        return enumMemberIndex
+
+                raise ValueError(f"This '{ident_str}' may not be included in enum def '{callerObject.enum_name}'")
+
+        # callerObject가 없고 callerContext는 있는 경우
         if callerContext is not None :
-            if callerContext in ["IndexAccessContext", "MemberAccessContext", "IndexRangeAccessContext"] : # base에 대한 접근
+            if callerContext == "MemberAccessContext" : # base에 대한 접근
                 if ident_str in variables :
-                    return variables[ident_str] # ArrayVariable, StructVariable 자체를 리턴
+                    return variables[ident_str] # MappingVariable, StructVariable 자체를 리턴
+                elif ident_str in ["block", "tx", "msg", "address", "code"] :
+                    return ident_str # block, tx, msg를 리턴
+                elif ident_str in self.contract_cfgs[self.current_target_contract].enumDefs : # EnumDef 리턴
+                    return self.contract_cfgs[self.current_target_contract].enumDefs[ident_str]
                 else :
                     raise ValueError(f"This '{ident_str}' is may be array or struct but may not be declared")
 
@@ -3419,8 +3433,8 @@ class ContractAnalyzer:
         member = expr.member
 
         # 2. 글로벌 변수 접근 (예: block, msg, tx)
-        if isinstance(base_val, str) and base_val in ["block", "msg", "tx"]:
-            if isinstance(member, str) :
+        if isinstance(base_val, str) :
+            if base_val in ["block", "msg", "tx"]:
                 full_name = f"{base_val}.{member}"
                 # 예시 글로벌 변수 매핑 (실제 구현 시 더 구체적인 값/Interval 필요)
                 contract_cfg = self.contract_cfgs.get(self.current_target_contract)
@@ -3444,32 +3458,37 @@ class ContractAnalyzer:
                         "tx.origin": "address 10"
                     }
                     return global_map[full_name]
+
+            elif member == "code" : # base_Val이 str 이면서 member가 code면 address.code 형태
+                return member
+
+            elif base_val == "code" :
+                if member == "length" :
+                    return UnsignedIntegerInterval(1000, 1000, 256)
             else :
                 ValueError(f"member '{member}' is not global variable member'.")
 
-        elif isinstance(base_val, str) and base_val in variables : # base_val이 variables에 들어있는 경우
-            variable_obj = variables[base_val]
+        elif isinstance(base_val, ArrayVariable) :
+            if member == "length" : # myArray.length
+                length_val = len(base_val.elements)
+                return UnsignedIntegerInterval(length_val, length_val, 256)
 
-            # 3. 배열의 내장 속성 접근 (예: myArray.length)
-            if isinstance(variable_obj, ArrayVariable) :
-                if member.context == "IdentifierContext" :
-                    memberVal = self.evaluate_expression(member, variables, None, "MemberAccessContext")
-                    if isinstance(memberVal, str) :
-                        if memberVal == "length":
-                            # 배열 크기 = elements 길이
-                            length_val = len(variable_obj.elements)
-                            return UnsignedIntegerInterval(length_val, length_val, 256)
+        elif isinstance(base_val, StructVariable) :
+            if member in base_val.members :
+                nestedMember = base_val.members[member]
+                if isinstance(nestedMember, Variables) :
+                    return nestedMember.value # Variable 객체 이므로 Interval 값 등의 value를 리턴
+                else : # ArrayVariable, StructVariable, MappingVariable, EnumVariable
+                    return nestedMember # 구조체 안에 member가 ArrayVariable, StructVariable 등인경우
+            else :
+                raise ValueError(f"This member '{member}' is not included in struct '{base_val}'")
 
-            # 4. 구조체 필드 접근 (base가 dict인 경우)
-            elif isinstance(variable_obj, StructVariable) :
-                if member.context == "IdentifierContext" :
-                    return self.evaluate_expression(member, variables, variable_obj, "MemberAccessContext")
-                elif member.context == "MemberAccessContext" :
-                    memberBaseVal = self.evaluate_expression(member.base, variables, None, "MemberAccessContext")
-                elif member.context == "IndexAccessContext" :
-                    pass
+        elif isinstance(base_val, EnumDefinition) : # 이거 좀 수정해야됨
+            for enumMemberIndex in range(len(base_val.members)) :
+                if member == base_val.members[enumMemberIndex] :
+                    return enumMemberIndex
 
-
+        #elif isinstance(base_val, MappingVariable) : #base_Val이 Mapping이면서 value type이 enum, struct 인경우
 
         # 5. 타입 정보 접근 (예: type(uint256).max, type(uint256).min)
         if isinstance(base_val, dict) and base_val.get("isType", False):
@@ -3514,7 +3533,23 @@ class ContractAnalyzer:
         return f"symbolic({base_val}.{member})"
 
     def evaluate_index_access_context(self, expr, variables, callerObject=None, callerContext=None):
-        return
+        """
+        해석 로직:
+          1) base_val = evaluate_expression(expr.base, variables, ..., callerContext="IndexAccessContext")
+          2) index_val = evaluate_expression(expr.index, variables, callerObject=base_val, callerContext="IndexAccessContext")
+          3) base_val이 ArrayVariable이면 -> arrayVar.elements[index]
+             base_val이 MappingVariable이면 -> mappingVar.mapping[indexKey]
+             그 외 -> symbolic/error
+        """
+
+        # 1) base 해석
+        base_val = self.evaluate_expression(expr.base, variables, None, "IndexAccessContext")
+
+        if expr.index is not None:
+            return self.evaluate_expression(expr.index, variables, base_val, "IndexAccessContext")
+        else:
+            raise ValueError(f"There is no index expression")
+
 
     def evaluate_type_conversion_context(self, expr, variables, callerObject=None, callerContext=None):
         return
@@ -3542,35 +3577,41 @@ class ContractAnalyzer:
         rightInterval = self.evaluate_expression(expr.right, variables, None, "Binary")
         operator = expr.operator
 
+        result = None
+
         if operator == '+':
-            return leftInterval.add(rightInterval)
+            result = leftInterval.add(rightInterval)
         elif operator == '-':
-            return leftInterval.subtract(rightInterval)
+            result = leftInterval.subtract(rightInterval)
         elif operator == '*':
-            return leftInterval.multiply(rightInterval)
+            result = leftInterval.multiply(rightInterval)
         elif operator == '/':
-            return leftInterval.divide(rightInterval)
+            result = leftInterval.divide(rightInterval)
         elif operator == '%':
-            return leftInterval.modulo(rightInterval)
+            result = leftInterval.modulo(rightInterval)
         elif operator == '**':
-            return leftInterval.exponentiate(rightInterval)
+            result = leftInterval.exponentiate(rightInterval)
         # 시프트 연산자 처리
         elif operator in ['<<', '>>', '>>>']:
             if 'int' in expr.expr_type:
-                return IntegerInterval.shift(leftInterval, rightInterval, operator)
+                result = IntegerInterval.shift(leftInterval, rightInterval, operator)
             elif 'uint' in expr.expr_type:
-                return UnsignedIntegerInterval.shift(leftInterval, rightInterval, operator)
+                result = UnsignedIntegerInterval.shift(leftInterval, rightInterval, operator)
             else:
                 raise ValueError(f"Unsupported type '{expr.expr_type}' for shift operation")
         # 비교 연산자 처리
         elif operator in ['==', '!=', '<', '>', '<=', '>=']:
-            return self.compare_intervals(leftInterval, rightInterval, operator)
+            result = self.compare_intervals(leftInterval, rightInterval, operator)
         # 논리 연산자 처리
         elif operator in ['&&', '||']:
-            return leftInterval.logical_op(rightInterval, operator)
+            result = leftInterval.logical_op(rightInterval, operator)
         else:
             raise ValueError(f"Unsupported operator '{operator}' in expression: {expr}")
 
+        if isinstance(callerObject, ArrayVariable) or isinstance(callerObject, MappingVariable) :
+            return self.evaluate_binary_operator_of_index(result, callerObject)
+        else :
+            return result
 
     def evaluate_array_expression(self, variable_obj=None, init_expr=None, variables=None):
         return
@@ -3580,6 +3621,110 @@ class ContractAnalyzer:
 
     def evaluate_struct_expression(self, variable_obj, init_expr):
         return
+
+    def evaluate_binary_operator_of_index(self, result, callerObject):
+        # 2) callerObject가 ArrayVariable이면 => 인덱스 접근 결과로 해석
+        if isinstance(callerObject, ArrayVariable):
+            # result가 Interval인지 검사
+            if not hasattr(result, 'min_value') or not hasattr(result, 'max_value'):
+                # result가 BoolInterval or symbolic 등 => array 인덱스로 사용 불가 → symbolic
+                return f"symbolicIndex({callerObject.identifier}[{result}])"
+
+            # (a) bottom이면 symbolic or direct bottom
+            if result.is_bottom():
+                return f"symbolicIndex({callerObject.identifier}[BOTTOM])"
+
+            min_idx = result.min_value
+            max_idx = result.max_value
+            if min_idx is None or max_idx is None:
+                # None이면 bottom => symbolic
+                return f"symbolicIndex({callerObject.identifier}[{result}])"
+
+            # (b) 단일값?
+            if min_idx == max_idx:
+                idx = min_idx
+                # 범위체크
+                if idx < 0 or idx >= len(callerObject.elements):
+                    raise IndexError(f"Index {idx} out of range for array '{callerObject.identifier}'")
+                element_var = callerObject.elements[idx]
+                # element_var가 Variables면 element_var.value가 실제 Interval/주소/등일 수 있음
+                if hasattr(element_var, 'value'):
+                    return element_var.value
+                else:
+                    return element_var  # ArrayVariable/StructVariable 등
+
+            # (c) 범위: [min_idx..max_idx]
+            # 각 요소를 순회하며 join
+            joined = None
+            for idx in range(min_idx, max_idx + 1):
+                if idx < 0 or idx >= len(callerObject.elements):
+                    # 범위 벗어나면 symbolic 처리
+                    return f"symbolicIndexRange({callerObject.identifier}[{result}])"
+
+                elem_var = callerObject.elements[idx]
+                # elem_var가 Variables => elem_var.value가 Interval일 수도 있고,
+                # 다른 타입(주소, bool 등)일 수도 있음
+                # 여기선 "전부 Interval이면 join, 아니면 symbolic" 예시
+                val = elem_var.value if hasattr(elem_var, 'value') else elem_var
+
+                # 주소 or string or struct => symbolic
+                if (isinstance(val, IntegerInterval) or isinstance(val, UnsignedIntegerInterval)
+                        or isinstance(val, BoolInterval)):
+                    if joined is None:
+                        joined = val
+                    else:
+                        joined = joined.join(val)
+                else:
+                    return f"symbolicMixedType({callerObject.identifier}[{result}])"
+
+            # 모든 요소를 Interval.join했으면 joined에 최종 Interval
+            return joined
+
+        # 3) callerObject가 MappingVariable인 경우 (비슷한 로직 확장 가능)
+        if isinstance(callerObject, MappingVariable):
+            # result => 단일 키 or 범위 => map lookup
+            if not hasattr(result, 'min_value') or not hasattr(result, 'max_value'):
+                # symbolic
+                return f"symbolicMappingIndex({callerObject.identifier}[{result}])"
+
+            if result.is_bottom():
+                return f"symbolicMappingIndex({callerObject.identifier}[BOTTOM])"
+
+            min_idx = result.min_value
+            max_idx = result.max_value
+            if min_idx == max_idx:
+                key_str = str(min_idx)
+                if key_str in callerObject.mapping:
+                    return callerObject.mapping[key_str].value
+                else:
+                    # 새로 추가 or symbolic
+                    new_var_obj = self.create_default_mapping_value(callerObject, key_str)
+                    self.update_mapping_in_cfg(callerObject.identifier, key_str, new_var_obj)
+                    return new_var_obj.value
+            else:
+                # 범위 [min_idx..max_idx], 여러 entry join
+                # (실제로 주소형이나 uint형 등 다양한 키 처리 시 로직 필요)
+                joined = None
+                for k in range(min_idx, max_idx + 1):
+                    k_str = str(k)
+                    if k_str not in callerObject.mapping:
+                        # default
+                        new_obj = self.create_default_mapping_value(callerObject, k_str)
+                        self.update_mapping_in_cfg(callerObject.identifier, k_str, new_obj)
+                        val = new_obj.value
+                    else:
+                        val = callerObject.mapping[k_str].value
+
+                    # join
+                    if isinstance(val, Interval):
+                        if joined is None:
+                            joined = val
+                        else:
+                            joined = joined.join(val)
+                    else:
+                        return f"symbolicMixedType({callerObject.identifier}[{result}])"
+
+                return joined
 
     def create_default_mapping_value(self, mappingVar: MappingVariable, key_str: str):
         """

@@ -167,10 +167,12 @@ class ContractCFG(CFG):
         super().__init__('contract')
         self.contract_name = contract_name
         self.state_variable_node = None
-        self.enums = {}  # name -> EnumDefinition 객체
 
         self.structDefs = {}  # name -> StructDefinition 객체
         self.structVars = {} # name -> StructVariable 객체
+
+        self.enumDefs = {} # name -> EnumDefinition 객체
+        self.enumVars = {} # name -> EnumVariable 객체
 
         self.constructor = None  # FunctionCFG (Constructor Type)
         self.fallback = None
@@ -185,7 +187,7 @@ class ContractCFG(CFG):
     # Enum 정의 추가
     def define_enum(self, enum_name, enum_def):
         if enum_name not in self.enums:
-            self.enums[enum_name] = enum_def
+            self.enumDefs[enum_name] = enum_def
         else:
             raise ValueError(f"Enum {enum_name} is already defined.")
 
@@ -195,7 +197,7 @@ class ContractCFG(CFG):
 
     def add_enum_member(self, enum_name, member_name):
         if enum_name in self.enums:
-            self.enums[enum_name].add_member(member_name)
+            self.enumDefs[enum_name].add_member(member_name)
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
 
