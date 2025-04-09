@@ -694,8 +694,7 @@ class ContractAnalyzer:
 
         else : # 초기화 식이 있으면
             if isinstance(variable_obj, ArrayVariable) :
-                inlineArrayValues = self.evaluate_expression(init_expr,
-                                                             self.current_target_function_cfg.related_variables, None)
+                inlineArrayValues = self.evaluate_expression(init_expr, current_block.variables, None)
                 for value in inlineArrayValues :
                     variable_obj.elements.append(value)
             elif isinstance(variable_obj, StructVariable) : # 관련된 경우 있을 것 같긴 함
@@ -705,8 +704,7 @@ class ContractAnalyzer:
             elif isinstance(variable_obj, EnumVariable) : # 관련된 경우 있을 것 같긴 함
                 pass
             elif variable_obj.typeCategory == "elementary" :
-                variable_obj.value = self.evaluate_expression(init_expr,
-                                                              self.current_target_function_cfg.related_variables, None)
+                variable_obj.value = self.evaluate_expression(init_expr, current_block.variables, None)
 
         # cfg node에 문장 추가
         current_block.add_assign_statement(variable_obj, init_expr, '=')
@@ -792,6 +790,21 @@ class ContractAnalyzer:
 
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
+
+        rExpVal = self.evaluate_expression(expr.right,
+                                           current_block.variables,
+                                           None,
+                                           None)
+
+        left_variable_obj = self.update_left_var(expr.left,
+                                                 rExpVal,
+                                                 expr.operator,
+                                                 current_block.variables,
+                                                 None)
+
+        # current_block의 variables에다가 left_Variable_obj 정보 저장
+
+
 
 
         if current_block.is_while_body:
@@ -3094,6 +3107,68 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 
+    def update_left_var(self, expr, rVal, operator, variables,
+                        callerObject=None, callerContext=None):
+        if expr.context == "IndexAccessContext" :
+            return self.update_left_var_of_index_access_context(expr, rVal, operator, variables,
+                                                                callerObject, callerContext)
+        elif expr.context == "IdentifierContext" :
+            return self.update_left_var_of_identifier_context(expr, rVal, operator, variables,
+                                                              callerObject, callerContext)
+        elif expr.context == "literalContext" :
+            return self.update_left_var_of_literal_context(expr, rVal, operator, variables,
+                                                                callerObject, callerContext)
+
+    def update_left_var_of_index_access_context(self, expr, rVal, operator, variables,
+                                                callerObject=None, callerContext=None):
+        base_obj = self.update_left_var(expr.base, rVal, operator, variables, None, "IndexAccessContext")
+
+    def update_left_var_of_member_access_context(self, expr, rVal, operator, variables,
+                                                 callerObject=None, callerContext=None)
+
+    def update_left_var_of_literal_context(self, expr, rVal, operator, variables,
+                                           callerObject=None, callerContext=None):
+        literal_str = expr.literal  # 예: "123", "0x1A", "true", "false", "Hello", ...
+        expr_type = expr.expr_type  # 예: 'uint', 'int', 'bool', 'string'
+
+        # 1) if we have a callerObject that is an ArrayVariable, and the literal is a digit
+        if callerObject is not None:
+            if isinstance(callerObject, ArrayVariable):
+                if literal_str.isdigit():
+                    # 인덱스로 해석 (음수인지도 체크 가능)
+                    idx = int(literal_str)
+                    if idx < 0 or idx >= len(callerObject.elements):
+                        raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
+
+                    element = callerObject.elements[idx]
+                    if isinstance(element, Variables) :
+                        element.value = rVal
+                    elif isinstance(element, ArrayVariable) :
+                        return element
+                    elif isinstance(element, MappingVariable) :
+
+                    return callerObject.elements[idx]  # element: Variables, ArrayVariable, etc.
+                else:
+                    raise ValueError(
+                        f"Array '{callerObject.identifier}' index must be integer literal, got '{literal_str}'")
+
+
+
+
+    def update_left_var_of_identifier_context(self, expr, rVal, operator, variables,
+                                              callerObject=None, callerContext=None):
+        ident_str = expr.identifier
+
+        if callerObject is not None :
+            if isinstance(callerObject, ArrayVariable) :
+
+
+        if callerContext == "IndexAccessContext" :
+            if ident_str in variables :
+                index_val = variables[ident_str]
+
+
+
     def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":
             return self.evaluate_literal_context(expr, variables, callerObject, callerContext)
@@ -3238,6 +3313,9 @@ class ContractAnalyzer:
                     return self.contract_cfgs[self.current_target_contract].enumDefs[ident_str]
                 else :
                     raise ValueError(f"This '{ident_str}' is may be array or struct but may not be declared")
+            elif callerContext == "IndexAccessContext" : # base에 대한 접근
+                if ident_str in variables :
+                    return variables[ident_str] # ArrayVariable 자체를 리턴
 
         # callerContext, callerObject 둘다 없는 경우
         if ident_str in variables: # variables에 있으면
@@ -3491,9 +3569,6 @@ class ContractAnalyzer:
         # 여기서는 단순히 그대로 반환
 
         return results
-
-    def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
-        return
 
     def evaluate_unary_operator(self, expr, variables, callerObject=None, callerContext=None):
         operand_interval = self.evaluate_expression(expr.expression, variables, None, "Unary")
@@ -4405,22 +4480,6 @@ class ContractAnalyzer:
 
         return merged_variables
 
-
-    def find_variable_by_identifier(self, expr):
-        """
-        식별자에 해당하는 변수를 찾아서 반환하는 함수.
-        :param expr: Expression 객체 또는 identifier 이름
-        :param variables: 현재 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: Variables 객체
-        """
-        var_name = expr.identifier if hasattr(expr, 'identifier') else expr
-
-        # Function CFG의 related_variables 또는 contract CFG에서 변수 찾기
-        if self.current_target_function_cfg.related_variables[var_name] != None:
-            return self.current_target_function_cfg.related_variables[var_name]
-        else :
-            raise ValueError(f"Variable '{var_name}' not found in the current context.")
-
     def compare_intervals(self, left_interval, right_interval, operator):
         """
         두 Interval 간의 비교를 수행하여 BooleanInterval을 반환합니다.
@@ -4481,142 +4540,6 @@ class ContractAnalyzer:
 
         return BoolInterval(is_true, is_false)
 
-    def get_variable_info_from_expr(self, expr, current_variables):
-        """
-        expr( Expression )를 분석하여
-        - var_obj (실제 MappingVariable, ArrayVariable, Variables, etc.)
-        - key/index (만약 mapping이나 array면)
-        - member_name (만약 struct.member이면)
-        등등을 파악해 반환
-        예: { "var_obj": mappingVar, "mapping_key": addressValue, ... }
-        """
-        # 이 부분은 기존 process_assignment_expression에서 구현된 로직과 유사
-        # 아래는 매우 간단한 예시(식별자만 다룬다거나), 실제론 IndexAccessContext, MemberAccessContext 등을 다뤄야 함
-        result = {
-            "var_obj": None,
-            "key_or_index": None,
-            "member_name": None
-        }
-
-        if expr.identifier:
-            # 단순 변수 명
-            var_name = expr.identifier
-            var_obj = current_variables.get(var_name)
-            if var_obj is not None:
-                result["var_obj"] = var_obj
-            return result
-
-        # 나머지 IndexAccess, MemberAccess, etc.는 기존 evaluate_expression나 process_assignment_expression에서
-        # 어떻게 변수·인덱스를 찾아오는지 참고해서 구현
-        # ...
-
-        return result
-
-
-    def get_variable_interval(self, var_name):
-        """
-        변수의 interval 값을 반환하는 함수.
-        함수 내 변수인지, 상태 변수인지 구분하여 처리.
-        """
-        # 1. 현재 타겟 컨트랙트의 CFG 가져오기
-        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-        if not contract_cfg:
-            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
-
-        # 2. 현재 타겟 함수의 CFG 가져오기 (local variable 포함)
-        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
-
-        # 3. 함수 내에서 정의된 변수 (related_variables) 먼저 확인
-        if function_cfg:
-            if function_cfg.get_related_variable(var_name) is not None :
-                return function_cfg.get_related_variable(var_name).value
-            else :
-                # 5. 변수를 찾지 못한 경우 에러 발생
-                raise ValueError(f"Variable '{var_name}' not found in function or contract scope")
-
-    def get_variable_from_expression(self, expr, variables):
-        if expr.identifier:
-            var_name = expr.identifier
-            var_obj = variables.get(var_name)
-            return var_obj, var_name, None, None  # element_var, key_or_index는 None
-        elif expr.context == 'IndexAccessContext':
-            base_expr = expr.base
-            index_expr = expr.index
-
-            base_var_obj, base_var_name, _, _ = self.get_variable_from_expression(base_expr, variables)
-            if not base_var_obj:
-                return None, None, None, None
-
-            key_or_index = self.evaluate_expression(index_expr, variables)
-            key_str = str(key_or_index)
-
-            var_name = f"{base_var_name}[{key_str}]"
-
-            # 매핑 또는 배열의 경우 처리
-            if isinstance(base_var_obj, MappingVariable):
-                mapping_var = base_var_obj
-                element_var = mapping_var.mapping.get(key_str)
-                if not element_var:
-                    # 요소가 없으면 생성
-                    value_type = mapping_var.typeInfo.mappingValueType
-                    element_var = Variables(identifier=var_name)
-                    element_var.typeInfo = value_type
-                    mapping_var.mapping[key_str] = element_var
-                return mapping_var, var_name, element_var, key_or_index
-            elif isinstance(base_var_obj, ArrayVariable):
-                array_var = base_var_obj
-                index = int(key_or_index)
-                if index < 0 or index >= len(array_var.elements):
-                    raise IndexError(f"Array index out of bounds: {index}")
-                element_var = array_var.elements[index]
-                return array_var, var_name, element_var, key_or_index
-            else:
-                return None, None, None, None
-        elif expr.context == 'MemberAccessContext':
-            base_expr = expr.base
-            member_name = expr.member
-
-            base_var_obj, base_var_name, _, _ = self.get_variable_from_expression(base_expr, variables)
-            if not base_var_obj:
-                return None, None, None, None
-
-            var_name = f"{base_var_name}.{member_name}"
-
-            # 구조체 멤버의 경우 처리
-            if isinstance(base_var_obj, StructVariable):
-                struct_var = base_var_obj
-                member_var = struct_var.members.get(member_name)
-                if not member_var:
-                    # 멤버 변수가 없으면 생성
-                    member_var = Variables(identifier=var_name)
-                    struct_var.members[member_name] = member_var
-                return struct_var, var_name, member_var, member_name
-            else:
-                return None, None, None, None
-        else:
-            return None, None, None, None
-
-    def set_bottom_for_array(self, variable_obj):
-        """
-        배열 변수에 대해 bottom 값을 설정하는 함수.
-        """
-        for element in variable_obj.elements:
-            element.value = self.calculate_default_interval(variable_obj.typeInfo.arrayBaseType.elementaryTypeName)
-
-    def set_bottom_for_struct(self, variable_obj):
-        """
-        구조체 변수에 대해 bottom 값을 설정하는 함수.
-        """
-        for member_name, member_var in variable_obj.members.items():
-            member_var.value = self.calculate_default_interval(member_var.typeInfo.elementaryTypeName)
-
-    def set_bottom_for_mapping(self, variable_obj):
-        """
-        맵핑 변수에 대해 bottom 값을 설정하는 함수.
-        """
-        # 맵핑의 키와 값에 대해 기본값을 설정
-        for key, value in variable_obj.mapping.items():
-            value.value = self.calculate_default_interval(value.typeInfo.elementaryTypeName)
 
     """
     intent analysis part
