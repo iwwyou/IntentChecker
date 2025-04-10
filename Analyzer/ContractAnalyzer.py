@@ -4002,149 +4002,209 @@ class ContractAnalyzer:
 
     def update_variables_with_condition(self, variables, condition_expr, is_true_branch):
         """
-        조건식을 분석하여 변수들의 상태(Interval)를 True/False 분기에서 업데이트합니다.
-        variables: var_name -> Variables 객체
-        condition_expr: 조건식(Expression 객체)
-        is_true_branch: True 분기일 경우 True, False 분기일 경우 False
+            condition_expr: Expression
+              - 연산자(operator)가 비교연산(==,!=,<,>,<=,>=)일 수도 있고,
+              - 논리연산(&&, ||, !)일 수도 있고,
+              - 단일 변수(IdentifierExpContext)나 bool literal, etc. 일 수도 있음
+            is_true_branch:
+              - True => 조건이 만족되는 브랜치 (if, while 등의 true 분기)
+              - False => 조건이 불만족인 브랜치 (else, while not, etc)
+            variables: { var_name: Variables }  (CFGNode 상의 변수 상태)
+            """
+
+        # 1) condition_expr.operator 파악
+        op = condition_expr.operator
+
+        # 2) 만약 operator가 None인데, context가 IdentifierExpContext(단일 변수) 등 “단순 bool 변환”이라면
+        if op is None:
+            # 예: if (myBoolVar) => true branch라면 myBoolVar = [1,1], false branch라면 myBoolVar=[0,0]
+            return self._update_single_condition(variables, condition_expr, is_true_branch)
+
+        # 3) 논리 연산 처리
+        if op in ['&&', '||', '!']:
+            return self._update_logical_condition(variables, condition_expr, is_true_branch)
+
+        # 4) 비교 연산 처리 (==, !=, <, >, <=, >=)
+        if op in ['==', '!=', '<', '>', '<=', '>=']:
+            return self._update_comparison_condition(variables, condition_expr, is_true_branch)
+
+        # 그 외
+        # (ex: bit연산 &|^, arithmetic + - 등은 조건식에 잘 안 쓰이지만, 만약 파서상 들어온다면 symbolic)
+        return
+
+    def _update_single_condition(self, variables: dict, condition_expr: Expression, is_true_branch: bool):
         """
-
-        # 조건 연산자에 따른 변수 업데이트
-        if condition_expr.operator in ['==', '!=', '<', '>', '<=', '>=']:
-            left_expr = condition_expr.left
-            right_expr = condition_expr.right
-
-            # 좌측 표현식이 MemberAccessContext 또는 IndexAccessContext인 경우 처리
-            if left_expr.context == 'MemberAccessContext' or left_expr.context == 'IndexAccessContext':
-                base_expr = left_expr.base
-                var_name = base_expr.identifier
-
-                # 변수 찾기 (배열 또는 구조체 변수 확인)
-                if var_name in variables:
-                    var_obj = variables[var_name]
-
-                    if isinstance(var_obj, ArrayVariable):
-                        left_interval = self.evaluate_array_expression(var_obj, left_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        left_interval = self.evaluate_struct_expression(var_obj, left_expr)
-                        # 매핑 변수 처리
-                    elif isinstance(var_obj, MappingVariable):
-                        key_expr = left_expr.index  # 인덱스 표현식
-                        key_value = self.evaluate_expression(key_expr)  # 매핑 키 값 평가
-
-                        # 매핑에서 특정 키에 해당하는 값을 가져오기
-                        if key_value in var_obj.mapping:
-                            left_interval = var_obj.mapping[key_value]
-                        else:
-                            # 키가 매핑에 없는 경우 기본 Interval 설정 (new entry)
-                            value_type = var_obj.typeInfo.mappingValueType
-                            if value_type.elementaryTypeName.startswith("int"):
-                                left_interval = IntegerInterval()
-                            elif value_type.elementaryTypeName.startswith("uint"):
-                                left_interval = UnsignedIntegerInterval()
-                            elif value_type.elementaryTypeName == "bool":
-                                left_interval = BoolInterval()
-                            else:
-                                raise TypeError(
-                                    f"Unsupported type '{value_type.elementaryTypeName}' for mapping values")
-
-                            # 매핑에 새로운 키-값 쌍 추가
-                            var_obj.mapping[key_value] = Variables(value=left_interval)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
+        예) if (myBoolVar) / while (myBoolVar) / ...
+            - true branch => myBoolVar ∈ [1,1]
+            - false branch => myBoolVar ∈ [0,0]
+        """
+        # condition_expr가 IdentifierExpContext or literalExpContext( true / false ) 등인 경우
+        # 1) evaluate_expression으로 값을 가져옴
+        cond_val = self.evaluate_expression(condition_expr, variables)
+        if isinstance(cond_val, BoolInterval):
+            # is_true_branch면 cond_val = [1,1], false면 [0,0]로 좁힘
+            new_val = None
+            if is_true_branch:
+                # meet with [1,1]
+                new_val = cond_val.meet(BoolInterval(1, 1))
             else:
-                # 일반적인 표현식 처리
-                left_interval = self.evaluate_expression(left_expr)
+                # meet with [0,0]
+                new_val = cond_val.meet(BoolInterval(0, 0))
+            # cond_val이 변수의 interval일 수도, 아니면 literal일 수도 있으므로
+            # 만약 “단일 변수” 식이라면, 그 변수를 찾아서 interval 교체
+            var_name = None
+            if condition_expr.context == "IdentifierExpContext":
+                var_name = condition_expr.identifier
+            if var_name and var_name in variables:
+                # 교집합 결과로 갱신
+                if isinstance(variables[var_name].value, BoolInterval):
+                    updated_val = variables[var_name].value.meet(new_val)
+                    variables[var_name].value = updated_val
+            # literal인 경우 => 값이 바뀔 여지가 없음
+        else:
+            # cond_val이 BoolInterval이 아닐 수도 있으므로, 간단히 symbolic 처리 or pass
+            pass
 
-            # 우측 표현식 처리 (MemberAccessContext 또는 IndexAccessContext 체크)
-            if right_expr.context == 'MemberAccessContext' or right_expr.context == 'IndexAccessContext':
-                base_expr = right_expr.base
-                var_name = base_expr.identifier
+    def _update_logical_condition(self, variables: dict, cond_expr: Expression, is_true_branch: bool):
+        op = cond_expr.operator  # '&&', '||', '!'
+        if op == '!':
+            # ! X => true branch => X = false, false branch => X=true
+            # => is_true_branch = true => X=[0,0], else => X=[1,1]
+            # cond_expr.expression 이 실제 operand
+            operand_expr = cond_expr.expression
+            # 재귀적으로 single_condition 등 호출
+            return self._update_single_condition(variables, operand_expr, not is_true_branch)
 
-                if var_name in variables:
-                    var_obj = variables[var_name]
+        elif op == '&&':
+            # (condA && condB)
+            # true branch => condA=true and condB=true
+            # false branch => condA=false OR condB=false (정보손실: 둘 중 하나만 false면 되니까)
+            condA = cond_expr.left
+            condB = cond_expr.right
 
-                    if isinstance(var_obj, ArrayVariable):
-                        right_interval = self.evaluate_array_expression(var_obj, right_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        right_interval = self.evaluate_struct_expression(var_obj, right_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
+            if is_true_branch:
+                # A=true, B=true
+                self.update_variables_with_condition(variables, condA, True)
+                self.update_variables_with_condition(variables, condB, True)
             else:
-                # 일반적인 표현식 처리
-                right_interval = self.evaluate_expression(right_expr)
+                # A=false or B=false
+                # 단일 Interval domain에선 “둘 중 하나 false”를 따로 분기해서 저장하기 어렵다.
+                # 보수적으로 A= [0,1], B=[0,1] 정도로 그냥 pass 하거나, symbolic
+                pass
 
-            # 좌측 표현식이 변수인 경우
-            if left_expr.identifier:
-                var_name = left_expr.identifier
-                var_obj = variables.get(var_name)
+        elif op == '||':
+            # (condA || condB)
+            # true branch => condA=true or condB=true (Info-loss)
+            # false branch => condA=false AND condB=false
+            condA = cond_expr.left
+            condB = cond_expr.right
 
-                if var_obj:
-                    # 조건에 따라 변수 Interval 업데이트
-                    if is_true_branch:
-                        # True 분기에서 조건이 성립하는 경우 Interval 좁히기
-                        var_obj.value = self.refine_interval(var_obj.value, right_interval, condition_expr.operator)
-                    else:
-                        # False 분기에서 조건이 성립하지 않는 경우 Interval 좁히기
-                        negated_operator = self.negate_operator(condition_expr.operator)
-                        var_obj.value = self.refine_interval(var_obj.value, right_interval, negated_operator)
+            if is_true_branch:
+                # A=true or B=true → Interval domain에서는 크게 좁히기 어렵다.
+                pass
+            else:
+                # both false
+                self.update_variables_with_condition(variables, condA, False)
+                self.update_variables_with_condition(variables, condB, False)
 
-            elif left_expr.context == 'IndexAccessContext' :
-                base_name = left_expr.base.identifier
-                var_obj = variables.get(base_name)
-                if isinstance(var_obj,MappingVariable) :
-                    if is_true_branch :
-                        var_obj.mapping[key_value] = self.refine_interval(left_interval, right_interval, condition_expr.operator)
-                    else :
-                        negated_operator = self.negate_operator(condition_expr.operator)
-                        var_obj.mapping[key_value] = self.refine_interval(left_interval, right_interval,
-                                                                          negated_operator)
+    def _update_comparison_condition(self, variables: dict, cond_expr: Expression, is_true_branch: bool):
+        op = cond_expr.operator
+        # negate operator (if is_true_branch==False) => eq <-> !=, < -> >=, ...
+        actual_op = op if is_true_branch else self.negate_operator(op)
 
-        elif condition_expr.operator in ['&&', '||']:
-            # 논리 연산자가 포함된 복합 조건식 처리
-            left_expr = condition_expr.left
-            right_expr = condition_expr.right
+        left_expr = cond_expr.left
+        right_expr = cond_expr.right
 
-            # 좌측 조건식이 MemberAccessContext 또는 IndexAccessContext인 경우 처리
-            if left_expr.context == 'MemberAccessContext' or left_expr.context == 'IndexAccessContext':
-                base_expr = left_expr.base
-                var_name = base_expr.identifier
+        # 1) evaluate_expression으로 좌우 값을 먼저 가져옴
+        left_val = self.evaluate_expression(left_expr, variables)
+        right_val = self.evaluate_expression(right_expr, variables)
 
-                if var_name in variables:
-                    var_obj = variables[var_name]
+        # 2) case 1: 양쪽이 다 Interval
+        if self._is_interval(left_val) and self._is_interval(right_val):
+            new_left = left_val
+            new_right = right_val
 
-                    if isinstance(var_obj, ArrayVariable):
-                        self.evaluate_array_expression(var_obj, left_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        self.evaluate_struct_expression(var_obj, left_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
+            # 예) a < b → new_left.max <= new_right.min - 1, etc.
+            # 간단히 한 번만 clamp
+            updated_left, updated_right = self.refine_intervals_for_comparison(new_left, new_right, actual_op)
+
+            # 그 뒤, left_expr/right_expr가 “변수”인 경우 → 실제 variables[...] 갱신
+            left_name = self._extract_identifier_if_possible(left_expr)
+            right_name = self._extract_identifier_if_possible(right_expr)
+            if left_name in variables:
+                variables[left_name].value = updated_left
+            if right_name in variables:
+                variables[right_name].value = updated_right
+
+        # 3) case 2: 한쪽은 Interval, 한쪽은 literal/int
+        #    => refine 단일 변수
+        elif self._is_interval(left_val) and isinstance(right_val, (int, float, str)):
+            # ex) a < 10
+            # a.max <= 9
+            pass
+        elif self._is_interval(right_val) and isinstance(left_val, (int, float, str)):
+            # ex) 0 < b
+            # b.min >= 1
+            pass
+
+        # 4) case 3: 한쪽이나 양쪽이 BoolInterval => eq, !=, ...
+        # 5) else => symbolic
+
+    def refine_intervals_for_comparison(self, a_interval, b_interval, op):
+        """
+        a_interval, b_interval: Interval (IntegerInterval or UnsignedInterval)
+        op: '<', '>', '<=', '>=', '==', '!='
+        return: (new_a, new_b)
+        """
+        if op == '<':
+            # a < b => a.max < b.min
+            # clamp a.max <= b.min - 1
+            new_a = a_interval.copy()
+            new_b = b_interval.copy()
+            if new_b.min_value != float('-inf'):
+                new_a_max = min(new_a.max_value, new_b.min_value - 1)
+                if new_a_max < new_a.min_value:
+                    new_a = new_a.bottom(new_a.type_length)
                 else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
+                    new_a.max_value = new_a_max
+            # 또한 b.min >= a.max+1
+            new_b_min = max(new_b.min_value, new_a.max_value + 1)
+            if new_b_min > new_b.max_value:
+                new_b = new_b.bottom(new_b.type_length)
+            else:
+                new_b.min_value = new_b_min
+            return (new_a, new_b)
 
-            # 우측 조건식이 MemberAccessContext 또는 IndexAccessContext인 경우 처리
-            if right_expr.context == 'MemberAccessContext' or right_expr.context == 'IndexAccessContext':
-                base_expr = right_expr.base
-                var_name = base_expr.identifier
+        elif op == '==':
+            # a == b => a, b 교집합
+            meet_ab = a_interval.meet(b_interval)
+            return (meet_ab, meet_ab)
 
-                if var_name in variables:
-                    var_obj = variables[var_name]
+        # etc. (>, <=, >=, !=)
+        return (a_interval, b_interval)
 
-                    if isinstance(var_obj, ArrayVariable):
-                        self.evaluate_array_expression(var_obj, right_expr)
-                    elif isinstance(var_obj, StructVariable):
-                        self.evaluate_struct_expression(var_obj, right_expr)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is neither an array nor a struct.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in the current context.")
+    def _is_interval(self, val):
+        return isinstance(val, (IntegerInterval, UnsignedIntegerInterval, BoolInterval))
 
-            # 좌우 조건식에 대해 재귀적으로 처리
-            self.update_variables_with_condition(variables, left_expr, is_true_branch)
-            self.update_variables_with_condition(variables, right_expr, is_true_branch)
+    def _extract_identifier_if_possible(self, expr: Expression):
+        """
+        expr가 IdentifierExpContext인지 검사하여, 맞으면 expr.identifier 리턴
+        아니면 None
+        """
+        if expr.context == "IdentifierExpContext":
+            return expr.identifier
+        return None
+
+    def negate_operator(self, op: str) -> str:
+        neg_map = {
+            '==': '!=',
+            '!=': '==',
+            '<': '>=',
+            '>': '<=',
+            '<=': '>',
+            '>=': '<'
+        }
+        return neg_map.get(op, op)
 
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
         """
