@@ -730,7 +730,8 @@ class ContractAnalyzer:
                 variable_obj.value = self.evaluate_expression(init_expr, current_block.variables, None)
 
         # cfg node에 문장 추가
-        current_block.add_assign_statement(type_obj, var_name, init_expr)
+        current_block.variables[variable_obj.identifier] = variable_obj
+        current_block.add_variable_declaration_statement(type_obj, var_name, init_expr)
 
         # function_cfg에 지역변수 추가
         self.current_target_function_cfg.add_related_variable(variable_obj)
@@ -752,29 +753,6 @@ class ContractAnalyzer:
         # 14. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
-        # 예: 분석 끝나면, 라인에 대한 variable interval을 저장
-        line_no = self.current_start_line
-
-        if variable_obj.typeInfo.typeCategory == "elementary":
-            # ex) interval
-            self.add_analysis_variable_result(line_no, variable_obj.identifier, variable_obj.value)
-        elif variable_obj.typeInfo.typeCategory == "array":
-            # flatten array elements
-            for i, elem_var in enumerate(variable_obj.elements):
-                key = f"{variable_obj.identifier}[{i}]"
-                self.add_analysis_variable_result(line_no, key, elem_var.value)
-        elif variable_obj.typeInfo.typeCategory == "struct":
-            for field_name, field_var in variable_obj.members.items():
-                key = f"{variable_obj.identifier}.{field_name}"
-                self.add_analysis_variable_result(line_no, key, field_var.value)
-        elif variable_obj.typeInfo.typeCategory == "enum":
-            # enum 은 variable_obj.value에 멤버 이름 or index 있을 것
-            # 굳이 [min,max] 아닌 string => symbolic
-            self.add_analysis_variable_result(line_no, variable_obj.identifier, variable_obj.value)
-        elif variable_obj.typeInfo.typeCategory == "mapping":
-            # mapping은 보통 symbolic / empty => skip or symbolic
-            pass
-
         self.current_target_function_cfg = None
 
     def process_assignment_expression(self, expr):
@@ -795,14 +773,11 @@ class ContractAnalyzer:
         rExpVal = self.evaluate_expression(expr.right, current_block.variables, None, None)
         self.update_left_var(expr.left, rExpVal, expr.operator, current_block.variables, None)
 
-        current_block
+        current_block.add_assign_statement(expr.left, expr.operator, expr.right)
 
         if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
-
-
-        self.analysis_results = result
 
         # 9. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -815,8 +790,6 @@ class ContractAnalyzer:
 
         # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
-
-        self.current_target_function_cfg = None
 
     def process_assignment_function_call(self, expr):
         # 1. 좌변 변수 이름 추출

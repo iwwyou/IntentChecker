@@ -29,35 +29,32 @@ class CFGNode:
         self.function_exit_node = False
         self.return_val = None
 
-    def add_assign_statement(self, variable_obj, expr: Expression, operator):
-        """
-        변수에 대한 할당문을 CFG에 추가하고 변수 정보를 업데이트합니다.
-        :param variable_obj: Variables 객체
-        :param expr: 우변 Expression 객체
-        :param evaluated_value: 우변 표현식을 평가한 Interval 값
-        :param operator: 할당 연산자
-        """
+    def add_variable_declaration_statement(self, typeObj, varName, initExpr):
+
+        # Statement 생성
+        variableDeclarationStatment = Statement(
+            statement_type='variableDeclaration',
+            type_obj=typeObj,
+            var_name=varName,
+            init_expr=initExpr
+        )
+
+        self.statements.append(variableDeclarationStatment)
+
+    def add_assign_statement(self, exprLeft, exprRight, exprOperator):
+
         # Statement 생성
         assignment_stmt = Statement(
             statement_type='assignment',
-            left=Expression(identifier=variable_obj.identifier),
-            operator=operator,
-            right=expr
+            left=exprLeft,
+            operator=exprOperator,
+            right=exprRight
         )
         self.statements.append(assignment_stmt)
 
-        # 변수 정보 업데이트
-        self.variables[variable_obj.identifier] = variable_obj
+        # 변수 정보 업데이트는 update_left_Var 관련 함수에서 수행
 
-    def add_array_assign_statement(self, variable_obj: ArrayVariable, expr: Expression, operator='='):
-        return
 
-    def add_struct_assign_statement(self, variable_obj: StructVariable, expr: Expression, operator='='):
-        return
-
-    def add_mapping_assign_statement(self, mapping_var: MappingVariable, left_expr: Expression,
-                                     right_expr: Expression, operator='='):
-        return
 
     def add_function_call_statement(self, function_expr: Expression, evaluated_value=None):
         """
