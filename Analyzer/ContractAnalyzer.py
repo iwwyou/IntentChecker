@@ -645,7 +645,7 @@ class ContractAnalyzer:
         # 7. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = function_cfg.get_entry_node()
 
-    def process_variable_declaration(self, variable_obj, init_expr=None):
+    def process_variable_declaration(self, type_obj, var_name, init_expr=None):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
         if not contract_cfg:
@@ -655,6 +655,29 @@ class ContractAnalyzer:
         self.current_target_function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
         if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
+
+        # 좌변 변수 객체 생성
+        variable_obj = None
+        if type_obj.typeCategory == 'array':
+            # 배열 타입인 경우 ArrayVariable 생성
+            base_type = type_obj.arrayBaseType
+            array_length = type_obj.arrayLength
+            variable_obj = ArrayVariable(identifier=var_name, base_type=base_type,
+                                         array_length=array_length, scope='local')
+
+        elif type_obj.typeCategory == 'struct':
+            # 구조체 타입인 경우 StructVariable 생성
+            struct_type = type_obj.structTypeName
+            variable_obj = StructVariable(identifier=var_name, struct_type=struct_type, scope='local')
+
+        elif type_obj.typeCategry == 'Enum' :
+            struct_type = type_obj.enumTypeName
+            variable_obj = EnumVariable(identifier=var_name, enum_type=struct_type, scope='local')
+
+        else:
+            # 기본 타입인 경우 Variables 객체 생성
+            variable_obj = Variables(identifier=var_name, scope="local")
+            variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
@@ -707,7 +730,7 @@ class ContractAnalyzer:
                 variable_obj.value = self.evaluate_expression(init_expr, current_block.variables, None)
 
         # cfg node에 문장 추가
-        current_block.add_assign_statement(variable_obj, init_expr, '=')
+        current_block.add_assign_statement(type_obj, var_name, init_expr)
 
         # function_cfg에 지역변수 추가
         self.current_target_function_cfg.add_related_variable(variable_obj)
@@ -754,29 +777,6 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_compound_assignment(self, left_interval, right_interval, operator):
-        if operator == '+=':
-            return left_interval.add(right_interval)
-        elif operator == '-=':
-            return left_interval.subtract(right_interval)
-        elif operator == '*=':
-            return left_interval.multiply(right_interval)
-        elif operator == '/=':
-            return left_interval.divide(right_interval)
-        elif operator == '%=':
-            return left_interval.modulo(right_interval)
-        elif operator == '|=':
-            return left_interval.bitwise_or(right_interval)
-        elif operator == '^=':
-            return left_interval.bitwise_xor(right_interval)
-        elif operator == '&=':
-            return left_interval.bitwise_and(right_interval)
-        elif operator in ['<<=', '>>=', '>>>=']:
-            # '<<=', '>>=' 등에서 '=' 제거 후 처리
-            return left_interval.shift(right_interval, operator[:-1])
-        else:
-            raise ValueError(f"Unsupported operator '{operator}' in compound assignment")
-
     def process_assignment_expression(self, expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
         contract_cfg = self.contract_cfgs[self.current_target_contract]
@@ -791,23 +791,13 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        rExpVal = self.evaluate_expression(expr.right,
-                                           current_block.variables,
-                                           None,
-                                           None)
+        # assignment에 대한 abstract interpretation 수행
+        rExpVal = self.evaluate_expression(expr.right, current_block.variables, None, None)
+        self.update_left_var(expr.left, rExpVal, expr.operator, current_block.variables, None)
 
-        left_variable_obj = self.update_left_var(expr.left,
-                                                 rExpVal,
-                                                 expr.operator,
-                                                 current_block.variables,
-                                                 None)
+        current_block
 
-        # current_block의 variables에다가 left_Variable_obj 정보 저장
-
-
-
-
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
 
@@ -3112,27 +3102,75 @@ class ContractAnalyzer:
         if expr.context == "IndexAccessContext" :
             return self.update_left_var_of_index_access_context(expr, rVal, operator, variables,
                                                                 callerObject, callerContext)
-        elif expr.context == "IdentifierContext" :
+        elif expr.context == "MemberAccessContext" :
+            return self.update_left_var_of_member_access_context(expr, rVal, operator, variables,
+                                                                callerObject, callerContext)
+
+        elif expr.context == "IdentifierExpContext" :
             return self.update_left_var_of_identifier_context(expr, rVal, operator, variables,
                                                               callerObject, callerContext)
-        elif expr.context == "literalContext" :
+        elif expr.context == "LiteralExpContext" :
             return self.update_left_var_of_literal_context(expr, rVal, operator, variables,
-                                                                callerObject, callerContext)
+                                                                callerObject)
+
+    def compound_assignment(self, left_interval, right_interval, operator):
+        if operator == '=' :
+            return right_interval
+        elif operator == '+=':
+            return left_interval.add(right_interval)
+        elif operator == '-=':
+            return left_interval.subtract(right_interval)
+        elif operator == '*=':
+            return left_interval.multiply(right_interval)
+        elif operator == '/=':
+            return left_interval.divide(right_interval)
+        elif operator == '%=':
+            return left_interval.modulo(right_interval)
+        elif operator == '|=':
+            return left_interval.bitwise_or(right_interval)
+        elif operator == '^=':
+            return left_interval.bitwise_xor(right_interval)
+        elif operator == '&=':
+            return left_interval.bitwise_and(right_interval)
+        elif operator in ['<<=', '>>=', '>>>=']:
+            # '<<=', '>>=' 등에서 '=' 제거 후 처리
+            return left_interval.shift(right_interval, operator[:-1])
+        else:
+            raise ValueError(f"Unsupported operator '{operator}' in compound assignment")
 
     def update_left_var_of_index_access_context(self, expr, rVal, operator, variables,
                                                 callerObject=None, callerContext=None):
+        # base expression에 대한 재귀
         base_obj = self.update_left_var(expr.base, rVal, operator, variables, None, "IndexAccessContext")
 
+        # index expression에 대한 재귀
+        self.update_left_var(expr.index, rVal, operator, variables, base_obj, "IndexAccessContext")
+
     def update_left_var_of_member_access_context(self, expr, rVal, operator, variables,
-                                                 callerObject=None, callerContext=None)
+                                                 callerObject=None, callerContext=None) :
+        base_obj = self.update_left_var(expr.base, rVal, operator, variables, None, "MemberAccessContext")
+        member = expr.member
+
+        if isinstance(base_obj, StructVariable) :
+            if member in base_obj.members :
+                nestedMember = base_obj.members[member]
+                if isinstance(nestedMember, Variables) or isinstance(nestedMember, EnumVariable):
+                    nestedMember.value = self.compound_assignment(nestedMember.value, rVal, operator)
+                elif isinstance(nestedMember, StructVariable) or isinstance(nestedMember, ArrayVariable) :
+                    return nestedMember  # 구조체 안에 member가 ArrayVariable, StructVariable 등인경우
+                else :
+                    raise ValueError(f"This object '{nestedMember}' is not expected in this context")
+            else :
+                raise ValueError(f"This member '{member}' is not included in struct '{base_obj.identifier}'")
 
     def update_left_var_of_literal_context(self, expr, rVal, operator, variables,
-                                           callerObject=None, callerContext=None):
+                                           callerObject=None):
         literal_str = expr.literal  # 예: "123", "0x1A", "true", "false", "Hello", ...
         expr_type = expr.expr_type  # 예: 'uint', 'int', 'bool', 'string'
 
-        # 1) if we have a callerObject that is an ArrayVariable, and the literal is a digit
+        # assignment의 좌변 변수에 대해서는 literal은 callerObject 없이 있을 수 없는듯
         if callerObject is not None:
+            # assignment의 좌변 변수에 대해서, literal이 오는 경우는 Array랑 Mapping 밖에 없는듯?
             if isinstance(callerObject, ArrayVariable):
                 if literal_str.isdigit():
                     # 인덱스로 해석 (음수인지도 체크 가능)
@@ -3141,33 +3179,81 @@ class ContractAnalyzer:
                         raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
 
                     element = callerObject.elements[idx]
-                    if isinstance(element, Variables) :
-                        element.value = rVal
-                    elif isinstance(element, ArrayVariable) :
+                    if isinstance(element, Variables) or isinstance(element, EnumVariable) :
+                        element.value = self.compound_assignment(element.value, rVal, operator)
+                        return
+                    elif isinstance(element, ArrayVariable) or isinstance(element, StructVariable) :
                         return element
-                    elif isinstance(element, MappingVariable) :
+            elif isinstance(callerObject, MappingVariable):
+                if literal_str in callerObject.mapping :
+                    mapVar = callerObject.mapping[literal_str]
+                    if isinstance(mapVar, Variables) or isinstance(mapVar, EnumVariable) :
+                        mapVar.value = self.compound_assignment(mapVar.value, rVal, operator)
+                    elif isinstance(mapVar, ArrayVariable) or isinstance(mapVar, StructVariable)\
+                            or isinstance(mapVar, MappingVariable):
+                        return mapVar
+        else :
+            raise ValueError(f"This literal context '{literal_str}' is wrong context")
 
-                    return callerObject.elements[idx]  # element: Variables, ArrayVariable, etc.
-                else:
-                    raise ValueError(
-                        f"Array '{callerObject.identifier}' index must be integer literal, got '{literal_str}'")
-
-
-
-
-    def update_left_var_of_identifier_context(self, expr, rVal, operator, variables,
+    def update_left_var_of_identifier_context(self, expr, rVal, operator, variables:dict,
                                               callerObject=None, callerContext=None):
         ident_str = expr.identifier
 
         if callerObject is not None :
-            if isinstance(callerObject, ArrayVariable) :
+            if isinstance(callerObject, Variables) or isinstance(callerObject, EnumVariable) :
+                callerObject.value = self.compound_assignment(callerObject.value, rVal, operator)
+            elif isinstance(callerObject, ArrayVariable) : # index
+                if ident_str not in variables:
+                    raise ValueError(f"Index identifier '{ident_str}' not found in variables.")
+                index_var_obj = variables[ident_str]
+                if isinstance(index_var_obj, Variables):
+                    if index_var_obj.value.min_value == index_var_obj.value.max_value:
+                        idx = index_var_obj.value.min_value
+                else:
+                    raise ValueError(f"This excuse should be analyzed : '{ident_str}'")
 
+                # 경계검사
+                if idx < 0 or idx >= len(callerObject.elements):
+                    raise IndexError(f"Index {idx} out of range in array '{callerObject.identifier}'")
 
-        if callerContext == "IndexAccessContext" :
-            if ident_str in variables :
-                index_val = variables[ident_str]
+                element = callerObject.elements[idx]
+                if isinstance(element, Variables) or isinstance(element, EnumVariable) :
+                    element.value = self.compound_assignment(element.value, rVal, operator)
+                elif isinstance(element, ArrayVariable) or isinstance(element, StructVariable) :
+                    return element
+                elif isinstance(element, MappingVariable) :
+                    raise ValueError(f"Is Mapping Variable is available of Array Variable's elements?")
+            elif isinstance(callerObject, StructVariable) :
+                if ident_str not in callerObject.members:
+                    raise ValueError(f"member identifier '{ident_str}' not found in struct variables.")
 
+                member = callerObject.members[ident_str]
 
+                if isinstance(member, Variables) or isinstance(member, EnumVariable) :
+                    member.value = self.compound_assignment(member.value, rVal, operator)
+                elif isinstance(member, ArrayVariable) or isinstance(member, StructVariable) \
+                        or isinstance(member, MappingVariable) :
+                    return member
+            elif isinstance(callerObject, MappingVariable) :
+                if ident_str not in callerObject.mapping:
+                    raise ValueError(f"mapping identifier '{ident_str}' not found in mapping variables.")
+
+                mapVar = callerObject.mapping[ident_str]
+
+                if isinstance(mapVar, Variables) or isinstance(mapVar, EnumVariable) :
+                    mapVar.value = self.compound_assignment(mapVar.value, rVal, operator)
+                elif isinstance(mapVar, ArrayVariable) or isinstance(mapVar, StructVariable) \
+                        or isinstance(mapVar, MappingVariable) :
+                    return mapVar
+
+        if callerContext is not None :
+            if callerContext == "IndexAccessContext" or "MemberAccessContext" :
+                if ident_str in variables : # base에 대한 탐색
+                    return variables[ident_str]
+
+        if ident_str in variables :
+            if isinstance(variables[ident_str], Variables) :
+                variables[ident_str].value = self.compound_assignment(variables[ident_str].value, rVal, operator)
 
     def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":
@@ -3229,7 +3315,7 @@ class ContractAnalyzer:
                     return new_var_obj.value
 
         if callerContext is not None : # callerObject는 없고 callerContext가 있는 경우
-            if callerContext == "IndexAccessContext" : # ident_str이 literal 이면서 IndexAccess면 mapping key 호출 밖에 없을듯?
+            if callerContext == "IndexAccessContext" : # literal_str이 이면서 IndexAccess면 mapping key 호출 밖에 없을듯?
                 return literal_str
 
         # callerObject, callerContext 둘다 없으면 그냥 값 리턴
@@ -3373,9 +3459,9 @@ class ContractAnalyzer:
         elif isinstance(base_val, StructVariable) :
             if member in base_val.members :
                 nestedMember = base_val.members[member]
-                if isinstance(nestedMember, Variables) :
+                if isinstance(nestedMember, Variables) or isinstance(nestedMember, EnumVariable) :
                     return nestedMember.value # Variable 객체 이므로 Interval 값 등의 value를 리턴
-                else : # ArrayVariable, StructVariable, MappingVariable, EnumVariable
+                elif isinstance(nestedMember, StructVariable) or isinstance(nestedMember, ArrayVariable) :
                     return nestedMember # 구조체 안에 member가 ArrayVariable, StructVariable 등인경우
             else :
                 raise ValueError(f"This member '{member}' is not included in struct '{base_val}'")

@@ -888,22 +888,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = SolType()
         type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
 
-        if type_obj.typeCategory == 'array':
-            # 배열 타입인 경우 ArrayVariable 생성
-            base_type = type_obj.arrayBaseType
-            array_length = type_obj.arrayLength
-            variable_obj = ArrayVariable(identifier=var_name, base_type=base_type,
-                                         array_length=array_length, scope='local')
 
-        elif type_obj.typeCategory == 'struct':
-            # 구조체 타입인 경우 StructVariable 생성
-            struct_type = type_obj.structTypeName
-            variable_obj = StructVariable(identifier=var_name, struct_type=struct_type, scope='local')
-
-        else:
-            # 기본 타입인 경우 Variables 객체 생성
-            variable_obj = Variables(identifier=var_name, scope="local")
-            variable_obj.typeInfo = type_obj  # SolType 객체를 typeInfo로 설정
 
         # 5. ContractAnalyzer로 Variables 객체 및 lineComment 전달
         #self.contract_analyzer.process_variable_declaration(variable_obj, init_expr)

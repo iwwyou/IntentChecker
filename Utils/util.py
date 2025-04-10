@@ -9,12 +9,14 @@ class Statement:
         self.statements = []   # 블록 내에 포함된 Statement 객체들
 
         # 각 statement_type별로 필요한 속성 설정
-        if statement_type == 'assignment':
+        if statement_type == 'variableDeclaration' :
+            self.type_obj = kwargs.get('type_obj')  # SolType
+            self.var_name = kwargs.get('var_name')
+            self.init_expr = kwargs.get('init_expr')
+        elif statement_type == 'assignment':
             self.left = kwargs.get('left')        # 좌변 Expression
             self.operator = kwargs.get('operator')  # 할당 연산자 (예: '=', '+=', '-=' 등)
             self.right = kwargs.get('right')      # 우변 Expression
-            self.evaluated_value = kwargs.get('evaluated_value')  # 우변 표현식을 평가한 Interval 값
-
         elif statement_type == 'return':
             self.return_expr = kwargs.get('return_expr')
             self.evaluated_value = kwargs.get('evaluated_value')
