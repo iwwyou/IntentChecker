@@ -2570,34 +2570,6 @@ class ContractAnalyzer:
                 else:
                     raise ValueError(f"Variable '{var_name}' not found in variables.")
 
-    def refine_interval(self, var_interval, value_interval, operator):
-        # 조건 연산자에 따라 변수의 Interval을 좁힘
-        if operator == '==':
-            return var_interval.intersect(value_interval)
-        elif operator == '!=':
-            return var_interval.subtract(value_interval)
-        elif operator == '<':
-            return var_interval.less_than(value_interval)
-        elif operator == '>':
-            return var_interval.greater_than(value_interval)
-        elif operator == '<=':
-            return var_interval.less_than_or_equal(value_interval)
-        elif operator == '>=':
-            return var_interval.greater_than_or_equal(value_interval)
-        else:
-            return var_interval  # 변경하지 않음
-
-    def negate_operator(self, operator):
-        negations = {
-            '==': '!=',
-            '!=': '==',
-            '<': '>=',
-            '>': '<=',
-            '<=': '>',
-            '>=': '<'
-        }
-        return negations.get(operator, operator)
-
     def analyze_function_call(self, function_name, function_args):
         # 함수의 리턴 타입과 Interval을 추론
         # 함수의 정의를 분석하거나 사전 정의된 정보를 활용
@@ -4021,16 +3993,15 @@ class ContractAnalyzer:
             return self._update_single_condition(variables, condition_expr, is_true_branch)
 
         # 3) 논리 연산 처리
-        if op in ['&&', '||', '!']:
+        elif op in ['&&', '||', '!']:
             return self._update_logical_condition(variables, condition_expr, is_true_branch)
 
         # 4) 비교 연산 처리 (==, !=, <, >, <=, >=)
-        if op in ['==', '!=', '<', '>', '<=', '>=']:
+        elif op in ['==', '!=', '<', '>', '<=', '>=']:
             return self._update_comparison_condition(variables, condition_expr, is_true_branch)
 
-        # 그 외
-        # (ex: bit연산 &|^, arithmetic + - 등은 조건식에 잘 안 쓰이지만, 만약 파서상 들어온다면 symbolic)
-        return
+        else :
+            raise ValueError(f"This operator '{op}' is not expected operator")
 
     def _update_single_condition(self, variables: dict, condition_expr: Expression, is_true_branch: bool):
         """
@@ -4040,7 +4011,7 @@ class ContractAnalyzer:
         """
         # condition_expr가 IdentifierExpContext or literalExpContext( true / false ) 등인 경우
         # 1) evaluate_expression으로 값을 가져옴
-        cond_val = self.evaluate_expression(condition_expr, variables)
+        cond_val = self.evaluate_expression(condition_expr, variables, None, None)
         if isinstance(cond_val, BoolInterval):
             # is_true_branch면 cond_val = [1,1], false면 [0,0]로 좁힘
             new_val = None
@@ -4060,7 +4031,7 @@ class ContractAnalyzer:
                 if isinstance(variables[var_name].value, BoolInterval):
                     updated_val = variables[var_name].value.meet(new_val)
                     variables[var_name].value = updated_val
-            # literal인 경우 => 값이 바뀔 여지가 없음
+                # struct 일수도 있을듯 추후 수정
         else:
             # cond_val이 BoolInterval이 아닐 수도 있으므로, 간단히 symbolic 처리 or pass
             pass
@@ -4108,6 +4079,12 @@ class ContractAnalyzer:
                 self.update_variables_with_condition(variables, condB, False)
 
     def _update_comparison_condition(self, variables: dict, cond_expr: Expression, is_true_branch: bool):
+        """
+        cond_expr.operator in ['<','>','<=','>=','==','!=']
+        cond_expr.left, cond_expr.right => Expression
+        is_true_branch => True면 cond_expr.operator 그대로 쓰고,
+                          False면 negate_operator를 적용
+        """
         op = cond_expr.operator
         # negate operator (if is_true_branch==False) => eq <-> !=, < -> >=, ...
         actual_op = op if is_true_branch else self.negate_operator(op)
@@ -4116,77 +4093,251 @@ class ContractAnalyzer:
         right_expr = cond_expr.right
 
         # 1) evaluate_expression으로 좌우 값을 먼저 가져옴
-        left_val = self.evaluate_expression(left_expr, variables)
-        right_val = self.evaluate_expression(right_expr, variables)
+        left_val = self.evaluate_expression(left_expr, variables, None, None)
+        right_val = self.evaluate_expression(right_expr, variables, None, None)
 
-        # 2) case 1: 양쪽이 다 Interval
+        # ========================= CASE 1: 양쪽이 Interval =========================
         if self._is_interval(left_val) and self._is_interval(right_val):
-            new_left = left_val
-            new_right = right_val
+            # 예) a < b → clamp a, b
+            updated_left, updated_right = self.refine_intervals_for_comparison(
+                left_val, right_val, actual_op
+            )
 
-            # 예) a < b → new_left.max <= new_right.min - 1, etc.
-            # 간단히 한 번만 clamp
-            updated_left, updated_right = self.refine_intervals_for_comparison(new_left, new_right, actual_op)
+            self.update_left_var(left_expr, updated_left, '=', variables)
+            self.update_left_var(right_expr, updated_right, '=', variables)
 
-            # 그 뒤, left_expr/right_expr가 “변수”인 경우 → 실제 variables[...] 갱신
-            left_name = self._extract_identifier_if_possible(left_expr)
-            right_name = self._extract_identifier_if_possible(right_expr)
-            if left_name in variables:
-                variables[left_name].value = updated_left
-            if right_name in variables:
-                variables[right_name].value = updated_right
-
-        # 3) case 2: 한쪽은 Interval, 한쪽은 literal/int
-        #    => refine 단일 변수
+        # ========================= CASE 2: 한쪽 Interval, 한쪽 literal =========================
+        # 예) a < 10, 혹은 0 < b
         elif self._is_interval(left_val) and isinstance(right_val, (int, float, str)):
             # ex) a < 10
-            # a.max <= 9
-            pass
+            # 1) 우변 literal -> Interval로 변환 시도 (예: int => [10, 10])
+            right_intv = self._coerce_literal_to_interval(right_val, left_val.type_length)
+            updated_left, _ = self.refine_intervals_for_comparison(
+                left_val, right_intv, actual_op
+            )
+            self.update_left_var(left_expr, updated_left, '=', variables)
+
         elif self._is_interval(right_val) and isinstance(left_val, (int, float, str)):
             # ex) 0 < b
-            # b.min >= 1
-            pass
+            left_intv = self._coerce_literal_to_interval(left_val, right_val.type_length)
+            # 실제 op가 (left op right)이므로, left=literal, right=interval
+            # refine_intervals_for_comparison은 (a_interval, b_interval, op) 순
+            updated_left, updated_right = self.refine_intervals_for_comparison(
+                left_intv, right_val, actual_op
+            )
+            self.update_left_var(right_expr, updated_right, '=', variables)
 
-        # 4) case 3: 한쪽이나 양쪽이 BoolInterval => eq, !=, ...
-        # 5) else => symbolic
+        # ========================= CASE 3: BoolInterval 비교 =========================
+        # 예) a == true, boolA != boolB, etc.
+        elif isinstance(left_val, BoolInterval) or isinstance(right_val, BoolInterval):
+            # 실제론 bool끼리의 <, >는 이상하긴 하지만,
+            # == / != 는 가능
+            self._update_bool_comparison(variables, left_expr, right_expr, left_val, right_val, actual_op)
+
+        else:
+            # 그 외 => symbolic or pass
+            pass
 
     def refine_intervals_for_comparison(self, a_interval, b_interval, op):
         """
-        a_interval, b_interval: Interval (IntegerInterval or UnsignedInterval)
+        a_interval, b_interval: Interval (IntegerInterval or UnsignedIntegerInterval)
         op: '<', '>', '<=', '>=', '==', '!='
         return: (new_a, new_b)
         """
+        # 복사본 생성
+        new_a = a_interval.copy()
+        new_b = b_interval.copy()
+
+        # ---------- 1) a < b ----------
         if op == '<':
-            # a < b => a.max < b.min
-            # clamp a.max <= b.min - 1
-            new_a = a_interval.copy()
-            new_b = b_interval.copy()
+            # a.max < b.min
+            # clamp: a.max <= b.min - 1
             if new_b.min_value != float('-inf'):
-                new_a_max = min(new_a.max_value, new_b.min_value - 1)
-                if new_a_max < new_a.min_value:
+                candidate_max = new_b.min_value - 1
+                if candidate_max < new_a.min_value:
                     new_a = new_a.bottom(new_a.type_length)
                 else:
-                    new_a.max_value = new_a_max
-            # 또한 b.min >= a.max+1
-            new_b_min = max(new_b.min_value, new_a.max_value + 1)
-            if new_b_min > new_b.max_value:
-                new_b = new_b.bottom(new_b.type_length)
-            else:
-                new_b.min_value = new_b_min
+                    new_a.max_value = min(new_a.max_value, candidate_max)
+
+            # b.min >= a.max+1
+            if not new_a.is_bottom() and new_a.max_value != float('inf'):
+                candidate_min = new_a.max_value + 1
+                if candidate_min > new_b.max_value:
+                    new_b = new_b.bottom(new_b.type_length)
+                else:
+                    new_b.min_value = max(new_b.min_value, candidate_min)
+
             return (new_a, new_b)
 
-        elif op == '==':
-            # a == b => a, b 교집합
-            meet_ab = a_interval.meet(b_interval)
+        # ---------- 2) a <= b ----------
+        if op == '<=':
+            # a.max <= b.max
+            # a <= b => a.max <= b.min?  (아닌가? Actually: a <= b => a.max <= b.max, b.min >= a.min..)
+            # 보수적으로 a.max <= b.max, b.min >= a.min
+            # 좀더 정확히: a <= b => a.max <= b.min if we treat strict domain
+            # (실제로는 a <= b => a.max <= b.min ? => that’s effectively <)
+            # => a <= b is basically (a < b) or (a==b)
+            # 여기서는 a <= b => a.max <= b.max (너무 약함)
+            # 혹은 (a < b) U (a==b) => clamp both
+            # 간단 구현: treat as a < b, then a==b join
+            # => pass
+            # 아래선 a <= b를 "a < b or a==b"로 처리
+            # => a< b clamp + a==b clamp => union => in Interval Domain, union 연산은 join
+            lt_a, lt_b = self.refine_intervals_for_comparison(a_interval, b_interval, '<')
+            eq_a, eq_b = self.refine_intervals_for_comparison(a_interval, b_interval, '==')
+            # join
+            join_a = lt_a.join(eq_a)
+            join_b = lt_b.join(eq_b)
+            return (join_a, join_b)
+
+        # ---------- 3) a > b ----------
+        if op == '>':
+            # a.min > b.max
+            # clamp a.min >= b.max+1
+            if new_b.max_value != float('inf'):
+                candidate_min = new_b.max_value + 1
+                if candidate_min > new_a.max_value:
+                    new_a = new_a.bottom(new_a.type_length)
+                else:
+                    new_a.min_value = max(new_a.min_value, candidate_min)
+            # b.max <= a.min-1
+            if not new_a.is_bottom() and new_a.min_value != float('-inf'):
+                candidate_max = new_a.min_value - 1
+                if candidate_max < new_b.min_value:
+                    new_b = new_b.bottom(new_b.type_length)
+                else:
+                    new_b.max_value = min(new_b.max_value, candidate_max)
+            return (new_a, new_b)
+
+        # ---------- 4) a >= b ----------
+        if op == '>=':
+            # a >= b => same trick => union of (a> b) and (a==b)
+            gt_a, gt_b = self.refine_intervals_for_comparison(a_interval, b_interval, '>')
+            eq_a, eq_b = self.refine_intervals_for_comparison(a_interval, b_interval, '==')
+            join_a = gt_a.join(eq_a)
+            join_b = gt_b.join(eq_b)
+            return (join_a, join_b)
+
+        # ---------- 5) a == b ----------
+        if op == '==':
+            # a == b => meet(a,b)
+            meet_ab = new_a.meet(new_b)
             return (meet_ab, meet_ab)
 
-        # etc. (>, <=, >=, !=)
-        return (a_interval, b_interval)
+        # ---------- 6) a != b ----------
+        if op == '!=':
+            # a != b => (a,b) NOT in (a==b)
+            # Interval Domain에서 정확히 "not equal"을 표현하기 어려움
+            # 단일 정수라면 exclude => a,b 교집합 빼기
+            # 간단히 "no refinement" or symbolic
+            return (new_a, new_b)
+
+        # fallback
+        return (new_a, new_b)
+
+    def _coerce_literal_to_interval(self, literal_value, default_bits=256):
+        """
+        literal_value가 int, float, str('123' 같은)이면
+        IntegerInterval/UnsignedIntegerInterval 로 대충 변환
+        - 여기선 부호 추정이 어려우므로 int인지 uint인지는
+          대략 정하거나, int라고 가정
+        - 실제론 parse해서 음수/양수 구분, base등 처리 가능
+        """
+        if isinstance(literal_value, (int, float)):
+            # int 범위 - 여기선 int라고 가정
+            # 실제론 unsigned 구분 필요
+            int_val = int(literal_value)
+            return IntegerInterval(int_val, int_val, default_bits)
+        if isinstance(literal_value, str):
+            # 만약 '123'이면 int 변환
+            # 만약 'hello'이면 symbolic?
+            try:
+                int_val = int(literal_value, 0)
+                return IntegerInterval(int_val, int_val, default_bits)
+            except ValueError:
+                # symbolic
+                return IntegerInterval(None, None, default_bits).make_bottom()
+        # fallback
+        return IntegerInterval(None, None, default_bits).make_bottom()
+
+    def _update_bool_comparison(self, variables: dict,
+                                left_expr: Expression, right_expr: Expression,
+                                left_val, right_val, op: str):
+        """
+        예) (boolA == boolB), (boolA != true), ...
+        op in ['==','!=','<','>','<=','>='] 중 bool끼리 말이 되는건 ==, != 정도
+        ( <, > 등은 사실상 말이 안 되지만 예시로 처리)
+        """
+        # 우선 bool이 아닌쪽을 boolInterval로 변환 시도?
+        # 아니면 단순 symbolic
+        if not isinstance(left_val, BoolInterval):
+            if isinstance(right_val, BoolInterval):
+                # swap
+                left_expr, right_expr = right_expr, left_expr
+                left_val, right_val = right_val, left_val
+            else:
+                # 둘다 bool이 아님
+                return
+
+        # 이제 left_val은 BoolInterval 확정
+        # right_val이 BoolInterval이거나, bool literal => BoolInterval(0 or 1),
+        # 또는 int(0 or 1)
+
+        if not isinstance(right_val, BoolInterval):
+            # 만약 int(0,0) or (1,1) => 변환
+            if self._is_interval(right_val):
+                # int interval => [0,0] => false, [1,1] => true, [0,1] => unknown
+                bool_equiv = self._convert_int_to_bool_interval(right_val)
+                right_val = bool_equiv
+            else:
+                # symbolic
+                return
+
+        # 이제 left_val, right_val 둘 다 BoolInterval
+        # op == '==' => left==right => 교집합
+        # op == '!=' => left!=right => 부분 부정
+        # 그외 <, >, <=, >= => 논리적으로 별 의미 없음 => symbolic or skip
+        if op == '==':
+            meet_lr = left_val.meet(right_val)
+            # left_expr/right_expr가 identifier면 갱신
+            left_name = self._extract_identifier_if_possible(left_expr)
+            right_name = self._extract_identifier_if_possible(right_expr)
+            if left_name in variables:
+                variables[left_name].value = meet_lr
+            if right_name in variables:
+                variables[right_name].value = meet_lr
+
+        elif op == '!=':
+            # left != right
+            # 만약 left=[0,0], right=[0,0] => meet => bottom
+            # if left=[0,1], right=[0,1], => no refinement
+            # ...
+            # 여기서는 간단히 partial symbolic
+            pass
+
+        else:
+            # <, >, <=, >= => 보통 bool끼리 잘 안 씀 => symbolic
+            pass
+
+    def _convert_int_to_bool_interval(self, int_interval):
+        """
+        간단히 [0,0] => BoolInterval(0,0),
+             [1,1] => BoolInterval(1,1)
+             그외 => BoolInterval(0,1)
+        """
+        if int_interval.is_bottom():
+            return BoolInterval(None, None)
+        if int_interval.min_value == 0 and int_interval.max_value == 0:
+            return BoolInterval(0, 0)  # always false
+        elif int_interval.min_value == 1 and int_interval.max_value == 1:
+            return BoolInterval(1, 1)  # always true
+        else:
+            return BoolInterval(0, 1)  # unknown
 
     def _is_interval(self, val):
         return isinstance(val, (IntegerInterval, UnsignedIntegerInterval, BoolInterval))
 
-    def _extract_identifier_if_possible(self, expr: Expression):
+    def _extract_variable_of_expression(self, expr):
         """
         expr가 IdentifierExpContext인지 검사하여, 맞으면 expr.identifier 리턴
         아니면 None
@@ -4707,46 +4858,6 @@ class ContractAnalyzer:
             parsed_intervals[var_name] = Interval(min_val, max_val)
 
         return parsed_intervals
-
-    def add_analysis_variable_result(self, line_no: int, var_key: str, interval_obj):
-        """
-        line_no : 몇 번째 라인
-        var_key : "x" / "myArray[0]" / "myStruct.field1" 등
-        interval_obj : Interval, UnsignedInterval, BoolInterval, etc.
-                      또는 None/bottom/symbolic
-        """
-        # 1) line_no 엔트리가 없으면 초기화
-        if line_no not in self.analysis_results:
-            self.analysis_results[line_no] = {
-                "variables": {},
-                "errors": []
-            }
-
-        # 2) interval_obj를 [min, max] 형태의 리스트로 변환
-        if interval_obj is None:
-            # symbolic or unknown
-            self.analysis_results[line_no]["variables"][var_key] = "symbolic/None"
-        elif hasattr(interval_obj, "min_value") and hasattr(interval_obj, "max_value"):
-            self.analysis_results[line_no]["variables"][var_key] = [
-                interval_obj.min_value,
-                interval_obj.max_value
-            ]
-        else:
-            # 나머지 (string, bool, etc.)
-            self.analysis_results[line_no]["variables"][var_key] = str(interval_obj)
-
-    def add_analysis_error(self, line_no: int, error_msg: str):
-        """
-        line_no : 몇 번째 라인
-        error_msg : 의도/실제 불일치나 기타 오류 메시지
-        """
-        if line_no not in self.analysis_results:
-            self.analysis_results[line_no] = {
-                "variables": {},
-                "errors": []
-            }
-
-        self.analysis_results[line_no]["errors"].append(error_msg)
 
     def get_analysis_result(self):
         # 가장 최근의 분석 결과를 반환
