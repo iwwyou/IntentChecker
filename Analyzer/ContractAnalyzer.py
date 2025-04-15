@@ -1427,8 +1427,7 @@ class ContractAnalyzer:
         current_block = self.get_current_block()
 
         # 3. 현재 블록에 continue statement 추가 (Statement 객체로 추가)
-        continue_statement = Statement(statement_type="continue")
-        current_block.statements.append(continue_statement)
+        current_block.add_continue_statement()
 
         # 4. 재귀적으로 fixpoint_evaluation_node 찾기
         fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block, self.current_target_function_cfg)
@@ -1472,8 +1471,7 @@ class ContractAnalyzer:
         current_block = self.get_current_block()
 
         # 3. 현재 블록에 break statement 추가 (Statement 객체로 추가)
-        break_statement = Statement(statement_type="break")
-        current_block.statements.append(break_statement)
+        current_block.add_break_statement()
 
         # 4. 재귀적으로 위로 타고 올라가서 while문 조건 노드를 찾기
         condition_node = self.find_while_condition_node(current_block, self.current_target_function_cfg)
@@ -1561,7 +1559,7 @@ class ContractAnalyzer:
 
         # 3. 반환값이 있는 경우 expression 평가
         if return_expr:
-            return_value = self.evaluate_expression(return_expr)
+            return_value = self.evaluate_expression(return_expr, current_block.variables, None, None)
         else:
             return_value = None
 
@@ -1570,7 +1568,7 @@ class ContractAnalyzer:
 
         # 5. function_exit_node에 return 값을 저장
         exit_node = self.current_target_function_cfg.get_exit_node()
-        exit_node.return_val = return_value  # 반환 값을 exit_node의 return_val에 기록
+        exit_node.return_vals[self.current_start_line] = return_value  # 반환 값을 exit_node의 return_val에 기록
 
         # 7. current_block에서 exit_node로 직접 연결
         self.current_target_function_cfg.graph.add_edge(current_block, exit_node)

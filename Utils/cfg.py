@@ -17,7 +17,6 @@ class CFGNode:
         self.condition_node_type = condition_node_type
 
         self.join_point_node = False
-
         self.fixpoint_evaluation_node = fixpoint_evaluation_node
         self.loop_exit_node = loop_exit_node
         self.is_loop_body = False
@@ -27,7 +26,7 @@ class CFGNode:
         self.variables = {}  # var_name -> Variables 객체
 
         self.function_exit_node = False
-        self.return_val = None
+        self.return_vals = {}
 
     def add_variable_declaration_statement(self, typeObj, varName, initExpr):
 
@@ -54,8 +53,6 @@ class CFGNode:
 
         # 변수 정보 업데이트는 update_left_Var 관련 함수에서 수행
 
-
-
     def add_function_call_statement(self, function_expr: Expression, evaluated_value=None):
         """
         함수 호출문을 CFG에 추가합니다.
@@ -69,7 +66,7 @@ class CFGNode:
         )
         self.statements.append(function_call_stmt)
 
-    def add_return_statement(self, return_expr: Expression = None, evaluated_value=None):
+    def add_return_statement(self, return_expr: Expression = None, evaluated_value=None, return_line_num = None):
         """
         반환 구문을 CFG에 추가하고, 반환 값을 업데이트합니다.
         :param return_expr: 반환할 Expression 객체
@@ -81,7 +78,14 @@ class CFGNode:
             evaluated_value=evaluated_value
         )
         self.statements.append(return_stmt)
-        self.return_val = evaluated_value  # exit 노드에 저장할 반환 값으로 사용
+
+    def add_continue_statement(self):
+        continue_stmt = Statement(statement_type='continue')
+        self.statements.append(continue_stmt)
+
+    def add_break_statement(self):
+        break_stmt = Statement(statement_type='break')
+        self.statements.append(break_stmt)
 
     def get_variable(self, var_name: str) -> Variables:
         """

@@ -20,6 +20,11 @@ class Statement:
         elif statement_type == 'return':
             self.return_expr = kwargs.get('return_expr')
             self.evaluated_value = kwargs.get('evaluated_value')
+        elif statement_type == 'revert' :
+            self.identifier = kwargs.get('identifier')
+            self.string_literal = kwargs.get('string_literal')
+            self.arguments = kwargs.get('arguments')
+
 
 
 class Expression:
