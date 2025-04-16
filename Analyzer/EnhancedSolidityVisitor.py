@@ -1197,17 +1197,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveForStatement.
     def visitInteractiveForStatement(self, ctx: SolidityParser.InteractiveForStatementContext):
-        """
-        grammar:
-          interactiveForStatement
-            : 'for' '(' ( simpleStatement | ';' ) ( expressionStatement | ';' ) expression? ')' '{' '}' ;
-
-          - 첫 번째 부분: simpleStatement(초기문) 또는 ';'
-          - 두 번째 부분: expressionStatement(조건식) 또는 ';'
-          - 세 번째 부분: expression? (증분문) (옵션)
-          - 이후 블록 { ... } (본문)는 이미 interactiveBlockUnit 형태로 파싱됨
-            => 여기서는 '{' '}'만 처리, 내부는 별도의 rule (interactiveBlockItem*)에서 처리
-        """
 
         # (1) 초기문(Initial Statement) 파싱
         init_stmt_ctx = ctx.getChild(2)  # 대략 'for' '(' 뒤 첫 번째 ( ... ) 안의 문법

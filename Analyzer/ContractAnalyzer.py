@@ -1288,15 +1288,7 @@ class ContractAnalyzer:
         self.current_target_function_cfg = None
 
     def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr=None):
-        """
-        for( initial_statement; condition_expr; increment_expr ) { ... }
 
-        가정:
-          - for문의 본문 { ... } 은 그 뒤에 interactiveBlockUnit 형태로 추가로 파싱되어서
-            ContractAnalyzer.update_code(...) / visitor 호출이 들어옴.
-          - 여기서는 CFG에 'for_join', 'for_condition', 'for_body', 'for_increment', 'for_exit' 노드를 구성.
-            (while문 로직과 유사)
-        """
         # 1) 현재 컨트랙트 / 함수 CFG 가져오기
         contract_cfg = self.contract_cfgs.get(self.current_target_contract)
         if not contract_cfg:
@@ -1323,16 +1315,21 @@ class ContractAnalyzer:
         # 기존 current_block과 successor들의 edge를 제거
         for successor in successors:
             self.current_target_function_cfg.graph.remove_edge(current_block, successor)
-            self.current_target_function_cfg.graph.add_edge(exit_node.successor)
+            self.current_target_function_cfg.graph.add_edge(exit_node, successor)
 
         if initial_statement is not None:
-            if initial_statement['context'] == 'VariableDeclaration' :
-                initVarObj = Variables(
-                    typeInfo=initial_statement['initVarType'],
-                    identifier=initial_statement['initVarName']
-                )
-                init_node.variables[initial_statement['initVarName']] = initVarObj
-                initVarObj.value = self.evaluate_expression(initial_statement['initValExpr'], init_node.variables, None, None)
+            if initial_statement.get('context') == 'VariableDeclaration':
+                # initVarType, initVarName, initValExpr
+                initVarType = initial_statement['initVarType']
+                initVarName = initial_statement['initVarName']
+                initValExpr = initial_statement['initValExpr']
+
+                # 예시 (단순) 처리:
+                var_obj = Variables(identifier=initVarName, typeInfo=initVarType, scope="local")
+                init_node.variables[initVarName] = var_obj
+                if initValExpr is not None:
+                    val = self.evaluate_expression(initValExpr, init_node.variables)
+                    var_obj.value = val
 
             elif initial_statement['context'] == 'Expression' :
                 tempExpr = initial_statement['initExpr']
@@ -1366,7 +1363,6 @@ class ContractAnalyzer:
         body_node.variables = self.copy_variables(cond_node.variables)
         if condition_expr is not None:
             self.update_variables_with_condition(body_node.variables, condition_expr, is_true_branch=True)
-            self.update_variables_with_condition(exit_node.variables, condition_expr, is_false_branch=True)
 
         function_cfg.graph.add_node(body_node)
         # true branch (cond==True) → body_node
@@ -1374,6 +1370,9 @@ class ContractAnalyzer:
 
         function_cfg.graph.add_node(exit_node)
         function_cfg.graph.add_edge(cond_node, exit_node, condition=False)
+        # false branch refine
+        if condition_expr is not None:
+            self.update_variables_with_condition(exit_node.variables, condition_expr, is_true_branch=False)
 
         # 7) 증분문(increment) 노드
         #   - 보통 C/solidity 스타일 for문은 "본문 실행 후 → 증분문 실행 → 다시 condition" 식
@@ -1390,6 +1389,14 @@ class ContractAnalyzer:
             elif increment_expr.operator == "--" :
                 self.update_left_var(increment_expr.expression, 1, '-=', increment_node.variables, None, None)
                 increment_node.add_assign_statement(increment_expr.expression, "-=" literalExp)
+            elif increment_expr.operator == "+=" :
+                self.update_left_var(increment_expr.left, increment_expr.right, '+=', increment_node.variables, None, None)
+                increment_node.add_assign_statement(increment_expr.left, "+=", increment_expr.right)
+            elif increment_expr.operator == "-=" :
+                self.update_left_var(increment_expr.left, increment_expr.right, '-=', increment_node.variables, None, None)
+                increment_node.add_assign_statement(increment_expr.left, "-=", increment_expr.right)
+            else :
+                raise ValueError(f"This operator '{increment_expr.operator}' is not expected.")
 
         function_cfg.graph.add_node(increment_node)
         # body_node → increment_node
