@@ -708,7 +708,6 @@ class SolidityVisitor(ParseTreeVisitor):
     def visitVariableDeclarationStatement(self, ctx:SolidityParser.VariableDeclarationStatementContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#interactiveStatement.
     def visitInteractiveStatement(self, ctx:SolidityParser.InteractiveStatementContext):
         return self.visitChildren(ctx)
