@@ -1385,10 +1385,10 @@ class ContractAnalyzer:
 
             if increment_expr.operator == "++" :
                 self.update_left_var(increment_expr.expression, 1, '+=', increment_node.variables, None, None)
-                increment_node.add_assign_statement(increment_expr.expression, "+=" literalExp)
+                increment_node.add_assign_statement(increment_expr.expression, "+=", literalExp)
             elif increment_expr.operator == "--" :
                 self.update_left_var(increment_expr.expression, 1, '-=', increment_node.variables, None, None)
-                increment_node.add_assign_statement(increment_expr.expression, "-=" literalExp)
+                increment_node.add_assign_statement(increment_expr.expression, "-=", literalExp)
             elif increment_expr.operator == "+=" :
                 self.update_left_var(increment_expr.left, increment_expr.right, '+=', increment_node.variables, None, None)
                 increment_node.add_assign_statement(increment_expr.left, "+=", increment_expr.right)
