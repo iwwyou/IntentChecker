@@ -1007,12 +1007,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#simpleStatement.
-    def enterSimpleStatement(self, ctx:SolidityParser.SimpleStatementContext):
+    # Enter a parse tree produced by SolidityParser#VDContext.
+    def enterVDContext(self, ctx:SolidityParser.VDContextContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#simpleStatement.
-    def exitSimpleStatement(self, ctx:SolidityParser.SimpleStatementContext):
+    # Exit a parse tree produced by SolidityParser#VDContext.
+    def exitVDContext(self, ctx:SolidityParser.VDContextContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#EContext.
+    def enterEContext(self, ctx:SolidityParser.EContextContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#EContext.
+    def exitEContext(self, ctx:SolidityParser.EContextContext):
         pass
 
 

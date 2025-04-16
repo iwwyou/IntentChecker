@@ -846,81 +846,14 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 이름 또는 배열/구조체 접근자 추출
-        var_name = self.extract_variable_name(expr.expression)
-        variable_obj = current_block.get_variable(var_name)
-
-        if not variable_obj:
-            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
-
-        if not variable_obj:
-            raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
-
-        # 5. 배열 또는 구조체의 경우 처리
-        if isinstance(variable_obj, ArrayVariable):
-            # 배열 요소에 대해 연산 수행
-            index_expr = expr.expression.index  # 배열 인덱스 추출
-            index_interval = self.evaluate_expression(index_expr)
-            index_value = index_interval.min_value  # 인덱스 값 (단일 값으로 가정)
-            element = variable_obj.elements[index_value]
-            current_interval = element.value
-        elif isinstance(variable_obj, StructVariable):
-            # 구조체 멤버에 대해 연산 수행
-            member_name = expr.expression.member
-            current_interval = variable_obj.members[member_name].value
-        else:
-            # 기본 변수 처리
-            current_interval = variable_obj.value
-
-        # 6. 단항 연산 수행 및 우변 표현식 생성
-        if expr.operator == '++':
-            # 우변 표현식 생성: 변수 + 1
-            right_expr = Expression(
-                operator='+',
-                left=expr.expression,
-                right=Expression(literal=1)
-            )
-            # 우변 표현식 평가
-            new_interval = current_interval.add(IntegerInterval(1, 1))
-        elif expr.operator == '--':
-            # 우변 표현식 생성: 변수 - 1
-            right_expr = Expression(
-                operator='-',
-                left=expr.expression,
-                right=Expression(literal=1)
-            )
-            # 우변 표현식 평가
-            new_interval = current_interval.subtract(IntegerInterval(1, 1))
-        else:
-            raise ValueError(f"Unsupported unary prefix operator: {expr.operator}")
-
-        # 7. CFG 노드에 업데이트된 변수 정보 저장
-        if isinstance(variable_obj, ArrayVariable):
-            # 배열 요소에 대한 할당문 추가
-            variable_obj.elements[index_value].value = new_interval  # 요소 값 업데이트
-            current_block.add_array_assign_statement(variable_obj, right_expr, operator='=')
-        elif isinstance(variable_obj, StructVariable):
-            # 구조체 멤버에 대한 할당문 추가
-            variable_obj.members[member_name].value = new_interval  # 멤버 값 업데이트
-            current_block.add_struct_assign_statement(variable_obj, right_expr, operator='=')
-        else:
-            # 기본 변수에 대한 할당문 추가
-            variable_obj.value = new_interval  # 변수 값 업데이트
-            current_block.add_assign_statement(variable_obj, right_expr, operator='=')
+        if expr.operator == "++" :
+            self.update_left_var(expr.expression, 1, '+=', current_block.variables, None, None)
+        elif expr.operator == "--" :
+            self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
-
-        # 9. 분석 결과 저장
-        result = {
-            "line": self.current_start_line,
-            "variable": var_name,
-            "assigned_interval": [new_interval.min_value, new_interval.max_value]
-        }
-
-        # get_analysis_result에 사용될 결과 저장
-        self.analysis_results = result
 
         # 10. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -947,81 +880,14 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        # 4. 변수 이름 또는 배열/구조체 접근자 추출
-        var_name = self.extract_variable_name(expr.expression)
-        variable_obj = current_block.get_variable(var_name)
-
-        if not variable_obj:
-            variable_obj = self.current_target_function_cfg.get_related_variable(var_name)
-
-        if not variable_obj:
-            raise ValueError(f"Variable '{var_name}' not found in current CFG node.")
-
-        # 5. 배열 또는 구조체의 경우 처리
-        if isinstance(variable_obj, ArrayVariable):
-            # 배열 요소에 대해 연산 수행
-            index_expr = expr.expression.index  # 배열 인덱스 추출
-            index_interval = self.evaluate_expression(index_expr)
-            index_value = index_interval.min_value  # 인덱스 값 (단일 값으로 가정)
-            element = variable_obj.elements[index_value]
-            current_interval = element.value
-        elif isinstance(variable_obj, StructVariable):
-            # 구조체 멤버에 대해 연산 수행
-            member_name = expr.expression.member
-            current_interval = variable_obj.members[member_name].value
-        else:
-            # 기본 변수 처리
-            current_interval = variable_obj.value
-
-        # 6. 단항 연산 수행 및 우변 표현식 생성
-        if expr.operator == '++':
-            # 우변 표현식 생성: 변수 + 1
-            right_expr = Expression(
-                operator='+',
-                left=expr.expression,
-                right=Expression(literal=1)
-            )
-            # 우변 표현식 평가
-            new_interval = current_interval.add(IntegerInterval(1, 1))
-        elif expr.operator == '--':
-            # 우변 표현식 생성: 변수 - 1
-            right_expr = Expression(
-                operator='-',
-                left=expr.expression,
-                right=Expression(literal=1)
-            )
-            # 우변 표현식 평가
-            new_interval = current_interval.subtract(IntegerInterval(1, 1))
-        else:
-            raise ValueError(f"Unsupported unary suffix operator: {expr.operator}")
-
-        # 7. CFG 노드에 업데이트된 변수 정보 저장
-        if isinstance(variable_obj, ArrayVariable):
-            # 배열 요소에 대한 할당문 추가
-            variable_obj.elements[index_value].value = new_interval  # 요소 값 업데이트
-            current_block.add_array_assign_statement(variable_obj, right_expr, operator='=')
-        elif isinstance(variable_obj, StructVariable):
-            # 구조체 멤버에 대한 할당문 추가
-            variable_obj.members[member_name].value = new_interval  # 멤버 값 업데이트
-            current_block.add_struct_assign_statement(variable_obj, right_expr, operator='=')
-        else:
-            # 기본 변수에 대한 할당문 추가
-            variable_obj.value = new_interval  # 변수 값 업데이트
-            current_block.add_assign_statement(variable_obj, right_expr, operator='=')
+        if expr.operator == "++" :
+            self.update_left_var(expr.expression, 1, '+=', current_block.variables, None, None)
+        elif expr.operator == "--" :
+            self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
             self.update_while_body(vars, current_block)
-
-        # 9. 분석 결과 저장
-        result = {
-            "line": self.current_start_line,
-            "variable": var_name,
-            "assigned_interval": [new_interval.min_value, new_interval.max_value]
-        }
-
-        # get_analysis_result에 사용될 결과 저장
-        self.analysis_results = result
 
         # 10. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -1354,7 +1220,7 @@ class ContractAnalyzer:
 
         # Copy variables from current_block to join_node
         join_node.variables = self.copy_variables(current_block.variables) # while문 이전에서 들어온 변수의 상태
-        join_node.fixpoint_evaluation_node_vars = self.copy_variables(current_block.variables) # join 하면서 변하는 변수의 상태
+        join_node.fixpoint_evaluation_node_vars = self.copy_variables(current_block.variables)
 
         successors = list(self.current_target_function_cfg.graph.successors(current_block))
 
@@ -1410,6 +1276,111 @@ class ContractAnalyzer:
         # 8. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        self.current_target_function_cfg = None
+
+    def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr_ctx=None,
+                              start_line=None):
+        """
+        for( initial_statement; condition_expr; increment_expr ) { ... }
+
+        가정:
+          - for문의 본문 { ... } 은 그 뒤에 interactiveBlockUnit 형태로 추가로 파싱되어서
+            ContractAnalyzer.update_code(...) / visitor 호출이 들어옴.
+          - 여기서는 CFG에 'for_join', 'for_condition', 'for_body', 'for_increment', 'for_exit' 노드를 구성.
+            (while문 로직과 유사)
+        """
+        # 1) 현재 컨트랙트 / 함수 CFG 가져오기
+        contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if not contract_cfg:
+            raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
+        function_cfg = contract_cfg.get_function_cfg(self.current_target_function)
+        if not function_cfg:
+            raise ValueError("No active function to process the for statement.")
+
+        current_block = self.get_current_block()  # for문 직전에 위치한 block
+
+        # 2) 먼저 initial_statement 처리
+        #    - 이 부분은 'for' 루프에 진입하기 전에 한 번만 실행
+        #    - while문 로직에서는 없었던 부분이므로, 여기서만 추가
+        init_node = CFGNode(f"for_init_{start_line}")
+        init_node.variables = self.copy_variables(current_block.variables)
+
+        # initial_statement가 있는 경우,
+        #   - 만약 variable declaration / assignment statement라면,
+        #     → interpret or store to node.statements
+        # 여기서는 간단히 node.statements에 담거나, process_variable_declaration을 직접 호출 가능
+        if initial_statement is not None:
+            # pseudo-코드: parse initial_statement → add to init_node.statements
+            #             or process_xxx(statement)
+            pass
+
+        # 3) join node 생성 (while_join과 유사)
+        join_node = CFGNode(name=f"for_join_{start_line}", fixpoint_evaluation_node=True)
+        join_node.variables = self.copy_variables(init_node.variables)
+        join_node.fixpoint_evaluation_node_vars = self.copy_variables(init_node.variables)
+
+        # current_block → init_node → join_node 로 연결
+        function_cfg.graph.add_node(init_node)
+        function_cfg.graph.add_edge(current_block, init_node)
+        function_cfg.graph.add_node(join_node)
+        function_cfg.graph.add_edge(init_node, join_node)
+
+        # 4) condition node
+        cond_node = CFGNode(name=f"for_condition_{start_line}", condition_node=True, condition_node_type="for")
+        cond_node.condition_expr = condition_expr
+        cond_node.variables = self.copy_variables(join_node.variables)
+
+        function_cfg.graph.add_node(cond_node)
+        function_cfg.graph.add_edge(join_node, cond_node)
+
+        # 5) loop body node
+        body_node = CFGNode(name=f"for_body_{start_line}")
+        body_node.is_loop_body = True
+        body_node.variables = self.copy_variables(cond_node.variables)
+        if condition_expr is not None:
+            self.update_variables_with_condition(body_node.variables, condition_expr, is_true_branch=True)
+
+        function_cfg.graph.add_node(body_node)
+        # true branch (cond==True) → body_node
+        function_cfg.graph.add_edge(cond_node, body_node, condition=True)
+
+        # 6) exit node
+        exit_node = CFGNode(name=f"for_exit_{start_line}", loop_exit_node=True)
+        function_cfg.graph.add_node(exit_node)
+        function_cfg.graph.add_edge(cond_node, exit_node, condition=False)
+
+        # 7) 증분문(increment) 노드
+        #   - 보통 C/solidity 스타일 for문은 "본문 실행 후 → 증분문 실행 → 다시 condition" 식
+        increment_node = CFGNode(name=f"for_increment_{start_line}")
+        increment_node.variables = self.copy_variables(body_node.variables)
+
+        function_cfg.graph.add_node(increment_node)
+        # body_node → increment_node
+        function_cfg.graph.add_edge(body_node, increment_node)
+
+        # 여기서 increment_expr_ctx → Expression 객체로 만들어 interpret / store
+        if increment_expr_ctx is not None:
+            # interpret or store
+            pass
+
+        # increment_node → join_node (루프 백)
+        function_cfg.graph.add_edge(increment_node, join_node)
+
+        # 8) 기존 current_block 의 successor(들)를 exit_node로 연결
+        successors = list(function_cfg.graph.successors(current_block))
+        # (만약 current_block에 original successors가 있었다면, 이미 제거했거나 처리해야 함)
+        # 여기서는 while문 예제처럼 exit_node와 연결해줄 수도 있고,
+        # 혹은 init_node 이전에 붙일 수도 있음. 구현자가 원하는 구조에 따라 다름.
+
+        # 9) 마지막으로 CFG 업데이트
+        contract_cfg.functions[self.current_target_function] = function_cfg
+        self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        # brace_count 업데이트 (선택)
+        if start_line not in self.brace_count:
+            self.brace_count[start_line] = {}
+        self.brace_count[start_line]['cfg_node'] = cond_node
 
         self.current_target_function_cfg = None
 
@@ -3123,7 +3094,10 @@ class ContractAnalyzer:
 
                     element = callerObject.elements[idx]
                     if isinstance(element, Variables) or isinstance(element, EnumVariable) :
-                        element.value = self.compound_assignment(element.value, rVal, operator)
+                        if not self._is_interval(rVal) :
+                            if rVal.startswith('-') or rVal.isdigit() or rVal in ["true", "false"] :
+                                newRVal = self.convert_literal_to_interval(rVal, element)
+                        element.value = self.compound_assignment(element.value, newRVal, operator)
                         return
                     elif isinstance(element, ArrayVariable) or isinstance(element, StructVariable) :
                         return element
@@ -3131,6 +3105,9 @@ class ContractAnalyzer:
                 if literal_str in callerObject.mapping :
                     mapVar = callerObject.mapping[literal_str]
                     if isinstance(mapVar, Variables) or isinstance(mapVar, EnumVariable) :
+                        if not self._is_interval(rVal) :
+                            if rVal.startswith('-') or rVal.isdigit() or rVal in ["true", "false"]:
+                                newRVal = self.convert_literal_to_interval(rVal, mapVar)
                         mapVar.value = self.compound_assignment(mapVar.value, rVal, operator)
                     elif isinstance(mapVar, ArrayVariable) or isinstance(mapVar, StructVariable)\
                             or isinstance(mapVar, MappingVariable):
@@ -3197,6 +3174,23 @@ class ContractAnalyzer:
         if ident_str in variables :
             if isinstance(variables[ident_str], Variables) :
                 variables[ident_str].value = self.compound_assignment(variables[ident_str].value, rVal, operator)
+
+    def convert_literal_to_interval(self, literalValue:str, variableObj:Variables):
+        if literalValue.startswith('-') or literalValue.isdigit() :
+            varType = variableObj.typeInfo.elementaryTypeName
+            varLen = variableObj.typeInfo.intTypeLength
+            if varType.startswith("int") :
+                return IntegerInterval(int(literalValue), int(literalValue), varLen)
+            elif varType.startswith("uint") :
+                return UnsignedIntegerInterval(int(literalValue), int(literalValue), varLen)
+        elif literalValue in ["true", "false"] :
+            lower_str = literalValue.lower()
+            if lower_str == "true":
+                return BoolInterval(1, 1)
+            elif lower_str == "false":
+                return BoolInterval(0, 0)
+            else:
+                raise ValueError(f"Invalid boolean literal '{literalValue}'")
 
     def evaluate_expression(self, expr: Expression, variables: Variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":

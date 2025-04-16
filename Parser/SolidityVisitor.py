@@ -564,8 +564,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#simpleStatement.
-    def visitSimpleStatement(self, ctx:SolidityParser.SimpleStatementContext):
+    # Visit a parse tree produced by SolidityParser#VDContext.
+    def visitVDContext(self, ctx:SolidityParser.VDContextContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#EContext.
+    def visitEContext(self, ctx:SolidityParser.EContextContext):
         return self.visitChildren(ctx)
 
 

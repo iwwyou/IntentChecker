@@ -471,7 +471,8 @@ whileStatement
   : 'while' '(' expression ')' statement ;
 
 simpleStatement
-  : ( variableDeclarationStatement | expressionStatement ) ;
+  : variableDeclarationStatement # VDContext
+  | expressionStatement # EContext ;
 
 forStatement
   : 'for' '(' ( simpleStatement | ';' ) ( expressionStatement | ';' ) expression? ')' statement ;
@@ -590,7 +591,6 @@ interactiveStatement
   | requireStatement
   | assertStatement
   | assemblyStatement; // assembly는 추후 확장 하는걸로 하자 일단
-
 
 interactiveIfStatement
   : 'if' '(' expression ')' '{' '}' ;

@@ -9706,31 +9706,64 @@ class SolidityParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def variableDeclarationStatement(self):
-            return self.getTypedRuleContext(SolidityParser.VariableDeclarationStatementContext,0)
 
+        def getRuleIndex(self):
+            return SolidityParser.RULE_simpleStatement
+
+     
+        def copyFrom(self, ctx:ParserRuleContext):
+            super().copyFrom(ctx)
+
+
+
+    class EContextContext(SimpleStatementContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.SimpleStatementContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
 
         def expressionStatement(self):
             return self.getTypedRuleContext(SolidityParser.ExpressionStatementContext,0)
 
 
-        def getRuleIndex(self):
-            return SolidityParser.RULE_simpleStatement
-
         def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterSimpleStatement" ):
-                listener.enterSimpleStatement(self)
+            if hasattr( listener, "enterEContext" ):
+                listener.enterEContext(self)
 
         def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitSimpleStatement" ):
-                listener.exitSimpleStatement(self)
+            if hasattr( listener, "exitEContext" ):
+                listener.exitEContext(self)
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitSimpleStatement" ):
-                return visitor.visitSimpleStatement(self)
+            if hasattr( visitor, "visitEContext" ):
+                return visitor.visitEContext(self)
             else:
                 return visitor.visitChildren(self)
 
+
+    class VDContextContext(SimpleStatementContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.SimpleStatementContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def variableDeclarationStatement(self):
+            return self.getTypedRuleContext(SolidityParser.VariableDeclarationStatementContext,0)
+
+
+        def enterRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "enterVDContext" ):
+                listener.enterVDContext(self)
+
+        def exitRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "exitVDContext" ):
+                listener.exitVDContext(self)
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitVDContext" ):
+                return visitor.visitVDContext(self)
+            else:
+                return visitor.visitChildren(self)
 
 
 
@@ -9739,16 +9772,19 @@ class SolidityParser ( Parser ):
         localctx = SolidityParser.SimpleStatementContext(self, self._ctx, self.state)
         self.enterRule(localctx, 204, self.RULE_simpleStatement)
         try:
-            self.enterOuterAlt(localctx, 1)
             self.state = 1295
             self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,133,self._ctx)
             if la_ == 1:
+                localctx = SolidityParser.VDContextContext(self, localctx)
+                self.enterOuterAlt(localctx, 1)
                 self.state = 1293
                 self.variableDeclarationStatement()
                 pass
 
             elif la_ == 2:
+                localctx = SolidityParser.EContextContext(self, localctx)
+                self.enterOuterAlt(localctx, 2)
                 self.state = 1294
                 self.expressionStatement()
                 pass

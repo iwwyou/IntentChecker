@@ -354,40 +354,18 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx:SolidityParser.VariableDeclarationContext):
-        var_type = ctx.typeName().getText()
-        var_name = ctx.identifier().getText()
+        # 1. 변수 선언 정보 가져오기
+        type_ctx = ctx.variableDeclaration().typeName()
+        var_name = ctx.variableDeclaration().identifier().getText()
 
-        # 3. 타입 분석
-        type_context = ctx.typeName()  # typeName의 첫 번째 child를 가져옴
+        # 2. 초기화 값이 있는 경우 처리
+        init_expr = None
+        if ctx.expression():
+            init_expr = self.visitExpression(ctx.expression())
 
-        # a. elementaryTypeName (기본 자료형)
-        if isinstance(type_context, SolidityParser.ElementaryTypeNameContext):
-            if var_type.startswith('int') or var_type.startswith('uint'):
-                if var_type == 'int' or var_type == 'uint':
-                    length = 256  # 기본 길이는 256
-                else:
-                    length = int(var_type[len('int'):])  # 타입의 길이 추출
-                var_type_info = {'type': var_type, 'length': length}
-            else:
-                var_type_info = {'type': var_type}
-
-        # b. mapping (맵핑 타입) 추후 보완
-        elif isinstance(type_context, SolidityParser.MappingContext):
-            key_type, value_type = self.visitMapping(type_context)
-            var_type_info = {'type': 'mapping', 'key_type': key_type, 'value_type': value_type}
-
-        # c. 배열 타입 추후 보완
-        elif isinstance(type_context,
-                        SolidityParser.TypeNameContext) and ctx.typeName().getChildCount() > 1 and ctx.typeName().getChild(
-            1).getText() == '[':
-            element_type = type_context.getText()
-            array_size = ctx.typeName().expression().getText() if ctx.typeName().expression() else None
-            var_type_info = {'type': 'array', 'element_type': element_type, 'size': array_size}
-
-        else:
-            var_type_info = {'type': 'unknown'}
-
-        return var_name, var_type_info
+        # 3. 변수 타입 정보 분석 및 적절한 Variables 객체 생성
+        type_obj = SolType()
+        type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
 
     # Visit a parse tree produced by SolidityParser#variableDeclarationTuple.
     def visitVariableDeclarationTuple(self, ctx:SolidityParser.VariableDeclarationTupleContext):
@@ -888,8 +866,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = SolType()
         type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
 
-
-
         # 5. ContractAnalyzer로 Variables 객체 및 lineComment 전달
         #self.contract_analyzer.process_variable_declaration(variable_obj, init_expr)
 
@@ -1005,8 +981,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitWhileStatement(self, ctx:SolidityParser.WhileStatementContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#simpleStatement.
-    def visitSimpleStatement(self, ctx:SolidityParser.SimpleStatementContext):
+    # Visit a parse tree produced by SolidityParser#VDContext.
+    def visitVDContext(self, ctx:SolidityParser.VDContextContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#EContext.
+    def visitEContext(self, ctx:SolidityParser.EContextContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#forStatement.
@@ -1228,8 +1208,65 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return
 
     # Visit a parse tree produced by SolidityParser#interactiveForStatement.
-    def visitInteractiveForStatement(self, ctx:SolidityParser.InteractiveForStatementContext):
-        return self.visitChildren(ctx)
+    def visitInteractiveForStatement(self, ctx: SolidityParser.InteractiveForStatementContext):
+        """
+        grammar:
+          interactiveForStatement
+            : 'for' '(' ( simpleStatement | ';' ) ( expressionStatement | ';' ) expression? ')' '{' '}' ;
+
+          - 첫 번째 부분: simpleStatement(초기문) 또는 ';'
+          - 두 번째 부분: expressionStatement(조건식) 또는 ';'
+          - 세 번째 부분: expression? (증분문) (옵션)
+          - 이후 블록 { ... } (본문)는 이미 interactiveBlockUnit 형태로 파싱됨
+            => 여기서는 '{' '}'만 처리, 내부는 별도의 rule (interactiveBlockItem*)에서 처리
+        """
+
+        # (1) 초기문(Initial Statement) 파싱
+        init_stmt_ctx = ctx.getChild(2)  # 대략 'for' '(' 뒤 첫 번째 ( ... ) 안의 문법
+        # 만약 단순 ';' 인 경우 초기문이 없는 것
+        initial_statement = None
+        if not init_stmt_ctx.getText() == ';':
+            # simpleStatement → variableDeclarationStatement | expressionStatement
+            # 우리가 만든 커스텀 규칙: interactiveSimpleStatement : (interactiveVariableDeclarationStatement | interactiveExpressionStatement )
+            # Visitor를 이용해서 statement를 방문. 이 statement가 변수 선언문인지, expressionStatement인지 구분됨
+            initial_statement = self.visit(init_stmt_ctx)  # 보통 Expression 혹은 변수 선언 정보 등…
+
+        # (2) 조건식(Cond) or expressionStatement or ';'
+        cond_stmt_ctx = ctx.getChild(3)
+        condition_expr = None
+        if not cond_stmt_ctx.getText() == ';':
+            # expressionStatement 인지 체크
+            # 실제 grammar상: ( expressionStatement | ';' )
+            # expressionStatement => expression ';'
+            # => self.visitExpression()으로 expression만 추출 가능
+            expr_ctx = cond_stmt_ctx.expression()
+            if expr_ctx is not None:
+                condition_expr = self.visitExpression(expr_ctx)
+            # 만약 expressionStatement 자체가 아닌 경우, 에러 or None
+            # (사용자 문법에 따라 다를 수 있음)
+
+        # (3) 증분문 increment (expression?) → ctx.expression()? (네 번째/다섯 번째 child)
+        increment_expr_ctx = None
+        if ctx.expression():
+            increment_expr_ctx = ctx.expression()
+        # increment_expr = None
+        # if increment_expr_ctx is not None:
+        #     increment_expr = self.visitExpression(increment_expr_ctx)
+
+        # (4) 본문 블록 { }:
+        # 여기서는 Parser.g4에 따라 ' { ' ' } ' 만 있고, 내부 구문은 interactiveBlockItem*이 호출
+        # 실제 Analyzer 처리는 "for (init; cond; incr) { ... }" 전체를 하나의 block으로 본 뒤
+        # 내부 statement들은 별도로 interactiveBlockItem 규칙에서 parse/visit
+        # => 아래에서 process_for_statement 호출 시, for문 조건/증분식/초기문 정보를 넘겨줌
+
+        # (5) ContractAnalyzer로 전달
+        # 실제론 process_for_statement( initial_statement, condition_expr, increment_expr_ctx, ... )
+        self.contract_analyzer.process_for_statement(
+            initial_statement=initial_statement,
+            condition_expr=condition_expr,
+            increment_expr_ctx=increment_expr_ctx,
+            start_line=self._get_line_info(ctx)  # 예: 현재 파싱 중인 라인번호
+        )
 
     # Visit a parse tree produced by SolidityParser#interactiveWhileStatement.
     def visitInteractiveWhileStatement(self, ctx:SolidityParser.InteractiveWhileStatementContext):
