@@ -1477,7 +1477,7 @@ class ContractAnalyzer:
         current_block.add_break_statement()
 
         # 4. 재귀적으로 위로 타고 올라가서 while문 조건 노드를 찾기
-        condition_node = self.find_while_condition_node(current_block, self.current_target_function_cfg)
+        condition_node = self.find_loop_condition_node(current_block, self.current_target_function_cfg)
         if not condition_node:
             raise ValueError("No corresponding while condition node found for break statement.")
 
@@ -1528,21 +1528,21 @@ class ContractAnalyzer:
         # fixpoint_evaluation_node를 찾지 못하면 None 반환
         return None
 
-    def find_while_condition_node(self, current_node):
+    def find_loop_condition_node(self, current_node):
         """
                 재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾는 함수
                 """
         # 현재 노드가 fixpoint_evaluation_node라면 반환
-        if current_node.condition_node and current_node.condition_node_type == "while":
+        if current_node.condition_node and current_node.condition_node_type in["while", "for"] :
             return current_node
 
         # 직접적인 predecessor를 탐색
         predecessors = list(self.current_target_function_cfg.graph.predecessors(current_node))
         for pred in predecessors:
             # 재귀적으로 predecessor를 탐색하여 fixpoint_evaluation_node를 찾음
-            while_condition_node = self.find_while_condition_node(pred)
-            if while_condition_node:
-                return while_condition_node
+            loop_condition_node = self.find_loop_condition_node(pred)
+            if loop_condition_node:
+                return loop_condition_node
 
         # fixpoint_evaluation_node를 찾지 못하면 None 반환
         return None
@@ -2246,12 +2246,12 @@ class ContractAnalyzer:
         if not fixpoint_evaluation_node:
             raise ValueError("Join point node not found for the current block.")
 
-        while_condition_node = self.find_while_condition_node(current_block)
-        if not while_condition_node :
+        loop_condition_node = self.find_loop_condition_node(current_block)
+        if not loop_condition_node :
             raise ValueError("While condition node not found for the current block.")
 
         # 2. 루프 내의 모든 노드 수집
-        loop_nodes = self.traverse_loop_nodes(while_condition_node)
+        loop_nodes = self.traverse_loop_nodes(loop_condition_node)
 
         # 3. 변수 상태 초기화
         in_vars = {}
@@ -2259,12 +2259,12 @@ class ContractAnalyzer:
         for node in loop_nodes:
             in_vars[node] = {}
             out_vars[node] = {}
-            if node == while_condition_node:
+            if node == loop_condition_node:
                 in_vars[node] = self.copy_variables(fixpoint_evaluation_node.fixpoint_evaluation_node_vars)
 
         # 4. 워크리스트 알고리즘 초기화 (집합 사용)
         #worklist = set(loop_nodes)
-        worklist = deque([while_condition_node])
+        worklist = deque([loop_condition_node])
         max_iterations = 30  # 최대 반복 횟수 설정
         iteration = 0
 
@@ -2321,7 +2321,6 @@ class ContractAnalyzer:
 
         # 10. 수렴된 변수 상태 반환
         return out_vars[fixpoint_evaluation_node]
-
 
     def traverse_loop_nodes(self, loop_node):
         """
