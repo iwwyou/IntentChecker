@@ -1247,13 +1247,13 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     'initVarType' : initVarType,
                     'initVarName' : initVarName,
                     'initValExpr' : initValExpr,
-                    'context' : 'VariableDeclarationContext'
+                    'context' : 'VariableDeclaration'
                 }
             elif isinstance(init_stmt_ctx, SolidityParser.EContextContext) :
                 initExpr = self.visitEContext(init_stmt_ctx)
                 initial_statement = {
                     'initExpr' : initExpr,
-                    'context' : 'ExpressionStatement'
+                    'context' : 'Expression'
                 }
 
         # (2) 조건식(Cond) or expressionStatement or ';'
@@ -1274,24 +1274,15 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         increment_expr_ctx = None
         if ctx.expression():
             increment_expr_ctx = ctx.expression()
-        # increment_expr = None
-        # if increment_expr_ctx is not None:
-        #     increment_expr = self.visitExpression(increment_expr_ctx)
-
-        # (4) 본문 블록 { }:
-        # 여기서는 Parser.g4에 따라 ' { ' ' } ' 만 있고, 내부 구문은 interactiveBlockItem*이 호출
-        # 실제 Analyzer 처리는 "for (init; cond; incr) { ... }" 전체를 하나의 block으로 본 뒤
-        # 내부 statement들은 별도로 interactiveBlockItem 규칙에서 parse/visit
-        # => 아래에서 process_for_statement 호출 시, for문 조건/증분식/초기문 정보를 넘겨줌
 
         # (5) ContractAnalyzer로 전달
         # 실제론 process_for_statement( initial_statement, condition_expr, increment_expr_ctx, ... )
-        #self.contract_analyzer.process_for_statement(
-        #    initial_statement=initial_statement,
-        #    condition_expr=condition_expr,
-        #    increment_expr_ctx=increment_expr_ctx,
-        #    start_line=self._get_line_info(ctx)  # 예: 현재 파싱 중인 라인번호
-        #)
+        self.contract_analyzer.process_for_statement(
+            initial_statement=initial_statement,
+            condition_expr=condition_expr,
+            increment_expr_ctx=increment_expr_ctx,
+            start_line=self._get_line_info(ctx)  # 예: 현재 파싱 중인 라인번호
+        )
 
     # Visit a parse tree produced by SolidityParser#interactiveWhileStatement.
     def visitInteractiveWhileStatement(self, ctx:SolidityParser.InteractiveWhileStatementContext):

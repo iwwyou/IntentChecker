@@ -1279,8 +1279,7 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr_ctx=None,
-                              start_line=None):
+    def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr_ctx=None):
         """
         for( initial_statement; condition_expr; increment_expr ) { ... }
 
@@ -1303,20 +1302,26 @@ class ContractAnalyzer:
         # 2) 먼저 initial_statement 처리
         #    - 이 부분은 'for' 루프에 진입하기 전에 한 번만 실행
         #    - while문 로직에서는 없었던 부분이므로, 여기서만 추가
-        init_node = CFGNode(f"for_init_{start_line}")
+        init_node = CFGNode(f"for_init_{self.current_start_line}")
         init_node.variables = self.copy_variables(current_block.variables)
 
-        # initial_statement가 있는 경우,
-        #   - 만약 variable declaration / assignment statement라면,
-        #     → interpret or store to node.statements
-        # 여기서는 간단히 node.statements에 담거나, process_variable_declaration을 직접 호출 가능
         if initial_statement is not None:
-            # pseudo-코드: parse initial_statement → add to init_node.statements
-            #             or process_xxx(statement)
-            pass
+            if initial_statement['context'] == 'VariableDeclaration' :
+                initVarObj = Variables(
+                    typeInfo=initial_statement['initVarType'],
+                    identifier=initial_statement['initVarName']
+                )
+                init_node.variables[initial_statment['initVarName']] = initVarObj
+                initVarObj.value = self.evaluate_expression(initial_statement['initValExpr'], init_node.variables, None, None)
+
+            elif initial_statement['context'] == 'Expression' :
+                tempExpr = initial_statement['initExpr']
+                rExpVal = self.evaluate_expression(tempExpr.right, init_node.variables, None, None)
+                self.update_left_var(tempExpr.left, rExpVal, '=' init_node.variables, None)
+
 
         # 3) join node 생성 (while_join과 유사)
-        join_node = CFGNode(name=f"for_join_{start_line}", fixpoint_evaluation_node=True)
+        join_node = CFGNode(name=f"for_join_{self.current_start_line}", fixpoint_evaluation_node=True)
         join_node.variables = self.copy_variables(init_node.variables)
         join_node.fixpoint_evaluation_node_vars = self.copy_variables(init_node.variables)
 
