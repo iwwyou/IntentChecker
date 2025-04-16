@@ -133,7 +133,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             init_expr = None
 
         # ContractAnalyzer 호출
-        #self.contract_analyzer.process_constant_variable(variable_obj, init_expr)
+        self.contract_analyzer.process_constant_variable(variable_obj, init_expr)
 
         return
 
@@ -158,11 +158,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 modifiers.append(modifier_name)
 
         # ContractAnalyzer로 전달하여 처리
-        #self.contract_analyzer.process_constructor_definition(
-        #    constructor_name=constructor_name,
-        #    parameters=parameters,
-        #    modifiers=modifiers
-        #)
+        self.contract_analyzer.process_constructor_definition(
+            constructor_name=constructor_name,
+            parameters=parameters,
+            modifiers=modifiers
+        )
 
     # Visit a parse tree produced by SolidityParser#fallbackFunctionDefinition.
     def visitFallbackFunctionDefinition(self, ctx:SolidityParser.FallbackFunctionDefinitionContext):
@@ -211,7 +211,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             init_expr = None
 
         # 5. ContractAnalyzer 호출 (processStateVariable)
-        #self.contract_analyzer.process_state_variable(variable_obj, init_expr)
+        self.contract_analyzer.process_state_variable(variable_obj, init_expr)
 
     # Visit a parse tree produced by SolidityParser#errorDefinition.
     def visitErrorDefinition(self, ctx:SolidityParser.ErrorDefinitionContext):
@@ -246,7 +246,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
 
         # 2. ContractAnalyzer로 전달하여 처리
-        #self.contract_analyzer.process_struct_member(var_name, type_obj)
+        self.contract_analyzer.process_struct_member(var_name, type_obj)
 
     # Visit a parse tree produced by SolidityParser#modifierDefinition.
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
@@ -258,7 +258,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         if ctx.parameterList():
             parameters = self.visitParameterList(ctx.parameterList())
 
-        #self.contract_analyzer.process_modifier_definition(modifier_name, parameters)
+        self.contract_analyzer.process_modifier_definition(modifier_name, parameters)
 
     # Visit a parse tree produced by SolidityParser#visibility.
     def visitVisibility(self, ctx:SolidityParser.VisibilityContext):
@@ -293,12 +293,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             returns = self.visitParameterList(ctx.parameterList(1))
 
         # 5. FunctionDefinition을 처리하여 ContractAnalyzer에 넘김
-        #self.contract_analyzer.process_function_definition(
-        #    function_name=function_name,
-        #    parameters=parameters,
-        #    modifiers=modifiers,
-        #    returns=returns
-        #)
+        self.contract_analyzer.process_function_definition(
+            function_name=function_name,
+            parameters=parameters,
+            modifiers=modifiers,
+            returns=returns
+        )
 
     # Visit a parse tree produced by SolidityParser#eventDefinition.
     def visitEventDefinition(self, ctx:SolidityParser.EventDefinitionContext):
@@ -354,18 +354,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx:SolidityParser.VariableDeclarationContext):
-        # 1. 변수 선언 정보 가져오기
-        type_ctx = ctx.variableDeclaration().typeName()
-        var_name = ctx.variableDeclaration().identifier().getText()
-
-        # 2. 초기화 값이 있는 경우 처리
-        init_expr = None
-        if ctx.expression():
-            init_expr = self.visitExpression(ctx.expression())
-
-        # 3. 변수 타입 정보 분석 및 적절한 Variables 객체 생성
-        type_obj = SolType()
-        type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#variableDeclarationTuple.
     def visitVariableDeclarationTuple(self, ctx:SolidityParser.VariableDeclarationTupleContext):
@@ -628,7 +617,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             global_var_obj.typeInfo.elementaryTypeName = "uint"
 
         # 5) ContractAnalyzer의 process_pre_execution_global 호출
-        #self.contract_analyzer.process_pre_execution_global(global_var_obj)
+        self.contract_analyzer.process_pre_execution_global(global_var_obj)
         return None
 
     # Visit a parse tree produced by SolidityParser#GlobalIntValue.
@@ -652,7 +641,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
         value = self.parse_number_bool_literal(rhs_text)
         # (3) Call process function in the analyzer
-        #self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#preExecutionLocal.
@@ -668,7 +657,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
         value = self.parse_number_bool_literal(rhs_text)
         # (3) Call process function in the analyzer
-        #self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
+        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#testingExpression.
@@ -846,7 +835,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitMultiplicativeOperator(self, ctx: SolidityParser.MultiplicativeOperatorContext):
         return self.visitChildren(ctx)
 
-
     # Visit a parse tree produced by SolidityParser#interactiveSimpleStatement.
     def visitInteractiveSimpleStatement(self, ctx:SolidityParser.InteractiveSimpleStatementContext):
         return self.visitChildren(ctx)
@@ -867,9 +855,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
 
         # 5. ContractAnalyzer로 Variables 객체 및 lineComment 전달
-        #self.contract_analyzer.process_variable_declaration(variable_obj, init_expr)
-
-        return
+        self.contract_analyzer.process_variable_declaration(type_obj, var_name, init_expr)
 
     # Visit a parse tree produced by SolidityParser#interactiveExpressionStatement.
     def visitInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
@@ -907,8 +893,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         else:
             raise ValueError(f"Unsupported expression context in interactiveExpressionStatement: {ctx}")
 
-        return
-
     # Visit a parse tree produced by SolidityParser#interactiveStateVariableElement.
     def visitInteractiveStateVariableElement(self, ctx:SolidityParser.InteractiveStateVariableElementContext):
         return self.visitChildren(ctx)
@@ -916,22 +900,19 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#interactiveEnumDefinition.
     def visitInteractiveEnumDefinition(self, ctx:SolidityParser.InteractiveEnumDefinitionContext):
         enum_name = ctx.identifier().getText()
-        #self.contract_analyzer.process_enum_definition(enum_name)
+        self.contract_analyzer.process_enum_definition(enum_name)
         return
 
     # Visit a parse tree produced by SolidityParser#interactiveStructDefinition.
     def visitInteractiveStructDefinition(self, ctx:SolidityParser.InteractiveStructDefinitionContext):
         struct_name = ctx.identifier().getText()
-        #self.contract_analyzer.process_struct_definition(struct_name)
-        return
+        self.contract_analyzer.process_struct_definition(struct_name)
 
     # Visit a parse tree produced by SolidityParser#interactiveEnumItems.
     def visitInteractiveEnumItems(self, ctx:SolidityParser.InteractiveEnumItemsContext):
         enum_items = [identifier.getText() for identifier in ctx.identifier()]
 
-        #self.contract_analyzer.process_enum_item(enum_items)
-
-        return
+        self.contract_analyzer.process_enum_item(enum_items)
 
     # Visit a parse tree produced by SolidityParser#interactiveFunctionElement.
     def visitInteractiveFunctionElement(self, ctx:SolidityParser.InteractiveFunctionElementContext):
@@ -1083,13 +1064,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#continueStatement.
     def visitContinueStatement(self, ctx:SolidityParser.ContinueStatementContext):
-        #return self.contract_analyzer.process_continue_statement()
-        return
+        return self.contract_analyzer.process_continue_statement()
 
     # Visit a parse tree produced by SolidityParser#breakStatement.
     def visitBreakStatement(self, ctx:SolidityParser.BreakStatementContext):
-        #return self.contract_analyzer.process_break_statement()
-        return
+        return self.contract_analyzer.process_break_statement()
 
     # Visit a parse tree produced by SolidityParser#returnStatement.
     def visitReturnStatement(self, ctx:SolidityParser.ReturnStatementContext):
@@ -1100,9 +1079,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             return_expr = None
 
         # 2. ContractAnalyzer에 반환 표현식 전달
-        #self.contract_analyzer.process_return_statement(return_expr)
-
-        return
+        self.contract_analyzer.process_return_statement(return_expr)
 
     # Visit a parse tree produced by SolidityParser#emitStatement.
     def visitEmitStatement(self, ctx:SolidityParser.EmitStatementContext):
@@ -1125,8 +1102,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             call_argument_list = self.visitCallArgumentList(ctx.callArgumentList())
 
         # 3. ContractAnalyzer의 process_revert_statement 메소드 호출
-        #self.contract_analyzer.process_revert_statement(revert_identifier, string_literal, call_argument_list)
-        return
+        self.contract_analyzer.process_revert_statement(revert_identifier, string_literal, call_argument_list)
 
     # Visit a parse tree produced by SolidityParser#requireStatement.
     def visitRequireStatement(self, ctx:SolidityParser.RequireStatementContext):
@@ -1140,9 +1116,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             error_message = None
 
         # 3. ContractAnalyzer에서 process_require_statement 호출
-        #self.contract_analyzer.process_require_statement(condition_expr, error_message)
-
-        return
+        self.contract_analyzer.process_require_statement(condition_expr, error_message)
 
     # Visit a parse tree produced by SolidityParser#assertStatement.
     def visitAssertStatement(self, ctx:SolidityParser.AssertStatementContext):
@@ -1150,7 +1124,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         condition_expr = self.visitExpression(ctx.expression())
 
         # 2. ContractAnalyzer에서 process_assert_statement 호출
-        #self.contract_analyzer.process_assert_statement(condition_expr)
+        self.contract_analyzer.process_assert_statement(condition_expr)
 
     # Visit a parse tree produced by SolidityParser#variableDeclarationStatement.
     def visitVariableDeclarationStatement(self, ctx:SolidityParser.VariableDeclarationStatementContext):
@@ -1204,23 +1178,22 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         condition_expr = self.visitExpression(ctx.expression())
 
         # 부모 컨텍스트가 else문에서 온 경우인지 확인
-        #if ctx.parentCtx and isinstance(ctx.parentCtx, SolidityParser.InteractiveElseStatementContext):
+        if ctx.parentCtx and isinstance(ctx.parentCtx, SolidityParser.InteractiveElseStatementContext):
             # else if 문 처리
-        #    self.contract_analyzer.process_else_if_statement(condition_expr)
-        #else:
+            self.contract_analyzer.process_else_if_statement(condition_expr)
+        else:
             # if 문 처리
-        #    self.contract_analyzer.process_if_statement(condition_expr)
+            self.contract_analyzer.process_if_statement(condition_expr)
 
     # Visit a parse tree produced by SolidityParser#interactiveElseStatement.
     def visitInteractiveElseStatement(self, ctx:SolidityParser.InteractiveElseStatementContext):
         # 'else if' 블록인지 아니면 'else' 블록인지를 판단
-        #if ctx.interactiveIfStatement():
+        if ctx.interactiveIfStatement():
             # 'else if' 문이 존재하는 경우
-        #    return self.visitInteractiveIfStatement(ctx.interactiveIfStatement())
-        #else:
+            return self.visitInteractiveIfStatement(ctx.interactiveIfStatement())
+        else:
             # 'else' 블록을 처리
-        #    self.contract_analyzer.process_else_statement()
-        return
+            self.contract_analyzer.process_else_statement()
 
     # Visit a parse tree produced by SolidityParser#interactiveForStatement.
     def visitInteractiveForStatement(self, ctx: SolidityParser.InteractiveForStatementContext):
@@ -1271,17 +1244,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             # (사용자 문법에 따라 다를 수 있음)
 
         # (3) 증분문 increment (expression?) → ctx.expression()? (네 번째/다섯 번째 child)
-        increment_expr_ctx = None
+        increment_expr = None
         if ctx.expression():
-            increment_expr_ctx = ctx.expression()
+            increment_expr = self.visitExpression(ctx.expression())
 
         # (5) ContractAnalyzer로 전달
         # 실제론 process_for_statement( initial_statement, condition_expr, increment_expr_ctx, ... )
         self.contract_analyzer.process_for_statement(
             initial_statement=initial_statement,
             condition_expr=condition_expr,
-            increment_expr_ctx=increment_expr_ctx,
-            start_line=self._get_line_info(ctx)  # 예: 현재 파싱 중인 라인번호
+            increment_expr=increment_expr
         )
 
     # Visit a parse tree produced by SolidityParser#interactiveWhileStatement.
@@ -1290,7 +1262,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         condition_expr = self.visitExpression(ctx.expression())
 
         # 2. ContractAnalyzer의 process_while_statement 호출
-        #self.contract_analyzer.process_while_statement(condition_expr)
+        self.contract_analyzer.process_while_statement(condition_expr)
 
     # Visit a parse tree produced by SolidityParser#interactiveDoWhileDoStatement.
     def visitInteractiveDoWhileDoStatement(self, ctx:SolidityParser.InteractiveDoWhileDoStatementContext):

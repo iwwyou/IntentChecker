@@ -846,10 +846,14 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
+        literalExp = Expression(literal=1, context='LiteralExpContext')
+
         if expr.operator == "++" :
             self.update_left_var(expr.expression, 1, '+=', current_block.variables, None, None)
+            current_block.add_assign_statement(expr.expression, '+=', literalExp)
         elif expr.operator == "--" :
             self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
+            current_block.add_assign_statement(expr.expression, '-=', literalExp)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -880,10 +884,14 @@ class ContractAnalyzer:
         # 3. 현재 블록의 CFG 노드 가져오기
         current_block = self.get_current_block()
 
-        if expr.operator == "++" :
+        literalExp = Expression(literal=1, context='LiteralExpContext')
+
+        if expr.operator == "++":
             self.update_left_var(expr.expression, 1, '+=', current_block.variables, None, None)
-        elif expr.operator == "--" :
+            current_block.add_assign_statement(expr.expression, '+=', literalExp)
+        elif expr.operator == "--":
             self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
+            current_block.add_assign_statement(expr.expression, '-=', literalExp)
 
         if current_block.is_while_body:
             vars = self.fixpoint(current_block)
@@ -1245,7 +1253,7 @@ class ContractAnalyzer:
 
         # 7. Create the true node (loop body)
         true_node = CFGNode(name=f"while_body_{self.current_start_line}")
-        true_node.is_while_body = True
+        true_node.is_loop_body = True
         true_node.variables = self.copy_variables(condition_node.variables)
         self.update_variables_with_condition(true_node.variables, condition_expr, is_true_branch=True)
 
@@ -1279,7 +1287,7 @@ class ContractAnalyzer:
 
         self.current_target_function_cfg = None
 
-    def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr_ctx=None):
+    def process_for_statement(self, initial_statement=None, condition_expr=None, increment_expr=None):
         """
         for( initial_statement; condition_expr; increment_expr ) { ... }
 
@@ -1305,19 +1313,31 @@ class ContractAnalyzer:
         init_node = CFGNode(f"for_init_{self.current_start_line}")
         init_node.variables = self.copy_variables(current_block.variables)
 
+        # 6) exit node
+        exit_node = CFGNode(name=f"for_exit_{self.current_start_line}", loop_exit_node=True)
+        exit_node.variables = self.copy_variables(current_block.variables)
+
+        # 8) 기존 current_block 의 successor(들)를 exit_node로 연결
+        successors = list(function_cfg.graph.successors(current_block))
+
+        # 기존 current_block과 successor들의 edge를 제거
+        for successor in successors:
+            self.current_target_function_cfg.graph.remove_edge(current_block, successor)
+            self.current_target_function_cfg.graph.add_edge(exit_node.successor)
+
         if initial_statement is not None:
             if initial_statement['context'] == 'VariableDeclaration' :
                 initVarObj = Variables(
                     typeInfo=initial_statement['initVarType'],
                     identifier=initial_statement['initVarName']
                 )
-                init_node.variables[initial_statment['initVarName']] = initVarObj
+                init_node.variables[initial_statement['initVarName']] = initVarObj
                 initVarObj.value = self.evaluate_expression(initial_statement['initValExpr'], init_node.variables, None, None)
 
             elif initial_statement['context'] == 'Expression' :
                 tempExpr = initial_statement['initExpr']
                 rExpVal = self.evaluate_expression(tempExpr.right, init_node.variables, None, None)
-                self.update_left_var(tempExpr.left, rExpVal, '=' init_node.variables, None)
+                self.update_left_var(tempExpr.left, rExpVal,'=', init_node.variables, None)
 
 
         # 3) join node 생성 (while_join과 유사)
@@ -1325,14 +1345,15 @@ class ContractAnalyzer:
         join_node.variables = self.copy_variables(init_node.variables)
         join_node.fixpoint_evaluation_node_vars = self.copy_variables(init_node.variables)
 
-        # current_block → init_node → join_node 로 연결
         function_cfg.graph.add_node(init_node)
         function_cfg.graph.add_edge(current_block, init_node)
         function_cfg.graph.add_node(join_node)
         function_cfg.graph.add_edge(init_node, join_node)
 
         # 4) condition node
-        cond_node = CFGNode(name=f"for_condition_{start_line}", condition_node=True, condition_node_type="for")
+        cond_node = CFGNode(name=f"for_condition_{self.current_start_line}",
+                            condition_node=True,
+                            condition_node_type="for")
         cond_node.condition_expr = condition_expr
         cond_node.variables = self.copy_variables(join_node.variables)
 
@@ -1340,52 +1361,51 @@ class ContractAnalyzer:
         function_cfg.graph.add_edge(join_node, cond_node)
 
         # 5) loop body node
-        body_node = CFGNode(name=f"for_body_{start_line}")
+        body_node = CFGNode(name=f"for_body_{self.current_start_line}")
         body_node.is_loop_body = True
         body_node.variables = self.copy_variables(cond_node.variables)
         if condition_expr is not None:
             self.update_variables_with_condition(body_node.variables, condition_expr, is_true_branch=True)
+            self.update_variables_with_condition(exit_node.variables, condition_expr, is_false_branch=True)
 
         function_cfg.graph.add_node(body_node)
         # true branch (cond==True) → body_node
         function_cfg.graph.add_edge(cond_node, body_node, condition=True)
 
-        # 6) exit node
-        exit_node = CFGNode(name=f"for_exit_{start_line}", loop_exit_node=True)
         function_cfg.graph.add_node(exit_node)
         function_cfg.graph.add_edge(cond_node, exit_node, condition=False)
 
         # 7) 증분문(increment) 노드
         #   - 보통 C/solidity 스타일 for문은 "본문 실행 후 → 증분문 실행 → 다시 condition" 식
-        increment_node = CFGNode(name=f"for_increment_{start_line}")
+        increment_node = CFGNode(name=f"for_increment_{self.current_start_line}")
         increment_node.variables = self.copy_variables(body_node.variables)
+
+        # 여기서 increment_expr_ctx → Expression 객체로 만들어 interpret / store
+        if increment_expr is not None:
+            literalExp = Expression(literal=1, context='LiteralExpContext')
+
+            if increment_expr.operator == "++" :
+                self.update_left_var(increment_expr.expression, 1, '+=', increment_node.variables, None, None)
+                increment_node.add_assign_statement(increment_expr.expression, "+=" literalExp)
+            elif increment_expr.operator == "--" :
+                self.update_left_var(increment_expr.expression, 1, '-=', increment_node.variables, None, None)
+                increment_node.add_assign_statement(increment_expr.expression, "-=" literalExp)
 
         function_cfg.graph.add_node(increment_node)
         # body_node → increment_node
         function_cfg.graph.add_edge(body_node, increment_node)
 
-        # 여기서 increment_expr_ctx → Expression 객체로 만들어 interpret / store
-        if increment_expr_ctx is not None:
-            # interpret or store
-            pass
-
         # increment_node → join_node (루프 백)
         function_cfg.graph.add_edge(increment_node, join_node)
-
-        # 8) 기존 current_block 의 successor(들)를 exit_node로 연결
-        successors = list(function_cfg.graph.successors(current_block))
-        # (만약 current_block에 original successors가 있었다면, 이미 제거했거나 처리해야 함)
-        # 여기서는 while문 예제처럼 exit_node와 연결해줄 수도 있고,
-        # 혹은 init_node 이전에 붙일 수도 있음. 구현자가 원하는 구조에 따라 다름.
 
         # 9) 마지막으로 CFG 업데이트
         contract_cfg.functions[self.current_target_function] = function_cfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # brace_count 업데이트 (선택)
-        if start_line not in self.brace_count:
-            self.brace_count[start_line] = {}
-        self.brace_count[start_line]['cfg_node'] = cond_node
+        if self.current_start_line not in self.brace_count:
+            self.brace_count[self.current_start_line] = {}
+        self.brace_count[self.current_start_line]['cfg_node'] = cond_node
 
         self.current_target_function_cfg = None
 
