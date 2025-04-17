@@ -4596,6 +4596,14 @@ class ContractAnalyzer:
     def interpret_assignment_statement(self, stmt, variables):
         leftExpr = stmt.left
         operator = stmt.operator
+        rightExpr = stmt.right
+
+        rExpVal = self.evaluate_expression(rightExpr, variables, None, None)
+        self.update_left_var(leftExpr, rExpVal, operator, variables, None, None)
+
+        return variables
+
+
 
     def interpret_function_call_statement(self, stmt, variables):
         function_expr = stmt.function_call_expr
