@@ -725,7 +725,30 @@ class ContractAnalyzer:
             elif isinstance(variable_obj, MappingVariable) : # 관련된 경우 없을 듯
                 pass
             elif isinstance(variable_obj, EnumVariable) : # 관련된 경우 있을 것 같긴 함
-                pass
+                enum_val = self.evaluate_expression(init_expr, current_block.variables, None)
+
+                if isinstance(enum_val, IntegerInterval):
+                    # int값으로 들어온 경우 -> 만약 min==max라면 유효 범위인지 검사
+                    if enum_val.min_value == enum_val.max_value:
+                        index_val = enum_val.min_value
+                        # enum_def = contract_cfg.enumDefs[variable_obj.typeInfo.enumTypeName]
+                        # 여기서 index_val이 enum_def.members 범위 내인지?
+                        # (논문 스코프에선 간단히 pass 해도 됨)
+                        variable_obj.valueIndex = index_val
+                        variable_obj.value = f"EnumIndex({index_val})"
+                    else:
+                        # 범위가 넓으면 symbolic
+                        variable_obj.value = f"SymbolicEnumInterval({enum_val})"
+
+                elif isinstance(enum_val, str):
+                    # 만약 "RED" 처럼 들어왔을 때
+                    # enum_def = contract_cfg.enumDefs[variable_obj.typeInfo.enumTypeName]
+                    # if enum_val in enum_def.members => variable_obj.valueIndex = ...
+                    variable_obj.value = enum_val
+                else:
+                    # 나머지는 symbolic
+                    variable_obj.value = f"symbolicEnum({enum_val})"
+
             elif variable_obj.typeCategory == "elementary" :
                 variable_obj.value = self.evaluate_expression(init_expr, current_block.variables, None)
 
@@ -2196,74 +2219,85 @@ class ContractAnalyzer:
 
     def fixpoint(self, current_block):
         """
-        고정점 분석을 수행하여 루프 내의 변수 상태를 수렴시킵니다.
-        :param current_block: 현재 블록 (CFGNode)
-        :return: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        고정점(Interval) 해석을 수행하여 루프 내 변수 상태를 수렴시킵니다.
+
+        1) 먼저 loop_condition_node와 fixpoint_evaluation_node(while_join, for_join 등)를 찾음
+        2) 루프 내 모든 노드를 수집 (traverse_loop_nodes)
+        3) in_vars[node], out_vars[node]를 반복적으로 조인(join)하여 수렴
+        4) 수렴된 뒤, 각 루프 노드의 variables를 out_vars[node]로 덮어씌움
+        5) fixpoint_evaluation_node의 out_vars를 반환 (루프 초입 시점에 대한 결과)
+
+        :param current_block: 현재 블록(CFGNode). break나 continue가 있을 경우, 이 블록은 루프 내부일 수 있음
+        :return: fixpoint_evaluation_node의 out_vars (dict: var_name -> Variables)
         """
-        # 1. fixpoint_evaluation_node 찾기
+        # 1) fixpoint_evaluation_node(while_join, for_join 등) 찾기
         fixpoint_evaluation_node = self.find_fixpoint_evaluation_node(current_block)
         if not fixpoint_evaluation_node:
-            raise ValueError("Join point node not found for the current block.")
+            raise ValueError("Join point node (fixpoint_evaluation_node) not found for the current block.")
 
+        # 2) loop_condition_node (while_condition, for_condition 등) 찾기
         loop_condition_node = self.find_loop_condition_node(current_block)
-        if not loop_condition_node :
-            raise ValueError("While condition node not found for the current block.")
+        if not loop_condition_node:
+            raise ValueError("Loop condition node not found for the current block.")
 
-        # 2. 루프 내의 모든 노드 수집
+        # 3) 루프 내 모든 노드 수집
         loop_nodes = self.traverse_loop_nodes(loop_condition_node)
 
-        # 3. 변수 상태 초기화
+        # in_vars, out_vars 초기화
         in_vars = {}
         out_vars = {}
         for node in loop_nodes:
             in_vars[node] = {}
             out_vars[node] = {}
-            if node == loop_condition_node:
-                in_vars[node] = self.copy_variables(fixpoint_evaluation_node.fixpoint_evaluation_node_vars)
 
-        # 4. 워크리스트 알고리즘 초기화 (집합 사용)
-        #worklist = set(loop_nodes)
+        # loop_condition_node의 in_vars는
+        # 보통 fixpoint_evaluation_node.fixpoint_evaluation_node_vars에서 시작
+        # (while_join, for_join에서 복사해온 상태)
+        in_vars[loop_condition_node] = self.copy_variables(fixpoint_evaluation_node.fixpoint_evaluation_node_vars)
+
+        # 4) 워크리스트 알고리즘
         worklist = deque([loop_condition_node])
-        max_iterations = 50  # 최대 반복 횟수 설정
+        max_iterations = 50
         iteration = 0
 
         while worklist and iteration < max_iterations:
             iteration += 1
             node = worklist.popleft()
 
-            # 5. 선행 노드들의 out_vars를 조인하여 in_vars 계산
-            predecessors = list(self.current_target_function_cfg.graph.predecessors(node))
-            new_in_vars = None  # None으로 초기화하여 첫 번째 조인 시 설정되도록 함
-            for pred in predecessors:
+            # 4.1) predecessors의 out_vars를 조인하여 in_vars[node] 계산
+            new_in_vars = None
+            preds = list(self.current_target_function_cfg.graph.predecessors(node))
+
+            for pred in preds:
+                # pred가 루프 내부 노드인지 체크
                 if pred in loop_nodes:
-                    # pred가 루프 내의 노드인 경우
+                    # pred의 out_vars가 이미 계산되어 있으면 조인
                     if pred in out_vars and out_vars[pred]:
                         if new_in_vars is None:
                             new_in_vars = self.copy_variables(out_vars[pred])
                         else:
                             new_in_vars = self.join_variables(new_in_vars, out_vars[pred])
-                    elif pred in in_vars and in_vars[pred]:
-                        if new_in_vars is None:
-                            new_in_vars = self.copy_variables(in_vars[pred])
-                        else:
-                            new_in_vars = self.join_variables(new_in_vars, in_vars[pred])
+                    else:
+                        # 혹시 pred의 out_vars가 아직 없거나, pred == node인 경우(자기참조) → 보수적으로 pass
+                        pass
                 else:
-                    # pred가 루프 밖의 노드인 경우
+                    # pred가 루프 밖에 있으면 => fixpoint_evaluation_node.variables와 조인
+                    # (혹은 pred의 variables를 사용할 수도 있지만, 여기서는 join_node를 대체)
                     if new_in_vars is None:
                         new_in_vars = self.copy_variables(fixpoint_evaluation_node.variables)
                     else:
                         new_in_vars = self.join_variables(new_in_vars, fixpoint_evaluation_node.variables)
 
-            # 6. in_vars 변화 확인
+            # 4.2) in_vars[node] 갱신 여부
             if new_in_vars:
                 if not self.variables_equal(in_vars[node], new_in_vars):
                     in_vars[node] = new_in_vars
 
-            # 7. 노드의 transfer function 적용하여 out_vars 계산
+            # 4.3) node의 transfer function
             old_out_vars = out_vars[node]
             out_vars[node] = self.transfer_function(node, in_vars[node])
 
-            # 8. out_vars 변화 확인 및 워크리스트 업데이트
+            # 4.4) out_vars[node]가 변화했으면 successor들을 worklist에 넣음
             if not self.variables_equal(old_out_vars, out_vars[node]):
                 successors = list(self.current_target_function_cfg.graph.successors(node))
                 for succ in successors:
@@ -2271,14 +2305,14 @@ class ContractAnalyzer:
                         worklist.append(succ)
 
             if iteration == max_iterations:
-                print("Fixpoint analysis did not converge within max iterations.")
+                print("Fixpoint analysis did not converge within max_iterations.")
                 break
 
-        # 9. 수렴된 변수 상태를 루프 내 각 노드에 반영
+        # 5) 최종적으로 수렴된 값으로 노드들의 variables를 갱신
         for node in loop_nodes:
             node.variables = out_vars[node]
 
-        # 10. 수렴된 변수 상태 반환
+        # 보통 fixpoint_evaluation_node의 out_vars가 "루프 진입 시점"의 최종 상태를 의미
         return out_vars[fixpoint_evaluation_node]
 
     def traverse_loop_nodes(self, loop_node):
@@ -2297,7 +2331,8 @@ class ContractAnalyzer:
             successors = list(self.current_target_function_cfg.graph.successors(current_node))
             for succ in successors:
                 # 루프 종료 노드로의 에지는 제외
-                if current_node.condition_node and current_node.condition_node_type == 'while':
+                if current_node.condition_node and \
+                        current_node.condition_node_type in ['while', 'for', 'do'] :
                     if succ.loop_exit_node:
                         continue
                 stack.append(succ)
@@ -2305,104 +2340,99 @@ class ContractAnalyzer:
 
     def join_variables(self, vars1, vars2):
         """
-        두 변수 상태 딕셔너리를 조인합니다.
-        :param vars1: 첫 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :param vars2: 두 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: 조인된 변수 상태 딕셔너리 (var_name -> Variables 객체)
+        두 변수 상태(vars1, vars2)를 조인하여(합집합) 반환.
+        - array: 요소별 join
+        - struct: 멤버별 join
+        - mapping: 매핑 key별 join
+        - 기본타입: Interval join
         """
         result = self.copy_variables(vars1)
-        for var_name, var_obj in vars2.items():
+
+        for var_name, var_obj2 in vars2.items():
             if var_name in result:
-                existing_var = result[var_name]
-                # 변수의 타입이 동일한지 확인
-                if existing_var.typeInfo.typeCategory != var_obj.typeInfo.typeCategory:
-                    raise TypeError(
-                        f"Cannot join variables of different types: {existing_var.typeInfo.typeCategory} and {var_obj.typeInfo.typeCategory}")
-                # 변수의 타입 카테고리에 따라 처리
-                if existing_var.typeInfo.typeCategory == 'array':
-                    # 배열 변수의 경우 각 요소를 조인
-                    # 배열 길이와 요소 타입이 동일한지 확인
-                    if existing_var.typeInfo.arrayLength != var_obj.typeInfo.arrayLength:
-                        raise ValueError("Cannot join arrays of different lengths")
-                    joined_elements = []
-                    for elem1, elem2 in zip(existing_var.elements, var_obj.elements):
-                        joined_elem = self.join_variables({elem1.identifier: elem1}, {elem2.identifier: elem2})
-                        joined_elements.append(joined_elem[elem1.identifier])
-                    existing_var.elements = joined_elements
-                elif existing_var.typeInfo.typeCategory == 'struct':
-                    # 구조체 변수의 경우 각 멤버를 조인
-                    existing_var.members = self.join_variables(existing_var.members, var_obj.members)
-                elif existing_var.typeInfo.typeCategory == 'mapping':
-                    # mapping 변수의 경우, 키-값 쌍을 조인
-                    if not existing_var.mapping:
-                        continue  # 매핑 값이 없는 경우 넘어감
-                    else:
-                        # 매핑 키-값을 비교하고 조인
-                        for key, value in var_obj.mapping.items():
-                            if key in existing_var.mapping:
-                                existing_var.mapping[key] = self.join_variables(
-                                    {key: existing_var.mapping[key]}, {key: value}
-                                )[key]
-                            else:
-                                # 없는 키는 새로 추가
-                                existing_var.mapping[key] = self.copy_variables({key: value})[key]
+                var_obj1 = result[var_name]
+
+                # 타입 동일성
+                if var_obj1.typeInfo.typeCategory != var_obj2.typeInfo.typeCategory:
+                    raise TypeError(f"Cannot join different typeCategories: {var_obj1.typeInfo.typeCategory} vs {var_obj2.typeInfo.typeCategory}")
+
+                cat = var_obj1.typeInfo.typeCategory
+                if cat == 'array':
+                    # 길이 같음 전제(동적 배열 등은 별도 정책)
+                    if len(var_obj1.elements) != len(var_obj2.elements):
+                        raise ValueError("Cannot join arrays of different lengths (static array).")
+                    for i, (e1, e2) in enumerate(zip(var_obj1.elements, var_obj2.elements)):
+                        joined_elem = self.join_variables({e1.identifier: e1}, {e2.identifier: e2})
+                        var_obj1.elements[i] = joined_elem[e1.identifier]
+
+                elif cat == 'struct':
+                    # 멤버별 join
+                    var_obj1.members = self.join_variables(var_obj1.members, var_obj2.members)
+
+                elif cat == 'mapping':
+                    # 매핑된 키-값 each join
+                    for key, mvar2 in var_obj2.mapping.items():
+                        if key not in var_obj1.mapping:
+                            # 없는 키 => 새로 복사
+                            var_obj1.mapping[key] = self.copy_variables({key: mvar2})[key]
+                        else:
+                            # 기존 키 => join
+                            mvar1 = var_obj1.mapping[key]
+                            joined_map = self.join_variables({key: mvar1}, {key: mvar2})
+                            var_obj1.mapping[key] = joined_map[key]
 
                 else:
-                    # 기본 변수의 경우 value를 조인
-                    var_value1 = existing_var.value
-                    var_value2 = var_obj.value
-                    joined_value = self.join_variable_values(var_value1, var_value2)
-                    existing_var.value = joined_value
+                    # elementary => interval join
+                    var_obj1.value = self.join_variable_values(var_obj1.value, var_obj2.value)
             else:
-                # 새로운 변수 추가 (깊은 복사)
-                result[var_name] = self.copy_variables({var_name: var_obj})[var_name]
+                # 새 변수
+                result[var_name] = self.copy_variables({var_name: var_obj2})[var_name]
         return result
 
     def variables_equal(self, vars1, vars2):
         """
-        두 변수 상태 딕셔너리가 동일한지 확인합니다.
-        :param vars1: 첫 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :param vars2: 두 번째 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        :return: 동일하면 True, 아니면 False
+        두 변수 딕셔너리가 동일한지 비교
+        - array: length/각 요소
+        - struct: 멤버별
+        - mapping: 동일 key, 동일 값
+        - elementary: interval 동등성 체크
         """
         if vars1.keys() != vars2.keys():
             return False
 
         for var_name in vars1:
-            var_obj1 = vars1[var_name]
-            var_obj2 = vars2[var_name]
+            if var_name not in vars2:
+                return False
 
-            # 배열 타입 비교
-            if isinstance(var_obj1, ArrayVariable) and isinstance(var_obj2, ArrayVariable):
-                # 배열 길이 확인
-                if var_obj1.typeInfo.arrayLength != var_obj2.typeInfo.arrayLength:
+            obj1 = vars1[var_name]
+            obj2 = vars2[var_name]
+
+            cat = obj1.typeInfo.typeCategory
+            if cat != obj2.typeInfo.typeCategory:
+                return False
+
+            if cat == 'array':
+                if len(obj1.elements) != len(obj2.elements):
                     return False
-                # 배열의 각 요소 비교
-                for elem1, elem2 in zip(var_obj1.elements, var_obj2.elements):
-                    if not self.variables_equal({elem1.identifier: elem1}, {elem2.identifier: elem2}):
+                for e1, e2 in zip(obj1.elements, obj2.elements):
+                    # 재귀
+                    if not self.variables_equal({e1.identifier: e1}, {e2.identifier: e2}):
                         return False
 
-            # 구조체 타입 비교
-            elif isinstance(var_obj1, StructVariable) and isinstance(var_obj2, StructVariable):
-                # 구조체 멤버 비교
-                if not self.variables_equal(var_obj1.members, var_obj2.members):
+            elif cat == 'struct':
+                if not self.variables_equal(obj1.members, obj2.members):
                     return False
 
-            # 매핑 타입 비교
-            elif isinstance(var_obj1, MappingVariable) and isinstance(var_obj2, MappingVariable):
-                # 매핑된 키 값 확인
-                if var_obj1.mapping.keys() != var_obj2.mapping.keys():
+            elif cat == 'mapping':
+                # 키 동일성
+                if obj1.mapping.keys() != obj2.mapping.keys():
                     return False
-                # 매핑된 각 키-값 쌍 비교
-                for key in var_obj1.mapping:
-                    if not self.variables_equal({key: var_obj1.mapping[key]}, {key: var_obj2.mapping[key]}):
+                for key in obj1.mapping:
+                    if not self.variables_equal({key: obj1.mapping[key]}, {key: obj2.mapping[key]}):
                         return False
-
-            # 기본 타입 비교 (Variables)
             else:
-                var_value1 = var_obj1.value
-                var_value2 = var_obj2.value
-                if not var_value1.equals(var_value2):
+                # elementary => interval equals
+                if not obj1.value.equals(obj2.value):
                     return False
 
         return True
@@ -2446,88 +2476,20 @@ class ContractAnalyzer:
             for statement in node.statements:
                 self.update_statement_with_variables(statement, node_vars)
 
-    def update_statement_with_variables(self, statement, variables):
-        """
-        문장의 변수 Interval을 업데이트합니다.
-        :param statement: Statement 객체
-        :param variables: 변수 상태 딕셔너리 (var_name -> Variables 객체)
-        """
-        if statement.statement_type == 'assignment':
-            # 좌변 변수 이름 추출
-            var_name = statement.left.identifier
+    def update_statement_with_variables(self, stmt, current_variables):
+        if stmt.statement_type == 'variableDeclaration':
+            current_variables = self.interpret_variable_declaration_statement(stmt, current_variables)
+        elif stmt.statement_type == 'assignment':
+            current_variables = self.interpret_assignment_statement(stmt, current_variables)
+        elif stmt.statement_type == 'function_call':
+            current_variables = self.interpret_function_call_statement(stmt, current_variables)
+        elif stmt.statement_type == 'return':
+            pass
+        elif stmt.statement_type == 'revert':
+            pass
+        else:
+            raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
 
-            # 우변 표현식의 컨텍스트에 따른 분기 처리
-            right_expr = statement.right
-            if right_expr.context == 'IndexAccessContext':
-                # 배열 인덱스 접근 처리
-                result = self.evaluate_array_expression(init_expr=right_expr, variables=variables)
-                right_interval = result
-            elif right_expr.context == 'MemberAccessContext':
-                # MemberAccess 처리 (배열의 length 또는 구조체 멤버 접근)
-                base_identifier = right_expr.base.identifier
-                if base_identifier in variables:
-                    base_variable = variables[base_identifier]
-                    if isinstance(base_variable, ArrayVariable):
-                        # 배열의 멤버 접근 처리 (예: array.length)
-                        result = self.evaluate_array_expression(init_expr=right_expr, variables=variables)
-                        right_interval = result
-                    elif isinstance(base_variable, StructVariable):
-                        # 구조체 멤버 접근 처리
-                        result = self.evaluate_struct_expression(init_expr=right_expr, variables=variables)
-                        right_interval = result
-                    else:
-                        raise ValueError(f"Unsupported base type for MemberAccess: {type(base_variable)}")
-                else:
-                    raise ValueError(f"Variable '{base_identifier}' not found in variables.")
-            elif right_expr.context == 'InlineArrayExpressionContext':
-                # InlineArrayExpression 처리
-                result = self.evaluate_array_expression(right_expr, variables)
-                right_intervals = result  # 배열 요소들의 Interval 리스트
-                # 좌변 변수가 배열인지 확인
-                if var_name in variables:
-                    var_obj = variables[var_name]
-                    if isinstance(var_obj, ArrayVariable):
-                        # 배열 변수의 요소들을 업데이트
-                        for idx, interval in enumerate(right_intervals):
-                            if idx < len(var_obj.elements):
-                                var_obj.elements[idx].value = interval
-                            else:
-                                # 배열 크기를 초과하는 경우 새로운 요소 추가
-                                elem_identifier = f"{var_name}[{idx}]"
-                                elem_var = Variables(
-                                    identifier=elem_identifier,
-                                    value=interval,
-                                    isConstant=False,
-                                    scope=var_obj.scope
-                                )
-                                elem_var.typeInfo = var_obj.typeInfo.arrayBaseType
-                                var_obj.elements.append(elem_var)
-                    else:
-                        raise TypeError(f"Variable '{var_name}' is not an ArrayVariable.")
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in variables.")
-                right_interval = None  # 배열 전체를 업데이트하므로 단일 Interval은 없음
-            else:
-                # 기본 표현식 처리
-                right_interval = self.evaluate_expression(right_expr, variables)
-
-            # 복합 할당 연산자 처리
-            if statement.operator != '=':
-                if var_name in variables:
-                    left_value = variables[var_name].value
-                    new_value = self.process_compound_assignment(left_value, right_interval, statement.operator)
-                    variables[var_name].value = new_value
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in variables.")
-            else:
-                if var_name in variables:
-                    if isinstance(variables[var_name], ArrayVariable) and right_interval is None:
-                        # 이미 배열 요소들이 업데이트되었으므로 추가 작업 필요 없음
-                        pass
-                    else:
-                        variables[var_name].value = right_interval
-                else:
-                    raise ValueError(f"Variable '{var_name}' not found in variables.")
 
     def get_current_block(self):
         """
@@ -2852,27 +2814,18 @@ class ContractAnalyzer:
 
         return leaf_nodes
 
-    def join_variable_values(self, value1, value2):
+    def join_variable_values(self, val1, val2):
         """
-        두 변수의 값을 조인합니다.
-        :param value1: 첫 번째 변수의 값 (Interval 등)
-        :param value2: 두 번째 변수의 값 (Interval 등)
-        :return: 조인된 값
+        elementary Interval 간의 join
+        - 둘 다 Interval이면 val1.join(val2)
+        - boolInterval이면 val1.join(val2)
+        - 그 외 => symbolic or val1?
         """
-        # 두 값이 모두 Interval의 인스턴스인지 확인
-        if isinstance(value1, Interval) and isinstance(value2, Interval):
-            # 동일한 타입의 Interval인지 확인
-            if type(value1) is type(value2):
-                # 동일한 타입의 Interval이면 해당 타입의 join 메소드 호출
-                return value1.join(value2)
-            else:
-                # 타입이 다른 Interval이면 예외 발생 또는 업캐스팅하여 처리
-                # 여기서는 예외를 발생시킵니다.
-                raise TypeError(
-                    f"Cannot join intervals of different types: {type(value1).__name__} and {type(value2).__name__}")
+        if hasattr(val1, 'join') and hasattr(val2, 'join') and type(val1) == type(val2):
+            return val1.join(val2)
         else:
-            # Interval이 아닌 경우, 그대로 value1을 반환하거나 적절히 처리
-            return value1
+            # 타입 다르거나 join 불가 => symbolic
+            return f"symbolicJoin({val1},{val2})"
 
     def update_variables_at_node(self, node, variables):
         """
@@ -4603,11 +4556,9 @@ class ContractAnalyzer:
 
         return variables
 
-
-
     def interpret_function_call_statement(self, stmt, variables):
         function_expr = stmt.function_call_expr
-        return_value = self.function_abstract_interpretation(function_expr, variables)
+        return_value = self.evaluate_function_call_context(function_expr, variables, None, None)
         # 함수 호출 결과를 어느 변수에 할당하는 로직이 필요하다면 추가.
         # 현재는 단순 호출만 가정하므로 변수 환경 변화 없음.
         return variables
