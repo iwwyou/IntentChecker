@@ -4330,11 +4330,10 @@ class ContractAnalyzer:
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
         # 1) 함수 이름(또는 멤버 접근)
         #    간단 케이스: expr.function.identifier가 존재 => function name
-        if expr.function and expr.function.identifier:
+        if expr.function.identifier:
             function_name = expr.function.identifier
         else:
-            # 멤버 접근 / symbolic => 여기서는 간단히 에러 or symbolic
-            return f"symbolicFunctionCall({expr.function})"
+            raise ValueError (f"There is no function name in function call context")
 
         # 2) 현재 컨트랙트 CFG 가져오기
         contract_cfg = self.contract_cfgs.get(self.current_target_contract)
@@ -4370,7 +4369,7 @@ class ContractAnalyzer:
         #    순서 기반 인자
         for i, arg_expr in enumerate(arguments):
             param_name = param_names[i]
-            arg_val = self.evaluate_expression(arg_expr, variables, None, f"CallArg({function_name})")
+            arg_val = self.evaluate_expression(arg_expr, variables, None, None)
 
             # function_cfg 내부의 related_variables에 param_name이 있어야
             if param_name in function_cfg.related_variables:
@@ -4436,22 +4435,15 @@ class ContractAnalyzer:
             # 아니면 predecessor 하나가 있을 것이므로 그 predecessor의 variables를 복사
             predecessors = list(function_cfg.graph.predecessors(analyzingNode))
 
-            if analyzingNode.join_point_node:
-                # join node 처리
-                # predecessor들의 variables를 join
-                joined_vars = None
-                for pred in predecessors:
-                    if joined_vars is None:
-                        joined_vars = self.copy_variables(pred.variables)
-                    else:
-                        joined_vars = self.join_variables(joined_vars, pred.variables)
-                analyzingNode.variables = joined_vars
-            else:
-                # join point가 아니라면 predecessor가 하나라고 가정
-                if len(predecessors) == 1:
-                    analyzingNode.variables = self.copy_variables(predecessors[0].variables)
+            # join node 처리
+            # predecessor들의 variables를 join
+            joined_vars = None
+            for pred in predecessors:
+                if joined_vars is None:
+                    joined_vars = self.copy_variables(pred.variables)
                 else:
-                    raise ValueError("Non-join node with multiple predecessors is unexpected.")
+                    joined_vars = self.join_variables(joined_vars, pred.variables)
+            analyzingNode.variables = joined_vars
 
             current_block = analyzingNode
             current_variables = current_block.variables
@@ -4487,8 +4479,6 @@ class ContractAnalyzer:
                     false_succ = false_successors[0]
                     false_succ.variables = false_variables
                     block_queue.append(false_succ)
-
-                    # 현재 노드 해석 종료
                     continue
 
                 elif current_block.condition_node_type in ["require", "assert"]:
@@ -4505,8 +4495,6 @@ class ContractAnalyzer:
                     true_succ = true_successors[0]
                     true_succ.variables = true_variables
                     block_queue.append(true_succ)
-
-                    # false branch는 exit node로 가거나 revert하므로 별도 처리 필요 없음
                     continue
 
                 elif current_block.condition_node_type in ["while", "for", "do_while"]:
@@ -4536,16 +4524,12 @@ class ContractAnalyzer:
                 # condition node가 아닌 일반 블록
                 # 블록 내 문장 해석
                 for stmt in current_block.statements:
-                    if stmt.statement_type == 'assignment':
-                        variables = self.interpret_assignment_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'array_assignment':
-                        variables = self.interpret_array_assignment_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'struct_assignment':
-                        variables = self.interpret_struct_assignment_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'mapping_assignment':
-                        variables = self.interpret_mapping_assignment_statement(stmt, current_variables)
+                    if stmt.statement_type == 'variableDeclaration' :
+                        current_variables = self.interpret_variable_declaration_statement(stmt, current_variables)
+                    elif stmt.statement_type == 'assignment':
+                        current_variables = self.interpret_assignment_statement(stmt, current_variables)
                     elif stmt.statement_type == 'function_call':
-                        variables = self.interpret_function_call_statement(stmt, current_variables)
+                        current_variables = self.interpret_function_call_statement(stmt, current_variables)
                     elif stmt.statement_type == 'return':
                         ret_val = self.evaluate_expression(stmt.return_expr, current_variables)
                         return_values.append(ret_val)
@@ -4554,7 +4538,6 @@ class ContractAnalyzer:
                         break
                     else:
                         raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
-
 
                 # return이나 revert를 만나지 않았다면 successors 방문
                 successors = list(function_cfg.graph.successors(current_block))
@@ -4580,70 +4563,39 @@ class ContractAnalyzer:
                 joined_ret = joined_ret.join(rv)
             return joined_ret
 
+    def interpret_variable_declaration_statement(self, stmt, variables):
+        varType = stmt.type_obj
+        varName = stmt.var_name
+        initExpr = stmt.init_expr
+
+        # 이미 process_variable_declaration에서 변수 객체 만들어져 있을 것이기 때문에
+        # 초기화 식 없으면 그냥 리턴하면 됨
+        if initExpr is None :
+            return variables
+
+        variableObj = None
+        if varName in variables :
+            variableObj = variables[varName]
+        else :
+            raise ValueError (f"There is no variable '{varName}' in variables dictionary")
+
+        # 초기화 식이 있는데, array면 inline array expression 밖에 없을듯
+        if isinstance(variableObj, ArrayVariable) :
+            return variables
+        elif isinstance(variableObj, StructVariable) : # 관련된거 있을 것 같긴 한데 일단 pass
+            pass
+        elif isinstance(variableObj, MappingVariable) : # mapping은 있을수가 없음
+            raise ValueError (f"Mapping variable is not expected in variable declaration context")
+        elif isinstance(variableObj, Variables) :
+            if varType.typeCategory == "elementary" :
+                variableObj.value = self.evaluate_expression(initExpr, variables, None, None)
+                return variables
+        else :
+            raise ValueError (f"Unexpected type of variable object")
+
     def interpret_assignment_statement(self, stmt, variables):
-        var_name = stmt.left.identifier
-        variable_obj = variables.get(var_name)
-        if not variable_obj:
-            raise ValueError(f"Variable '{var_name}' not found in current variables.")
-
-        # 우변 표현식 평가
-        right_value = self.evaluate_expression(stmt.right, variables)
-
-        # 복합 할당 연산자 처리
-        if stmt.operator != '=':
-            new_value = self.process_compound_assignment(variable_obj.value, right_value, stmt.operator)
-        else:
-            new_value = right_value
-
-        # 변수 값 업데이트
-        variable_obj.value = new_value
-        variables[var_name] = variable_obj
-        return variables
-
-    def interpret_array_assignment_statement(self, stmt, variables):
-        var_name = stmt.left.identifier
-        variable_obj = variables.get(var_name)
-        if not variable_obj or not isinstance(variable_obj, ArrayVariable):
-            raise ValueError(f"Array variable '{var_name}' not found in current variables.")
-
-        # 우변 표현식 평가 (배열 요소들의 값 리스트)
-        elements_value = self.evaluate_array_expression(stmt.right, variables)
-
-        # 배열 요소 값 업데이트
-        variable_obj.elements = elements_value
-        variables[var_name] = variable_obj
-        return variables
-
-    def interpret_struct_assignment_statement(self, stmt, variables):
-        var_name = stmt.left.identifier
-        variable_obj = variables.get(var_name)
-        if not variable_obj or not isinstance(variable_obj, StructVariable):
-            raise ValueError(f"Struct variable '{var_name}' not found in current variables.")
-
-        # 우변 표현식 평가 (구조체 멤버들의 값 딕셔너리)
-        members_value = self.evaluate_struct_expression(stmt.right, variables)
-
-        # 구조체 멤버 값 업데이트
-        variable_obj.members = members_value
-        variables[var_name] = variable_obj
-        return variables
-
-    def interpret_mapping_assignment_statement(self, stmt, variables):
-        mapping_var_name = stmt.left.base.identifier
-        key_expr = stmt.left.index
-        key_value = self.evaluate_expression(key_expr, variables)
-
-        mapping_var = variables.get(mapping_var_name)
-        if not mapping_var or not isinstance(mapping_var, MappingVariable):
-            raise ValueError(f"Mapping variable '{mapping_var_name}' not found in current variables.")
-
-        # 우변 표현식 평가
-        right_value = self.evaluate_expression(stmt.right, variables)
-
-        # 매핑 변수의 특정 키에 대한 값 업데이트
-        mapping_var.mapping[key_value] = right_value
-        variables[mapping_var_name] = mapping_var
-        return variables
+        leftExpr = stmt.left
+        operator = stmt.operator
 
     def interpret_function_call_statement(self, stmt, variables):
         function_expr = stmt.function_call_expr
@@ -4651,28 +4603,6 @@ class ContractAnalyzer:
         # 함수 호출 결과를 어느 변수에 할당하는 로직이 필요하다면 추가.
         # 현재는 단순 호출만 가정하므로 변수 환경 변화 없음.
         return variables
-
-    def is_true_branch(self, current_block, successor_node, function_cfg):
-        """
-        successor_node가 참 분기인지 확인합니다.
-        :param current_block: 현재 CFGNode (조건 노드)
-        :param successor_node: successor CFGNode
-        :param function_cfg: 현재 함수의 CFG
-        :return: True 또는 False
-        """
-        edge_data = function_cfg.graph.get_edge_data(current_block, successor_node)
-        return edge_data.get('condition') == True
-
-    def is_false_branch(self, current_block, successor_node, function_cfg):
-        """
-        successor_node가 거짓 분기인지 확인합니다.
-        :param current_block: 현재 CFGNode (조건 노드)
-        :param successor_node: successor CFGNode
-        :param function_cfg: 현재 함수의 CFG
-        :return: True 또는 False
-        """
-        edge_data = function_cfg.graph.get_edge_data(current_block, successor_node)
-        return edge_data.get('condition') == False
 
     def merge_variables_from_predecessors(self, current_block, function_cfg):
         """
