@@ -771,7 +771,7 @@ class ContractAnalyzer:
 
         # assignment에 대한 abstract interpretation 수행
         rExpVal = self.evaluate_expression(expr.right, current_block.variables, None, None)
-        self.update_left_var(expr.left, rExpVal, expr.operator, current_block.variables, None)
+        self.update_left_var(expr.left, rExpVal, expr.operator, current_block.variables, None, None)
 
         current_block.add_assign_statement(expr.left, expr.operator, expr.right)
 
@@ -790,47 +790,6 @@ class ContractAnalyzer:
 
         # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
         self.brace_count[self.current_start_line]['cfg_node'] = current_block
-
-    def process_assignment_function_call(self, expr):
-        # 1. 좌변 변수 이름 추출
-        if expr.left.identifier:
-            var_name = expr.left.identifier
-        else:
-            # 좌변이 복잡한 표현식인 경우 추가적인 처리가 필요함
-            var_name = self.extract_variable_name(expr.left)
-
-        # 2. 함수 호출 표현식 추출
-        function_call_expr = expr.right
-
-        # 3. 함수 이름과 인자 추출
-        function_name = self.get_function_name(function_call_expr)
-        function_args = function_call_expr.arguments if hasattr(function_call_expr, 'arguments') else []
-
-        # 4. 함수의 리턴 타입과 Interval 추론
-        return_interval = self.analyze_function_call(function_name, function_args)
-
-        # 5. 변수의 타입 정보 설정 (함수의 리턴 타입 사용)
-        var_type = return_interval.var_type if hasattr(return_interval, 'var_type') else 'int256'
-        type_length = return_interval.type_length if hasattr(return_interval, 'type_length') else 256
-
-        # 6. 현재 CFG 노드 가져오기
-        current_block = self.get_current_block()
-
-        # 7. CFG 노드에 할당문 추가
-        current_block.add_assign_statement(var_name, var_type, return_interval)
-
-        # 9. 함수 호출의 사이드 이펙트 처리
-        self.handle_function_side_effects(function_name, function_args)
-
-        # 11. 분석 결과 저장
-        result = {
-            "line": self.current_start_line,
-            "variable": var_name,
-            "assigned_interval": [return_interval.min_value, return_interval.max_value]
-        }
-
-        # get_analysis_result에 사용될 결과 저장
-        self.analysis_results = result
 
     def process_unary_prefix_operation(self, expr):
         # 1. 현재 타겟 컨트랙트의 CFG 가져오기
@@ -2265,7 +2224,7 @@ class ContractAnalyzer:
         # 4. 워크리스트 알고리즘 초기화 (집합 사용)
         #worklist = set(loop_nodes)
         worklist = deque([loop_condition_node])
-        max_iterations = 30  # 최대 반복 횟수 설정
+        max_iterations = 50  # 최대 반복 횟수 설정
         iteration = 0
 
         while worklist and iteration < max_iterations:
@@ -2569,18 +2528,6 @@ class ContractAnalyzer:
                         variables[var_name].value = right_interval
                 else:
                     raise ValueError(f"Variable '{var_name}' not found in variables.")
-
-    def analyze_function_call(self, function_name, function_args):
-        # 함수의 리턴 타입과 Interval을 추론
-        # 함수의 정의를 분석하거나 사전 정의된 정보를 활용
-        # 여기서는 간단한 예제로 기본 Interval을 반환
-        # 실제 구현에서는 함수의 내용에 따라 리턴값을 추론해야 함
-        if function_name == 'getRandomNumber':
-            # 예시: getRandomNumber 함수가 0부터 100 사이의 값을 반환한다고 가정
-            return IntegerInterval(0, 100, 256)
-        else:
-            # 알 수 없는 함수의 경우 보수적인 Interval 반환
-            return IntegerInterval(None, None, 256)
 
     def get_current_block(self):
         """
@@ -4381,22 +4328,6 @@ class ContractAnalyzer:
         return neg_map.get(op, op)
 
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
-        """
-        expr: Expression(
-           context='FunctionCallContext',
-           function=<Expression for the function identifier or memberAccess>,
-           arguments=[ expr1, expr2, ... ],
-           named_arguments={ 'key': exprN, ... },
-           ...
-        )
-
-        1) 함수 이름 / 컨트랙트 CFG 찾기
-        2) 함수 CFG 가져오기
-        3) 파라미터 개수-인자 개수 매핑
-        4) interpret_function_cfg
-        5) 결과 반환
-        """
-
         # 1) 함수 이름(또는 멤버 접근)
         #    간단 케이스: expr.function.identifier가 존재 => function name
         if expr.function and expr.function.identifier:

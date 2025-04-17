@@ -865,21 +865,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # Handle assignment expressions
         if isinstance(expr_ctx, SolidityParser.AssignmentContext):
-            # Right-hand side expression
-            rhs_expr_ctx = expr_ctx.expression(1)
-
-            # Check for specific expression types on the right-hand side
-            if isinstance(rhs_expr_ctx, SolidityParser.FunctionCallContext):
-                self.contract_analyzer.process_assignment_function_call(expr)
-            elif isinstance(rhs_expr_ctx, SolidityParser.FunctionCallOptionsContext):
-                self.contract_analyzer.process_assignment_function_call_options(expr)
-            elif isinstance(rhs_expr_ctx, SolidityParser.PayableFunctionCallContext):
-                self.contract_analyzer.process_assignment_payable_function_call(expr)
-            elif isinstance(rhs_expr_ctx, SolidityParser.ConditionalExpContext):
-                self.contract_analyzer.process_assignment_conditional_expression(expr)
-            else:
-                # Regular assignment
-                self.contract_analyzer.process_assignment_expression(expr)
+            self.contract_analyzer.process_assignment_expression(expr)
         elif isinstance(expr_ctx, SolidityParser.UnaryPrefixOpContext):
             self.contract_analyzer.process_unary_prefix_operation(expr)
         elif isinstance(expr_ctx, SolidityParser.UnarySuffixOpContext):
