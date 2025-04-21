@@ -65,7 +65,7 @@ class CFGNode:
         )
         self.statements.append(function_call_stmt)
 
-    def add_return_statement(self, return_expr: Expression = None, evaluated_value=None, return_line_num = None):
+    def add_return_statement(self, return_expr: Expression):
         """
         반환 구문을 CFG에 추가하고, 반환 값을 업데이트합니다.
         :param return_expr: 반환할 Expression 객체
@@ -73,8 +73,7 @@ class CFGNode:
         """
         return_stmt = Statement(
             statement_type='return',
-            return_expr=return_expr,
-            evaluated_value=evaluated_value
+            return_expr=return_expr
         )
         self.statements.append(return_stmt)
 
@@ -85,6 +84,16 @@ class CFGNode:
     def add_break_statement(self):
         break_stmt = Statement(statement_type='break')
         self.statements.append(break_stmt)
+
+    def add_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None):
+        # 4. Revert 문장을 Statement 객체로 만들어서 현재 블록에 추가
+        revert_statement = Statement(
+            statement_type="revert",
+            identifier=revert_identifier,
+            string_literal=string_literal,
+            arguments=call_argument_list
+        )
+        self.statements.append(Statement)
 
     def get_variable(self, var_name: str) -> Variables:
         """

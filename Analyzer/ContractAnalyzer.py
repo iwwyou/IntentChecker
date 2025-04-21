@@ -1498,7 +1498,7 @@ class ContractAnalyzer:
             return_value = None
 
         # 4. Return 구문을 current_block에 추가
-        current_block.add_return_statement(return_expr=return_expr, evaluated_value=return_value)
+        current_block.add_return_statement(return_expr=return_expr)
 
         # 5. function_exit_node에 return 값을 저장
         exit_node = self.current_target_function_cfg.get_exit_node()
@@ -1532,14 +1532,7 @@ class ContractAnalyzer:
         # 3. 현재 블록 가져오기
         current_block = self.get_current_block()
 
-        # 4. Revert 문장을 Statement 객체로 만들어서 현재 블록에 추가
-        revert_statement = Statement(
-            statement_type="revert",
-            identifier=revert_identifier,
-            string_literal=string_literal,
-            arguments=call_argument_list
-        )
-        current_block.statements.append(revert_statement)
+        current_block.add_revert_statement(revert_identifier, string_literal, call_argument_list)
 
         # 5. 함수의 exit 노드와 현재 노드 간 연결이 이미 존재하는지 확인
         exit_node = self.current_target_function_cfg.get_exit_node()
@@ -2010,91 +2003,6 @@ class ContractAnalyzer:
                                 typeInfo=val_type)
             return new_obj
 
-    def extract_variable_name(self, expression):
-        """
-        표현식에서 변수 이름을 추출합니다.
-        필요한 경우 재귀적으로 접근하여 전체 경로를 문자열로 반환합니다.
-        :param expression: Expression 객체
-        :return: 변수 이름 문자열 (예: 'a', 'arr[0]', 'struct.member', 'map[key]')
-        """
-        if expression.identifier:
-            # 단순 식별자인 경우
-            return expression.identifier
-        elif expression.context == 'IndexAccessContext':
-            # 인덱스 접근인 경우 (예: arr[0], map[key])
-            base_name = self.extract_variable_name(expression.base)
-            index_expr = expression.index
-            index_value = self.extract_index_value(index_expr)
-            return f"{base_name}[{index_value}]"
-        elif expression.context == 'MemberAccessContext':
-            # 멤버 접근인 경우 (예: struct.member)
-            base_name = self.extract_variable_name(expression.base)
-            member_name = expression.member
-            return f"{base_name}.{member_name}"
-        elif expression.context == 'FunctionCallContext':
-            # 함수 호출인 경우 (예: func())
-            function_name = self.extract_variable_name(expression.function)
-            return f"{function_name}()"  # 함수 호출은 변수 이름으로 간주하지 않음
-        else:
-            raise ValueError(f"Unsupported expression type for variable extraction: {expression}")
-
-    def extract_index_value(self, index_expr):
-        """
-        인덱스 표현식에서 인덱스 값을 추출합니다.
-        :param index_expr: Expression 객체 (인덱스 표현식)
-        :return: 인덱스 문자열 (예: '0', 'key', 'i')
-        """
-        if index_expr.literal is not None:
-            return index_expr.literal
-        elif index_expr.identifier is not None:
-            return index_expr.identifier
-        elif index_expr.context in ['IndexAccessContext', 'MemberAccessContext']:
-            return self.extract_variable_name(index_expr)
-        else:
-            # 인덱스 표현식이 복잡한 경우 문자열로 표현
-            return str(index_expr)
-
-    def extract_related_variables(self, expr, current_block, function_cfg):
-        related_vars = []
-
-        # 우변 표현식에서 변수를 탐색
-        for sub_expr in self.flatten_expression(expr):
-            if sub_expr is None:
-                continue
-
-            # 상수나 리터럴인 경우 관련 변수가 아니므로 무시
-            if self.is_literal_expression(sub_expr):
-                continue
-
-            var_name = self.extract_variable_name(sub_expr)
-            variable_obj = current_block.get_variable(var_name)
-
-            if not variable_obj:
-                variable_obj = function_cfg.get_related_variable(var_name)
-
-            if variable_obj:
-                related_vars.append(variable_obj)
-
-        return related_vars
-
-    def flatten_expression(self, expr):
-        # 표현식에서 모든 서브 표현식을 재귀적으로 탐색하여 평탄화
-        expressions = [expr]
-        if hasattr(expr, 'left'):
-            expressions.extend(self.flatten_expression(expr.left))
-        if hasattr(expr, 'right'):
-            expressions.extend(self.flatten_expression(expr.right))
-        return expressions
-
-    def is_literal_expression(self, expr):
-        """
-        주어진 표현식이 상수나 리터럴인지 확인하는 함수.
-        """
-        # 상수나 리터럴인 경우 True를 반환
-        if hasattr(expr, 'literal') and expr.literal is not None:
-            return True
-        return False
-
     import copy
 
     def copy_variables(self, variables):
@@ -2303,7 +2211,8 @@ class ContractAnalyzer:
 
                 # 타입 동일성
                 if var_obj1.typeInfo.typeCategory != var_obj2.typeInfo.typeCategory:
-                    raise TypeError(f"Cannot join different typeCategories: {var_obj1.typeInfo.typeCategory} vs {var_obj2.typeInfo.typeCategory}")
+                    raise TypeError(f"Cannot join different typeCategories: {var_obj1.typeInfo.typeCategory} "
+                                    f"vs {var_obj2.typeInfo.typeCategory}")
 
                 cat = var_obj1.typeInfo.typeCategory
                 if cat == 'array':
@@ -2427,15 +2336,15 @@ class ContractAnalyzer:
 
     def update_statement_with_variables(self, stmt, current_variables):
         if stmt.statement_type == 'variableDeclaration':
-            current_variables = self.interpret_variable_declaration_statement(stmt, current_variables)
+            return self.interpret_variable_declaration_statement(stmt, current_variables)
         elif stmt.statement_type == 'assignment':
-            current_variables = self.interpret_assignment_statement(stmt, current_variables)
+            return self.interpret_assignment_statement(stmt, current_variables)
         elif stmt.statement_type == 'function_call':
-            current_variables = self.interpret_function_call_statement(stmt, current_variables)
+            return self.interpret_function_call_statement(stmt, current_variables)
         elif stmt.statement_type == 'return':
-            pass
+            return self.interpret_return_statement(stmt, current_variables)
         elif stmt.statement_type == 'revert':
-            pass
+            return self.interpret_revert_statement(stmt, current_variables)
         else:
             raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
 
@@ -2775,14 +2684,6 @@ class ContractAnalyzer:
         else:
             # 타입 다르거나 join 불가 => symbolic
             return f"symbolicJoin({val1},{val2})"
-
-    def update_variables_at_node(self, node, variables):
-        """
-        주어진 노드의 변수 정보를 업데이트합니다.
-        :param node: 대상 노드
-        :param variables: 업데이트할 변수 딕셔너리
-        """
-        node.variables = variables.copy()
 
     def traverse_loop_nodes(self, loop_node):
         """
@@ -4445,20 +4346,7 @@ class ContractAnalyzer:
                 # condition node가 아닌 일반 블록
                 # 블록 내 문장 해석
                 for stmt in current_block.statements:
-                    if stmt.statement_type == 'variableDeclaration' :
-                        current_variables = self.interpret_variable_declaration_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'assignment':
-                        current_variables = self.interpret_assignment_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'function_call':
-                        current_variables = self.interpret_function_call_statement(stmt, current_variables)
-                    elif stmt.statement_type == 'return':
-                        ret_val = self.evaluate_expression(stmt.return_expr, current_variables)
-                        return_values.append(ret_val)
-                        break
-                    elif stmt.statement_type == 'revert':
-                        break
-                    else:
-                        raise ValueError(f"Statement '{stmt.statement_type}' is not implemented.")
+                    current_variables = self.update_statement_with_variables(stmt, current_variables)
 
                 # return이나 revert를 만나지 않았다면 successors 방문
                 successors = list(function_cfg.graph.successors(current_block))
@@ -4527,39 +4415,21 @@ class ContractAnalyzer:
     def interpret_function_call_statement(self, stmt, variables):
         function_expr = stmt.function_call_expr
         return_value = self.evaluate_function_call_context(function_expr, variables, None, None)
-        # 함수 호출 결과를 어느 변수에 할당하는 로직이 필요하다면 추가.
-        # 현재는 단순 호출만 가정하므로 변수 환경 변화 없음.
+
         return variables
 
-    def merge_variables_from_predecessors(self, current_block, function_cfg):
-        """
-        조인 포인트 노드에서 predecessor들의 변수 환경을 합칩니다.
-        :param current_block: 현재 CFGNode (조인 포인트 노드)
-        :param function_cfg: 현재 함수의 CFG
-        :return: 합쳐진 변수 환경 (dict)
-        """
-        merged_variables = {}
+    def interpret_return_statement(self, stmt, variables):
+        returnExpr = stmt.return_expr
+        returnValue = self.evaluate_expression(returnExpr, variables, None, None)
 
-        # 각 predecessor의 변수 환경을 가져옴
-        predecessor_variables_list = []
-        for pred in function_cfg.graph.predecessors(current_block):
-            # 각 predecessor 노드에서 변수 환경을 가져와야 함
-            # 이를 위해 노드와 변수 환경을 매핑하는 구조가 필요함
-            # 예를 들어, 노드 객체에 변수 환경을 저장하거나 별도의 딕셔너리를 사용
-            pred_variables = pred.variables if hasattr(pred, 'variables') else {}
-            predecessor_variables_list.append(pred_variables)
+        # 5. function_exit_node에 return 값을 저장
+        exit_node = self.current_target_function_cfg.get_exit_node()
+        exit_node.return_vals[self.current_start_line] = returnValue  # 반환 값을 exit_node의 return_val에 기록
 
-        # 변수별로 범위를 합침
-        variable_names = set()
-        for vars in predecessor_variables_list:
-            variable_names.update(vars.keys())
+        return variables
 
-        for var_name in variable_names:
-            var_objs = [vars[var_name] for vars in predecessor_variables_list if var_name in vars]
-            merged_var = self.merge_variable_intervals(var_objs)
-            merged_variables[var_name] = merged_var
-
-        return merged_variables
+    def interpret_revert_statement(self, stmt, variables):
+        return variables
 
     def compare_intervals(self, left_interval, right_interval, operator):
         """
