@@ -762,7 +762,7 @@ class ContractAnalyzer:
         # variableDeclarationStatement가 loop 안에 있으면 fixpoint 알고리즘 수행
         if current_block.is_loop_body :
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 11. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -800,7 +800,7 @@ class ContractAnalyzer:
 
         if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 9. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -837,9 +837,9 @@ class ContractAnalyzer:
             self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
             current_block.add_assign_statement(expr.expression, '-=', literalExp)
 
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 10. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -875,9 +875,9 @@ class ContractAnalyzer:
             self.update_left_var(expr.expression, 1, '-=', current_block.variables, None, None)
             current_block.add_assign_statement(expr.expression, '-=', literalExp)
 
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 10. current_block을 function CFG에 반영
         self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
@@ -907,96 +907,16 @@ class ContractAnalyzer:
         if not self.current_target_function_cfg:
             raise ValueError("No active function to add variables to.")
 
+        current_block = self.get_current_block()
+
         # 3. 함수 표현식 가져오기
         function_expr = expr.function
 
-        # 4. 함수 표현식이 MemberAccessContext인지 확인
-        if function_expr.context == 'MemberAccessContext':
-            # 4.1 base와 member 가져오기
-            base_expr = function_expr.base
-            member_name = function_expr.member
+        _ = self.evaluate_function_call_context(function_expr, current_block.variables, None, None)
 
-            # 4.2 base_expr이 IdentifierExpContext인지 확인
-            if base_expr.context == 'IdentifierExpContext':
-                identifier = base_expr.identifier
-
-                # 4.3 현재 함수 CFG에서 변수 가져오기
-                arr_var = self.current_target_function_cfg.get_variable(identifier)
-
-                if arr_var is None:
-                    raise ValueError(f"Variable '{identifier}' not found in current function scope.")
-
-                # 4.4 배열 변수인지 확인
-                if isinstance(arr_var, ArrayVariable):
-                    # 4.5 배열의 기본 타입을 검증
-                    if arr_var.typeInfo.isDynamicArray:
-                        # 5. push 함수 처리
-                        if member_name == 'push':
-                            arguments = expr.arguments
-
-                            if arguments is None or len(arguments) == 0:
-                                # push(): 새로운 기본값 요소 추가 (기본값을 타입에 맞춰 생성)
-                                base_type = arr_var.typeInfo.arrayBaseType
-
-                                # 기본값 생성 (타입에 따라 처리)
-                                if base_type == 'uint' or base_type == 'int':
-                                    element_var = Variables(value=IntegerInterval(0, 0), typeInfo=base_type)
-                                else:
-                                    element_var = Variables(value=None, typeInfo=base_type)
-
-                                arr_var.elements.append(element_var)
-
-                                # 배열의 길이 증가
-                                if arr_var.typeInfo.arrayLength is not None:
-                                    arr_var.typeInfo.arrayLength += 1
-
-                                # 반환값 처리 (필요시 참조 반환)
-                                return element_var
-                            elif len(arguments) == 1:
-                                # push(value): 인자를 배열에 추가
-                                arg_expr = arguments[0]
-                                arg_value = self.evaluate_expression(arg_expr)
-
-                                # 타입 호환성 확인 후 요소 추가
-                                element_var = Variables(value=arg_value, typeInfo=arr_var.typeInfo.arrayBaseType)
-                                arr_var.elements.append(element_var)
-
-                                # 배열의 길이 증가
-                                if arr_var.typeInfo.arrayLength is not None:
-                                    arr_var.typeInfo.arrayLength += 1
-
-                                # 반환값 없음
-                                return None
-                            else:
-                                raise ValueError("push() function accepts at most one argument.")
-                        # 6. pop 함수 처리
-                        elif member_name == 'pop':
-                            # pop(): 마지막 요소 제거
-                            if not arr_var.elements:
-                                raise IndexError(f"Cannot pop from empty array '{identifier}'.")
-
-                            arr_var.elements.pop()
-
-                            # 배열의 길이 감소
-                            if arr_var.typeInfo.arrayLength is not None:
-                                arr_var.typeInfo.arrayLength -= 1
-
-                            # 반환값 없음
-                            return None
-                        else:
-                            raise NotImplementedError(f"Member function '{member_name}' is not implemented.")
-                    else:
-                        raise TypeError(f"Variable '{identifier}' is not a dynamic array.")
-                else:
-                    raise TypeError(f"Variable '{identifier}' is not an array variable.")
-            else:
-                raise NotImplementedError("Only simple identifiers are supported as array variables.")
-        else:
-            raise NotImplementedError("Only member function calls are supported in this context.")
-
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         self.current_target_function_cfg = None
 
@@ -1028,8 +948,8 @@ class ContractAnalyzer:
         condition_block.condition_expr = condition_expr
         # 7. True 분기에서 변수 상태 복사 및 업데이트
         condition_block.variables = self.copy_variables(current_block.variables)
-        if current_block.is_while_body :
-            condition_block.is_while_body = True
+        if current_block.is_loop_body == False :
+            condition_block.is_loop_body = True
 
         # 4. brace_count 업데이트 - 존재하지 않으면 초기화
         if self.current_start_line not in self.brace_count:
@@ -1041,8 +961,8 @@ class ContractAnalyzer:
 
         # 7. True 분기에서 변수 상태 복사 및 업데이트
         true_block.variables = self.copy_variables(condition_block.variables)
-        if current_block.is_while_body :
-            condition_block.is_while_body = True
+        if current_block.is_loop_body == False :
+            condition_block.is_loop_body = True
         self.update_variables_with_condition(true_block.variables, condition_expr, is_true_branch=True)
 
         false_block = CFGNode(name=f"if_false_{self.current_start_line}")
@@ -1427,9 +1347,9 @@ class ContractAnalyzer:
         # 6. 현재 블록을 fixpoint_evaluation_node로 연결 (loop로 다시 돌아감)
         self.current_target_function_cfg.graph.add_edge(current_block, fixpoint_evaluation_node)
 
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1476,9 +1396,9 @@ class ContractAnalyzer:
         # 7. 현재 블록을 loop_exit_node로 연결 (루프에서 빠져나감)
         self.current_target_function_cfg.graph.add_edge(current_block, loop_exit_node)
 
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 8. Return 노드에 대한 brace_count 업데이트
         if self.current_start_line not in self.brace_count:
@@ -1558,9 +1478,9 @@ class ContractAnalyzer:
         # 7. current_block에서 exit_node로 직접 연결
         self.current_target_function_cfg.graph.add_edge(current_block, exit_node)
 
-        if current_block.is_while_body:
+        if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
-            self.update_while_body(vars, current_block)
+            self.update_loop_body(vars, current_block)
 
         # 8. CFG 업데이트
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
@@ -2456,7 +2376,7 @@ class ContractAnalyzer:
                 self.update_statement_with_variables(statement, out_vars)
         return out_vars
 
-    def update_while_body(self, variables, current_block):
+    def update_loop_body(self, variables, current_block):
         """
         고정점 분석 결과를 바탕으로 while body 내의 문장들의 Interval을 업데이트합니다.
         :param variables: 수렴된 변수 상태 딕셔너리 (var_name -> Variables 객체)
@@ -3320,6 +3240,24 @@ class ContractAnalyzer:
                 ValueError(f"member '{member}' is not global variable member'.")
 
         elif isinstance(base_val, ArrayVariable) :
+            if callerContext == "functionCallContext" :
+                if not base_val.typeInfo.isDynamicArray :
+                    raise ValueError ("This variable's type is array and callerContext is functionCall "
+                                      "but not dynamic array")
+                base_type = base_val.typeInfo.arrayBaseType
+                if member == "push" :
+                    elementVar = Variables(identifier=base_val.identifier)
+                    if base_type.startswith("int", "uint", "bool") :
+                        elementVar.value = self.calculate_default_interval(base_type)
+
+                    elif base_type in ["address", "address payable", "string", "bytes", "Byte",
+                                                         "Fixed", "Ufixed"] :
+                        elementVar.value = str('symbol' + base_val.identifier + "index" + len(base_val.elements))
+                    base_val.elements.append(elementVar)
+                    base_val.typeInfo.arrayLength += 1
+                elif member == "pop" :
+                    base_val.elements.pop()
+
             if member == "length" : # myArray.length
                 length_val = len(base_val.elements)
                 return UnsignedIntegerInterval(length_val, length_val, 256)
@@ -4281,8 +4219,9 @@ class ContractAnalyzer:
         return neg_map.get(op, op)
 
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
-        # 1) 함수 이름(또는 멤버 접근)
-        #    간단 케이스: expr.function.identifier가 존재 => function name
+        if expr.context == "MemberAccessContext" : # dynamic array에 대한 push, pop
+            return self.evaluate_expression((expr, variables, None, "functionCallContext"))
+
         if expr.function.identifier:
             function_name = expr.function.identifier
         else:

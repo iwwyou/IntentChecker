@@ -99,6 +99,9 @@ class ArrayVariable(Variables):
         정적 배열의 요소들을 초기화하는 메소드.
         기본 타입이 배열인 경우 재귀적으로 요소들을 초기화합니다.
         """
+        if self.typeInfo.isDynamicArray :
+            return
+
         if self.typeInfo.arrayLength is not None:
             for i in range(self.typeInfo.arrayLength):
                 elem_id = f"{self.identifier}[{i}]"
