@@ -17,6 +17,8 @@ class Statement:
             self.left = kwargs.get('left')        # 좌변 Expression
             self.operator = kwargs.get('operator')  # 할당 연산자 (예: '=', '+=', '-=' 등)
             self.right = kwargs.get('right')      # 우변 Expression
+        elif statement_type == "functionCall" :
+            self.function_expr = kwargs.get('function_expr')
         elif statement_type == 'return':
             self.return_expr = kwargs.get('return_expr')
             self.evaluated_value = kwargs.get('evaluated_value')

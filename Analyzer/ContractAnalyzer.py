@@ -850,6 +850,9 @@ class ContractAnalyzer:
         # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
+        # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = current_block
+
         self.current_target_function_cfg = None
 
     def process_unary_suffix_operation(self, expr):
@@ -888,8 +891,10 @@ class ContractAnalyzer:
         # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
-        self.current_target_function_cfg = None
+        # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
+        self.current_target_function_cfg = None
     def process_function_call(self, expr):
         """
         함수 호출을 처리하는 메소드입니다.
@@ -917,6 +922,20 @@ class ContractAnalyzer:
         if current_block.is_loop_body:
             vars = self.fixpoint(current_block)
             self.update_loop_body(vars, current_block)
+
+        current_block.add_function_call_statement(function_expr)
+
+        # 10. current_block을 function CFG에 반영
+        self.current_target_function_cfg.update_block(current_block)  # 변경된 블록을 반영
+
+        # 11. function_cfg 결과를 contract_cfg에 반영
+        contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
+
+        # 12. contract_cfg를 contract_cfgs에 반영
+        self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = current_block
 
         self.current_target_function_cfg = None
 
@@ -990,9 +1009,14 @@ class ContractAnalyzer:
         for successor in successors:
             self.current_target_function_cfg.graph.add_edge(true_block, successor)
 
-        # 13. CFG 업데이트
+        # 11. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
+
+        # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = condition_block
 
         self.current_target_function_cfg = None
 
@@ -1058,9 +1082,14 @@ class ContractAnalyzer:
         self.current_target_function_cfg.graph.add_edge(condition_block, true_block, condition=True)
         self.current_target_function_cfg.graph.add_edge(condition_block, false_block, condition=False)
 
-        # 11. CFG 업데이트
+        # 11. function_cfg 결과를 contract_cfg에 반영
         contract_cfg.functions[self.current_target_function] = self.current_target_function_cfg
+
+        # 12. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
+
+        # 12. brace_count에 CFG 노드 정보 업데이트 (함수의 시작 라인 정보 사용)
+        self.brace_count[self.current_start_line]['cfg_node'] = condition_block
 
         self.current_target_function_cfg = None
 

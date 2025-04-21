@@ -53,16 +53,15 @@ class CFGNode:
 
         # 변수 정보 업데이트는 update_left_Var 관련 함수에서 수행
 
-    def add_function_call_statement(self, function_expr: Expression, evaluated_value=None):
+    def add_function_call_statement(self, function_expr: Expression):
         """
         함수 호출문을 CFG에 추가합니다.
         :param function_expr: 함수 호출 Expression 객체
         :param evaluated_value: 함수 호출의 평가 결과 (필요한 경우)
         """
         function_call_stmt = Statement(
-            statement_type='function_call',
-            function_call_expr=function_expr,
-            evaluated_value=evaluated_value
+            statement_type='functionCall',
+            function_expr=function_expr
         )
         self.statements.append(function_call_stmt)
 
