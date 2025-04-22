@@ -17,6 +17,7 @@ contract AloeBlend {
             uint256 availableForLimit1
         )
     {
+        // 얘도 범위로 받아야 되나?
         // @pre-execution-state temp = 10;
         // @pre-execution-local sqrtPriceX96 = 10;          
 

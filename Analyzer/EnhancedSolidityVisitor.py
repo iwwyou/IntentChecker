@@ -550,7 +550,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
           globalValue:
             : '[' numberLiteral ',' numberLiteral ']'   # GlobalIntValue
-            | 'address' numberLiteral                     # GlobalAddressValue
+            | 'symbolicAddress' numberLiteral                     # GlobalAddressValue
 
         Examples:
           // @pre-execution-global block.timestamp = [1000, 2000]
@@ -573,7 +573,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 "block.number",
                 "block.prevrandao",
                 "block.timestamp",
-                "msg.sender",
+                "msg.sender", #
                 "msg.value",
                 "tx.gasprice",
                 "tx.origin"

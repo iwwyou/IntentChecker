@@ -11,6 +11,8 @@ import copy
 
 class ContractAnalyzer:
     def __init__(self):
+        self.addressManager = AddressSymbolicManager()
+
         self.full_code = None
         self.full_code_lines = {} # 라인별 코드를 저장하는 딕셔너리
         self.brace_count = {} # 각 라인에서 `{`와 `}`의 개수를 저장하는 딕셔너리
