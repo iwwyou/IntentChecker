@@ -1,118 +1,238 @@
-import json
 from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
 from Analyzer.ContractAnalyzer import ContractAnalyzer
-from antlr4 import *
-from Parser.SolidityLexer import SolidityLexer
-from Parser.SolidityParser import SolidityParser
+from Analyzer.DebugUnitAnalyzer import DebugBatchManager
+from Utils.Helper                      import ParserHelpers     # ★ here
+import time
 
 contract_analyzer = ContractAnalyzer()
+snapman           = contract_analyzer.snapman
+batch_mgr         = DebugBatchManager(contract_analyzer, snapman)
 
-def map_context_type(context_type):
-    context_mapping = {
-        'contract': 'interactiveSourceUnit',
-        'library': 'interactiveSourceUnit',
-        'interface': 'interactiveSourceUnit',
-        'enum': 'interactiveSourceUnit',
-        'struct': 'interactiveSourceUnit',
-        'function': 'interactiveSourceUnit',
-        'constructor': 'interactiveSourceUnit',
-        'fallback': 'interactiveSourceUnit',
-        'receive': 'interactiveSourceUnit',
-        'event': 'interactiveSourceUnit',
-        'error': 'interactiveSourceUnit',
-        'modifier': 'interactiveSourceUnit',
-        'stateVariableDeclaration': 'interactiveSourceUnit',
-        'enumMember': 'interactiveEnumUnit',
-        'structMember': 'interactiveStructUnit',
-        'simpleStatement': 'interactiveBlockUnit',
-        'if': 'interactiveBlockUnit',
-        'for': 'interactiveBlockUnit',
-        'while': 'interactiveBlockUnit',
-        'do': 'interactiveBlockUnit',
-        'try': 'interactiveBlockUnit',
-        'return': 'interactiveBlockUnit',
-        'break': 'interactiveBlockUnit',
-        'continue': 'interactiveBlockUnit',
-        'emit': 'interactiveBlockUnit',
-        'doWhileWhile': 'interactiveDoWhileUnit',
-        'catch': 'interactiveCatchClauseUnit',
-        'else_if': 'interactiveIfElseUnit',
-        'else': 'interactiveIfElseUnit',
-        'intentUnit' : 'intentUnit'
-    }
+def simulate_inputs(records):
+    in_testcase = False
 
-    try:
-        return context_mapping[context_type]
-    except KeyError:
-        print(f"Warning: No mapping found for context_type '{context_type}'. Returning None.")
-        return None
+    for rec in records:
+        code, s, e, ev = rec["code"], rec["startLine"], rec["endLine"], rec["event"]
+        contract_analyzer.update_code(s, e, code, ev)  # solidity 소스 갱신
+        print("target code : ", code)
 
-def generate_parse_tree(input_stream, context_type):
-    input_stream = InputStream(input_stream)
-    lexer = SolidityLexer(input_stream)
-    token_stream = CommonTokenStream(lexer)
-    parser = SolidityParser(token_stream)
+        stripped = code.lstrip()
 
-    context_rule = map_context_type(context_type)
-
-    if context_rule == 'interactiveStructUnit':
-        tree = parser.interactiveStructUnit()
-    elif context_rule == 'interactiveEnumUnit':
-        tree = parser.interactiveEnumUnit()
-    elif context_rule == 'interactiveBlockUnit':
-        tree = parser.interactiveBlockUnit()
-    elif context_rule == 'interactiveDoWhileUnit':
-        tree = parser.interactiveDoWhileUnit()
-    elif context_rule == 'interactiveIfElseUnit':
-        tree = parser.interactiveIfElseUnit()
-    elif context_rule == 'interactiveCatchClauseUnit':
-        tree = parser.interactiveCatchClauseUnit()
-    elif context_rule == 'intentUnit' :
-        tree = parser.intentUnit()
-    else:
-        tree = parser.interactiveSourceUnit()
-
-    return tree
-
-def simulate_input(test_inputs):
-    for input_data in test_inputs:
-        code = input_data['code']
-        start_line = input_data['startLine']
-        end_line = input_data['endLine']
-
-        contract_analyzer.update_code(start_line, end_line, code)
-
-        if code == "\n" :
+        # ① BEGIN / END ---------------------------------------------------
+        if stripped.startswith("// @TestCase BEGIN"):
+            batch_mgr.reset()  # ★ 새 TC 시작
+            in_testcase = True
             continue
 
-        # Parse the received code based on context_type
-        tree = generate_parse_tree(code, contract_analyzer.get_current_context_type())
+        if stripped.startswith("// @TestCase END"):
+            batch_mgr.flush()  # TC 완성 → 1 회 해석
+            in_testcase = False
+            continue
 
-        visitor = EnhancedSolidityVisitor(contract_analyzer)
-        visitor.visit(tree)
+        # ② 디버그 주석 (@StateVar, @GlobalVar …) --------------------------
+        if stripped.startswith("// @"):
+            if ev == "add":
+                batch_mgr.add_line(code, s, e)
+            elif ev == "modify":
+                batch_mgr.modify_line(code, s, e)
+            elif ev == "delete":
+                batch_mgr.delete_line(s)
 
-        # Get and print the analysis result
-        result = contract_analyzer.get_analysis_result()
-        print(json.dumps(result, indent=4))
+            # BEGIN-END 밖이면 즉시 재-해석
+            if not in_testcase:
+                batch_mgr.flush()
+            continue
+
+        # ③ 일반 Solidity 코드 --------------------------------------------
+        if code.strip():
+            ctx = contract_analyzer.get_current_context_type()
+            tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+            EnhancedSolidityVisitor(contract_analyzer).visit(tree)
+
+        # ✨ ★ 여기서 바로 찍어 보기 ★ ✨
+        analysis = contract_analyzer.get_line_analysis(s, e)
+        if analysis:  # 비어 있지 않을 때만
+            print(f"[{s}-{e}]  analysis ⇒")
+        for ln, recs in analysis.items():
+            for r in recs:
+                print(f"  L{ln:3} | {r['kind']:>14} | {r['vars']}")
+
+        print("--------------------------------------------------------")
+
 
 test_inputs = [
-    # Contract 선언
-    {
-        'code': 'contract USDs { \n }',
-        'startLine': 1,
-        'endLine': 2
-    },
-
-    # 상태 변수 mapping 선언 - _creditBalances
-    {
-        'code': 'int length = address.code.length;',
-        'startLine': 2,
-        'endLine': 2
-    }
+  {
+    "code": "contract AOC_BEP {\n}",
+    "startLine": 1,
+    "endLine": 2,
+    "event": "add"
+  },
+  {
+    "code": "struct UserInfo {\n}",
+    "startLine": 2,
+    "endLine": 3,
+    "event": "add"
+  },
+  {
+    "code": "uint256 balance;",
+    "startLine": 3,
+    "endLine": 3,
+    "event": "add"
+  },
+  {
+    "code": "uint256 level;",
+    "startLine": 4,
+    "endLine": 4,
+    "event": "add"
+  },
+  {
+    "code": "uint256 year;",
+    "startLine": 5,
+    "endLine": 5,
+    "event": "add"
+  },
+  {
+    "code": "uint256 month;",
+    "startLine": 6,
+    "endLine": 6,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 8,
+    "endLine": 8,
+    "event": "add"
+  },
+  {
+    "code": "struct Level {\n}",
+    "startLine": 9,
+    "endLine": 10,
+    "event": "add"
+  },
+  {
+    "code": "uint256 start;",
+    "startLine": 10,
+    "endLine": 10,
+    "event": "add"
+  },
+  {
+    "code": "uint256 end;",
+    "startLine": 11,
+    "endLine": 11,
+    "event": "add"
+  },
+  {
+    "code": "uint256 percentage;",
+    "startLine": 12,
+    "endLine": 12,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 14,
+    "endLine": 14,
+    "event": "add"
+  },
+  {
+    "code": "mapping(address => UserInfo) public userInfo;",
+    "startLine": 15,
+    "endLine": 15,
+    "event": "add"
+  },
+  {
+    "code": "mapping(uint256 => Level) public levels;",
+    "startLine": 16,
+    "endLine": 16,
+    "event": "add"
+  },
+  {
+    "code": "mapping(address => uint256) private _balances;",
+    "startLine": 17,
+    "endLine": 17,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 18,
+    "endLine": 18,
+    "event": "add"
+  },
+  {
+    "code": "function updateUserInfo(address account, uint256 year, uint256 month) internal {\n}",
+    "startLine": 19,
+    "endLine": 20,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].balance = _balances[account];",
+    "startLine": 20,
+    "endLine": 20,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].year = year;",
+    "startLine": 21,
+    "endLine": 21,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].month = month;",
+    "startLine": 22,
+    "endLine": 22,
+    "event": "add"
+  },
+  {
+    "code": "for(uint256 i = 1; i <= 4; i++) {\n}",
+    "startLine": 23,
+    "endLine": 24,
+    "event": "add"
+  },
+  {
+    "code": "if(i == 4) {\n}",
+    "startLine": 24,
+    "endLine": 25,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].level = i;",
+    "startLine": 25,
+    "endLine": 25,
+    "event": "add"
+  },
+  {
+    "code": "break;",
+    "startLine": 26,
+    "endLine": 26,
+    "event": "add"
+  },
+  {
+    "code": "if(block.timestamp >= levels[i].start && block.timestamp <= levels[i].end) {\n}",
+    "startLine": 28,
+    "endLine": 29,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].level = i;",
+    "startLine": 29,
+    "endLine": 29,
+    "event": "add"
+  },
+  {
+    "code": "break;",
+    "startLine": 30,
+    "endLine": 30,
+    "event": "add"
+  },
+  {
+    "code": "userInfo[account].month = month;",
+    "startLine": 33,
+    "endLine": 33,
+    "event": "add"
+  }
 ]
 
+start = time.time()
 
-
-
-# Simulate input as if coming from VSCode with block structure assumptions
-simulate_input(test_inputs)
+simulate_inputs(test_inputs)
+end = time.time()
+print(f"Analyze time : {end - start:.5f} sec")

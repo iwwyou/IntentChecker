@@ -1,99 +1,134 @@
 # SolidityGuardian/Utils/CFG.py
 import networkx as nx
-import re
-from Utils.util import *
-from Utils.Interval import *
+from Domain.IR import *
+from Domain.Variable import *
 
 class CFGNode:
     def __init__(self, name,
                  condition_node=False,
                  condition_node_type=None,
+                 branch_node=False,
+                 is_true_branch=False,
                  fixpoint_evaluation_node=False,
-                 loop_exit_node=False):
+                 loop_exit_node=False,
+                 is_for_increment=False,
+                 unchecked_block=False,
+                 src_line=None):
         self.name = name
 
         self.condition_node = condition_node
         self.condition_expr = None
         self.condition_node_type = condition_node_type
 
+        self.branch_node = branch_node
+        self.is_true_branch = is_true_branch
+
         self.join_point_node = False
         self.fixpoint_evaluation_node = fixpoint_evaluation_node
+        self.is_for_increment = is_for_increment
         self.loop_exit_node = loop_exit_node
         self.is_loop_body = False
         self.fixpoint_evaluation_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태, join 하면서 변하는 변수의 상태
+        self.join_baseline_env = None
+
+        self.unchecked_block = unchecked_block
 
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
 
         self.function_exit_node = False
         self.return_vals = {}
+        self.src_line = src_line
 
-    def add_variable_declaration_statement(self, typeObj, varName, initExpr):
+        self.function_evaluated=None
+
+    def add_variable_declaration_statement(self, typeObj, varName, initExpr, line_no):
 
         # Statement 생성
         variableDeclarationStatment = Statement(
             statement_type='variableDeclaration',
             type_obj=typeObj,
             var_name=varName,
-            init_expr=initExpr
+            init_expr=initExpr,
+            src_line=line_no
         )
 
         self.statements.append(variableDeclarationStatment)
 
-    def add_assign_statement(self, exprLeft, exprRight, exprOperator):
+    def add_assign_statement(self, exprLeft, exprOperator, exprRight, line_no):
 
         # Statement 생성
         assignment_stmt = Statement(
             statement_type='assignment',
             left=exprLeft,
             operator=exprOperator,
-            right=exprRight
+            right=exprRight,
+            src_line=line_no
         )
         self.statements.append(assignment_stmt)
 
+    def add_unary_statement(self, operand, operator, line_no):
+        """
+        ++x, --y, delete z 같은 단항 연산 전용 스테이트먼트를 블록에 추가.
+        ─ operand  : Expression (피연산자)
+        ─ operator : '++' | '--' | 'delete' …
+        ─ line_no  : 소스 코드 라인 번호
+        """
+        unary_stmt = Statement(
+            statement_type='unary',
+            operand=operand,
+            operator=operator,
+            src_line=line_no,
+        )
+        self.statements.append(unary_stmt)
+
         # 변수 정보 업데이트는 update_left_Var 관련 함수에서 수행
 
-    def add_function_call_statement(self, function_expr: Expression):
+    def add_function_call_statement(self, function_expr: Expression, line_no):
         """
         함수 호출문을 CFG에 추가합니다.
         :param function_expr: 함수 호출 Expression 객체
-        :param evaluated_value: 함수 호출의 평가 결과 (필요한 경우)
         """
         function_call_stmt = Statement(
             statement_type='functionCall',
-            function_expr=function_expr
+            function_expr=function_expr,
+            src_line=line_no
         )
         self.statements.append(function_call_stmt)
 
-    def add_return_statement(self, return_expr: Expression):
+    def add_return_statement(self, return_expr: Expression, line_no):
         """
         반환 구문을 CFG에 추가하고, 반환 값을 업데이트합니다.
         :param return_expr: 반환할 Expression 객체
-        :param evaluated_value: 평가된 Interval 값
         """
         return_stmt = Statement(
             statement_type='return',
-            return_expr=return_expr
+            return_expr=return_expr,
+            src_line=line_no
         )
         self.statements.append(return_stmt)
 
-    def add_continue_statement(self):
-        continue_stmt = Statement(statement_type='continue')
+    def add_continue_statement(self, line_no):
+        continue_stmt = Statement(statement_type='continue',
+                                  src_line=line_no)
         self.statements.append(continue_stmt)
 
-    def add_break_statement(self):
-        break_stmt = Statement(statement_type='break')
+    def add_break_statement(self, line_no):
+        break_stmt = Statement(statement_type='break',
+                               src_line=line_no)
         self.statements.append(break_stmt)
 
-    def add_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None):
+    def add_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None,
+                             line_no=None):
         # 4. Revert 문장을 Statement 객체로 만들어서 현재 블록에 추가
         revert_statement = Statement(
             statement_type="revert",
             identifier=revert_identifier,
             string_literal=string_literal,
-            arguments=call_argument_list
+            arguments=call_argument_list,
+            src_line=line_no
         )
-        self.statements.append(Statement)
+        self.statements.append(revert_statement)
 
     def get_variable(self, var_name: str) -> Variables:
         """
@@ -136,15 +171,28 @@ class ContractCFG(CFG):
         self.fallback = None
         self.receive = None
 
-        self.modifiers = {}  # name -> FunctionCFG
+        #self.modifiers = {}  # name -> FunctionCFG
         self.functions = {}  # name -> FunctionCFG
 
-        # 새로 추가: pre-execution 글로벌 설정
-        self.pre_exec_globals = {}  # e.g. { "block.timestamp": 100, ... }
+        self.globals: dict[str, GlobalVariable] = {}
+
+    def initialize_state_variable_node(self):
+        self.state_variable_node = CFGNode('State_Variable')
+        self.graph.add_node(self.state_variable_node)
+
+        # 기존 entry node의 successor를 새로운 state variable node의 successor로 설정
+        successors = list(self.graph.successors(self.entry_node))
+        for succ in successors:
+            self.graph.add_edge(self.state_variable_node, succ)
+            self.graph.remove_edge(self.entry_node, succ)
+
+        # 새로운 state variable node를 entry node의 successor로 설정
+        self.graph.add_edge(self.entry_node, self.state_variable_node)
+
 
     # Enum 정의 추가
     def define_enum(self, enum_name, enum_def):
-        if enum_name not in self.enums:
+        if enum_name not in self.enumDefs:
             self.enumDefs[enum_name] = enum_def
         else:
             raise ValueError(f"Enum {enum_name} is already defined.")
@@ -154,7 +202,7 @@ class ContractCFG(CFG):
         self.structDefs[struct_def_obj.struct_name] = struct_def_obj
 
     def add_enum_member(self, enum_name, member_name):
-        if enum_name in self.enums:
+        if enum_name in self.enumDefs:
             self.enumDefs[enum_name].add_member(member_name)
         else:
             raise ValueError(f"Enum {enum_name} is not defined.")
@@ -165,23 +213,15 @@ class ContractCFG(CFG):
         else :
             raise ValueError(f"Struct {struct_def_name} is not defined/")
 
-    def add_state_variable(self, variable, expr=None): # variable : Variables, expr : Interval
-        # 상태 변수 노드가 없는 경우 생성
-        if not self.state_variable_node:
-            self.state_variable_node = CFGNode('State_Variable')
-            self.graph.add_node(self.state_variable_node)
+    def add_state_variable(self, variable, expr=None, line_no=None): # variable : Variables, expr : Interval
+        self.state_variable_node.add_assign_statement(
+            exprLeft=variable,  # 좌변
+            exprRight=expr,  # 우변 (Expression | None)
+            exprOperator='=',  # 연산자
+            line_no=line_no
+        )
 
-            # 기존 entry node의 successor를 새로운 state variable node의 successor로 설정
-            successors = list(self.graph.successors(self.entry_node))
-            for succ in successors:
-                self.graph.add_edge(self.state_variable_node, succ)
-                self.graph.remove_edge(self.entry_node, succ)
-
-            # 새로운 state variable node를 entry node의 successor로 설정
-            self.graph.add_edge(self.entry_node, self.state_variable_node)
-
-        # 상태 변수 정보를 노드에 추가
-        self.state_variable_node.add_assign_statement(variable_obj=variable, expr=expr)
+        self.state_variable_node.variables[variable.identifier] = variable
 
     def add_constant_variable(self, variable, expr=None):
         if not self.state_variable_node:
@@ -211,9 +251,9 @@ class ContractCFG(CFG):
         # 2. ContractCFG에 생성자 CFG 추가
         self.constructor = constructor_cfg
 
-    def get_modifier_cfg(self, modifier_name):
-        # modifier가 존재하면 해당 CFG를 반환하고, 없으면 None을 반환
-        return self.modifiers.get(modifier_name)
+    #def get_modifier_cfg(self, modifier_name):
+    #    # modifier가 존재하면 해당 CFG를 반환하고, 없으면 None을 반환
+    #    return self.modifiers.get(modifier_name)
 
     def add_function_cfg(self, function_name, function_cfg):
         self.functions[function_name] = function_cfg
@@ -229,10 +269,12 @@ class FunctionCFG(CFG):
         self.function_name = function_name
         self.modifiers = {}
         self.related_variables = {}
+        self.parameters: list[str] = []  # ←★ 추가
+        self.return_types: list[SolType] = []   # 이름 없는 리턴
+        self.return_vars : list = [] # 이름이 있는 리턴
+
         self.exit_node.function_exit_node = True
 
-        self.pre_exec_state = {}
-        self.pre_exec_local = {}
 
     def update_block(self, block_node):
         """

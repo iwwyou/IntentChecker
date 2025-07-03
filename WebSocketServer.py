@@ -63,7 +63,8 @@ def map_context_type(context_type):
         'doWhileWhile': 'interactiveDoWhileUnit',
         'catch': 'interactiveCatchClauseUnit',
         'else_if': 'interactiveIfElseUnit',
-        'else': 'interactiveIfElseUnit'
+        'else': 'interactiveIfElseUnit',
+        'debugUnit' : 'debugUnit'
     }
 
     try:
@@ -71,7 +72,6 @@ def map_context_type(context_type):
     except KeyError:
         print(f"Warning: No mapping found for context_type '{context_type}'. Returning None.")
         return None
-
 
 def generate_parse_tree(input_stream, context_type):
     input_stream = InputStream(input_stream)
@@ -93,6 +93,8 @@ def generate_parse_tree(input_stream, context_type):
         tree = parser.interactiveIfElseUnit()
     elif context_rule == 'interactiveCatchClauseUnit':
         tree = parser.interactiveCatchClauseUnit()
+    elif context_rule == 'debugUnit' :
+        tree = parser.debugUnit()
     else:
         tree = parser.interactiveSourceUnit()
 
@@ -109,8 +111,9 @@ async def websocket_endpoint(websocket: WebSocket):
             code = message['code']
             start_line = message['startLine']
             end_line = message['endLine']
+            event = message['event']
 
-            contract_analyzer.update_code(start_line, end_line, code)
+            contract_analyzer.update_code(start_line, end_line, code, event)
             context_type = contract_analyzer.get_current_context_type()
 
             # Parse the received code based on context_type
