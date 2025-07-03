@@ -1,11 +1,43 @@
-from collections import defaultdict, deque
 from Parser.SolidityParser import SolidityParser
 from Parser.SolidityVisitor import SolidityVisitor
-from Utils.Interval import IntegerInterval
-from Utils.cfg import *
-from Utils.util import * # Expression, Variables class
-from Analyzer import ContractAnalyzer
-import re
+# 맨 위 import 부분
+from antlr4.tree.Tree import TerminalNodeImpl
+
+from Domain.Variable import Variables, GlobalVariable, ArrayVariable, StructVariable, EnumVariable, MappingVariable
+from Domain.Type import SolType
+from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
+from Domain.IR import Expression
+
+KEYWORD_IDENTIFIERS = {
+    "from", "to", "payable", "returns",      # 필요 시 계속 추가
+}
+
+TIME_VALUE = {
+    "seconds": 1,
+    "minutes": 60,
+    "hours":   60 * 60,
+    "days":    24 * 60 * 60,
+    "weeks":   7  * 24 * 60 * 60,
+    "years":   365 * 24 * 60 * 60,
+    "wei":     1,
+    "gwei":    10 ** 9,
+    "ether":   10 ** 18,
+}
+
+# ContractAnalyzer (or util module) ──────────────────────────
+READONLY_MEMBERS = {
+    # Array / bytes
+    "length", "slot", "offset",
+    # Address
+    "balance", "code", "codehash",
+    # Function
+    "selector",
+    # type(T) meta
+    "max", "min", "size", "name"
+}
+
+READONLY_GLOBAL_BASES = {"block", "msg", "tx"}
+
 
 class EnhancedSolidityVisitor(SolidityVisitor):
 
@@ -106,36 +138,49 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
 
     # Visit a parse tree produced by SolidityParser#constantVariableDeclaration.
-    def visitConstantVariableDeclaration(self, ctx:SolidityParser.ConstantVariableDeclarationContext):
-        var_type = ctx.typeName().getText()
+    # ---------------------------------------------------------------------------
+    # ① constant 변수 선언 방문      (예:  uint256 constant DECIMALS = 18;)
+    # ---------------------------------------------------------------------------
+    def visitConstantVariableDeclaration(self,
+                                         ctx: SolidityParser.ConstantVariableDeclarationContext):
+
         var_name = ctx.identifier().getText()
 
-        # 타입 분석
-        type_context = ctx.typeName()
+        # 1) 타입 분석 → SolType 객체
+        type_ctx = ctx.typeName()
+        type_obj = SolType()
+        type_obj = self.visitTypeName(type_ctx, type_obj)
 
-        # 기본 자료형인 경우
-        if isinstance(type_context, SolidityParser.ElementaryTypeNameContext):
-            if var_type.startswith('int') or var_type.startswith('uint'):
-                if var_type == 'int' or var_type == 'uint':
-                    length = 256  # 기본 길이는 256
-                else:
-                    length = int(var_type[len('int'):])  # 타입의 길이 추출
-                variable_obj = Variables(var_name, metaType='elementary', var_type=var_type, intTypeLength=length)
-            else:
-                variable_obj = Variables(var_name, metaType='elementary', var_type=var_type)
+        # 2) 변수 객체 생성 (state 변수와 동일한 분기)
+        if type_obj.typeCategory == "array":
+            variable_obj = ArrayVariable(identifier=var_name,
+                                         base_type=type_obj.arrayBaseType,
+                                         array_length=type_obj.arrayLength,
+                                         scope="state")
+        elif type_obj.typeCategory == "struct":
+            variable_obj = StructVariable(identifier=var_name,
+                                          struct_type=type_obj.structTypeName,
+                                          scope="state")
+        elif type_obj.typeCategory == "mapping":
+            variable_obj = MappingVariable(identifier=var_name,
+                                           key_type=type_obj.mappingKeyType,
+                                           value_type=type_obj.mappingValueType,
+                                           scope="state")
+        elif type_obj.typeCategory == "enum":
+            variable_obj = EnumVariable(identifier=var_name,
+                                        enum_type=type_obj.enumTypeName,
+                                        scope="state")
+        else:  # elementary
+            variable_obj = Variables(identifier=var_name, scope="state")
+            variable_obj.typeInfo = type_obj
 
-        # Mapping 타입이나 배열 등의 다른 타입 처리 필요 시 추가
+        variable_obj.isConstant = True  # ← 상수 표시
 
-        # 초기화 식 처리
-        if ctx.expression():
-            init_expr = self.visitExpression(ctx.expression())
-        else:
-            init_expr = None
+        # 3) 초기화식 (Expression) 파싱
+        init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
 
-        # ContractAnalyzer 호출
+        # 4) ContractAnalyzer 로 위임
         self.contract_analyzer.process_constant_variable(variable_obj, init_expr)
-
-        return
 
     # Visit a parse tree produced by SolidityParser#contractBodyElement.
     def visitContractBodyElement(self, ctx:SolidityParser.ContractBodyElementContext):
@@ -173,45 +218,48 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#stateVariableDeclaration.
-    def visitStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
+    # EnhancedSolidityVisitor.py
+    def visitStateVariableDeclaration(self,
+                                      ctx: SolidityParser.StateVariableDeclarationContext):
+
         var_name = ctx.identifier().getText()
 
-        # 1. 기본 Variables 객체 생성 (초기에는 타입을 모름)
-        variable_obj = None
-
-        # 2. 타입 분석
+        # ── ① 타입 해석 ─────────────────────────────────────────────
         type_ctx = ctx.typeName()
-        type_obj = SolType()
-        type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
+        type_info = self.visitTypeName(type_ctx, SolType())  # ← SolType 객체
 
-        # 3. 변수 객체 생성 (타입에 따라 다름)
-        if type_obj.typeCategory == 'array':
-            variable_obj = ArrayVariable(identifier=var_name, base_type=type_obj.arrayBaseType,
-                                         array_length=type_obj.arrayLength, scope='state')
-        elif type_obj.typeCategory == 'struct':
-            variable_obj = StructVariable(identifier=var_name, struct_type=type_obj.structTypeName, scope='state')
-        elif type_obj.typeCategory == 'mapping':
-            variable_obj = MappingVariable(identifier=var_name,
-                                           key_type=type_obj.mappingKeyType,
-                                           value_type=type_obj.mappingValueType,
-                                           scope='state')
-        elif type_obj.typeCategory == 'enum' :
-            variable_obj = EnumVariable(identifier=var_name,
-                                        enum_type=type_obj.enumTypeName,
-                                        scope='state')
+        # ── ② 변수 object  생성 (array / struct / mapping / enum / elementary) ──
+        if type_info.typeCategory == "array":
+            var_obj = ArrayVariable(var_name, type_info.arrayBaseType,
+                                    type_info.arrayLength, scope="state",
+                                    is_dynamic=type_info.isDynamicArray)
+        elif type_info.typeCategory == "struct":
+            var_obj = StructVariable(var_name, type_info.structTypeName, scope="state",
+                                     )
+        elif type_info.typeCategory == "mapping":
+            var_obj = MappingVariable(var_name,
+                                      type_info.mappingKeyType,
+                                      type_info.mappingValueType,
+                                      scope="state")
+        elif type_info.typeCategory == "enum":
+            var_obj = EnumVariable(var_name, type_info.enumTypeName, scope="state")
+        else:  # elementary / address / bool …
+            var_obj = Variables(var_name, scope="state")
+            var_obj.typeInfo = type_info
+
+        # ── ③ 초기화식 (있을 수도, 없을 수도) ────────────────────────
+        init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
+
+        # ── ④ ‘constant’ 토큰 존재 여부 판별 ────────────────────────
+        #     antlr4 는 토큰 이름으로 <rule>.<TokenName>() 메서드를 준다.
+        has_constant = len(ctx.ConstantKeyword()) > 0
+
+        if has_constant:
+            # `constant`이면 별도 로직으로
+            self.contract_analyzer.process_constant_variable(var_obj, init_expr)
         else:
-            variable_obj = Variables(identifier=var_name, scope='state')
-            variable_obj.typeInfo = type_obj
-
-        # 4. 초기값 처리 (있을 경우)
-        if ctx.expression():
-            init_expr_ctx = ctx.expression()
-            init_expr = self.visitExpression(init_expr_ctx)  # Expression 객체 반환
-        else:
-            init_expr = None
-
-        # 5. ContractAnalyzer 호출 (processStateVariable)
-        self.contract_analyzer.process_state_variable(variable_obj, init_expr)
+            # 일반 state-var
+            self.contract_analyzer.process_state_variable(var_obj, init_expr)
 
     # Visit a parse tree produced by SolidityParser#errorDefinition.
     def visitErrorDefinition(self, ctx:SolidityParser.ErrorDefinitionContext):
@@ -269,35 +317,30 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#functionDefinition.
-    def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
-        # 1. Function Name 확인 (identifier만 처리)
-        function_name = ctx.identifier().getText() if ctx.identifier() else None
-        if not function_name:
-            raise ValueError("Function name is missing")
+    def visitFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
+        fname = ctx.identifier().getText() if ctx.identifier() else None
+        if not fname:
+            raise ValueError("function name missing")
 
-        # 2. 파라미터 처리
-        parameters = {}
-        if ctx.parameterList():
-            parameters = self.visitParameterList(ctx.parameterList(0))
+        params = self.visitParameterList(ctx.parameterList(0)) \
+            if ctx.parameterList(0) else []
+        rets = self.visitParameterList(ctx.parameterList(1)) \
+            if ctx.parameterList(1) else []
 
-        # 3. Modifier 처리
-        modifiers = []
-        for spec in ctx.getChildren():
-            if isinstance(spec, SolidityParser.ModifierInvocationContext):
-                modifier_name = spec.identifierPath().getText()
-                modifiers.append(modifier_name)
+        # ── ② modifierInvocation 만 수집하되 override/virtual 은 필터링 -----
+        mods: list[str] = []
+        for m in ctx.getChildren():
+            if isinstance(m, SolidityParser.ModifierInvocationContext):
+                name = m.identifierPath().getText()
+                # ※ override / virtual 은 modifier 가 아님
+                if name not in {"override", "virtual"}:
+                    mods.append(name)
 
-        # 4. 반환 타입 처리 (returns)
-        returns = {}
-        if ctx.parameterList(1):  # 두 번째 parameterList가 반환 타입
-            returns = self.visitParameterList(ctx.parameterList(1))
-
-        # 5. FunctionDefinition을 처리하여 ContractAnalyzer에 넘김
         self.contract_analyzer.process_function_definition(
-            function_name=function_name,
-            parameters=parameters,
-            modifiers=modifiers,
-            returns=returns
+            function_name=fname,
+            parameters=params,
+            modifiers=mods,
+            returns=rets
         )
 
     # Visit a parse tree produced by SolidityParser#eventDefinition.
@@ -309,44 +352,40 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#parameterList.
-    def visitParameterList(self, ctx:SolidityParser.ParameterListContext):
-        parameters = []
+    def visitParameterList(self,
+                           ctx: SolidityParser.ParameterListContext
+                           ) -> list[tuple[SolType, str | None]]:
+        params: list[tuple[SolType, str | None]] = []
 
-        # children 중에서 ','로 파라미터를 나누기 위한 리스트 생성
-        param_groups = []
-        current_param = []
-
-        # 각 children을 순회하면서 ',' (TerminalNodeImpl)를 기준으로 파라미터 그룹을 나눔
-        for child in ctx.children:
-            if child.getText() == ',':
-                # ','를 만나면 하나의 파라미터 그룹을 완성하여 param_groups에 추가
-                param_groups.append(current_param)
-                current_param = []
+        cur: list = []
+        for ch in ctx.children:
+            if ch.getText() == ',':
+                if cur:
+                    params.append(self._param_from_group(cur))
+                    cur = []
             else:
-                # ','가 아니면 해당 child를 현재 파라미터 그룹에 추가
-                current_param.append(child)
+                cur.append(ch)
+        if cur:
+            params.append(self._param_from_group(cur))
+        return params
 
-        # 마지막 파라미터 그룹 추가 (리스트가 끝날 때)
-        if current_param:
-            param_groups.append(current_param)
+    def _param_from_group(self, group):
+        sol_type = SolType()
+        name = None
 
-        # 각 param_group에서 타입과 변수를 추출
-        for param_group in param_groups:
-            type_obj = SolType()  # SolType 객체 생성
-            var_name = None
+        for el in group:
+            if isinstance(el, SolidityParser.TypeNameContext):
+                sol_type = self.visitTypeName(el, sol_type)
 
-            # param_group 내에서 각 요소를 확인
-            for elem in param_group:
-                if isinstance(elem, SolidityParser.TypeNameContext):
-                    # 1. 타입 정보 추출
-                    type_obj = self.visitTypeName(elem, type_obj)
-                elif isinstance(elem, SolidityParser.IdentifierContext):
-                    # 2. 변수 이름 추출
-                    var_name = elem.getText()
+            elif isinstance(el, SolidityParser.IdentifierContext):
+                name = el.getText()
 
-            parameters.append([type_obj, var_name])
+            elif isinstance(el, TerminalNodeImpl):
+                txt = el.getText()
+                if txt in KEYWORD_IDENTIFIERS:  # ← 소문자 문자열 비교
+                    name = txt
 
-        return parameters
+        return sol_type, name
 
     # Visit a parse tree produced by SolidityParser#eventParameter.
     def visitEventParameter(self, ctx:SolidityParser.EventParameterContext):
@@ -375,7 +414,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             return self.visitArrayType(ctx, type_obj)
 
     # Visit a parse tree produced by SolidityParser#ArrayType.
-    def visitArrayType(self, ctx: SolidityParser.TypeNameContext, type_obj):
+    def visitArrayType(
+            self,
+            ctx: SolidityParser.ArrayTypeContext,  # ← 변경
+            type_obj: SolType
+    ) -> SolType:
         # 배열의 기본 타입 처리
         base_type_ctx = ctx.typeName()
         base_type_obj = SolType()
@@ -452,11 +495,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             raise ValueError(f"Contract '{contract_name}' not found in contract configurations.")
 
         # 타입이 enum인지 struct인지 확인
-        if type_name in contract_cfg.enums:
+        if type_name in contract_cfg.enumDefs:
             # Enum 타입인 경우
             type_obj.typeCategory = "enum"
             type_obj.enumTypeName = type_name
-        elif type_name in contract_cfg.structs:
+        elif type_name in contract_cfg.structDefs:
             # Struct 타입인 경우
             type_obj.typeCategory = "struct"
             type_obj.structTypeName = type_name
@@ -467,7 +510,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return type_obj
 
     # Visit a parse tree produced by SolidityParser#MapType.
-    def visitMapType(self, ctx: SolidityParser.MappingContext, type_obj):
+    def visitMapType(
+            self,
+            ctx: SolidityParser.MapTypeContext,  # ✔ MapTypeContext!
+            type_obj: SolType
+    ) -> SolType:
+        # ctx.mapping() 는 이제 정적으로도 인식된다
         return self.visitMapping(ctx.mapping(), type_obj)
 
     # Visit a parse tree produced by SolidityParser#mapping.
@@ -534,186 +582,213 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#preExecution.
-    def visitPreExecution(self, ctx: SolidityParser.PreExecutionContext):
-        return self.visitChildren(ctx)
+    # Visit a parse tree produced by SolidityParser#PreGlobal.
+    def visitPreGlobal(self, ctx: SolidityParser.PreGlobalContext):
+        # ─────────────────── 1) 식별자 추출 ───────────────────
+        left_id = ctx.identifier(0).getText()  # "block" | "msg" | "tx"
+        right_id = ctx.identifier(1).getText() if ctx.identifier(1) else None
+        global_name = f"{left_id}.{right_id}" if right_id else left_id
 
-    # Visit a parse tree produced by SolidityParser#preExecutionGlobal.
-    def visitPreExecutionGlobal(self, ctx: SolidityParser.PreExecutionGlobalContext):
-        """
-        Handles global pre-execution intent comments.
+        # ─────────────────── 2) 유효성 검사 ───────────────────
+        valid = {
+            "block.basefee", "block.blobbasefee", "block.chainid", "block.coinbase",
+            "block.difficulty", "block.gaslimit", "block.number", "block.prevrandao",
+            "block.timestamp", "msg.sender", "msg.value", "tx.gasprice", "tx.origin"
+        }
+        if global_name not in valid:
+            raise ValueError(f"[DebugGlobalVar] invalid global '{global_name}'")
 
-        Grammar rule:
-          preExecutionGlobal
-            : '//' '@pre-execution-global' identifier '.' identifier '=' globalValue
-            ;
+        # ─────────────────── 3) 값 파싱 ───────────────────────
+        gv_ctx = ctx.globalValue()
+        firsttok = gv_ctx.getChild(0).getText()
 
-          globalValue:
-            : '[' numberLiteral ',' numberLiteral ']'   # GlobalIntValue
-            | 'symbolicAddress' numberLiteral                     # GlobalAddressValue
+        # helper - bit width 결정
+        is_addr = global_name in {"block.coinbase", "msg.sender", "tx.origin"}
+        bit_len = 160 if is_addr else 256
 
-        Examples:
-          // @pre-execution-global block.timestamp = [1000, 2000]
-          // @pre-execution-global msg.sender = address 1
-        """
-        # 1) 추출: 두 개의 identifier (예: "block", "timestamp")
-        left_id = ctx.identifier(0).getText()  # 예: "block"
-        right_id = ctx.identifier(1).getText()  # 예: "timestamp"
-        global_var_full = f"{left_id}.{right_id}"  # 예: "block.timestamp"
+        # 3-A. [min , max] 형
+        if firsttok == '[':
+            min_v = int(gv_ctx.numberLiteral(0).getText(), 0)
+            max_v = int(gv_ctx.numberLiteral(1).getText(), 0)
+            if min_v > max_v:
+                raise ValueError(f"[DebugGlobalVar] range invalid [{min_v},{max_v}]")
+            value = UnsignedIntegerInterval(min_v, max_v, bit_len)
 
-        # 2) 글로벌 변수 유효성 검사 함수 (내부 함수)
-        def isValidGlobalVariable(text: str) -> bool:
-            valid_globals = {
-                "block.basefee",
-                "block.blobbasefee",
-                "block.chainid",
-                "block.coinbase",
-                "block.difficulty",
-                "block.gaslimit",
-                "block.number",
-                "block.prevrandao",
-                "block.timestamp",
-                "msg.sender", #
-                "msg.value",
-                "tx.gasprice",
-                "tx.origin"
-            }
-            return text in valid_globals
+        # 3-B. symbolicAddress N  형
+        elif firsttok == 'symbolicAddress':
+            nid = int(gv_ctx.numberLiteral().getText(), 0)
+            sm = self.contract_analyzer.sm  # AddressSymbolicManager
+            sm.register_fixed_id(nid)  # (중복 호출 안전)
+            value = sm.get_interval(nid)  # Interval [nid,nid]
+            sm.bind_var(global_name, nid)  # alias 정보 기록
 
-        if not isValidGlobalVariable(global_var_full):
-            raise ValueError(f"Invalid global variable '{global_var_full}'")
-
-        # 3) 글로벌 값(globalValue) 처리
-        global_value_ctx = ctx.globalValue()
-        first_child = global_value_ctx.getChild(0).getText()
-
-        if first_child == '[':
-            # GlobalIntValue: [ numberLiteral , numberLiteral ]
-            min_lit = global_value_ctx.numberLiteral(0).getText()
-            max_lit = global_value_ctx.numberLiteral(1).getText()
-            min_val = int(min_lit, 0)  # base=0로 10진/16진 모두 처리
-            max_val = int(max_lit, 0)
-            value = UnsignedIntegerInterval(min_val, max_val, 256)  # 기본 256비트로 가정 (필요시 조정)
-        elif first_child == 'address':
-            # GlobalAddressValue: 'address' numberLiteral
-            addr_lit = global_value_ctx.numberLiteral().getText()
-            # address의 경우 심볼릭한 형태로 처리 (예: "address 1")
-            value = f"address {addr_lit}"
         else:
-            raise ValueError("Unsupported global value format.")
+            raise ValueError("[DebugGlobalVar] unsupported value format")
 
-        # 4) GlobalVariable 객체 생성 (util.py에 정의된 GlobalVariable 사용)
-        global_var_obj = GlobalVariable(
-            identifier=global_var_full,
+        # ─────────────────── 4) GlobalVariable 객체 구성 ─────
+        st = SolType()  # 빈 객체 하나 만들고
+        st.typeCategory = "elementary"
+        st.elementaryTypeName = "address" if is_addr else "uint"
+        st.intTypeLength = bit_len  # 선택: 160 또는 256
+
+        gv_obj = GlobalVariable(
+            identifier=global_name,
             value=value,
-            typeInfo=SolType()
+            typeInfo=st  # ← 완성된 SolType 주입
         )
-        # 타입 정보 설정: 주소 타입이면 "address", 그렇지 않으면 uint로 가정
-        if global_var_full in {"block.coinbase", "msg.sender", "tx.origin"}:
-            global_var_obj.typeInfo.typeCategory = "elementary"
-            global_var_obj.typeInfo.elementaryTypeName = "address"
-        else:
-            global_var_obj.typeInfo.typeCategory = "elementary"
-            global_var_obj.typeInfo.elementaryTypeName = "uint"
 
-        # 5) ContractAnalyzer의 process_pre_execution_global 호출
-        self.contract_analyzer.process_pre_execution_global(global_var_obj)
+        # ─────────────────── 5) ContractAnalyzer 에 전달 ─────
+        self.contract_analyzer.process_global_var_for_debug(gv_obj)
         return None
 
-    # Visit a parse tree produced by SolidityParser#GlobalIntValue.
-    def visitGlobalIntValue(self, ctx: SolidityParser.GlobalIntValueContext):
+    def _parse_inline_array(self, ia_ctx):
+        """
+        inlineArrayAnnotation → python list (재귀)
+        - 숫자   →  int  / IntegerInterval([lo,lo])
+        - array  →  nested list
+        - arrayAddress → list[UnsignedIntegerInterval([id,id])]
+        """
+
+        def _ctx_label(ctx):
+            "ANTLR alt-label 헬퍼"
+            return type(ctx).__name__.removesuffix('Context')
+
+        elems = []
+        for el in ia_ctx.inlineElement():
+            lbl = _ctx_label(el)
+            if lbl == 'InlineIntElement':
+                elems.append(int(el.getText(), 0))
+            elif lbl == 'NestedArrayElement':
+                elems.append(self._parse_inline_array(el.inlineArrayAnnotation()))
+            elif lbl == 'AddrArrayElement':
+                ids = [int(n.getText(), 0) for n in el.numberLiteral()]
+                sm = self.contract_analyzer.sm
+                elems.append(
+                    [sm.get_interval(i) for i in ids]
+                )
+        return elems
+
+    def _parse_state_local_value(self, sv_ctx):
+        """
+        stateLocalValue →
+          • Integer / UnsignedInteger Interval
+          • BoolInterval
+          • UnsignedIntegerInterval(160-bit) for address
+          • bytes / string literal 그대로
+          • Enum 멤버 이름 (str)
+          • Inline 배열 -> (nested) list
+        """
+        first = sv_ctx.getChild(0).getText()
+
+        # ── ①  [min,max]  --------------------------------------------------
+        if first == '[':
+            lo = int(sv_ctx.numberLiteral(0).getText(), 0)
+            hi = int(sv_ctx.numberLiteral(1).getText(), 0)
+            cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval
+            return cls(lo, hi, 256)
+
+        # ── ②  symbolicAddress N  → 160-bit interval [N,N] -----------------
+        if first == 'symbolicAddress':
+            nid = int(sv_ctx.numberLiteral().getText(), 0)
+            sm = self.contract_analyzer.sm
+            sm.register_fixed_id(nid)
+            return sm.get_interval(nid)
+
+        # ── ③  symbolicBytes / symbolicString  -----------------------------
+        if first in ('symbolicBytes', 'symbolicString'):
+            # hexStringLiteral 은 따옴표 포함 → getText() 로 그대로
+            return f"{first} {sv_ctx.hexStringLiteral().getText()}"
+
+        # ── ④  boolean  ----------------------------------------------------
+        if first in ('true', 'false', 'any'):
+            return {
+                'true': BoolInterval(1, 1),
+                'false': BoolInterval(0, 0),
+                'any': BoolInterval(0, 1)
+            }[first]
+
+        # ── ⑤  enum  (identifier [. identifier])  -------------------------
+        if isinstance(sv_ctx, SolidityParser.StateLocalEnumValueContext):
+            if sv_ctx.identifier(1):  # enumName.member
+                enum_name, member = sv_ctx.identifier(0).getText(), sv_ctx.identifier(1).getText()
+                return f"{enum_name}.{member}"
+            else:  # member  (단일)
+                return sv_ctx.identifier(0).getText()
+
+        # ── ⑥  inlineArrayAnnotation  -------------------------------------
+        if isinstance(sv_ctx, SolidityParser.StateLocalInlineValueContext):
+            return self._parse_inline_array(sv_ctx.inlineArrayAnnotation())
+
+        # ── 디폴트 ---------------------------------------------------------
+        raise ValueError("Unsupported stateLocalValue format")
+
+    # Visit a parse tree produced by SolidityParser#PreState.
+    def visitPreState(self, ctx: SolidityParser.PreStateContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#GlobalAddressValue.
-    def visitGlobalAddressValue(self, ctx: SolidityParser.GlobalAddressValueContext):
+    # Visit a parse tree produced by SolidityParser#PreLocal.
+    def visitPreLocal(self, ctx: SolidityParser.PreLocalContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#preExecutionState.
-    def visitPreExecutionState(self, ctx: SolidityParser.PreExecutionStateContext):
-        """
-                Handles comments like:
-                  // @pre-execution-state someMapping[0x123] = 100
-                  // @pre-execution-state myVar = true
-                """
-        # (1) LHS: parse testingExpression into an Expression object.
-        lhs_expr = self.visitTestingExpression(ctx.testingExpression())
-        # (2) RHS: parse the literal (number or boolean)
-        rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
-        value = self.parse_number_bool_literal(rhs_text)
-        # (3) Call process function in the analyzer
-        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
-        return None
+    # Visit a parse tree produced by SolidityParser#duringExecution.
+    def visitDuringExecution(self, ctx: SolidityParser.DuringExecutionContext):
+        return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#preExecutionLocal.
-    def visitPreExecutionLocal(self, ctx: SolidityParser.PreExecutionLocalContext):
-        """
-                        Handles comments like:
-                          // @pre-execution-state someMapping[0x123] = 100
-                          // @pre-execution-state myVar = true
-                        """
-        # (1) LHS: parse testingExpression into an Expression object.
-        lhs_expr = self.visitTestingExpression(ctx.testingExpression())
-        # (2) RHS: parse the literal (number or boolean)
-        rhs_text = ctx.numberBoolLiteral().getText()  # 예: "100", "true", "-20", etc.
-        value = self.parse_number_bool_literal(rhs_text)
-        # (3) Call process function in the analyzer
-        self.contract_analyzer.process_pre_execution_state(lhs_expr, value)
-        return None
+    # Visit a parse tree produced by SolidityParser#logicExprDuring.
+    def visitLogicExprDuring(self, ctx: SolidityParser.LogicExprDuringContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringBeforeAfter.
+    def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringAssignCurrent.
+    def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringRetExpr.
+    def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringRetVar.
+    def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringDirectCmp.
+    def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#postExecution.
+    def visitPostExecution(self, ctx: SolidityParser.PostExecutionContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#logicExprPost.
+    def visitLogicExprPost(self, ctx: SolidityParser.LogicExprPostContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PostEntryExit.
+    def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PostRetExpr.
+    def visitPostRetExpr(self, ctx: SolidityParser.PostRetExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PostRetVar.
+    def visitPostRetVar(self, ctx: SolidityParser.PostRetVarContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PostRetJoin.
+    def visitPostRetJoin(self, ctx: SolidityParser.PostRetJoinContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#UnchangedPred.
+    def visitUnchangedPred(self, ctx: SolidityParser.UnchangedPredContext):
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#testingExpression.
     def visitTestingExpression(self, ctx: SolidityParser.TestingExpressionContext):
-        """
-                testingExpression : identifier subAccess* ;
-                subAccess : '.' identifier | '[' expression ']' ;
-                Build an Expression object representing the testing expression.
-                """
-        # 시작 식별자
-        root = Expression(
-            identifier=ctx.identifier().getText(),
-            context="IdentifierExpContext"
-        )
-        # subAccess 처리 (있다면)
-        if ctx.subAccess():
-            for sub in ctx.subAccess():
-                # 각 subAccess의 label는 우리 문법에서 두 종류로 구분됨
-                # (1) TestingMemberAccess: '.' identifier
-                # (2) TestingIndexAccess: '[' expression ']'
-                if sub.getChild(0).getText() == '.':
-                    member = sub.identifier().getText()
-                    root = Expression(
-                        base=root,
-                        member=member,
-                        operator='.',
-                        context="TestingMemberAccess"
-                    )
-                elif sub.getChild(0).getText() == '[':
-                    # index 접근: 내부 표현식을 방문해서 Expression 생성
-                    index_expr = self.visitExpression(sub.expression())
-                    root = Expression(
-                        base=root,
-                        index=index_expr,
-                        access="index_access",
-                        context="TestingIndexAccess"
-                    )
-                else:
-                    raise ValueError("Unknown subAccess type.")
-        return root
-
-    def parse_number_bool_literal(self, literal_str: str):
-        """
-        Parses a literal string into an integer or boolean.
-          "100"     -> 100 (int)
-          "-20"     -> -20 (int)
-          "true"    -> True (bool)
-          "false"   -> False (bool)
-        """
-        if literal_str.lower() == "true":
-            return True
-        elif literal_str.lower() == "false":
-            return False
-        else:
-            # 숫자 파싱 (예: 0x.., decimal, negative 등)
-            return int(literal_str, 0)
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
     def visitTestingMemberAccess(self, ctx: SolidityParser.TestingMemberAccessContext):
@@ -723,84 +798,56 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitTestingIndexAccess(self, ctx: SolidityParser.TestingIndexAccessContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#StateLocalIntValue.
-    def visitStateLocalIntValue(self, ctx: SolidityParser.StateLocalIntValueContext):
+    # Visit a parse tree produced by SolidityParser#IntInterval.
+    def visitIntInterval(self, ctx: SolidityParser.IntIntervalContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#StateLocalAddressValue.
-    def visitStateLocalAddressValue(self, ctx: SolidityParser.StateLocalAddressValueContext):
+    # Visit a parse tree produced by SolidityParser#FixedAddress.
+    def visitFixedAddress(self, ctx: SolidityParser.FixedAddressContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#StateLocalBooleanValue.
-    def visitStateLocalBooleanValue(self, ctx: SolidityParser.StateLocalBooleanValueContext):
+    # Visit a parse tree produced by SolidityParser#SymbolicAddress.
+    def visitSymbolicAddress(self, ctx: SolidityParser.SymbolicAddressContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#numberBoolLiteral.
-    def visitNumberBoolLiteral(self, ctx: SolidityParser.NumberBoolLiteralContext):
+    # Visit a parse tree produced by SolidityParser#SymbolicBytes.
+    def visitSymbolicBytes(self, ctx: SolidityParser.SymbolicBytesContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#postExecution.
-    def visitPostExecution(self, ctx: SolidityParser.PostExecutionContext):
+    # Visit a parse tree produced by SolidityParser#SymbolicString.
+    def visitSymbolicString(self, ctx: SolidityParser.SymbolicStringContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#postExecutionState.
-    def visitPostExecutionState(self, ctx: SolidityParser.PostExecutionStateContext):
+    # Visit a parse tree produced by SolidityParser#BoolToken.
+    def visitBoolToken(self, ctx: SolidityParser.BoolTokenContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#entryExit.
-    def visitEntryExit(self, ctx:SolidityParser.EntryExitContext):
+    # Visit a parse tree produced by SolidityParser#EnumLiteral.
+    def visitEnumLiteral(self, ctx: SolidityParser.EnumLiteralContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#postExecutionReturn.
-    def visitPostExecutionReturn(self, ctx: SolidityParser.PostExecutionReturnContext):
+    # Visit a parse tree produced by SolidityParser#InlineArray.
+    def visitInlineArray(self, ctx: SolidityParser.InlineArrayContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#duringExecution.
-    def visitDuringExecution(self, ctx: SolidityParser.DuringExecutionContext):
+    # Visit a parse tree produced by SolidityParser#intentScalarValue.
+    def visitIntentScalarValue(self, ctx: SolidityParser.IntentScalarValueContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#duringExecutionComment.
-    def visitDuringExecutionComment(self, ctx: SolidityParser.DuringExecutionCommentContext):
+    # Visit a parse tree produced by SolidityParser#signedNumberLiteral.
+    def visitSignedNumberLiteral(self, ctx: SolidityParser.SignedNumberLiteralContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#duringExecutionBeforeAfter.
-    def visitDuringExecutionBeforeAfter(self, ctx: SolidityParser.DuringExecutionBeforeAfterContext):
+    # Visit a parse tree produced by SolidityParser#inlineArrayAnnotation.
+    def visitInlineArrayAnnotation(self, ctx: SolidityParser.InlineArrayAnnotationContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#beforeAfter.
-    def visitBeforeAfter(self, ctx: SolidityParser.BeforeAfterContext):
+    # Visit a parse tree produced by SolidityParser#inlineArrayElements.
+    def visitInlineArrayElements(self, ctx: SolidityParser.InlineArrayElementsContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#duringExecutionAssignCurrent.
-    def visitDuringExecutionAssignCurrent(self, ctx: SolidityParser.DuringExecutionAssignCurrentContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#assignCurrent.
-    def visitAssignCurrent(self, ctx: SolidityParser.AssignCurrentContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#duringExecutionReturn.
-    def visitDuringExecutionReturn(self, ctx: SolidityParser.DuringExecutionReturnContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#ExpressionReturn.
-    def visitExpressionReturn(self, ctx: SolidityParser.ExpressionReturnContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#VarReturn.
-    def visitVarReturn(self, ctx: SolidityParser.VarReturnContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#returnVar.
-    def visitReturnVar(self, ctx: SolidityParser.ReturnVarContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#duringExecutionGeneral.
-    def visitDuringExecutionGeneral(self, ctx: SolidityParser.DuringExecutionGeneralContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#comparisonExpression.
-    def visitComparisonExpression(self, ctx: SolidityParser.ComparisonExpressionContext):
+    # Visit a parse tree produced by SolidityParser#inlineElement.
+    def visitInlineElement(self, ctx: SolidityParser.InlineElementContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#logicalOperator.
@@ -809,30 +856,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#comparisonOperator.
     def visitComparisonOperator(self, ctx: SolidityParser.ComparisonOperatorContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#arithmeticExpression.
-    def visitArithmeticExpression(self, ctx: SolidityParser.ArithmeticExpressionContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#multiplicativeExpression.
-    def visitMultiplicativeExpression(self, ctx: SolidityParser.MultiplicativeExpressionContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#primaryExpression.
-    def visitPrimaryExpression(self, ctx: SolidityParser.PrimaryExpressionContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#accessExpression.
-    def visitAccessExpression(self, ctx: SolidityParser.AccessExpressionContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#additiveOperator.
-    def visitAdditiveOperator(self, ctx: SolidityParser.AdditiveOperatorContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#multiplicativeOperator.
-    def visitMultiplicativeOperator(self, ctx: SolidityParser.MultiplicativeOperatorContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#interactiveSimpleStatement.
@@ -845,6 +868,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_ctx = ctx.variableDeclaration().typeName()
         var_name = ctx.variableDeclaration().identifier().getText()
 
+        # dataLocation?  (memory / storage / calldata)
+        data_loc = None
+        #if ctx.dataLocation():
+        #    data_loc = ctx.dataLocation().getText()  # 'storage' 등
+
         # 2. 초기화 값이 있는 경우 처리
         init_expr = None
         if ctx.expression():
@@ -855,7 +883,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         type_obj = self.visitTypeName(type_ctx, type_obj)  # 타입 정보 분석
 
         # 5. ContractAnalyzer로 Variables 객체 및 lineComment 전달
-        self.contract_analyzer.process_variable_declaration(type_obj, var_name, init_expr)
+        self.contract_analyzer.process_variable_declaration(
+            type_obj=type_obj,
+            var_name=var_name,
+            init_expr=init_expr
+        )
 
     # Visit a parse tree produced by SolidityParser#interactiveExpressionStatement.
     def visitInteractiveExpressionStatement(self, ctx:SolidityParser.InteractiveExpressionStatementContext):
@@ -876,6 +908,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             self.contract_analyzer.process_payable_function_call(expr)
         elif isinstance(expr_ctx, SolidityParser.FunctionCallOptionsContext):
             self.contract_analyzer.process_function_call_options(expr)
+        elif isinstance(expr_ctx, SolidityParser.IdentifierExpContext) :
+            self.contract_analyzer.process_identifier_expression(expr)
         else:
             raise ValueError(f"Unsupported expression context in interactiveExpressionStatement: {ctx}")
 
@@ -922,7 +956,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#uncheckedBlock.
     def visitUncheckedBlock(self, ctx:SolidityParser.UncheckedBlockContext):
-        return self.visitChildren(ctx)
+        return self.contract_analyzer.process_unchecked_indicator()
 
     # Visit a parse tree produced by SolidityParser#statement.
     def visitStatement(self, ctx:SolidityParser.StatementContext):
@@ -1182,53 +1216,37 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             self.contract_analyzer.process_else_statement()
 
     # Visit a parse tree produced by SolidityParser#interactiveForStatement.
-    def visitInteractiveForStatement(self, ctx: SolidityParser.InteractiveForStatementContext):
+    def visitInteractiveForStatement(
+            self, ctx: SolidityParser.InteractiveForStatementContext):
 
-        # (1) 초기문(Initial Statement) 파싱
-        init_stmt_ctx = ctx.getChild(2)  # 대략 'for' '(' 뒤 첫 번째 ( ... ) 안의 문법
-        # 만약 단순 ';' 인 경우 초기문이 없는 것
-        initial_statement = {}
-        if not init_stmt_ctx.getText() == ';':
-            if isinstance(init_stmt_ctx, SolidityParser.VDContextContext) :
-                initVarType, initVarName, initValExpr = self.visitVDContext(init_stmt_ctx)
-                initial_statement = {
-                    'initVarType' : initVarType,
-                    'initVarName' : initVarName,
-                    'initValExpr' : initValExpr,
-                    'context' : 'VariableDeclaration'
-                }
-            elif isinstance(init_stmt_ctx, SolidityParser.EContextContext) :
-                initExpr = self.visitEContext(init_stmt_ctx)
-                initial_statement = {
-                    'initExpr' : initExpr,
-                    'context' : 'Expression'
-                }
+        # init ----------------------------------------------------------------
+        init_stmt = {}
+        init_ctx = ctx.simpleStatement()
+        if init_ctx:  # simpleStatement 존재
+            if isinstance(init_ctx, SolidityParser.VDContextContext):
+                t, n, v = self.visitVDContext(init_ctx)
+                init_stmt = {'context': 'VariableDeclaration',
+                             'initVarType': t, 'initVarName': n, 'initValExpr': v}
+            else:  # expressionStatement
+                init_stmt = {'context': 'Expression',
+                             'initExpr': self.visitExpression(init_ctx.expression())}
 
-        # (2) 조건식(Cond) or expressionStatement or ';'
-        cond_stmt_ctx = ctx.getChild(3)
-        condition_expr = None
-        if not cond_stmt_ctx.getText() == ';':
-            # expressionStatement 인지 체크
-            # 실제 grammar상: ( expressionStatement | ';' )
-            # expressionStatement => expression ';'
-            # => self.visitExpression()으로 expression만 추출 가능
-            expr_ctx = cond_stmt_ctx.expression()
-            if expr_ctx is not None:
-                condition_expr = self.visitExpression(expr_ctx)
-            # 만약 expressionStatement 자체가 아닌 경우, 에러 or None
-            # (사용자 문법에 따라 다를 수 있음)
+        # condition -----------------------------------------------------------
+        cond_expr = None
+        exprs = ctx.expression()  # 최대 두 개
+        if len(exprs) >= 1:
+            cond_expr = self.visitExpression(exprs[0])
 
-        # (3) 증분문 increment (expression?) → ctx.expression()? (네 번째/다섯 번째 child)
-        increment_expr = None
-        if ctx.expression():
-            increment_expr = self.visitExpression(ctx.expression())
+        # increment -----------------------------------------------------------
+        inc_expr = None
+        if len(exprs) == 2:
+            inc_expr = self.visitExpression(exprs[1])
 
-        # (5) ContractAnalyzer로 전달
-        # 실제론 process_for_statement( initial_statement, condition_expr, increment_expr_ctx, ... )
+        # ContractAnalyzer 로 전달 -------------------------------------------
         self.contract_analyzer.process_for_statement(
-            initial_statement=initial_statement,
-            condition_expr=condition_expr,
-            increment_expr=increment_expr
+            initial_statement=init_stmt,
+            condition_expr=cond_expr,
+            increment_expr=inc_expr
         )
 
     # Visit a parse tree produced by SolidityParser#interactiveWhileStatement.
@@ -1294,6 +1312,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # TypeConversion (타입 변환)
         elif isinstance(ctx, SolidityParser.TypeConversionContext):
             return self.visitTypeConversion(ctx)
+
+        elif isinstance(ctx, SolidityParser.MetaTypeContext):
+            return self.visitMetaType(ctx)
 
         # UnaryPrefixOp (단항 연산자 - 전위)
         elif isinstance(ctx, SolidityParser.UnaryPrefixOpContext):
@@ -1496,6 +1517,24 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         )
 
         return result_expr
+
+    def visitMetaType(self, ctx: SolidityParser.MetaTypeContext):
+        """
+        grammar:
+            MetaType : 'type' '(' typeName ')'   (#에 해당)
+        반환값은 이후의 MemberAccess(.max / .min 등)를 처리하기 위해
+        base-expression 역할만 하면 되므로 ‘identifier’ 하나만 넣어둔다.
+        """
+        # ① 안쪽 typeName 을 소스 그대로 추출
+        type_name_txt = ctx.typeName().getText()  # 예: 'uint256'
+
+        # ② Expression 생성
+        #    identifier = 'type(uint256)'  로 두고
+        #    context    = 'MetaTypeContext' 로 구분만 해둔다.
+        return Expression(
+            identifier=f"type({type_name_txt})",
+            context="MetaTypeContext"
+        )
 
     def visitFunctionCallOptions(self, ctx):
         # 1. 베이스 표현식 방문
@@ -1709,27 +1748,49 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return result_expr
 
-    # Visit a parse tree produced by SolidityParser#LiteralSubDenomination.
-    def visitLiteralSubDenomination(self, ctx:SolidityParser.LiteralSubDenominationContext):
-        return self.visitChildren(ctx)
+    def visitLiteralSubDenomination(
+            self, ctx: SolidityParser.LiteralSubDenominationContext):
+        """
+        1 weeks  → 604 800
+        5 ether → 5 * 10**18
+        """
 
-    # Visit a parse tree produced by SolidityParser#TupleExp.
-    def visitTupleExp(self, ctx:SolidityParser.TupleExpContext):
-        # 요소들 추출
-        elements = []
-        expression_list = ctx.expression()
-        for expr_ctx in expression_list:
-            element_expr = self.visitExpression(expr_ctx)
-            elements.append(element_expr)
+        # ── ① wrapper 노드가 있으면 한 번 더 파고들기 ─────────────────
+        if isinstance(ctx.getChild(0), SolidityParser.LiteralWithSubDenominationContext):
+            ctx = ctx.getChild(0)  # 실제 numberLiteral · SubDenomination 가 있는 노드
 
-        # Expression 객체 생성
-        result_expr = Expression(
-            elements=elements,
-            operator='tuple',
-            context='TupleExpContext'
+        # ── ② 토큰 추출 ────────────────────────────────────────────────
+        num_txt = ctx.numberLiteral().getText()  # '1', '0xFF', …
+        denom_tok = ctx.getToken(SolidityParser.SubDenomination, 0)  # 토큰 객체
+        denom_txt = denom_tok.getText()  # 'weeks', 'ether', …
+
+        # ── ③ 숫자 → int 변환 -------------------------------------------------
+        try:
+            base_val = int(num_txt, 0)  # 0x… 형태 지원
+        except ValueError:
+            raise ValueError(f"invalid numeric literal “{num_txt}”")
+
+        # ── ④ 단위 매핑 -------------------------------------------------------
+        if denom_txt not in TIME_VALUE:
+            raise ValueError(f"unknown sub-denomination “{denom_txt}”")
+        final_val = base_val * TIME_VALUE[denom_txt]
+
+        # ── ⑤ uint256 상수 Expression 반환 -----------------------------------
+        return Expression(
+            literal=str(final_val),  # 예: '604800'
+            var_type="uint256",
+            type_length=256,
+            context="LiteralSubDenomination"
         )
 
-        return result_expr
+    def visitTupleExp(self,
+                      ctx: SolidityParser.TupleExpContext):
+        inner = ctx.tupleExpression()  # ← 먼저 꺼냄
+        elems = [self.visit(e) for e in inner.expression()]
+        return Expression(
+            context="TupleExpressionContext",
+            elements=elems
+        )
 
     # Visit a parse tree produced by SolidityParser#Assignment.
     def visitAssignment(self, ctx:SolidityParser.AssignmentContext):
@@ -1753,30 +1814,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return result_expr
 
     # Visit a parse tree produced by SolidityParser#TypeConversion.
-    def visitTypeConversion(self, ctx:SolidityParser.TypeConversionContext):
-        # 1. 타입 이름 추출
-        type_name = ctx.elementaryTypeName().getText()
+    def visitTypeConversion(self, ctx: SolidityParser.TypeConversionContext):
+        ty = ctx.elementaryTypeName().getText()  # 'address', 'uint256', …
+        expr = self.visitExpression(ctx.expression())
 
-        # 2. 식별자 또는 표현식 추출
-        if ctx.expression():
-            # 표현식인 경우
-            expr = self.visitExpression(ctx.expression())
-        elif ctx.identifier():
-            # 식별자인 경우
-            identifier = ctx.identifier().getText()
-            expr = Expression(identifier=identifier)
-        else:
-            raise SyntaxError("Expected expression or identifier in type conversion.")
-
-        # 3. 타입 변환 Expression 객체 생성
-        result_expr = Expression(
-            type_name=type_name,
+        return Expression(
+            typeName=ty,
             expression=expr,
-            operator='type_conversion',
-            context='TypeConversionContext'
+            operator='typecast',
+            context='TypeConversion'
         )
-
-        return result_expr
 
     # Visit a parse tree produced by SolidityParser#UnaryPrefixOp.
     def visitUnaryPrefixOp(self, ctx:SolidityParser.UnaryPrefixOpContext):
@@ -1832,19 +1879,31 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return result_expr
 
+    def _array_length_expr(self, type_ctx):
+        """
+        type_ctx : SolidityParser.TypeNameContext
+        반환      : length  Expression  (없으면 None)
+        """
+        # 배열이 중첩되어도 가장 바깥쪽 ‘[]’ 부터 검사
+        while isinstance(type_ctx, SolidityParser.ArrayTypeContext):
+            # '[' expression? ']'  → 자식 0 = baseType, 1 = expression?
+            if type_ctx.expression():
+                return self.visit(type_ctx.expression())  # Expression 객체
+            type_ctx = type_ctx.typeName()  # 더 안쪽으로…
+        return None
+
     # Visit a parse tree produced by SolidityParser#NewExp.
-    def visitNewExp(self, ctx:SolidityParser.NewExpContext):
-        # 타입 이름 방문
-        type_name = self.visitTypeName(ctx.typeName())
+    def visitNewExp(self, ctx: SolidityParser.NewExpContext):
+        type_obj = SolType()
+        self.visitTypeName(ctx.typeName(), type_obj)  # 타입 파싱
 
-        # Expression 객체 생성
-        result_expr = Expression(
-            operator='new',
-            type_name=type_name,
-            context='NewExpContext'
+        length_expr = self._array_length_expr(ctx.typeName())
+
+        return Expression(
+            context="NewExpContext",
+            typeName=type_obj,
+            arguments=[length_expr] if length_expr else []  # ← 여기에만 넣음
         )
-
-        return result_expr
 
     # Visit a parse tree produced by SolidityParser#BitAndOp.
     def visitBitAndOp(self, ctx:SolidityParser.BitAndOpContext):
@@ -2032,6 +2091,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return result_expr
 
+    def visitLiteralWithSubDenomination(self, ctx: SolidityParser.LiteralWithSubDenominationContext):
+        return self.visitChildren(ctx)
+
     # Visit a parse tree produced by SolidityParser#TypeNameExp.
     def visitTypeNameExp(self, ctx:SolidityParser.TypeNameExpContext):
         return self.visitChildren(ctx)
@@ -2046,10 +2108,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#literalWithSubDenomination.
     def visitLiteralWithSubDenomination(self, ctx:SolidityParser.LiteralWithSubDenominationContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#tupleExpression.
-    def visitTupleExpression(self, ctx:SolidityParser.TupleExpressionContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#numberLiteral.

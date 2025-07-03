@@ -250,136 +250,111 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
-
+//--------------------------------------------------
+// 0. Entry point
+//--------------------------------------------------
 intentUnit
-  : (
-    preExecution
-    | duringExecution
-    | postExecution
-  ) * EOF;
+    : ( preExecution
+      | duringExecution
+      | postExecution
+      )* EOF
+    ;
 
+//==================================================
+// 1)  PRE-EXECUTION   (@GlobalVar / @StateVar / @LocalVar)
+//--------------------------------------------------
 preExecution
-  : preExecutionGlobal
-  | preExecutionState
-  | preExecutionLocal
-  ;
+    : '//' '@GlobalVar' identifier ('.' identifier)? '=' intentValue   #PreGlobal
+    | '//' '@StateVar'  testingExpression         '=' intentValue     #PreState
+    | '//' '@LocalVar'  testingExpression         '=' intentValue     #PreLocal
+    ;
 
-preExecutionGlobal
-  : '//' '@pre-execution-global' identifier'.'identifier '=' globalValue
-  ;
+//==================================================
+// 2)  DURING-EXECUTION   (@During …)
+//   · 여러 조건을 "," 로 나열  = 묵시적 AND
+//   · 조건 안에서는  && / ||  혼합 가능
+//--------------------------------------------------
+duringExecution
+    : '//' '@During' logicExprDuring (',' logicExprDuring)* ;
 
-globalValue
-  : '[' numberLiteral ',' numberLiteral ']' # GlobalIntValue
-  | 'address' numberLiteral # GlobalAddressValue
-  ;
+logicExprDuring
+    : primitiveDuring (logicalOperator primitiveDuring)*
+    ;
 
-preExecutionState
-  : '//' '@pre-execution-state' testingExpression '=' stateLocalValue
-  ;
+primitiveDuring
+    : testingExpression '(' 'Before' comparisonOperator 'After'   ')'   #DuringBeforeAfter
+    | testingExpression '(' 'Assign' comparisonOperator 'Current' ')'   #DuringAssignCurrent
+    | 'returnExpression'             comparisonOperator intentScalarValue #DuringRetExpr
+    | 'return' testingExpression     comparisonOperator intentScalarValue #DuringRetVar
+    | testingExpression              comparisonOperator intentScalarValue #DuringDirectCmp
+    ;
 
-preExecutionLocal
-  : '//' '@pre-execution-local' testingExpression '=' stateLocalValue
-  ;
+//==================================================
+// 3)  POST-EXECUTION   (@Post …)
+//   · Entry/Exit 또는 반환(join) 비교 중심
+//--------------------------------------------------
+postExecution
+    : '//' '@Post' logicExprPost (',' logicExprPost)* ;
 
+logicExprPost
+    : primitivePost (logicalOperator primitivePost)*
+    ;
+
+primitivePost
+    : testingExpression '(' 'Entry' comparisonOperator 'Exit' ')'       #PostEntryExit
+    | 'returnExpression'             comparisonOperator intentScalarValue #PostRetExpr
+    | 'return' testingExpression     comparisonOperator intentScalarValue #PostRetVar
+    | 'returnValues'                 comparisonOperator intentScalarValue #PostRetJoin
+    | 'Unchanged' '(' testingExpression ')'                              #UnchangedPred
+    ;
+
+//==================================================
+// 4)  공통 서브-규칙
+//--------------------------------------------------
 testingExpression
-  : identifier subAccess*
-  ;
+    : identifier subAccess* ;
 
 subAccess
-  : '.' identifier # TestingMemberAccess
-  | '[' expression ']' # TestingIndexAccess
-  ;
+    : '.' identifier            #TestingMemberAccess   // alt-label 이름을 충돌 없이 지정
+    | '[' expression ']'        #TestingIndexAccess
+    ;
 
-stateLocalValue
-  : '[' '-'? numberLiteral ',' '-'? numberLiteral ']' #StateLocalIntValue
-  | 'address' numberLiteral # StateLocalAddressValue
-  | '[' booleanLiteral ',' booleanLiteral ']' # StateLocalBooleanValue
-  ;
+intentValue
+    : '[' signedNumberLiteral ',' signedNumberLiteral ']'   #IntInterval
+    | 'address'         numberLiteral                       #FixedAddress
+    | 'symbolicAddress' numberLiteral                       #SymbolicAddress
+    | 'symbolicBytes'   hexStringLiteral                    #SymbolicBytes
+    | 'symbolicString'  hexStringLiteral                    #SymbolicString
+    | ('true' | 'false' | 'any')                            #BoolToken
+    | identifier ('.' identifier)?                          #EnumLiteral
+    | inlineArrayAnnotation                                 #InlineArray
+    ;
 
-numberBoolLiteral
-  : '-'? numberLiteral
-  | booleanLiteral ;
+intentScalarValue                // during/post 비교용 “단일 값”
+    : signedNumberLiteral
+    | booleanLiteral
+    | identifier ('.' identifier)?
+    ;
 
-postExecution
-  : postExecutionState
-  | postExecutionReturn
-  ;
+signedNumberLiteral
+    : '-'? numberLiteral ;
 
-postExecutionState
-  : '//' '@post-execution-state' testingExpression entryExit
-  | '//' '@post-execution-state' testingExpression comparisonOperator numberBoolLiteral
-  ;
+inlineArrayAnnotation
+    : 'array' '[' inlineArrayElements? ']' ;
 
-entryExit
-  : '(' 'Entry' comparisonOperator 'Exit' ')' ;
+inlineArrayElements
+    : inlineElement (',' inlineElement)* ;
 
-postExecutionReturn
-  : '//' '@post-execution' 'returnValues' comparisonOperator numberBoolLiteral ;
-
-duringExecution
-  : '//' duringExecutionComment (',' duringExecutionComment)* ;
-
-duringExecutionComment
-  : duringExecutionBeforeAfter
-  | duringExecutionAssignCurrent
-  | duringExecutionReturn
-  | duringExecutionGeneral;
-
-duringExecutionBeforeAfter
-  : '@during-execution' testingExpression beforeAfter ;
-
-beforeAfter
-  : '(' 'Before' comparisonOperator 'After' ')';
-
-duringExecutionAssignCurrent
-  : '@during-execution' testingExpression assignCurrent ;
-
-assignCurrent
-  : '(' 'Assign' comparisonOperator 'Current' ')';
-
-duringExecutionReturn
-  : '@during-execution' returnType ;
-
-returnType
-  : 'returnExpresion' comparisonOperator numberBoolLiteral # ExpressionReturn
-  | returnVar (',' returnVar)* # VarReturn
-  ;
-
-returnVar
-  : testingExpression comparisonOperator numberBoolLiteral ;
-
-duringExecutionGeneral
-  : '@during-execution' comparisonExpression (logicalOperator comparisonExpression)* ;
-
-comparisonExpression
-  : arithmeticExpression comparisonOperator arithmeticExpression ;
+inlineElement
+    : signedNumberLiteral
+    | inlineArrayAnnotation
+    | 'arrayAddress' '[' numberLiteral (',' numberLiteral)* ']' ;
 
 logicalOperator
-  : '&&' | '||' ;
+    : '&&' | '||' ;
 
 comparisonOperator
-  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
-
-arithmeticExpression
-  : multiplicativeExpression (additiveOperator multiplicativeExpression)* ;
-
-multiplicativeExpression
-  : primaryExpression (multiplicativeOperator primaryExpression)* ;
-
-primaryExpression
-  : literal
-  | identifier
-  | accessExpression
-  | '(' arithmeticExpression ')' ;
-
-accessExpression
-  : identifier ('[' (literal|identifier)+ ']' | '.' identifier)* ;
-
-additiveOperator
-  : '+' | '-' ;
-
-multiplicativeOperator
-  : '*' | '/' ;
+    : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
 
 interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
