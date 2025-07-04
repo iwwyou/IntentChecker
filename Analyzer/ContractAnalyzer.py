@@ -59,6 +59,11 @@ class ContractAnalyzer:
     """
     Prev analysis part
     """
+    INTENT_MARKERS = (
+        "// @GlobalVar", "// @StateVar", "// @LocalVar",
+        "// @During", "// @Post"
+    )
+
 
     # ────────────────────────────────────────────────────────────────
     #  ContractAnalyzer   (class body 안)
@@ -211,17 +216,20 @@ class ContractAnalyzer:
     def analyze_context(self, start_line, new_code):
         stripped_code = new_code.strip()
 
-        if stripped_code.startswith('// @'):
-            self.current_context_type = "debugUnit"
-            self.current_target_contract = self.find_contract_context(start_line)
-            self.current_target_function = self.find_function_context(start_line)
-            return  # 이 함수 종료
-
         # 매 분석마다 초기화
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
         self.current_target_struct = None
+
+        if any(stripped_code.startswith(p) for p in self.INTENT_MARKERS):
+            self.current_context_type = "IntentUnit"  # ⇢ ParserHelpers 매핑
+            self.current_target_contract = self.find_contract_context(start_line)
+            self.current_target_function = self.find_function_context(start_line)
+
+            if not self.current_target_function:
+                raise ValueError(f"{stripped_code.split()[1]} must be inside a function (line {start_line})")
+            return
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
         if stripped_code.endswith(';'):
@@ -1685,6 +1693,38 @@ class ContractAnalyzer:
 
         self._batch_targets.add(self.current_target_function_cfg)
 
+    # -----------------------------------------------------------
+    def process_during_before_after(self, line_no, lhs_expr, op, rhs_val):
+        env, node = self._env_at_line(line_no)
+        before = node.entry_snapshot[lhs_expr]  # ← 빌더가 저장해둔 값
+        after = env[lhs_expr]
+        ok = self._compare(before, after, op, rhs_val)
+        self._record(line_no, "duringBeforeAfter", ok, {"before": before, "after": after})
+
+    def process_during_assign_current(self, line_no, lhs_expr, op, rhs_val):
+        env, node = self._env_at_line(line_no)
+        cur_val = env[lhs_expr]
+        prev_val = node.pre_assign_snapshot[lhs_expr]
+        ok = self._compare(prev_val, cur_val, op, rhs_val)
+        self._record(line_no, "duringAssignCurrent", ok, {"prev": prev_val, "cur": cur_val})
+
+    def process_during_ret_expr(self, line_no, op, rhs_val):
+        ret_val = self._get_return_value_at(line_no)  # 구현↔인터프리터
+        ok = self._compare(ret_val, rhs_val, op, rhs_val)
+        self._record(line_no, "duringRetExpr", ok, {"ret": ret_val})
+
+    def process_during_ret_var(self, line_no, lhs_expr, op, rhs_val):
+        ret_env = self._get_return_env_at(line_no)
+        v = ret_env[lhs_expr]
+        ok = self._compare(v, rhs_val, op, rhs_val)
+        self._record(line_no, "duringRetVar", ok, {"retVar": v})
+
+    def process_during_direct_cmp(self, line_no, lhs_expr, op, rhs_val):
+        env, _ = self._env_at_line(line_no)
+        v = env[lhs_expr]
+        ok = self._compare(v, rhs_val, op, rhs_val)
+        self._record(line_no, "duringDirectCmp", ok, {"cur": v})
+
     def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:
         """
         [start_ln, end_ln] 구간에 대해
@@ -1749,6 +1789,13 @@ class ContractAnalyzer:
                   for st in blk.statements
                   if getattr(st, "src_line", None)}
         self._last_func_lines = (min(ln_set), max(ln_set)) if ln_set else None
+
+    # helper – 라인 ↦ CFG 노드 ↦ 변수 환경
+    def _env_at_line(self, line_no: int):
+        node = self.brace_count.get(line_no, {}).get("cfg_node")
+        if node is None:
+            raise ValueError(f"No CFG node bound to line {line_no}")
+        return node.variables, node  # (env, node object)
 
     # ──────────────────────────────────────────────────────────────
     # Snapshot 전용 내부 헬퍼  ―  외부에서 쓸 일 없으므로 “프라이빗” 네이밍

@@ -582,153 +582,45 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#PreGlobal.
     def visitPreGlobal(self, ctx: SolidityParser.PreGlobalContext):
-        # ─────────────────── 1) 식별자 추출 ───────────────────
-        left_id = ctx.identifier(0).getText()  # "block" | "msg" | "tx"
-        right_id = ctx.identifier(1).getText() if ctx.identifier(1) else None
-        global_name = f"{left_id}.{right_id}" if right_id else left_id
+        # 1) 식별자
+        left = ctx.identifier(0).getText()
+        right = ctx.identifier(1).getText() if ctx.identifier(1) else None
+        gname = f"{left}.{right}" if right else left
 
-        # ─────────────────── 2) 유효성 검사 ───────────────────
         valid = {
             "block.basefee", "block.blobbasefee", "block.chainid", "block.coinbase",
             "block.difficulty", "block.gaslimit", "block.number", "block.prevrandao",
             "block.timestamp", "msg.sender", "msg.value", "tx.gasprice", "tx.origin"
         }
-        if global_name not in valid:
-            raise ValueError(f"[DebugGlobalVar] invalid global '{global_name}'")
+        if gname not in valid:
+            raise ValueError(f"invalid global '{gname}'")
 
-        # ─────────────────── 3) 값 파싱 ───────────────────────
-        gv_ctx = ctx.globalValue()
-        firsttok = gv_ctx.getChild(0).getText()
+        value = self._parse_intent_value(ctx.intentValue())
 
-        # helper - bit width 결정
-        is_addr = global_name in {"block.coinbase", "msg.sender", "tx.origin"}
+        # elementary 타입 정보
+        is_addr = gname in {"block.coinbase", "msg.sender", "tx.origin"}
         bit_len = 160 if is_addr else 256
-
-        # 3-A. [min , max] 형
-        if firsttok == '[':
-            min_v = int(gv_ctx.numberLiteral(0).getText(), 0)
-            max_v = int(gv_ctx.numberLiteral(1).getText(), 0)
-            if min_v > max_v:
-                raise ValueError(f"[DebugGlobalVar] range invalid [{min_v},{max_v}]")
-            value = UnsignedIntegerInterval(min_v, max_v, bit_len)
-
-        # 3-B. symbolicAddress N  형
-        elif firsttok == 'symbolicAddress':
-            nid = int(gv_ctx.numberLiteral().getText(), 0)
-            sm = self.contract_analyzer.sm  # AddressSymbolicManager
-            sm.register_fixed_id(nid)  # (중복 호출 안전)
-            value = sm.get_interval(nid)  # Interval [nid,nid]
-            sm.bind_var(global_name, nid)  # alias 정보 기록
-
-        else:
-            raise ValueError("[DebugGlobalVar] unsupported value format")
-
-        # ─────────────────── 4) GlobalVariable 객체 구성 ─────
-        st = SolType()  # 빈 객체 하나 만들고
+        st = SolType()
         st.typeCategory = "elementary"
         st.elementaryTypeName = "address" if is_addr else "uint"
-        st.intTypeLength = bit_len  # 선택: 160 또는 256
+        st.intTypeLength = bit_len
 
-        gv_obj = GlobalVariable(
-            identifier=global_name,
-            value=value,
-            typeInfo=st  # ← 완성된 SolType 주입
-        )
-
-        # ─────────────────── 5) ContractAnalyzer 에 전달 ─────
-        self.contract_analyzer.process_global_var_for_debug(gv_obj)
+        gv = GlobalVariable(identifier=gname, value=value, typeInfo=st)
+        self.contract_analyzer.process_global_var_for_debug(gv)
         return None
 
-    def _parse_inline_array(self, ia_ctx):
-        """
-        inlineArrayAnnotation → python list (재귀)
-        - 숫자   →  int  / IntegerInterval([lo,lo])
-        - array  →  nested list
-        - arrayAddress → list[UnsignedIntegerInterval([id,id])]
-        """
-
-        def _ctx_label(ctx):
-            "ANTLR alt-label 헬퍼"
-            return type(ctx).__name__.removesuffix('Context')
-
-        elems = []
-        for el in ia_ctx.inlineElement():
-            lbl = _ctx_label(el)
-            if lbl == 'InlineIntElement':
-                elems.append(int(el.getText(), 0))
-            elif lbl == 'NestedArrayElement':
-                elems.append(self._parse_inline_array(el.inlineArrayAnnotation()))
-            elif lbl == 'AddrArrayElement':
-                ids = [int(n.getText(), 0) for n in el.numberLiteral()]
-                sm = self.contract_analyzer.sm
-                elems.append(
-                    [sm.get_interval(i) for i in ids]
-                )
-        return elems
-
-    def _parse_state_local_value(self, sv_ctx):
-        """
-        stateLocalValue →
-          • Integer / UnsignedInteger Interval
-          • BoolInterval
-          • UnsignedIntegerInterval(160-bit) for address
-          • bytes / string literal 그대로
-          • Enum 멤버 이름 (str)
-          • Inline 배열 -> (nested) list
-        """
-        first = sv_ctx.getChild(0).getText()
-
-        # ── ①  [min,max]  --------------------------------------------------
-        if first == '[':
-            lo = int(sv_ctx.numberLiteral(0).getText(), 0)
-            hi = int(sv_ctx.numberLiteral(1).getText(), 0)
-            cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval
-            return cls(lo, hi, 256)
-
-        # ── ②  symbolicAddress N  → 160-bit interval [N,N] -----------------
-        if first == 'symbolicAddress':
-            nid = int(sv_ctx.numberLiteral().getText(), 0)
-            sm = self.contract_analyzer.sm
-            sm.register_fixed_id(nid)
-            return sm.get_interval(nid)
-
-        # ── ③  symbolicBytes / symbolicString  -----------------------------
-        if first in ('symbolicBytes', 'symbolicString'):
-            # hexStringLiteral 은 따옴표 포함 → getText() 로 그대로
-            return f"{first} {sv_ctx.hexStringLiteral().getText()}"
-
-        # ── ④  boolean  ----------------------------------------------------
-        if first in ('true', 'false', 'any'):
-            return {
-                'true': BoolInterval(1, 1),
-                'false': BoolInterval(0, 0),
-                'any': BoolInterval(0, 1)
-            }[first]
-
-        # ── ⑤  enum  (identifier [. identifier])  -------------------------
-        if isinstance(sv_ctx, SolidityParser.StateLocalEnumValueContext):
-            if sv_ctx.identifier(1):  # enumName.member
-                enum_name, member = sv_ctx.identifier(0).getText(), sv_ctx.identifier(1).getText()
-                return f"{enum_name}.{member}"
-            else:  # member  (단일)
-                return sv_ctx.identifier(0).getText()
-
-        # ── ⑥  inlineArrayAnnotation  -------------------------------------
-        if isinstance(sv_ctx, SolidityParser.StateLocalInlineValueContext):
-            return self._parse_inline_array(sv_ctx.inlineArrayAnnotation())
-
-        # ── 디폴트 ---------------------------------------------------------
-        raise ValueError("Unsupported stateLocalValue format")
-
-    # Visit a parse tree produced by SolidityParser#PreState.
     def visitPreState(self, ctx: SolidityParser.PreStateContext):
-        return self.visitChildren(ctx)
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        rhs = self._parse_intent_value(ctx.intentValue())
+        self.contract_analyzer.process_state_var_for_debug(lhs, rhs)
+        return None
 
-    # Visit a parse tree produced by SolidityParser#PreLocal.
     def visitPreLocal(self, ctx: SolidityParser.PreLocalContext):
-        return self.visitChildren(ctx)
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        rhs = self._parse_intent_value(ctx.intentValue())
+        self.contract_analyzer.process_local_var_for_debug(lhs, rhs)
+        return None
 
     # Visit a parse tree produced by SolidityParser#duringExecution.
     def visitDuringExecution(self, ctx: SolidityParser.DuringExecutionContext):
@@ -738,25 +630,59 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitLogicExprDuring(self, ctx: SolidityParser.LogicExprDuringContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#DuringBeforeAfter.
-    def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext):
-        return self.visitChildren(ctx)
+    # -------------------------------------------------------
+    # 1) lhs Before / After
+    # -------------------------------------------------------
+    def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        op = ctx.comparisonOperator().getText()
+        rhs = self._parse_scalar(ctx.intentScalarValue())
+        ln = self.contract_analyzer.current_start_line
+        self.contract_analyzer.process_during_before_after(ln, lhs, op, rhs)
+        return None
 
-    # Visit a parse tree produced by SolidityParser#DuringAssignCurrent.
-    def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext):
-        return self.visitChildren(ctx)
+    # -------------------------------------------------------
+    # 2) lhs Assign / Current
+    # -------------------------------------------------------
+    def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        op = ctx.comparisonOperator().getText()
+        rhs = self._parse_scalar(ctx.intentScalarValue())
+        ln = self.contract_analyzer.current_start_line
+        self.contract_analyzer.process_during_assign_current(ln, lhs, op, rhs)
+        return None
 
-    # Visit a parse tree produced by SolidityParser#DuringRetExpr.
-    def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext):
-        return self.visitChildren(ctx)
+    # -------------------------------------------------------
+    # 3) return expression
+    # -------------------------------------------------------
+    def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext, **kw):
+        op = ctx.comparisonOperator().getText()
+        rhs = self._parse_scalar(ctx.intentScalarValue())
+        ln = self.contract_analyzer.current_start_line
+        self.contract_analyzer.process_during_ret_expr(ln, op, rhs)
+        return None
 
-    # Visit a parse tree produced by SolidityParser#DuringRetVar.
-    def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext):
-        return self.visitChildren(ctx)
+    # -------------------------------------------------------
+    # 4) return variable
+    # -------------------------------------------------------
+    def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext, **kw):
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        op = ctx.comparisonOperator().getText()
+        rhs = self._parse_scalar(ctx.intentScalarValue())
+        ln = self.contract_analyzer.current_start_line
+        self.contract_analyzer.process_during_ret_var(ln, lhs, op, rhs)
+        return None
 
-    # Visit a parse tree produced by SolidityParser#DuringDirectCmp.
-    def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext):
-        return self.visitChildren(ctx)
+    # -------------------------------------------------------
+    # 5) direct lhs  cmp  rhs
+    # -------------------------------------------------------
+    def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext, **kw):
+        lhs = self.visitTestingExpression(ctx.testingExpression())
+        op = ctx.comparisonOperator().getText()
+        rhs = self._parse_scalar(ctx.intentScalarValue())
+        ln = self.contract_analyzer.current_start_line
+        self.contract_analyzer.process_during_direct_cmp(ln, lhs, op, rhs)
+        return None
 
     # Visit a parse tree produced by SolidityParser#postExecution.
     def visitPostExecution(self, ctx: SolidityParser.PostExecutionContext):
@@ -2194,4 +2120,102 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         """
         return literal_text.strip('"')  # 따옴표 제거 후 반환
 
+    # ──────────────────────────────────────────────────────────────
+    # 0.  intentValue 파서  ─  Pre/ During/ Post 모두 재사용
+    # ──────────────────────────────────────────────────────────────
+    def _parse_intent_value(self, iv_ctx):
+        """
+        intentValue
+            → [lo,hi]                → IntegerInterval / UnsignedIntegerInterval
+            → address N              → UnsignedIntegerInterval(160-bit)
+            → symbolicAddress N      → UnsignedIntegerInterval(160-bit, symbolic ID)
+            → symbolicBytes …        → str 그대로
+            → symbolicString …       → str 그대로
+            → true / false / any     → BoolInterval
+            → Enum.Literal           → "Enum.Member"  (str)
+            → inlineArrayAnnotation  → nested python list
+        """
+        first = iv_ctx.getChild(0).getText()
+
+        # ① [lo , hi]
+        if first == '[':
+            lo = int(iv_ctx.signedNumberLiteral(0).getText(), 0)
+            hi = int(iv_ctx.signedNumberLiteral(1).getText(), 0)
+            cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval
+            return cls(lo, hi, 256)
+
+        # ② address N
+        if isinstance(iv_ctx, SolidityParser.FixedAddressContext):
+            n = int(iv_ctx.numberLiteral().getText(), 0)
+            return UnsignedIntegerInterval(n, n, 160)
+
+        # ③ symbolicAddress N
+        if isinstance(iv_ctx, SolidityParser.SymbolicAddressContext):
+            nid = int(iv_ctx.numberLiteral().getText(), 0)
+            sm = self.contract_analyzer.sm
+            sm.register_fixed_id(nid)
+            return sm.get_interval(nid)
+
+        # ④ symbolicBytes / symbolicString
+        if isinstance(iv_ctx, (SolidityParser.SymbolicBytesContext,
+                               SolidityParser.SymbolicStringContext)):
+            return iv_ctx.getText()  # 토큰 그대로
+
+        # ⑤ bool
+        if isinstance(iv_ctx, SolidityParser.BoolTokenContext):
+            tok = first  # true / false / any
+            return {
+                'true': BoolInterval(1, 1),
+                'false': BoolInterval(0, 0),
+                'any': BoolInterval(0, 1)
+            }[tok]
+
+        # ⑥ enum
+        if isinstance(iv_ctx, SolidityParser.EnumLiteralContext):
+            if iv_ctx.identifier(1):
+                return f"{iv_ctx.identifier(0).getText()}.{iv_ctx.identifier(1).getText()}"
+            else:
+                return iv_ctx.identifier(0).getText()
+
+        # ⑦ inline array
+        if isinstance(iv_ctx, SolidityParser.InlineArrayContext):
+            return self._parse_inline_array(iv_ctx.inlineArrayAnnotation())
+
+        raise ValueError("unsupported intentValue")
+
+    def _parse_inline_array(self, ia_ctx):
+        """
+        inlineArrayAnnotation → python list (재귀)
+        - 숫자   →  int  / IntegerInterval([lo,lo])
+        - array  →  nested list
+        - arrayAddress → list[UnsignedIntegerInterval([id,id])]
+        """
+
+        def _ctx_label(ctx):
+            "ANTLR alt-label 헬퍼"
+            return type(ctx).__name__.removesuffix('Context')
+
+        elems = []
+        for el in ia_ctx.inlineElement():
+            lbl = _ctx_label(el)
+            if lbl == 'InlineIntElement':
+                elems.append(int(el.getText(), 0))
+            elif lbl == 'NestedArrayElement':
+                elems.append(self._parse_inline_array(el.inlineArrayAnnotation()))
+            elif lbl == 'AddrArrayElement':
+                ids = [int(n.getText(), 0) for n in el.numberLiteral()]
+                sm = self.contract_analyzer.sm
+                elems.append(
+                    [sm.get_interval(i) for i in ids]
+                )
+        return elems
+
+    def _parse_scalar(self, sv_ctx):
+        """intentScalarValue → python 값 변환 (int‧bool‧enum 문자열)"""
+        txt = sv_ctx.getText()
+        if txt in ("true", "false"):
+            return txt == "true"
+        if txt.startswith("0x") or txt.isdigit() or (txt[0] == '-' and txt[1:].isdigit()):
+            return int(txt, 0)
+        return txt  # enumMember or enumName.member
 

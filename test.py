@@ -30,18 +30,16 @@ def simulate_inputs(records):
             continue
 
         # ② 디버그 주석 (@StateVar, @GlobalVar …) --------------------------
-        if stripped.startswith("// @"):
-            if ev == "add":
-                batch_mgr.add_line(code, s, e)
-            elif ev == "modify":
-                batch_mgr.modify_line(code, s, e)
-            elif ev == "delete":
-                batch_mgr.delete_line(s)
+        if stripped.startswith("// @GlobalVar", "// @StateVar", "// @LocalVar"):
+            if ev == "add": batch_mgr.add_line(code, s, e)
+            elif ev == "modify": batch_mgr.modify_line(code, s, e)
+            elif ev == "delete": batch_mgr.delete_line(s)
 
-            # BEGIN-END 밖이면 즉시 재-해석
-            if not in_testcase:
-                batch_mgr.flush()
-            continue
+            if not in_testcase: batch_mgr.flush()
+
+        else :
+            tree = ParserHelpers.generate_parse_tree(code, "IntentUnit")
+            EnhancedSolidityVisitor(contract_analyzer).visit(tree)
 
         # ③ 일반 Solidity 코드 --------------------------------------------
         if code.strip():

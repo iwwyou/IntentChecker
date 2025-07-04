@@ -37,7 +37,7 @@ class ParserHelpers:
         'catch':'interactiveCatchClauseUnit',
         'else_if':'interactiveIfElseUnit', 'else':'interactiveIfElseUnit',
 
-        'debugUnit':'debugUnit'
+        'IntentUnit':'intentUnit'
     }
 
     # --------------------------- map → 규칙 문자열
@@ -82,7 +82,7 @@ class ParserHelpers:
             case 'interactiveDoWhileUnit':    return parser.interactiveDoWhileUnit()
             case 'interactiveIfElseUnit':     return parser.interactiveIfElseUnit()
             case 'interactiveCatchClauseUnit':return parser.interactiveCatchClauseUnit()
-            case 'debugUnit':                 return parser.debugUnit()
+            case 'intentUnit':                 return parser.intentUnit()
             case _:                           return parser.interactiveSourceUnit()
 
 class VariableEnv:
