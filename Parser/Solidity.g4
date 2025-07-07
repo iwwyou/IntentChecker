@@ -254,73 +254,59 @@ interactiveCatchClauseUnit
 // 0. Entry point
 //--------------------------------------------------
 intentUnit
-    : ( preExecution
-      | duringExecution
-      | postExecution
+    : ( preIntent
+      | duringIntent
+      | postIntent
       )* EOF
     ;
 
 //==================================================
-// 1)  PRE-EXECUTION   (@GlobalVar / @StateVar / @LocalVar)
+// 1)  PRE-INTENT
 //--------------------------------------------------
-preExecution
-    : '//' '@GlobalVar' identifier ('.' identifier)? '=' intentValue   #PreGlobal
-    | '//' '@StateVar'  testingExpression         '=' intentValue     #PreState
-    | '//' '@LocalVar'  testingExpression         '=' intentValue     #PreLocal
+preIntent
+    : '//' '@GlobalVar' identifier ('.' identifier)? '=' seedValue   #PreGlobal
+    | '//' '@StateVar'  varRef '=' seedValue                         #PreState
+    | '//' '@LocalVar'  varRef '=' seedValue                         #PreLocal
     ;
 
 //==================================================
-// 2)  DURING-EXECUTION   (@During …)
-//   · 여러 조건을 "," 로 나열  = 묵시적 AND
-//   · 조건 안에서는  && / ||  혼합 가능
+// 2)  DURING-INTENT
 //--------------------------------------------------
-duringExecution
+duringIntent
     : '//' '@During' logicExprDuring (',' logicExprDuring)* ;
 
 logicExprDuring
-    : primitiveDuring (logicalOperator primitiveDuring)*
+    : primitiveDuring (logicOp primitiveDuring)*
     ;
 
 primitiveDuring
-    : testingExpression '(' 'Before'  comparisonOperator 'After'   ')'   #DuringBeforeAfter
-    | testingExpression '(' 'Assign'  comparisonOperator 'Current' ')'   #DuringAssignCurrent
-    | 'returnExpression'              comparisonOperator intentScalarValue #DuringRetExpr
-    | 'return' testingExpression      comparisonOperator intentScalarValue #DuringRetVar
-    | testingExpression               comparisonOperator intentScalarValue #DuringDirectCmp
-    | testingExpression               comparisonOperator testingExpression #DuringVarVarCmp
+    : varRef '(' 'Before'  compOp 'After'   ')'          #DuringBeforeAfter
+    | varRef '(' 'Assign'  compOp 'Current' ')'          #DuringAssignCurrent
+    | 'returnExpression'       compOp intentOperand      #DuringRetExpr
+    | 'return' varRef          compOp intentOperand      #DuringRetVar
+    | varRef                   compOp intentOperand      #DuringDirectCmp
     ;
 
 //==================================================
-// 3)  POST-EXECUTION   (@Post …)
-//   · Entry/Exit 또는 반환(join) 비교 중심
+// 3)  POST-INTENT
 //--------------------------------------------------
-postExecution
+postIntent
     : '//' '@Post' logicExprPost (',' logicExprPost)* ;
 
 logicExprPost
-    : primitivePost (logicalOperator primitivePost)*
+    : primitivePost (logicOp primitivePost)*
     ;
 
 primitivePost
-    : testingExpression '(' 'Entry' comparisonOperator 'Exit' ')'       #PostEntryExit
-    | 'returnExpression'             comparisonOperator intentScalarValue #PostRetExpr
-    | 'return' testingExpression     comparisonOperator intentScalarValue #PostRetVar
-    | 'returnValues'                 comparisonOperator intentScalarValue #PostRetJoin
-    | 'Unchanged' '(' testingExpression ')'                              #UnchangedPred
+    : varRef '(' 'Entry' compOp 'Exit' ')'               #PostEntryExit
+    | 'returnExpression'       compOp intentOperand      #PostRetExpr
+    | 'return' varRef          compOp intentOperand      #PostRetVar
+    | 'returnValues'           compOp intentOperand      #PostRetJoin
+    | 'Unchanged' '(' varRef ')'                         #UnchangedPred
     ;
 
-//==================================================
-// 4)  공통 서브-규칙
-//--------------------------------------------------
-testingExpression
-    : identifier subAccess* ;
-
-subAccess
-    : '.' identifier            #TestingMemberAccess   // alt-label 이름을 충돌 없이 지정
-    | '[' expression ']'        #TestingIndexAccess
-    ;
-
-intentValue
+//── Seed 값 ─────────────────────────────────────────
+seedValue
     : '[' signedNumberLiteral ',' signedNumberLiteral ']'   #IntInterval
     | 'address'         numberLiteral                       #FixedAddress
     | 'symbolicAddress' numberLiteral                       #SymbolicAddress
@@ -331,33 +317,38 @@ intentValue
     | inlineArrayAnnotation                                 #InlineArray
     ;
 
-intentScalarValue
-    : signedNumberLiteral                     // 0, -5, 0xFF…
-    | booleanLiteral                          // true / false
-    | 'address'         numberLiteral         // 고정 주소
-    | 'symbolicAddress' numberLiteral         // 심볼릭 주소 ID
-    | identifier ('.' identifier)?            // Enum 또는 단순 변수 이름
+//── 변수·멤버·인덱스 참조 ────────────────────────────
+varRef
+    : identifier subAccess* ;
+
+subAccess
+    : '.' identifier            #IntentMemberAccess
+    | '[' expression ']'        #IntentIndexAccess
     ;
 
-signedNumberLiteral
-    : '-'? numberLiteral ;
+//── 비교 피연산자 (런타임 평가 대상) ──────────────────
+intentOperand
+    : signedNumberLiteral
+    | booleanLiteral
+    | 'address'         numberLiteral
+    | 'symbolicAddress' numberLiteral
+    | varRef
+    ;
+
+//── 기타 공통 ───────────────────────────────────────
+signedNumberLiteral : '-'? numberLiteral ;
 
 inlineArrayAnnotation
     : 'array' '[' inlineArrayElements? ']' ;
 
-inlineArrayElements
-    : inlineElement (',' inlineElement)* ;
-
+inlineArrayElements : inlineElement (',' inlineElement)* ;
 inlineElement
     : signedNumberLiteral
     | inlineArrayAnnotation
     | 'arrayAddress' '[' numberLiteral (',' numberLiteral)* ']' ;
 
-logicalOperator
-    : '&&' | '||' ;
-
-comparisonOperator
-    : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
+logicOp : '&&' | '||' ;
+compOp  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
 
 interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;

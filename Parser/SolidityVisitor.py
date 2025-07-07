@@ -299,8 +299,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#duringExecution.
-    def visitDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+    # Visit a parse tree produced by SolidityParser#duringIntent.
+    def visitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         return self.visitChildren(ctx)
 
 
@@ -334,13 +334,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#DuringVarVarCmp.
-    def visitDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#postExecution.
-    def visitPostExecution(self, ctx:SolidityParser.PostExecutionContext):
+    # Visit a parse tree produced by SolidityParser#postIntent.
+    def visitPostIntent(self, ctx:SolidityParser.PostIntentContext):
         return self.visitChildren(ctx)
 
 
@@ -371,21 +366,6 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#UnchangedPred.
     def visitUnchangedPred(self, ctx:SolidityParser.UnchangedPredContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#testingExpression.
-    def visitTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
-    def visitTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#TestingIndexAccess.
-    def visitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
         return self.visitChildren(ctx)
 
 
@@ -429,8 +409,23 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#intentScalarValue.
-    def visitIntentScalarValue(self, ctx:SolidityParser.IntentScalarValueContext):
+    # Visit a parse tree produced by SolidityParser#varRef.
+    def visitVarRef(self, ctx:SolidityParser.VarRefContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
+    def visitIntentMemberAccess(self, ctx:SolidityParser.IntentMemberAccessContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IntentIndexAccess.
+    def visitIntentIndexAccess(self, ctx:SolidityParser.IntentIndexAccessContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#intentOperand.
+    def visitIntentOperand(self, ctx:SolidityParser.IntentOperandContext):
         return self.visitChildren(ctx)
 
 
@@ -454,13 +449,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#logicalOperator.
-    def visitLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+    # Visit a parse tree produced by SolidityParser#logicOp.
+    def visitLogicOp(self, ctx:SolidityParser.LogicOpContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#comparisonOperator.
-    def visitComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+    # Visit a parse tree produced by SolidityParser#compOp.
+    def visitCompOp(self, ctx:SolidityParser.CompOpContext):
         return self.visitChildren(ctx)
 
 

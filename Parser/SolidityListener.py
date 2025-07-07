@@ -530,12 +530,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#duringExecution.
-    def enterDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+    # Enter a parse tree produced by SolidityParser#duringIntent.
+    def enterDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#duringExecution.
-    def exitDuringExecution(self, ctx:SolidityParser.DuringExecutionContext):
+    # Exit a parse tree produced by SolidityParser#duringIntent.
+    def exitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         pass
 
 
@@ -593,21 +593,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#DuringVarVarCmp.
-    def enterDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
+    # Enter a parse tree produced by SolidityParser#postIntent.
+    def enterPostIntent(self, ctx:SolidityParser.PostIntentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#DuringVarVarCmp.
-    def exitDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#postExecution.
-    def enterPostExecution(self, ctx:SolidityParser.PostExecutionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#postExecution.
-    def exitPostExecution(self, ctx:SolidityParser.PostExecutionContext):
+    # Exit a parse tree produced by SolidityParser#postIntent.
+    def exitPostIntent(self, ctx:SolidityParser.PostIntentContext):
         pass
 
 
@@ -662,33 +653,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#UnchangedPred.
     def exitUnchangedPred(self, ctx:SolidityParser.UnchangedPredContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#testingExpression.
-    def enterTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#testingExpression.
-    def exitTestingExpression(self, ctx:SolidityParser.TestingExpressionContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#TestingMemberAccess.
-    def enterTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#TestingMemberAccess.
-    def exitTestingMemberAccess(self, ctx:SolidityParser.TestingMemberAccessContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#TestingIndexAccess.
-    def enterTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#TestingIndexAccess.
-    def exitTestingIndexAccess(self, ctx:SolidityParser.TestingIndexAccessContext):
         pass
 
 
@@ -764,12 +728,39 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#intentScalarValue.
-    def enterIntentScalarValue(self, ctx:SolidityParser.IntentScalarValueContext):
+    # Enter a parse tree produced by SolidityParser#varRef.
+    def enterVarRef(self, ctx:SolidityParser.VarRefContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#intentScalarValue.
-    def exitIntentScalarValue(self, ctx:SolidityParser.IntentScalarValueContext):
+    # Exit a parse tree produced by SolidityParser#varRef.
+    def exitVarRef(self, ctx:SolidityParser.VarRefContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IntentMemberAccess.
+    def enterIntentMemberAccess(self, ctx:SolidityParser.IntentMemberAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentMemberAccess.
+    def exitIntentMemberAccess(self, ctx:SolidityParser.IntentMemberAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IntentIndexAccess.
+    def enterIntentIndexAccess(self, ctx:SolidityParser.IntentIndexAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentIndexAccess.
+    def exitIntentIndexAccess(self, ctx:SolidityParser.IntentIndexAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#intentOperand.
+    def enterIntentOperand(self, ctx:SolidityParser.IntentOperandContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#intentOperand.
+    def exitIntentOperand(self, ctx:SolidityParser.IntentOperandContext):
         pass
 
 
@@ -809,21 +800,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#logicalOperator.
-    def enterLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+    # Enter a parse tree produced by SolidityParser#logicOp.
+    def enterLogicOp(self, ctx:SolidityParser.LogicOpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#logicalOperator.
-    def exitLogicalOperator(self, ctx:SolidityParser.LogicalOperatorContext):
+    # Exit a parse tree produced by SolidityParser#logicOp.
+    def exitLogicOp(self, ctx:SolidityParser.LogicOpContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#comparisonOperator.
-    def enterComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+    # Enter a parse tree produced by SolidityParser#compOp.
+    def enterCompOp(self, ctx:SolidityParser.CompOpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#comparisonOperator.
-    def exitComparisonOperator(self, ctx:SolidityParser.ComparisonOperatorContext):
+    # Exit a parse tree produced by SolidityParser#compOp.
+    def exitCompOp(self, ctx:SolidityParser.CompOpContext):
         pass
 
 
