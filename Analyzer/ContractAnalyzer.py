@@ -1694,36 +1694,36 @@ class ContractAnalyzer:
         self._batch_targets.add(self.current_target_function_cfg)
 
     # -----------------------------------------------------------
-    def process_during_before_after(self, line_no, lhs_expr, op, rhs_val):
-        env, node = self._env_at_line(line_no)
+    def process_during_before_after(self, lhs_expr, op, rhs_val):
+        env, node = self._env_at_line(self.current_start_line)
         before = node.entry_snapshot[lhs_expr]  # ← 빌더가 저장해둔 값
         after = env[lhs_expr]
         ok = self._compare(before, after, op, rhs_val)
-        self._record(line_no, "duringBeforeAfter", ok, {"before": before, "after": after})
+        self._record(self.current_start_line, "duringBeforeAfter", ok, {"before": before, "after": after})
 
-    def process_during_assign_current(self, line_no, lhs_expr, op, rhs_val):
-        env, node = self._env_at_line(line_no)
+    def process_during_assign_current(self, lhs_expr, op, rhs_val):
+        env, node = self._env_at_line(self.current_start_line)
         cur_val = env[lhs_expr]
         prev_val = node.pre_assign_snapshot[lhs_expr]
         ok = self._compare(prev_val, cur_val, op, rhs_val)
-        self._record(line_no, "duringAssignCurrent", ok, {"prev": prev_val, "cur": cur_val})
+        self._record(self.current_start_line, "duringAssignCurrent", ok, {"prev": prev_val, "cur": cur_val})
 
-    def process_during_ret_expr(self, line_no, op, rhs_val):
-        ret_val = self._get_return_value_at(line_no)  # 구현↔인터프리터
+    def process_during_ret_expr(self, op, rhs_val):
+        ret_val = self._get_return_value_at(self.current_start_line)  # 구현↔인터프리터
         ok = self._compare(ret_val, rhs_val, op, rhs_val)
-        self._record(line_no, "duringRetExpr", ok, {"ret": ret_val})
+        self._record(self.current_start_line, "duringRetExpr", ok, {"ret": ret_val})
 
-    def process_during_ret_var(self, line_no, lhs_expr, op, rhs_val):
-        ret_env = self._get_return_env_at(line_no)
+    def process_during_ret_var(self, lhs_expr, op, rhs_val):
+        ret_env = self._get_return_env_at(self.current_start_line)
         v = ret_env[lhs_expr]
         ok = self._compare(v, rhs_val, op, rhs_val)
-        self._record(line_no, "duringRetVar", ok, {"retVar": v})
+        self._record(self.current_start_line, "duringRetVar", ok, {"retVar": v})
 
-    def process_during_direct_cmp(self, line_no, lhs_expr, op, rhs_val):
-        env, _ = self._env_at_line(line_no)
+    def process_during_direct_cmp(self, lhs_expr, op, rhs_val):
+        env, _ = self._env_at_line(self.current_start_line)
         v = env[lhs_expr]
         ok = self._compare(v, rhs_val, op, rhs_val)
-        self._record(line_no, "duringDirectCmp", ok, {"cur": v})
+        self._record(self.current_start_line, "duringDirectCmp", ok, {"cur": v})
 
     def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:
         """

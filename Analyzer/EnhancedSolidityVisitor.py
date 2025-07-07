@@ -637,8 +637,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         lhs = self.visitTestingExpression(ctx.testingExpression())
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        ln = self.contract_analyzer.current_start_line
-        self.contract_analyzer.process_during_before_after(ln, lhs, op, rhs)
+        self.contract_analyzer.process_during_before_after(lhs, op, rhs)
         return None
 
     # -------------------------------------------------------
@@ -648,8 +647,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         lhs = self.visitTestingExpression(ctx.testingExpression())
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        ln = self.contract_analyzer.current_start_line
-        self.contract_analyzer.process_during_assign_current(ln, lhs, op, rhs)
+        self.contract_analyzer.process_during_assign_current(lhs, op, rhs)
         return None
 
     # -------------------------------------------------------
@@ -658,8 +656,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext, **kw):
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        ln = self.contract_analyzer.current_start_line
-        self.contract_analyzer.process_during_ret_expr(ln, op, rhs)
+        self.contract_analyzer.process_during_ret_expr(op, rhs)
         return None
 
     # -------------------------------------------------------
@@ -669,8 +666,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         lhs = self.visitTestingExpression(ctx.testingExpression())
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        ln = self.contract_analyzer.current_start_line
-        self.contract_analyzer.process_during_ret_var(ln, lhs, op, rhs)
+        self.contract_analyzer.process_during_ret_var(lhs, op, rhs)
         return None
 
     # -------------------------------------------------------
@@ -714,7 +710,42 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#testingExpression.
     def visitTestingExpression(self, ctx: SolidityParser.TestingExpressionContext):
-        return self.visitChildren(ctx)
+        """
+                        testingExpression : identifier subAccess* ;
+                        subAccess : '.' identifier | '[' expression ']' ;
+                        Build an Expression object representing the testing expression.
+                        """
+        # 시작 식별자
+        root = Expression(
+            identifier=ctx.identifier().getText(),
+            context="IdentifierExpContext"
+        )
+        # subAccess 처리 (있다면)
+        if ctx.subAccess():
+            for sub in ctx.subAccess():
+                # 각 subAccess의 label는 우리 문법에서 두 종류로 구분됨
+                # (1) TestingMemberAccess: '.' identifier
+                # (2) TestingIndexAccess: '[' expression ']'
+                if sub.getChild(0).getText() == '.':
+                    member = sub.identifier().getText()
+                    root = Expression(
+                        base=root,
+                        member=member,
+                        operator='.',
+                        context="TestingMemberAccess"
+                    )
+                elif sub.getChild(0).getText() == '[':
+                    # index 접근: 내부 표현식을 방문해서 Expression 생성
+                    index_expr = self.visitExpression(sub.expression())
+                    root = Expression(
+                        base=root,
+                        index=index_expr,
+                        access="index_access",
+                        context="TestingIndexAccess"
+                    )
+                else:
+                    raise ValueError("Unknown subAccess type.")
+        return root
 
     # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
     def visitTestingMemberAccess(self, ctx: SolidityParser.TestingMemberAccessContext):

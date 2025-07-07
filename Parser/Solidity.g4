@@ -282,11 +282,12 @@ logicExprDuring
     ;
 
 primitiveDuring
-    : testingExpression '(' 'Before' comparisonOperator 'After'   ')'   #DuringBeforeAfter
-    | testingExpression '(' 'Assign' comparisonOperator 'Current' ')'   #DuringAssignCurrent
-    | 'returnExpression'             comparisonOperator intentScalarValue #DuringRetExpr
-    | 'return' testingExpression     comparisonOperator intentScalarValue #DuringRetVar
-    | testingExpression              comparisonOperator intentScalarValue #DuringDirectCmp
+    : testingExpression '(' 'Before'  comparisonOperator 'After'   ')'   #DuringBeforeAfter
+    | testingExpression '(' 'Assign'  comparisonOperator 'Current' ')'   #DuringAssignCurrent
+    | 'returnExpression'              comparisonOperator intentScalarValue #DuringRetExpr
+    | 'return' testingExpression      comparisonOperator intentScalarValue #DuringRetVar
+    | testingExpression               comparisonOperator intentScalarValue #DuringDirectCmp
+    | testingExpression               comparisonOperator testingExpression #DuringVarVarCmp
     ;
 
 //==================================================
@@ -330,10 +331,12 @@ intentValue
     | inlineArrayAnnotation                                 #InlineArray
     ;
 
-intentScalarValue                // during/post 비교용 “단일 값”
-    : signedNumberLiteral
-    | booleanLiteral
-    | identifier ('.' identifier)?
+intentScalarValue
+    : signedNumberLiteral                     // 0, -5, 0xFF…
+    | booleanLiteral                          // true / false
+    | 'address'         numberLiteral         // 고정 주소
+    | 'symbolicAddress' numberLiteral         // 심볼릭 주소 ID
+    | identifier ('.' identifier)?            // Enum 또는 단순 변수 이름
     ;
 
 signedNumberLiteral

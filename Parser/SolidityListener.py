@@ -593,6 +593,15 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#DuringVarVarCmp.
+    def enterDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DuringVarVarCmp.
+    def exitDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#postExecution.
     def enterPostExecution(self, ctx:SolidityParser.PostExecutionContext):
         pass

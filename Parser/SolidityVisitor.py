@@ -334,6 +334,11 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#DuringVarVarCmp.
+    def visitDuringVarVarCmp(self, ctx:SolidityParser.DuringVarVarCmpContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#postExecution.
     def visitPostExecution(self, ctx:SolidityParser.PostExecutionContext):
         return self.visitChildren(ctx)
