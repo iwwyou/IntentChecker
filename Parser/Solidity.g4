@@ -282,9 +282,9 @@ logicExprDuring
 primitiveDuring
     : varRef '(' 'Before'  compOp 'After'   ')'          #DuringBeforeAfter
     | varRef '(' 'Assign'  compOp 'Current' ')'          #DuringAssignCurrent
-    | 'returnExpression'       compOp intentOperand      #DuringRetExpr
-    | 'return' varRef          compOp intentOperand      #DuringRetVar
-    | varRef                   compOp intentOperand      #DuringDirectCmp
+    | 'returnExpression'       compOp intentExpression   #DuringRetExpr
+    | 'return' varRef          compOp intentExpression   #DuringRetVar
+    | intentExpression         compOp intentExpression   #DuringDirectCmp
     ;
 
 //==================================================
@@ -299,13 +299,16 @@ logicExprPost
 
 primitivePost
     : varRef '(' 'Entry' compOp 'Exit' ')'               #PostEntryExit
-    | 'returnExpression'       compOp intentOperand      #PostRetExpr
-    | 'return' varRef          compOp intentOperand      #PostRetVar
-    | 'returnValues'           compOp intentOperand      #PostRetJoin
+    | 'returnExpression'       compOp intentExpression   #PostRetExpr
+    | 'return' varRef          compOp intentExpression   #PostRetVar
+    | 'returnValues'           compOp intentExpression   #PostRetJoin
+    | intentExpression         compOp intentExpression   #PostDirectCmp
     | 'Unchanged' '(' varRef ')'                         #UnchangedPred
     ;
 
-//── Seed 값 ─────────────────────────────────────────
+//==================================================
+// 4)  Seed 값
+//--------------------------------------------------
 seedValue
     : '[' signedNumberLiteral ',' signedNumberLiteral ']'   #IntInterval
     | 'address'         numberLiteral                       #FixedAddress
@@ -317,26 +320,65 @@ seedValue
     | inlineArrayAnnotation                                 #InlineArray
     ;
 
-//── 변수·멤버·인덱스 참조 ────────────────────────────
+//==================================================
+// 5)  변수·멤버·인덱스 참조
+//--------------------------------------------------
 varRef
     : identifier subAccess* ;
 
 subAccess
     : '.' identifier            #IntentMemberAccess
-    | '[' expression ']'        #IntentIndexAccess
+    | '[' expression ']'        #IntentIndexAccess   // Solidity expression 재사용
     ;
 
-//── 비교 피연산자 (런타임 평가 대상) ──────────────────
-intentOperand
-    : signedNumberLiteral
-    | booleanLiteral
-    | 'address'         numberLiteral
-    | 'symbolicAddress' numberLiteral
-    | varRef
+//==================================================
+// 6)  intentExpression (숫자·주소·불리언)
+//--------------------------------------------------
+intentExpression
+    : arithExpr    #NExpr
+    | addressExpr  #AExpr
+    | boolExpr     #BExpr
     ;
 
-//── 기타 공통 ───────────────────────────────────────
+//────────── 6-1)  숫자/비율/모듈러 식 ──────────
+arithExpr
+    : arithExpr ('+' | '-') arithTerm              #AddSub
+    | arithTerm                                    #AddSubRoot
+    ;
+
+arithTerm
+    : arithTerm ('*' | '/' | '%') arithFactor      #MulDivMod
+    | arithFactor                                  #MulDivModRoot
+    ;
+
+arithFactor
+    : 'PercentOf' '(' arithExpr ',' numberLiteral ')'   #PercentOfFunc
+    | 'ceil'  '(' arithExpr ',' numberLiteral ')'  #CeilFunc
+    | 'floor' '(' arithExpr ',' numberLiteral ')'  #FloorFunc
+    | signedNumberLiteral                               #NumLiteral
+    | varRef                                            #NumVarRef
+    | '(' arithExpr ')'                                 #Parenthesized
+    ;
+
+//────────── 6-2)  주소 식 ──────────────────────
+addressExpr
+    : 'address'         numberLiteral      #AddrLiteralExpr
+    | 'symbolicAddress' numberLiteral      #SymAddrLiteralExpr
+    | varRef                                 #AddrVarExpr
+    ;
+
+//────────── 6-3)  불리언 식 ────────────────────
+boolExpr
+    : booleanLiteral                         #BoolLiteralExpr
+    | varRef                                 #BoolVarExpr
+    ;
+
+//==================================================
+// 7)  기타 공통
+//--------------------------------------------------
 signedNumberLiteral : '-'? numberLiteral ;
+logicOp : '&&' | '||' ;
+compOp  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
 
 inlineArrayAnnotation
     : 'array' '[' inlineArrayElements? ']' ;
@@ -345,10 +387,8 @@ inlineArrayElements : inlineElement (',' inlineElement)* ;
 inlineElement
     : signedNumberLiteral
     | inlineArrayAnnotation
-    | 'arrayAddress' '[' numberLiteral (',' numberLiteral)* ']' ;
-
-logicOp : '&&' | '||' ;
-compOp  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
+    | 'arrayAddress' '[' numberLiteral (',' numberLiteral)* ']'
+    ;
 
 interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;
