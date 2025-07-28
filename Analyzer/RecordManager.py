@@ -162,6 +162,22 @@ class RecordManager:
         }
         self.ledger[line_no].append(payload)
 
+    def record_verification_result(
+            self,
+            line_no: int,
+            verification_type: str,
+            result: Dict[str, Any]
+    ) -> None:
+        """Record the result of a @During or @Post verification."""
+        payload = {
+            "kind": "verification",
+            "verification_type": verification_type,
+            "status": result.get("status", "unknown"),
+            "message": result.get("message", ""),
+            "details": result.get("details", {}),
+        }
+        self.ledger[line_no].append(payload)
+
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------

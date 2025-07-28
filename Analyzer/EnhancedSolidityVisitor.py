@@ -611,19 +611,19 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return None
 
     def visitPreState(self, ctx: SolidityParser.PreStateContext):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
+        lhs = self.visitVarRef(ctx.varRef())
         rhs = self._parse_intent_value(ctx.intentValue())
         self.contract_analyzer.process_state_var_for_debug(lhs, rhs)
         return None
 
     def visitPreLocal(self, ctx: SolidityParser.PreLocalContext):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
+        lhs = self.visitVarRef(ctx.varRef())
         rhs = self._parse_intent_value(ctx.intentValue())
         self.contract_analyzer.process_local_var_for_debug(lhs, rhs)
         return None
 
     # Visit a parse tree produced by SolidityParser#duringExecution.
-    def visitDuringExecution(self, ctx: SolidityParser.DuringExecutionContext):
+    def visitDuringIntent(self, ctx: SolidityParser.DuringIntentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#logicExprDuring.
@@ -634,54 +634,60 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # 1) lhs Before / After
     # -------------------------------------------------------
     def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
+        lhs = self.visitVarRef(ctx.varRef())
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        self.contract_analyzer.process_during_before_after(lhs, op, rhs)
+        # Convert lhs to string representation for varRef
+        var_ref = str(lhs) if lhs else ctx.varRef().getText()
+        self.contract_analyzer.process_during_before_after(var_ref, op)
         return None
 
     # -------------------------------------------------------
     # 2) lhs Assign / Current
     # -------------------------------------------------------
     def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
+        lhs = self.visitVarRef(ctx.varRef())
         op = ctx.comparisonOperator().getText()
         rhs = self._parse_scalar(ctx.intentScalarValue())
-        self.contract_analyzer.process_during_assign_current(lhs, op, rhs)
+        # Convert to new signature: var_ref, comp_op, intent_expr
+        var_ref = str(lhs) if lhs else ctx.varRef().getText()
+        self.contract_analyzer.process_during_assign_current(var_ref, op, rhs)
         return None
 
     # -------------------------------------------------------
     # 3) return expression
     # -------------------------------------------------------
     def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext, **kw):
-        op = ctx.comparisonOperator().getText()
-        rhs = self._parse_scalar(ctx.intentScalarValue())
-        self.contract_analyzer.process_during_ret_expr(op, rhs)
+        comp_op = ctx.compOp().getText()
+        intent_expr = ctx.intentExpression()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_during_return_expression(comp_op, intent_expr, line_no)
         return None
 
     # -------------------------------------------------------
     # 4) return variable
     # -------------------------------------------------------
     def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext, **kw):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
-        op = ctx.comparisonOperator().getText()
-        rhs = self._parse_scalar(ctx.intentScalarValue())
-        self.contract_analyzer.process_during_ret_var(lhs, op, rhs)
+        var_ref = ctx.varRef().getText()
+        comp_op = ctx.compOp().getText()
+        intent_expr = ctx.intentExpression()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_during_return_variable(var_ref, comp_op, intent_expr, line_no)
         return None
 
     # -------------------------------------------------------
     # 5) direct lhs  cmp  rhs
     # -------------------------------------------------------
     def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext, **kw):
-        lhs = self.visitTestingExpression(ctx.testingExpression())
-        op = ctx.comparisonOperator().getText()
-        rhs = self._parse_scalar(ctx.intentScalarValue())
-        ln = self.contract_analyzer.current_start_line
-        self.contract_analyzer.process_during_direct_cmp(ln, lhs, op, rhs)
+        lhs_expr = ctx.intentExpression(0)
+        comp_op = ctx.compOp().getText()
+        rhs_expr = ctx.intentExpression(1)
+        line_no = ctx.start.line
+        self.contract_analyzer.process_during_direct_comparison(lhs_expr, comp_op, rhs_expr, line_no)
         return None
 
     # Visit a parse tree produced by SolidityParser#postExecution.
-    def visitPostExecution(self, ctx: SolidityParser.PostExecutionContext):
+    def visitPostIntent(self, ctx: SolidityParser.PostIntentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#logicExprPost.
@@ -690,70 +696,51 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#PostEntryExit.
     def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
-        return self.visitChildren(ctx)
+        var_ref = ctx.varRef().getText()
+        comp_op = ctx.compOp().getText()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_entry_exit(var_ref, comp_op, line_no)
+        return None
 
     # Visit a parse tree produced by SolidityParser#PostRetExpr.
     def visitPostRetExpr(self, ctx: SolidityParser.PostRetExprContext):
-        return self.visitChildren(ctx)
+        comp_op = ctx.compOp().getText()
+        intent_expr = ctx.intentExpression()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_return_expression(comp_op, intent_expr, line_no)
+        return None
 
     # Visit a parse tree produced by SolidityParser#PostRetVar.
     def visitPostRetVar(self, ctx: SolidityParser.PostRetVarContext):
-        return self.visitChildren(ctx)
+        var_ref = ctx.varRef().getText()
+        comp_op = ctx.compOp().getText()
+        intent_expr = ctx.intentExpression()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_return_variable(var_ref, comp_op, intent_expr, line_no)
+        return None
 
     # Visit a parse tree produced by SolidityParser#PostRetJoin.
     def visitPostRetJoin(self, ctx: SolidityParser.PostRetJoinContext):
-        return self.visitChildren(ctx)
+        comp_op = ctx.compOp().getText()
+        intent_expr = ctx.intentExpression()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_return_values(comp_op, intent_expr, line_no)
+        return None
+
+    def visitPostDirectCmp(self, ctx: SolidityParser.PostDirectCmpContext):
+        lhs_expr = ctx.intentExpression(0)
+        comp_op = ctx.compOp().getText()
+        rhs_expr = ctx.intentExpression(1)
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_direct_comparison(lhs_expr, comp_op, rhs_expr, line_no)
+        return None
 
     # Visit a parse tree produced by SolidityParser#UnchangedPred.
     def visitUnchangedPred(self, ctx: SolidityParser.UnchangedPredContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#testingExpression.
-    def visitTestingExpression(self, ctx: SolidityParser.TestingExpressionContext):
-        """
-                        testingExpression : identifier subAccess* ;
-                        subAccess : '.' identifier | '[' expression ']' ;
-                        Build an Expression object representing the testing expression.
-                        """
-        # 시작 식별자
-        root = Expression(
-            identifier=ctx.identifier().getText(),
-            context="IdentifierExpContext"
-        )
-        # subAccess 처리 (있다면)
-        if ctx.subAccess():
-            for sub in ctx.subAccess():
-                # 각 subAccess의 label는 우리 문법에서 두 종류로 구분됨
-                # (1) TestingMemberAccess: '.' identifier
-                # (2) TestingIndexAccess: '[' expression ']'
-                if sub.getChild(0).getText() == '.':
-                    member = sub.identifier().getText()
-                    root = Expression(
-                        base=root,
-                        member=member,
-                        operator='.',
-                        context="TestingMemberAccess"
-                    )
-                elif sub.getChild(0).getText() == '[':
-                    # index 접근: 내부 표현식을 방문해서 Expression 생성
-                    index_expr = self.visitExpression(sub.expression())
-                    root = Expression(
-                        base=root,
-                        index=index_expr,
-                        access="index_access",
-                        context="TestingIndexAccess"
-                    )
-                else:
-                    raise ValueError("Unknown subAccess type.")
-        return root
-
-    # Visit a parse tree produced by SolidityParser#TestingMemberAccess.
-    def visitTestingMemberAccess(self, ctx: SolidityParser.TestingMemberAccessContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#TestingIndexAccess.
-    def visitTestingIndexAccess(self, ctx: SolidityParser.TestingIndexAccessContext):
-        return self.visitChildren(ctx)
+        var_ref = ctx.varRef().getText()
+        line_no = ctx.start.line
+        self.contract_analyzer.process_post_unchanged(var_ref, line_no)
+        return None
 
     # Visit a parse tree produced by SolidityParser#IntInterval.
     def visitIntInterval(self, ctx: SolidityParser.IntIntervalContext):
@@ -787,12 +774,99 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitInlineArray(self, ctx: SolidityParser.InlineArrayContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#intentScalarValue.
-    def visitIntentScalarValue(self, ctx: SolidityParser.IntentScalarValueContext):
+    def visitVarRef(self, ctx: SolidityParser.VarRefContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
+    def visitIntentMemberAccess(self, ctx: SolidityParser.IntentMemberAccessContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#IntentIndexAccess.
+    def visitIntentIndexAccess(self, ctx: SolidityParser.IntentIndexAccessContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#NExpr.
+    def visitNExpr(self, ctx: SolidityParser.NExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#AExpr.
+    def visitAExpr(self, ctx: SolidityParser.AExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#BExpr.
+    def visitBExpr(self, ctx: SolidityParser.BExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#AddSub.
+    def visitAddSub(self, ctx: SolidityParser.AddSubContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#AddSubRoot.
+    def visitAddSubRoot(self, ctx: SolidityParser.AddSubRootContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#MulDivModRoot.
+    def visitMulDivModRoot(self, ctx: SolidityParser.MulDivModRootContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#MulDivMod.
+    def visitMulDivMod(self, ctx: SolidityParser.MulDivModContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PercentOfFunc.
+    def visitPercentOfFunc(self, ctx: SolidityParser.PercentOfFuncContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#CeilFunc.
+    def visitCeilFunc(self, ctx: SolidityParser.CeilFuncContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#FloorFunc.
+    def visitFloorFunc(self, ctx: SolidityParser.FloorFuncContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#NumLiteral.
+    def visitNumLiteral(self, ctx: SolidityParser.NumLiteralContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#NumVarRef.
+    def visitNumVarRef(self, ctx: SolidityParser.NumVarRefContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#Parenthesized.
+    def visitParenthesized(self, ctx: SolidityParser.ParenthesizedContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#AddrLiteralExpr.
+    def visitAddrLiteralExpr(self, ctx: SolidityParser.AddrLiteralExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#SymAddrLiteralExpr.
+    def visitSymAddrLiteralExpr(self, ctx: SolidityParser.SymAddrLiteralExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#AddrVarExpr.
+    def visitAddrVarExpr(self, ctx: SolidityParser.AddrVarExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#BoolLiteralExpr.
+    def visitBoolLiteralExpr(self, ctx: SolidityParser.BoolLiteralExprContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#BoolVarExpr.
+    def visitBoolVarExpr(self, ctx: SolidityParser.BoolVarExprContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#signedNumberLiteral.
     def visitSignedNumberLiteral(self, ctx: SolidityParser.SignedNumberLiteralContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#logicOp.
+    def visitLogicOp(self, ctx: SolidityParser.LogicOpContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#compOp.
+    def visitCompOp(self, ctx: SolidityParser.CompOpContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#inlineArrayAnnotation.
@@ -805,14 +879,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#inlineElement.
     def visitInlineElement(self, ctx: SolidityParser.InlineElementContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#logicalOperator.
-    def visitLogicalOperator(self, ctx: SolidityParser.LogicalOperatorContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by SolidityParser#comparisonOperator.
-    def visitComparisonOperator(self, ctx: SolidityParser.ComparisonOperatorContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#interactiveSimpleStatement.
