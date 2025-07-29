@@ -359,11 +359,6 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PostRetJoin.
-    def visitPostRetJoin(self, ctx:SolidityParser.PostRetJoinContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SolidityParser#PostDirectCmp.
     def visitPostDirectCmp(self, ctx:SolidityParser.PostDirectCmpContext):
         return self.visitChildren(ctx)
@@ -414,8 +409,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#varRef.
-    def visitVarRef(self, ctx:SolidityParser.VarRefContext):
+    # Visit a parse tree produced by SolidityParser#ReturnElemRef.
+    def visitReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#NormalVarRef.
+    def visitNormalVarRef(self, ctx:SolidityParser.NormalVarRefContext):
         return self.visitChildren(ctx)
 
 

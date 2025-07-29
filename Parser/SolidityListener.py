@@ -638,15 +638,6 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostRetJoin.
-    def enterPostRetJoin(self, ctx:SolidityParser.PostRetJoinContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostRetJoin.
-    def exitPostRetJoin(self, ctx:SolidityParser.PostRetJoinContext):
-        pass
-
-
     # Enter a parse tree produced by SolidityParser#PostDirectCmp.
     def enterPostDirectCmp(self, ctx:SolidityParser.PostDirectCmpContext):
         pass
@@ -737,12 +728,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#varRef.
-    def enterVarRef(self, ctx:SolidityParser.VarRefContext):
+    # Enter a parse tree produced by SolidityParser#ReturnElemRef.
+    def enterReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#varRef.
-    def exitVarRef(self, ctx:SolidityParser.VarRefContext):
+    # Exit a parse tree produced by SolidityParser#ReturnElemRef.
+    def exitReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#NormalVarRef.
+    def enterNormalVarRef(self, ctx:SolidityParser.NormalVarRefContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#NormalVarRef.
+    def exitNormalVarRef(self, ctx:SolidityParser.NormalVarRefContext):
         pass
 
 

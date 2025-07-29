@@ -630,46 +630,50 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitLogicExprDuring(self, ctx: SolidityParser.LogicExprDuringContext):
         return self.visitChildren(ctx)
 
-    # ------------------------------------------------------------------
-    # DURING-INTENT primitives
-    # ------------------------------------------------------------------
+    # ───────────────── DURING ───────────────────────────────────────
     def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
+        # y ( Before > After )
         lhs_expr = self.visitVarRef(ctx.varRef())
         op = ctx.compOp().getText()
-        rhs_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_during_before_after(lhs_expr, op, rhs_expr)
+        self.contract_analyzer.process_during_before_after(lhs_expr, op)  # ← rhs 없음
         return None
 
     def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
+        # x ( Assign <= Current )
         lhs_expr = self.visitVarRef(ctx.varRef())
         op = ctx.compOp().getText()
-        rhs_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_during_assign_current(lhs_expr, op, rhs_expr)
+        self.contract_analyzer.process_during_assign_current(lhs_expr, op)
         return None
 
     def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext, **kw):
         comp_op = ctx.compOp().getText()
-        intent_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_during_return_expression(comp_op, intent_expr)
+        val_expr = self._parse_value_expr(ctx.valueExpr())
+        self.contract_analyzer.process_during_return_expression(comp_op, val_expr)
         return None
 
     def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext, **kw):
         var_ref_expr = self.visitVarRef(ctx.varRef())
         comp_op = ctx.compOp().getText()
-        intent_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_during_return_variable(var_ref_expr, comp_op, intent_expr)
+        val_expr = self._parse_value_expr(ctx.valueExpr())
+        self.contract_analyzer.process_during_return_variable(var_ref_expr, comp_op, val_expr)
         return None
 
     def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext, **kw):
-        lhs_expr = self._parse_intent_expression(ctx.intentExpression(0))
-        comp_op = ctx.compOp().getText()
-        rhs_expr = self._parse_intent_expression(ctx.intentExpression(1))
-        self.contract_analyzer.process_during_direct_comparison(lhs_expr, comp_op, rhs_expr)
+        lhs = self._parse_value_expr(ctx.valueExpr(0))
+        op = ctx.compOp().getText()
+        rhs = self._parse_value_expr(ctx.valueExpr(1))
+        self.contract_analyzer.process_during_direct_comparison(lhs, op, rhs)
         return None
 
-    # ------------------------------------------------------------------
-    # POST-INTENT primitives
-    # ------------------------------------------------------------------
+    # ───────────────── POST ────────────────────────────────────────
+    # Visit a parse tree produced by SolidityParser#postIntent.
+    def visitPostIntent(self, ctx: SolidityParser.PostIntentContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#logicExprPost.
+    def visitLogicExprPost(self, ctx: SolidityParser.LogicExprPostContext):
+        return self.visitChildren(ctx)
+
     def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())
         comp_op = ctx.compOp().getText()
@@ -678,28 +682,22 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     def visitPostRetExpr(self, ctx: SolidityParser.PostRetExprContext):
         comp_op = ctx.compOp().getText()
-        intent_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_post_return_expression(comp_op, intent_expr)
+        val_expr = self._parse_value_expr(ctx.valueExpr())
+        self.contract_analyzer.process_post_return_expression(comp_op, val_expr)
         return None
 
     def visitPostRetVar(self, ctx: SolidityParser.PostRetVarContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())
         comp_op = ctx.compOp().getText()
-        intent_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_post_return_variable(var_ref_expr, comp_op, intent_expr)
-        return None
-
-    def visitPostRetJoin(self, ctx: SolidityParser.PostRetJoinContext):
-        comp_op = ctx.compOp().getText()
-        intent_expr = self._parse_intent_expression(ctx.intentExpression())
-        self.contract_analyzer.process_post_return_values(comp_op, intent_expr)
+        val_expr = self._parse_value_expr(ctx.valueExpr())
+        self.contract_analyzer.process_post_return_variable(var_ref_expr, comp_op, val_expr)
         return None
 
     def visitPostDirectCmp(self, ctx: SolidityParser.PostDirectCmpContext):
-        lhs_expr = self._parse_intent_expression(ctx.intentExpression(0))
-        comp_op = ctx.compOp().getText()
-        rhs_expr = self._parse_intent_expression(ctx.intentExpression(1))
-        self.contract_analyzer.process_post_direct_comparison(lhs_expr, comp_op, rhs_expr)
+        lhs = self._parse_value_expr(ctx.valueExpr(0))
+        op = ctx.compOp().getText()
+        rhs = self._parse_value_expr(ctx.valueExpr(1))
+        self.contract_analyzer.process_post_direct_comparison(lhs, op, rhs)
         return None
 
     def visitUnchangedPred(self, ctx: SolidityParser.UnchangedPredContext):
@@ -775,37 +773,43 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     def visitVarRef(self, ctx: SolidityParser.VarRefContext):
-        # varRef: identifier subAccess*
-        base_identifier = ctx.identifier().getText()
-        base_expr = Expression(identifier=base_identifier, context='VarRefContext')
-        
-        # Process subAccess elements (member access or index access)
-        current_expr = base_expr
-        if ctx.subAccess():
-            for sa in ctx.subAccess():
-                if isinstance(sa, SolidityParser.IntentMemberAccessContext):
-                    member_name = sa.identifier().getText()
-                    current_expr = Expression(
-                        base=current_expr,
-                        member=member_name,
-                        operator='.',
-                        context='VarRefMemberAccess'
-                    )
+        # ── ALT-1  return[INT]  ────────────────────────────────
+        if ctx.getToken(SolidityParser.Return, 0):
+            num_tok = ctx.numberLiteral()  # TerminalNode
+            idx_expr = Expression(
+                literal=num_tok.getText(),
+                expr_type="int",
+                context="ReturnTupleIndex",
+            )
+            return Expression(
+                base=Expression(identifier="return", context="ReturnTupleBase"),
+                index=idx_expr,
+                access="index_access",
+                context="ReturnElemRef",
+            )
 
-                else:  # IntentIndexAccess
-                    index_expr = self.visitExpression(sa.expression())
-                    current_expr = Expression(
-                        base=current_expr,
-                        index=index_expr,
-                        access='index_access',
-                        context='VarRefIndexAccess'
-                    )
-        
-        return current_expr
+        # ── ALT-2  identifier(.|[...])*  ───────────────────────
+        ident_ctx = ctx.identifier(0)  # first IDENT
+        current = Expression(identifier=ident_ctx.getText(), context="VarRefBase")
 
-    def visitIntentExpression(self, ctx: SolidityParser.IntentExpressionContext):
-        # intentExpression routes to NExpr, AExpr, or BExpr based on the grammar tags
-        return self.visitChildren(ctx)
+        # subAccess*  (may be empty)
+        for sa in (ctx.subAccess() or []):
+            if isinstance(sa, SolidityParser.IntentMemberAccessContext):
+                current = Expression(
+                    base=current,
+                    member=sa.identifier().getText(),
+                    operator=".",
+                    context="VarRefMemberAccess",
+                )
+            else:  # IntentIndexAccess
+                idx_expr = self.visitExpression(sa.expression())
+                current = Expression(
+                    base=current,
+                    index=idx_expr,
+                    access="index_access",
+                    context="VarRefIndexAccess",
+                )
+        return current
 
     # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
     def visitIntentMemberAccess(self, ctx: SolidityParser.IntentMemberAccessContext):
@@ -2429,6 +2433,5 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 )
         return elems
 
-    def _parse_intent_expression(self, ie_ctx):
-        """intentExpression → Expression AST"""
-        return self.visit(ie_ctx)
+    def _parse_value_expr(self, ctx: SolidityParser.ValueExprContext):
+        return self.visit(ctx)
