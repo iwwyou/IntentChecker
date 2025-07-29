@@ -276,15 +276,15 @@ duringIntent
     : '//' '@During' logicExprDuring (',' logicExprDuring)* ;
 
 logicExprDuring
-    : primitiveDuring (logicOp primitiveDuring)*
+    : intentAtomDuring (logicOp intentAtomDuring)*
     ;
 
-primitiveDuring
-    : varRef '(' 'Before'  compOp 'After'   ')'          #DuringBeforeAfter
-    | varRef '(' 'Assign'  compOp 'Current' ')'          #DuringAssignCurrent
-    | 'returnExpression'       compOp intentExpression   #DuringRetExpr
-    | 'return' varRef          compOp intentExpression   #DuringRetVar
-    | intentExpression         compOp intentExpression   #DuringDirectCmp
+intentAtomDuring
+    : varRef '(' WS* 'Before'  WS* compOp WS* 'After'   WS* ')'        #DuringBeforeAfter
+    | varRef '(' WS* 'Assign'  WS* compOp WS* 'Current' WS* ')'        #DuringAssignCurrent
+    | 'returnExpression' compOp valueExpr                              #DuringRetExpr
+    | 'return' varRef      compOp valueExpr                            #DuringRetVar   // tuple 원소 가능
+    | valueExpr            compOp valueExpr                            #DuringDirectCmp
     ;
 
 //==================================================
@@ -294,16 +294,15 @@ postIntent
     : '//' '@Post' logicExprPost (',' logicExprPost)* ;
 
 logicExprPost
-    : primitivePost (logicOp primitivePost)*
+    : intentAtomPost (logicOp intentAtomPost)*
     ;
 
-primitivePost
-    : varRef '(' 'Entry' compOp 'Exit' ')'               #PostEntryExit
-    | 'returnExpression'       compOp intentExpression   #PostRetExpr
-    | 'return' varRef          compOp intentExpression   #PostRetVar
-    | 'returnValues'           compOp intentExpression   #PostRetJoin
-    | intentExpression         compOp intentExpression   #PostDirectCmp
-    | 'Unchanged' '(' varRef ')'                         #UnchangedPred
+intentAtomPost
+    : varRef '(' WS* 'Entry' WS* compOp WS* 'Exit' WS* ')'             #PostEntryExit
+    | 'returnExpression' compOp valueExpr                              #PostRetExpr     //(모든 return join)
+    | 'return' varRef      compOp valueExpr                            #PostRetVar      //(tuple 원소 단위)
+    | valueExpr            compOp valueExpr                            #PostDirectCmp
+    | 'Unchanged' '(' varRef ')'                                       #UnchangedPred
     ;
 
 //==================================================
@@ -324,23 +323,25 @@ seedValue
 // 5)  변수·멤버·인덱스 참조
 //--------------------------------------------------
 varRef
-    : identifier subAccess* ;
+    : 'return' '[' numberLiteral ']'              #ReturnElemRef   // tuple 원소
+    | identifier subAccess*                       #NormalVarRef
+    ;
 
 subAccess
     : '.' identifier            #IntentMemberAccess
-    | '[' expression ']'        #IntentIndexAccess   // Solidity expression 재사용
+    | '[' expression ']'        #IntentIndexAccess
     ;
 
 //==================================================
-// 6)  intentExpression (숫자·주소·불리언)
+// 6)  valueExpr ― “하나의 값” 을 만드는 식
 //--------------------------------------------------
-intentExpression
+valueExpr
     : arithExpr    #NExpr
     | addressExpr  #AExpr
     | boolExpr     #BExpr
     ;
 
-//────────── 6-1)  숫자/비율/모듈러 식 ──────────
+//────────── 6-1)  숫자 / 비율 / 모듈러 ──────────
 arithExpr
     : arithExpr ('+' | '-') arithTerm              #AddSub
     | arithTerm                                    #AddSubRoot
@@ -353,8 +354,8 @@ arithTerm
 
 arithFactor
     : 'PercentOf' '(' arithExpr ',' numberLiteral ')'   #PercentOfFunc
-    | 'ceil'  '(' arithExpr ',' numberLiteral ')'  #CeilFunc
-    | 'floor' '(' arithExpr ',' numberLiteral ')'  #FloorFunc
+    | 'ceil'  '(' arithExpr ',' numberLiteral ')'       #CeilFunc
+    | 'floor' '(' arithExpr ',' numberLiteral ')'       #FloorFunc
     | signedNumberLiteral                               #NumLiteral
     | varRef                                            #NumVarRef
     | '(' arithExpr ')'                                 #Parenthesized
@@ -364,13 +365,13 @@ arithFactor
 addressExpr
     : 'address'         numberLiteral      #AddrLiteralExpr
     | 'symbolicAddress' numberLiteral      #SymAddrLiteralExpr
-    | varRef                                 #AddrVarExpr
+    | varRef                               #AddrVarExpr
     ;
 
 //────────── 6-3)  불리언 식 ────────────────────
 boolExpr
-    : booleanLiteral                         #BoolLiteralExpr
-    | varRef                                 #BoolVarExpr
+    : booleanLiteral                       #BoolLiteralExpr
+    | varRef                               #BoolVarExpr
     ;
 
 //==================================================
