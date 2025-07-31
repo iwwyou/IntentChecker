@@ -83,13 +83,14 @@ class ContractAnalyzer:
         # ② 이미 생성된 CFG-Statement 들의 src_line 보정
         for ccf in self.contract_cfgs.values():
             for fcfg in ccf.functions.values():
-                for blk in fcfg.graph.nodes:
-                    for st in blk.statements:
-                        if getattr(st, "src_line", None) == old_ln:
-                            st.src_line = new_ln
-
-                if hasattr(fcfg, "assign_envs") and old_ln in fcfg.assign_envs:
+                # assign_envs (FunctionCFG 전역)  ←★
+                if old_ln in fcfg.assign_envs:
                     fcfg.assign_envs[new_ln] = fcfg.assign_envs.pop(old_ln)
+
+                # 노드-수준 before_envs
+                for blk in fcfg.graph.nodes:
+                    if old_ln in blk.before_envs:
+                        blk.before_envs[new_ln] = blk.before_envs.pop(old_ln)
 
     def _insert_lines(self, start: int, new_lines: list[str]):
         offset = len(new_lines)
@@ -848,6 +849,9 @@ class ContractAnalyzer:
 
         cur_blk = self.builder.get_current_block()
 
+        cur_blk.before_envs[self.current_start_line] = \
+            VariableEnv.copy_variables(cur_blk.variables)
+
         # 2. 값 해석 + 변수 갱신  -----------------------------------------
         r_val = self.evaluator.evaluate_expression(
             expr.right, cur_blk.variables, None, None
@@ -895,6 +899,9 @@ class ContractAnalyzer:
             raise ValueError("active FunctionCFG not found")
 
         cur_blk = self.builder.get_current_block()
+
+        cur_blk.before_envs[self.current_start_line] = \
+            VariableEnv.copy_variables(cur_blk.variables)
 
         # ① 현재 값 읽기 → 타입에 맞는 “1” Interval 준비 -------------
         cur_val = self.evaluator.evaluate_expression(

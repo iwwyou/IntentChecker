@@ -19,560 +19,223 @@ from Utils.CFG import CFGNode
 
 
 class GuardianVerificationEngine:
-    """
-    Verification engine for during and post intent directives.
-    Handles temporal state comparisons (Before/After, Entry/Exit).
-    """
-    
     def __init__(self, analyzer: "ContractAnalyzer"):
         self.analyzer = analyzer
-        
-    def verify_during_before_after(self, var_ref: str, comp_op: str, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @During varRef(Before compOp After) assertion.
-        
-        Args:
-            var_ref: Variable reference (e.g., "balance", "accounts[user].amount")
-            comp_op: Comparison operator ('<', '>', '<=', '>=', '==', '!=')
-            line_no: Source line number
-            
-        Returns:
-            Dict with verification result and details
-        """
+
+    # === DURING =====================================================
+
+    # === DURING =====================================================
+    def verify_during_before_after(
+        self, *, var_ref: Expression, comp_op: str,
+        line_no: int, cfg_node: CFGNode
+    ) -> dict[str, any]:
+
         try:
-            # Get current CFG node from brace_count
-            node_info = self.analyzer.brace_count.get(line_no, {})
-            current_node = node_info.get('cfg_node')
-            
-            if not current_node or not hasattr(current_node, 'variables'):
-                return {
-                    'status': 'error',
-                    'message': f'No CFG node found for line {line_no}',
-                    'line': line_no
-                }
-            
-            # Get current variable state (After)
-            current_vars = current_node.variables
-            after_value = self._resolve_var_ref(var_ref, current_vars)
-            
-            if after_value is None:
-                return {
-                    'status': 'error', 
-                    'message': f'Variable {var_ref} not found in current state',
-                    'line': line_no
-                }
-            
-            # Get before value by looking at predecessor nodes
-            before_value = self._get_before_value(current_node, var_ref)
-            
-            if before_value is None:
-                return {
-                    'status': 'warning',
-                    'message': f'Cannot determine before value for {var_ref}',
-                    'line': line_no
-                }
-            
-            # Perform comparison
-            result = self._compare_values(before_value, comp_op, after_value)
-            
+            # 1. before / after variable environments -----------------
+            before_env = cfg_node.before_envs.get(line_no)
+            if before_env is None:
+                return self._err(
+                    "duringBeforeAfter",
+                    f"no before-env captured for line {line_no}", line_no
+                )
+
+            after_env  = cfg_node.variables
+
+            # 2. evaluate var_ref in the two envs ---------------------
+            ev = self.analyzer.evaluator   # shorthand
+            before_val = ev.evaluate_expression(var_ref, before_env, None, None)
+            after_val  = ev.evaluate_expression(var_ref, after_env,  None, None)
+
+            # 3. compare ---------------------------------------------
+            cmp_res = ev.compare_intervals(before_val, after_val, comp_op)
+            status  = "success" if cmp_res["satisfied"] else "violation"
+
             return {
-                'status': 'success' if result['satisfied'] else 'violation',
-                'message': f'During check: {var_ref}(Before {comp_op} After) = {result["message"]}',
-                'details': {
-                    'variable': var_ref,
-                    'before_value': str(before_value),
-                    'after_value': str(after_value),
-                    'operator': comp_op,
-                    'satisfied': result['satisfied']
+                "status":  status,
+                "kind":    "duringBeforeAfter",
+                "line":    line_no,
+                "details": {
+                    "variable":    self._pretty_expr(var_ref),
+                    "before":      str(before_val),
+                    "after":       str(after_val),
+                    "operator":    comp_op,
+                    "satisfied":   cmp_res["satisfied"],
                 },
-                'line': line_no
+                "message": f'{self._pretty_expr(var_ref)}(Before {comp_op} After) '
+                           f'→ {cmp_res["message"]}',
             }
-            
+
         except Exception as e:
+            return self._err("duringBeforeAfter", f"internal error: {e}", line_no)
+
+    def verify_during_assign_current(self, *, var_ref, comp_op, line_no, cfg_node):
+        return self._todo("duringAssignCurrent", line_no)
+
+    def verify_during_return_expression(self, *, comp_op, value_expr, line_no, cfg_node):
+        return self._todo("duringRetExpr", line_no)
+
+    def verify_during_return_variable(self, *, var_ref, comp_op, value_expr, line_no, cfg_node):
+        return self._todo("duringRetVar", line_no)
+
+    def verify_during_direct_comparison(self, *, lhs_expr, comp_op, rhs_expr, line_no, cfg_node):
+        return self._todo("duringDirectCmp", line_no)
+
+    # === POST =======================================================
+
+    def verify_post_entry_exit(self, *, var_ref, comp_op, line_no, fn_cfg):
+        return self._todo("postEntryExit", line_no)
+
+    def verify_post_return_expression(self, *, comp_op, value_expr, line_no, fn_cfg):
+        return self._todo("postRetExpr", line_no)
+
+    def verify_post_return_variable(self, *, var_ref, comp_op, value_expr, line_no, fn_cfg):
+        return self._todo("postRetVar", line_no)
+
+    def verify_post_direct_comparison(self, *, lhs_expr, comp_op, rhs_expr, line_no, fn_cfg):
+        return self._todo("postDirectCmp", line_no)
+
+    def verify_post_unchanged(self, *, var_ref, line_no, fn_cfg):
+        return self._todo("postUnchanged", line_no)
+
+    # ---------------------------------------------------------------
+    # Simple placeholders
+    # ---------------------------------------------------------------
+    def _ok(self, tag, ln):
+        return {"status": "success", "message": f"{tag} satisfied (stub)", "line": ln}
+
+    def _todo(self, tag, ln):
+        return {"status": "todo", "message": f"{tag} verification not implemented yet", "line": ln}
+
+    # ----------------------------------------------------------------
+    # helper: uniform ok / error payloads
+    # ----------------------------------------------------------------
+    def _err(self, kind: str, msg: str, ln: int) -> dict[str, any]:
+        return {"status": "error", "kind": kind, "line": ln, "message": msg}
+
+    def _pretty_expr(self, expr: Expression) -> str:
+        """very small utility – turn Expression into a readable string"""
+        return getattr(expr, "identifier", "") or str(expr)
+
+    # ----------------------------------------------------------------
+    # Interval-aware comparison with probability
+    # ----------------------------------------------------------------
+    def _compare_intervals_prob(self, left_iv, right_iv, op: str) -> dict:
+        """
+        두 Interval 사이의 관계를
+          - 'satisfied' : 반드시 성립
+          - 'violated'  : 절대 성립 불가
+          - 'uncertain' : 일부 구간만 성립
+        로 판정하고, uncertain 인 경우에는
+          confidence ∈ (0,1)  ≒  '성립할 확률' 값을 계산한다.
+        """
+
+        # ③ op 별 true-zone, false-zone 계산 --------------------------
+        def _overlap(a1, a2, b1, b2):
+            """두 구간 [a1,a2], [b1,b2] 의 겹치는 길이"""
+            return max(0, min(a2, b2) - max(a1, b1))
+
+        # ① min/max 가 None → 정보 부족 → 완전 불확정
+        if (left_iv.min_value is None or left_iv.max_value is None or
+                right_iv.min_value is None or right_iv.max_value is None):
+            return {"state": "uncertain", "confidence": 0.5}
+
+        # ② Interval 폭
+        lw, rw = left_iv.max_value - left_iv.min_value, right_iv.max_value - right_iv.min_value
+
+        # ─── 포함(in) / 비포함(not in) ────────────────────────────
+        if op in {"in", "not in"}:
+            # left ⊆ right ?   (구간 포함 여부)
+            left_inside = (left_iv.min_value >= right_iv.min_value and
+                           left_iv.max_value <= right_iv.max_value)
+            if left_inside:
+                return {"state": "satisfied" if op == "in" else "violated",
+                        "confidence": 1.0}
+            # 완전히 분리 → ‘in’ 은 false 확정,  ‘not in’ 은 true 확정
+            separated = (left_iv.max_value < right_iv.min_value or
+                         left_iv.min_value > right_iv.max_value)
+            if separated:
+                return {"state": "violated" if op == "in" else "satisfied",
+                        "confidence": 1.0}
+            # 부분-겹침 → 불확정, 겹치는 비율을 신뢰도로
+            overlap = max(0, min(left_iv.max_value, right_iv.max_value) -
+                          max(left_iv.min_value, right_iv.min_value))
+            conf = 1 - overlap / lw if op == "not in" else overlap / lw
+            return {"state": "uncertain", "confidence": round(conf, 3)}
+
+        if op == '>':
+            true_len = max(0, left_iv.max_value - max(left_iv.min_value, right_iv.max_value))
+            false_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
+            total = lw
+        elif op == '<':
+            true_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
+            false_len = max(0, right_iv.max_value - max(right_iv.min_value, left_iv.max_value))
+            total = lw
+        elif op == '>=':
+            true_len = max(0, left_iv.max_value - right_iv.min_value + 1)
+            false_len = max(0, right_iv.max_value - left_iv.max_value - 1)
+            total = lw + 1  # 보수적인 처리
+        elif op == '<=':
+            true_len = max(0, right_iv.max_value - left_iv.min_value + 1)
+            false_len = max(0, left_iv.min_value - right_iv.min_value - 1)
+            total = lw + 1
+        elif op == '==':
+            # 겹치는 길이를 “true”, 나머지를 “false”
+            true_len = _overlap(left_iv.min_value, left_iv.max_value,
+                                right_iv.min_value, right_iv.max_value)
+            false_len = lw - true_len
+            total = lw
+        elif op == '!=':
+            true_len = lw - _overlap(left_iv.min_value, left_iv.max_value,
+                                     right_iv.min_value, right_iv.max_value)
+            false_len = lw - true_len
+            total = lw
+        else:
+            raise ValueError(f"unsupported op {op}")
+
+        # ④ 결과 state / confidence ----------------------------------
+        if false_len == 0:
+            return {"state": "satisfied", "confidence": 1.0}
+        if true_len == 0:
+            return {"state": "violated", "confidence": 0.0}
+
+        conf = true_len / total if total else 0.5
+        return {"state": "uncertain", "confidence": round(conf, 3)}
+
+    def _compare_values(self, left, op: str, right) -> dict:
+        """
+        Interval  ➜  확률 기반 판정
+        스칼라    ➜  기존 True/False
+        """
+        # Interval ↔ Interval ----------------------------------------
+        if (hasattr(left, "min_value") and hasattr(right, "min_value")):
+            info = self._compare_intervals_prob(left, right, op)
             return {
-                'status': 'error',
-                'message': f'Error in during before/after check: {str(e)}',
-                'line': line_no
+                "satisfied": info["state"] == "satisfied",
+                "violated": info["state"] == "violated",
+                "uncertain": info["state"] == "uncertain",
+                "confidence": info["confidence"],
+                "message": f"{info['state']} (conf={info['confidence']})"
             }
-    
-    def verify_during_assign_current(self, var_ref: str, comp_op: str, intent_expr: Any, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @During varRef(Assign compOp Current) assertion.
-        
-        Args:
-            var_ref: Variable reference
-            comp_op: Comparison operator
-            intent_expr: Expression to compare against
-            line_no: Source line number
-        """
+
+        # 스칼라 ↔ 스칼라 --------------------------------------------
         try:
-            node_info = self.analyzer.brace_count.get(line_no, {})
-            current_node = node_info.get('cfg_node')
-            
-            if not current_node:
-                return {
-                    'status': 'error',
-                    'message': f'No CFG node found for line {line_no}',
-                    'line': line_no
-                }
-            
-            # Get assigned value (what was just assigned)
-            assigned_value = self._get_assigned_value(current_node, var_ref)
-            
-            # Get current value (after assignment)
-            current_vars = current_node.variables
-            current_value = self._resolve_var_ref(var_ref, current_vars)
-            
-            if assigned_value is None or current_value is None:
-                return {
-                    'status': 'warning',
-                    'message': f'Cannot determine assign/current values for {var_ref}',
-                    'line': line_no
-                }
-            
-            # Evaluate intent expression
-            expected_value = self._evaluate_intent_expression(intent_expr, current_vars)
-            
-            # Compare assigned value with expected
-            result = self._compare_values(assigned_value, comp_op, expected_value)
-            
-            return {
-                'status': 'success' if result['satisfied'] else 'violation',
-                'message': f'During assign check: {var_ref}(Assign {comp_op} Current) = {result["message"]}',
-                'details': {
-                    'variable': var_ref,
-                    'assigned_value': str(assigned_value),
-                    'current_value': str(current_value),
-                    'expected_value': str(expected_value),
-                    'operator': comp_op,
-                    'satisfied': result['satisfied']
-                },
-                'line': line_no
+            tbl = {
+                '<': lambda a, b: a < b,
+                '>': lambda a, b: a > b,
+                '<=': lambda a, b: a <= b,
+                '>=': lambda a, b: a >= b,
+                '==': lambda a, b: a == b,
+                '!=': lambda a, b: a != b,
             }
-            
+            satisfied = tbl[op](left, right)
+            return {
+                "satisfied": satisfied,
+                "violated": not satisfied,
+                "uncertain": False,
+                "confidence": 1.0,
+                "message": f"{left} {op} {right} = {satisfied}"
+            }
         except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Error in during assign/current check: {str(e)}',
-                'line': line_no
-            }
-    
-    def verify_during_return_expression(self, comp_op: str, intent_expr: Any, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @During returnExpression compOp intentExpression assertion.
-        """
-        try:
-            node_info = self.analyzer.brace_count.get(line_no, {})
-            current_node = node_info.get('cfg_node')
-            
-            if not current_node:
-                return {
-                    'status': 'error',
-                    'message': f'No CFG node found for line {line_no}',
-                    'line': line_no
-                }
-            
-            # Get return expression from current statement
-            return_value = self._get_return_expression_value(current_node)
-            
-            if return_value is None:
-                return {
-                    'status': 'warning',
-                    'message': 'No return expression found in current context',
-                    'line': line_no
-                }
-            
-            # Evaluate intent expression
-            expected_value = self._evaluate_intent_expression(intent_expr, current_node.variables)
-            
-            # Compare
-            result = self._compare_values(return_value, comp_op, expected_value)
-            
-            return {
-                'status': 'success' if result['satisfied'] else 'violation',
-                'message': f'During return check: returnExpression {comp_op} {intent_expr} = {result["message"]}',
-                'details': {
-                    'return_value': str(return_value),
-                    'expected_value': str(expected_value),
-                    'operator': comp_op,
-                    'satisfied': result['satisfied']
-                },
-                'line': line_no
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Error in during return expression check: {str(e)}',
-                'line': line_no
-            }
-    
-    def verify_post_entry_exit(self, var_ref: str, comp_op: str, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @Post varRef(Entry compOp Exit) assertion.
-        Operates on function exit node.
-        """
-        try:
-            # Get current function CFG
-            function_cfg = self.analyzer.current_target_function_cfg
-            if not function_cfg:
-                return {
-                    'status': 'error',
-                    'message': 'No current function context found',
-                    'line': line_no
-                }
-            
-            exit_node = function_cfg.get_exit_node()
-            
-            # Get entry value (from function entry)
-            entry_node = function_cfg.get_entry_node()
-            entry_value = self._resolve_var_ref(var_ref, entry_node.variables)
-            
-            # Get exit value (join of all predecessors of exit node)
-            exit_vars = self._join_predecessor_variables(exit_node, function_cfg)
-            exit_value = self._resolve_var_ref(var_ref, exit_vars)
-            
-            if entry_value is None or exit_value is None:
-                return {
-                    'status': 'warning',
-                    'message': f'Cannot determine entry/exit values for {var_ref}',
-                    'line': line_no
-                }
-            
-            # Compare
-            result = self._compare_values(entry_value, comp_op, exit_value)
-            
-            return {
-                'status': 'success' if result['satisfied'] else 'violation',
-                'message': f'Post check: {var_ref}(Entry {comp_op} Exit) = {result["message"]}',
-                'details': {
-                    'variable': var_ref,
-                    'entry_value': str(entry_value),
-                    'exit_value': str(exit_value),
-                    'operator': comp_op,
-                    'satisfied': result['satisfied']
-                },
-                'line': line_no
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Error in post entry/exit check: {str(e)}',
-                'line': line_no
-            }
-    
-    def verify_post_return_values(self, comp_op: str, intent_expr: Any, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @Post returnValues compOp intentExpression assertion.
-        Checks join of all return values.
-        """
-        try:
-            function_cfg = self.analyzer.current_target_function_cfg
-            if not function_cfg:
-                return {
-                    'status': 'error',
-                    'message': 'No current function context found',
-                    'line': line_no
-                }
-            
-            exit_node = function_cfg.get_exit_node()
-            
-            # Join return values from all predecessors
-            return_values = self._join_return_values(exit_node, function_cfg)
-            
-            if not return_values:
-                return {
-                    'status': 'warning',
-                    'message': 'No return values found',
-                    'line': line_no
-                }
-            
-            # Evaluate intent expression against exit state
-            exit_vars = self._join_predecessor_variables(exit_node, function_cfg)
-            expected_value = self._evaluate_intent_expression(intent_expr, exit_vars)
-            
-            # Compare joined return values with expected
-            result = self._compare_values(return_values, comp_op, expected_value)
-            
-            return {
-                'status': 'success' if result['satisfied'] else 'violation',
-                'message': f'Post return values check: returnValues {comp_op} {intent_expr} = {result["message"]}',
-                'details': {
-                    'return_values': str(return_values),
-                    'expected_value': str(expected_value),
-                    'operator': comp_op,
-                    'satisfied': result['satisfied']
-                },
-                'line': line_no
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Error in post return values check: {str(e)}',
-                'line': line_no
-            }
-    
-    def verify_post_unchanged(self, var_ref: str, line_no: int) -> Dict[str, Any]:
-        """
-        Verify @Post Unchanged(varRef) assertion.
-        """
-        try:
-            function_cfg = self.analyzer.current_target_function_cfg
-            if not function_cfg:
-                return {
-                    'status': 'error',
-                    'message': 'No current function context found',
-                    'line': line_no
-                }
-            
-            entry_node = function_cfg.get_entry_node()
-            exit_node = function_cfg.get_exit_node()
-            
-            # Get entry and exit values
-            entry_value = self._resolve_var_ref(var_ref, entry_node.variables)
-            exit_vars = self._join_predecessor_variables(exit_node, function_cfg)
-            exit_value = self._resolve_var_ref(var_ref, exit_vars)
-            
-            if entry_value is None or exit_value is None:
-                return {
-                    'status': 'warning',
-                    'message': f'Cannot determine entry/exit values for {var_ref}',
-                    'line': line_no
-                }
-            
-            # Check if unchanged (equality)
-            unchanged = self._values_equal(entry_value, exit_value)
-            
-            return {
-                'status': 'success' if unchanged else 'violation',
-                'message': f'Post unchanged check: Unchanged({var_ref}) = {"satisfied" if unchanged else "violated"}',
-                'details': {
-                    'variable': var_ref,
-                    'entry_value': str(entry_value),
-                    'exit_value': str(exit_value),
-                    'unchanged': unchanged
-                },
-                'line': line_no
-            }
-            
-        except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Error in post unchanged check: {str(e)}',
-                'line': line_no
-            }
-    
-    # Helper Methods
-    
-    def _resolve_var_ref(self, var_ref: str, variables: Dict[str, Variables]) -> Any:
-        """
-        Resolve variable reference like "balance" or "accounts[user].amount"
-        """
-        # Simple case: direct variable
-        if var_ref in variables:
-            var_obj = variables[var_ref]
-            return getattr(var_obj, 'value', var_obj)
-        
-        # Complex case: member access, array access, etc.
-        # This would need more sophisticated parsing of var_ref
-        # For now, try simple dot notation
-        if '.' in var_ref:
-            parts = var_ref.split('.', 1)
-            base_var = parts[0]
-            member = parts[1]
-            
-            if base_var in variables:
-                base_obj = variables[base_var]
-                if hasattr(base_obj, 'members') and member in base_obj.members:
-                    return getattr(base_obj.members[member], 'value', base_obj.members[member])
-        
-        return None
-    
-    def _get_before_value(self, current_node: CFGNode, var_ref: str) -> Any:
-        """
-        Get the value of var_ref before the current statement.
-        Look at predecessor nodes or statement history.
-        """
-        # Simple approach: if current node has statements,
-        # look at variable state before the last statement
-        if hasattr(current_node, 'statements') and current_node.statements:
-            # For now, return the current value as approximation
-            # In a full implementation, we'd track statement-level changes
-            return self._resolve_var_ref(var_ref, current_node.variables)
-        
-        return None
-    
-    def _get_assigned_value(self, current_node: CFGNode, var_ref: str) -> Any:
-        """
-        Get the value that was just assigned to var_ref.
-        """
-        # Look through statements in current node for assignments
-        if hasattr(current_node, 'statements'):
-            for stmt in reversed(current_node.statements):  # Most recent first
-                if (hasattr(stmt, 'statement_type') and 
-                    stmt.statement_type == 'assignment' and
-                    hasattr(stmt, 'left')):
-                    # Check if this assignment targets var_ref
-                    if (hasattr(stmt.left, 'identifier') and 
-                        stmt.left.identifier == var_ref):
-                        # Return the right-hand side value
-                        if hasattr(stmt, 'right'):
-                            return self._evaluate_expression(stmt.right, current_node.variables)
-        
-        return None
-    
-    def _get_return_expression_value(self, current_node: CFGNode) -> Any:
-        """
-        Get return expression value from current node.
-        """
-        if hasattr(current_node, 'statements'):
-            for stmt in reversed(current_node.statements):
-                if (hasattr(stmt, 'statement_type') and 
-                    stmt.statement_type == 'return' and
-                    hasattr(stmt, 'return_expr')):
-                    return self._evaluate_expression(stmt.return_expr, current_node.variables)
-        
-        return None
-    
-    def _join_predecessor_variables(self, node: CFGNode, cfg) -> Dict[str, Variables]:
-        """
-        Join variable states from all predecessor nodes.
-        """
-        predecessors = list(cfg.graph.predecessors(node))
-        if not predecessors:
-            return {}
-        
-        # Start with first predecessor's variables
-        joined_vars = VariableEnv.copy_variables(predecessors[0].variables)
-        
-        # Join with remaining predecessors
-        for pred in predecessors[1:]:
-            joined_vars = VariableEnv.join_variables_simple(joined_vars, pred.variables)
-        
-        return joined_vars
-    
-    def _join_return_values(self, exit_node: CFGNode, cfg) -> Any:
-        """
-        Join return values from all paths leading to exit.
-        """
-        predecessors = list(cfg.graph.predecessors(exit_node))
-        return_values = []
-        
-        for pred in predecessors:
-            if hasattr(pred, 'return_vals') and pred.return_vals:
-                # Collect all return values
-                for ret_val in pred.return_vals.values():
-                    return_values.append(ret_val)
-        
-        if not return_values:
-            return None
-        
-        # For now, return first value or join them if multiple
-        if len(return_values) == 1:
-            return return_values[0]
-        
-        # Join multiple return values (simplified)
-        result = return_values[0]
-        for val in return_values[1:]:
-            if hasattr(result, 'join'):
-                result = result.join(val)
-        
-        return result
-    
-    def _evaluate_intent_expression(self, intent_expr: Any, variables: Dict[str, Variables]) -> Any:
-        """
-        Evaluate an intent expression in the context of given variables.
-        """
-        # This would use the existing expression evaluation logic
-        # For now, simple placeholder
-        if hasattr(intent_expr, 'literal'):
-            return intent_expr.literal
-        
-        if hasattr(intent_expr, 'identifier'):
-            return self._resolve_var_ref(intent_expr.identifier, variables)
-        
-        return intent_expr
-    
-    def _evaluate_expression(self, expr: Expression, variables: Dict[str, Variables]) -> Any:
-        """
-        Evaluate an expression using the analyzer's evaluation logic.
-        """
-        if hasattr(self.analyzer, 'evaluator'):
-            return self.analyzer.evaluator.evaluate_expression(expr, variables)
-        
-        # Fallback: simple evaluation
-        if hasattr(expr, 'literal'):
-            return expr.literal
-        
-        if hasattr(expr, 'identifier'):
-            return self._resolve_var_ref(expr.identifier, variables)
-        
-        return None
-    
-    def _compare_values(self, left: Any, op: str, right: Any) -> Dict[str, Any]:
-        """
-        Compare two values using the given operator.
-        Returns dict with 'satisfied' boolean and 'message' string.
-        """
-        try:
-            # Handle interval comparisons
-            if hasattr(left, 'compare') and hasattr(right, 'compare'):
-                # Both are intervals - use interval arithmetic
-                if op == '<':
-                    satisfied = left.max_value < right.min_value if hasattr(left, 'max_value') else False
-                elif op == '>':
-                    satisfied = left.min_value > right.max_value if hasattr(left, 'min_value') else False
-                elif op == '<=':
-                    satisfied = left.max_value <= right.min_value if hasattr(left, 'max_value') else False
-                elif op == '>=':
-                    satisfied = left.min_value >= right.max_value if hasattr(left, 'min_value') else False
-                elif op == '==':
-                    satisfied = (hasattr(left, 'min_value') and hasattr(left, 'max_value') and
-                               left.min_value == left.max_value == right.min_value == right.max_value)
-                elif op == '!=':
-                    satisfied = not (hasattr(left, 'min_value') and hasattr(left, 'max_value') and
-                                   left.min_value == left.max_value == right.min_value == right.max_value)
-                else:
-                    satisfied = False
-            else:
-                # Simple value comparison
-                if op == '<':
-                    satisfied = left < right
-                elif op == '>':
-                    satisfied = left > right
-                elif op == '<=':
-                    satisfied = left <= right
-                elif op == '>=':
-                    satisfied = left >= right
-                elif op == '==':
-                    satisfied = left == right
-                elif op == '!=':
-                    satisfied = left != right
-                else:
-                    satisfied = False
-            
-            return {
-                'satisfied': satisfied,
-                'message': f'{left} {op} {right} = {satisfied}'
-            }
-            
-        except Exception as e:
-            return {
-                'satisfied': False,
-                'message': f'Comparison error: {str(e)}'
-            }
-    
-    def _values_equal(self, left: Any, right: Any) -> bool:
-        """
-        Check if two values are equal, handling intervals and other types.
-        """
-        try:
-            if hasattr(left, 'equals') and hasattr(right, 'equals'):
-                return left.equals(right)
-            
-            return left == right
-            
-        except:
-            return False
+            return {"satisfied": False, "violated": True,
+                    "uncertain": True, "confidence": 0.0,
+                    "message": f"comparison error: {e}"}

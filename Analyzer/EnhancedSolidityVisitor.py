@@ -634,33 +634,33 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
         # y ( Before > After )
         lhs_expr = self.visitVarRef(ctx.varRef())
-        op = ctx.compOp().getText()
+        op = self._comp_op(ctx)
         self.contract_analyzer.process_during_before_after(lhs_expr, op)  # ← rhs 없음
         return None
 
     def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
         # x ( Assign <= Current )
         lhs_expr = self.visitVarRef(ctx.varRef())
-        op = ctx.compOp().getText()
+        op = self._comp_op(ctx)
         self.contract_analyzer.process_during_assign_current(lhs_expr, op)
         return None
 
     def visitDuringRetExpr(self, ctx: SolidityParser.DuringRetExprContext, **kw):
-        comp_op = ctx.compOp().getText()
+        comp_op = self._comp_op(ctx)
         val_expr = self._parse_value_expr(ctx.valueExpr())
         self.contract_analyzer.process_during_return_expression(comp_op, val_expr)
         return None
 
     def visitDuringRetVar(self, ctx: SolidityParser.DuringRetVarContext, **kw):
         var_ref_expr = self.visitVarRef(ctx.varRef())
-        comp_op = ctx.compOp().getText()
+        comp_op = self._comp_op(ctx)
         val_expr = self._parse_value_expr(ctx.valueExpr())
         self.contract_analyzer.process_during_return_variable(var_ref_expr, comp_op, val_expr)
         return None
 
     def visitDuringDirectCmp(self, ctx: SolidityParser.DuringDirectCmpContext, **kw):
         lhs = self._parse_value_expr(ctx.valueExpr(0))
-        op = ctx.compOp().getText()
+        op = self._comp_op(ctx)
         rhs = self._parse_value_expr(ctx.valueExpr(1))
         self.contract_analyzer.process_during_direct_comparison(lhs, op, rhs)
         return None
@@ -676,26 +676,26 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())
-        comp_op = ctx.compOp().getText()
+        comp_op = self._comp_op(ctx)
         self.contract_analyzer.process_post_entry_exit(var_ref_expr, comp_op)
         return None
 
     def visitPostRetExpr(self, ctx: SolidityParser.PostRetExprContext):
-        comp_op = ctx.compOp().getText()
+        comp_op = self._comp_op(ctx)
         val_expr = self._parse_value_expr(ctx.valueExpr())
         self.contract_analyzer.process_post_return_expression(comp_op, val_expr)
         return None
 
     def visitPostRetVar(self, ctx: SolidityParser.PostRetVarContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())
-        comp_op = ctx.compOp().getText()
+        comp_op = self._comp_op(ctx)
         val_expr = self._parse_value_expr(ctx.valueExpr())
         self.contract_analyzer.process_post_return_variable(var_ref_expr, comp_op, val_expr)
         return None
 
     def visitPostDirectCmp(self, ctx: SolidityParser.PostDirectCmpContext):
         lhs = self._parse_value_expr(ctx.valueExpr(0))
-        op = ctx.compOp().getText()
+        op = self._comp_op(ctx)
         rhs = self._parse_value_expr(ctx.valueExpr(1))
         self.contract_analyzer.process_post_direct_comparison(lhs, op, rhs)
         return None
@@ -877,6 +877,36 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             context='MulDivModContext'
         )
 
+    # Visit a parse tree produced by SolidityParser#NumLiteral.
+    def visitNumLiteral(self, ctx: SolidityParser.NumLiteralContext):
+        # signedNumberLiteral
+        literal_val = ctx.signedNumberLiteral().getText()
+        return Expression(
+            literal=literal_val,
+            expr_type='int',
+            context='NumLiteralContext'
+        )
+
+    # Visit a parse tree produced by SolidityParser#InlineInterval.
+    def visitInlineInterval(self, ctx: SolidityParser.InlineIntervalContext):
+        """
+        [a , b]  형태 인라인 구간 리터럴 → Expression(interval)
+        """
+        s = ctx.signedNumberLiteral(0).getText()
+        e = ctx.signedNumberLiteral(1).getText()
+
+        start = Expression(literal=s, expr_type="int", context="InlineIntStart")
+        end = Expression(literal=e, expr_type="int", context="InlineIntEnd")
+
+        return Expression(elements=[start, end],
+                          expr_type="interval",
+                          context="InlineInterval")
+
+    # Visit a parse tree produced by SolidityParser#NumVarRef.
+    def visitNumVarRef(self, ctx: SolidityParser.NumVarRefContext):
+        # varRef
+        return self.visitVarRef(ctx.varRef())
+
     # Visit a parse tree produced by SolidityParser#PercentOfFunc.
     def visitPercentOfFunc(self, ctx: SolidityParser.PercentOfFuncContext):
         # percentOf '(' arithExpr ',' numberLiteral ')'
@@ -927,21 +957,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             operator='()',
             context='FloorFuncContext'
         )
-
-    # Visit a parse tree produced by SolidityParser#NumLiteral.
-    def visitNumLiteral(self, ctx: SolidityParser.NumLiteralContext):
-        # signedNumberLiteral
-        literal_val = ctx.signedNumberLiteral().getText()
-        return Expression(
-            literal=literal_val,
-            expr_type='int',
-            context='NumLiteralContext'
-        )
-
-    # Visit a parse tree produced by SolidityParser#NumVarRef.
-    def visitNumVarRef(self, ctx: SolidityParser.NumVarRefContext):
-        # varRef
-        return self.visitVarRef(ctx.varRef())
 
     # Visit a parse tree produced by SolidityParser#Parenthesized.
     def visitParenthesized(self, ctx: SolidityParser.ParenthesizedContext):
@@ -2440,3 +2455,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     def _parse_value_expr(self, ctx: SolidityParser.ValueExprContext):
         return self.visit(ctx)
+
+    def _comp_op(self, ctx):
+        raw = ctx.compOp().getText()          # '<', '>', 'in', 'notin', …
+        return "not in" if raw == "notin" else raw

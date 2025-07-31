@@ -35,7 +35,7 @@ class CFGNode:
 
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
-        self.before_env: dict[str, Variables] | None = None  # ← 이 라인 직전
+        self.before_envs: dict[int, dict[str, Variables]] = {}
 
         self.function_exit_node = False
         self.return_vals = {}
@@ -273,6 +273,7 @@ class FunctionCFG(CFG):
         self.parameters: list[str] = []  # ←★ 추가
         self.return_types: list[SolType] = []   # 이름 없는 리턴
         self.return_vars : list = [] # 이름이 있는 리턴
+        self.assign_envs: dict[int, dict[str, Variables]] = {}  # ★ line_no → {var: rhs}
 
         self.exit_node.function_exit_node = True
 

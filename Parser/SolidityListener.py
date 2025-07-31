@@ -827,6 +827,33 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#NumLiteral.
+    def enterNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#NumLiteral.
+    def exitNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#InlineInterval.
+    def enterInlineInterval(self, ctx:SolidityParser.InlineIntervalContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#InlineInterval.
+    def exitInlineInterval(self, ctx:SolidityParser.InlineIntervalContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#NumVarRef.
+    def enterNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#NumVarRef.
+    def exitNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#PercentOfFunc.
     def enterPercentOfFunc(self, ctx:SolidityParser.PercentOfFuncContext):
         pass
@@ -851,24 +878,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#FloorFunc.
     def exitFloorFunc(self, ctx:SolidityParser.FloorFuncContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#NumLiteral.
-    def enterNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#NumLiteral.
-    def exitNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#NumVarRef.
-    def enterNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#NumVarRef.
-    def exitNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
         pass
 
 

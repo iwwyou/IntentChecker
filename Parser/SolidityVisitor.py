@@ -464,6 +464,21 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#NumLiteral.
+    def visitNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#InlineInterval.
+    def visitInlineInterval(self, ctx:SolidityParser.InlineIntervalContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#NumVarRef.
+    def visitNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#PercentOfFunc.
     def visitPercentOfFunc(self, ctx:SolidityParser.PercentOfFuncContext):
         return self.visitChildren(ctx)
@@ -476,16 +491,6 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#FloorFunc.
     def visitFloorFunc(self, ctx:SolidityParser.FloorFuncContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#NumLiteral.
-    def visitNumLiteral(self, ctx:SolidityParser.NumLiteralContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#NumVarRef.
-    def visitNumVarRef(self, ctx:SolidityParser.NumVarRefContext):
         return self.visitChildren(ctx)
 
 

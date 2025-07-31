@@ -353,11 +353,12 @@ arithTerm
     ;
 
 arithFactor
-    : 'PercentOf' '(' arithExpr ',' numberLiteral ')'   #PercentOfFunc
+    : signedNumberLiteral                               #NumLiteral
+    | '[' signedNumberLiteral ',' signedNumberLiteral ']'   #InlineInterval
+    | varRef                                            #NumVarRef
+    | 'PercentOf' '(' arithExpr ',' numberLiteral ')'   #PercentOfFunc
     | 'ceil'  '(' arithExpr ',' numberLiteral ')'       #CeilFunc
     | 'floor' '(' arithExpr ',' numberLiteral ')'       #FloorFunc
-    | signedNumberLiteral                               #NumLiteral
-    | varRef                                            #NumVarRef
     | '(' arithExpr ')'                                 #Parenthesized
     ;
 
@@ -379,7 +380,11 @@ boolExpr
 //--------------------------------------------------
 signedNumberLiteral : '-'? numberLiteral ;
 logicOp : '&&' | '||' ;
-compOp  : '<' | '>' | '<=' | '>=' | '==' | '!=' ;
+compOp
+    : '<'  | '>'  | '<=' | '>=' | '==' | '!='        // 기존
+    | 'in'                                          // 포함
+    | 'not' 'in'                                    // 미포함  (띄어쓰기 상관없음)
+    ;
 
 inlineArrayAnnotation
     : 'array' '[' inlineArrayElements? ']' ;
