@@ -773,43 +773,48 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     def visitVarRef(self, ctx: SolidityParser.VarRefContext):
-        # ── ALT-1  return[INT]  ────────────────────────────────
-        if ctx.getToken(SolidityParser.Return, 0):
-            num_tok = ctx.numberLiteral()  # TerminalNode
-            idx_expr = Expression(
-                literal=num_tok.getText(),
-                expr_type="int",
-                context="ReturnTupleIndex",
-            )
-            return Expression(
-                base=Expression(identifier="return", context="ReturnTupleBase"),
-                index=idx_expr,
-                access="index_access",
-                context="ReturnElemRef",
-            )
+        # 그냥 children 으로 위임
+        return self.visitChildren(ctx)
 
-        # ── ALT-2  identifier(.|[...])*  ───────────────────────
-        ident_ctx = ctx.identifier(0)  # first IDENT
-        current = Expression(identifier=ident_ctx.getText(), context="VarRefBase")
+    def visitReturnElemRef(self, ctx: SolidityParser.ReturnElemRefContext):
+        idx_tok = ctx.numberLiteral()  # TerminalNode
+        idx_expr = Expression(
+            literal=idx_tok.getText(),
+            expr_type="int",
+            context="ReturnTupleIndex",
+        )
+        return Expression(
+            base=Expression(identifier="return", context="ReturnTupleBase"),
+            index=idx_expr,
+            access="index_access",
+            context="ReturnElemRef",
+        )
 
-        # subAccess*  (may be empty)
-        for sa in (ctx.subAccess() or []):
+    def visitNormalVarRef(self, ctx: SolidityParser.NormalVarRefContext):
+        # 첫 식별자
+        cur = Expression(
+            identifier=ctx.identifier().getText(),
+            context="VarRefBase",
+        )
+
+        # subAccess*  (없으면 for-loop 건너뜀)
+        for sa in ctx.subAccess():
             if isinstance(sa, SolidityParser.IntentMemberAccessContext):
-                current = Expression(
-                    base=current,
+                cur = Expression(
+                    base=cur,
                     member=sa.identifier().getText(),
                     operator=".",
                     context="VarRefMemberAccess",
                 )
             else:  # IntentIndexAccess
-                idx_expr = self.visitExpression(sa.expression())
-                current = Expression(
-                    base=current,
-                    index=idx_expr,
+                idx = self.visitExpression(sa.expression())
+                cur = Expression(
+                    base=cur,
+                    index=idx,
                     access="index_access",
                     context="VarRefIndexAccess",
                 )
-        return current
+        return cur
 
     # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
     def visitIntentMemberAccess(self, ctx: SolidityParser.IntentMemberAccessContext):

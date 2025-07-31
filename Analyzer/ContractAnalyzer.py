@@ -88,6 +88,9 @@ class ContractAnalyzer:
                         if getattr(st, "src_line", None) == old_ln:
                             st.src_line = new_ln
 
+                if hasattr(fcfg, "assign_envs") and old_ln in fcfg.assign_envs:
+                    fcfg.assign_envs[new_ln] = fcfg.assign_envs.pop(old_ln)
+
     def _insert_lines(self, start: int, new_lines: list[str]):
         offset = len(new_lines)
 
@@ -1696,235 +1699,142 @@ class ContractAnalyzer:
         self._batch_targets.add(self.current_target_function_cfg)
 
     # -----------------------------------------------------------
-    def process_during_before_after(self, var_ref: str, comp_op: str):
-        """Process @During varRef(Before compOp After) directive"""
+    # DURING-INTENT PROCESSORS
+    # -----------------------------------------------------------
+
+    def process_during_before_after(self, var_ref: Expression, comp_op: str):
+        """
+        @During  x(Before < After)   형태
+        var_ref  : Expression 객체 (visitVarRef 결과)
+        comp_op  : '<' '>' … 등
+        """
+        line_no = self.current_start_line
         result = self.guardian_verifier.verify_during_before_after(
-            var_ref=var_ref, 
-            comp_op=comp_op, 
-            line_no=self.current_start_line
+            var_ref=var_ref,
+            comp_op=comp_op,
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
         )
-        
-        # Record the result for IDE display
-        self.recorder.record_verification_result(self.current_start_line, "duringBeforeAfter", result)
-        
+        self.recorder.record_verification_result(line_no, "duringBeforeAfter", result)
         return result
 
-    def process_during_assign_current(self, var_ref: str, comp_op: str, intent_expr):
-        """Process @During varRef(Assign compOp Current) directive"""
+    def process_during_assign_current(self, var_ref: Expression, comp_op: str):
+        """
+        @During  x(Assign <= Current)
+        현재 statement 가 “할당” 문장인지 여부까지 Guardian 쪽에서 검사
+        """
+        line_no = self.current_start_line
         result = self.guardian_verifier.verify_during_assign_current(
             var_ref=var_ref,
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "duringAssignCurrent", result)
-        
+        self.recorder.record_verification_result(line_no, "duringAssignCurrent", result)
         return result
 
-    def process_during_ret_expr(self, comp_op: str, intent_expr):
-        """Process @During returnExpression compOp intentExpression directive"""
+    def process_during_return_expression(self, comp_op: str, value_expr: Expression):
+        """
+        @During  returnExpression  op  valueExpr
+        """
+        line_no = self.current_start_line
         result = self.guardian_verifier.verify_during_return_expression(
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            value_expr=value_expr,
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "duringRetExpr", result)
-        
+        self.recorder.record_verification_result(line_no, "duringRetExpr", result)
         return result
 
-    def process_during_ret_var(self, var_ref: str, comp_op: str, intent_expr):
-        """Process @During return varRef compOp intentExpression directive"""
-        result = self.guardian_verifier.verify_during_return_expression(
+    def process_during_return_variable(self, var_ref: Expression, comp_op: str, value_expr: Expression):
+        """
+        @During  return x  op  valueExpr     (tuple 원소 가능)
+        """
+        line_no = self.current_start_line
+        result = self.guardian_verifier.verify_during_return_variable(
+            var_ref=var_ref,
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            value_expr=value_expr,
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "duringRetVar", result)
-        
+        self.recorder.record_verification_result(line_no, "duringRetVar", result)
         return result
 
-    def process_during_direct_cmp(self, left_expr, comp_op: str, right_expr):
-        """Process @During intentExpression compOp intentExpression directive"""
-        # For direct comparisons, we evaluate both expressions and compare
-        # This is a simplified implementation - more complex logic may be needed
-        result = {
-            'status': 'success',
-            'message': f'During direct comparison: {left_expr} {comp_op} {right_expr}',
-            'line': self.current_start_line
-        }
-        
-        self.recorder.record_verification_result(self.current_start_line, "duringDirectCmp", result)
-        
+    def process_during_direct_comparison(self, lhs_expr: Expression, comp_op: str, rhs_expr: Expression):
+        """
+        @During  valueExpr  op  valueExpr
+        """
+        line_no = self.current_start_line
+        result = self.guardian_verifier.verify_during_direct_comparison(
+            lhs_expr=lhs_expr,
+            comp_op=comp_op,
+            rhs_expr=rhs_expr,
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
+        )
+        self.recorder.record_verification_result(line_no, "duringDirectCmp", result)
         return result
 
     # -----------------------------------------------------------
-    # POST INTENT PROCESSING METHODS
+    # POST-INTENT PROCESSORS
     # -----------------------------------------------------------
-    
-    def process_post_entry_exit(self, var_ref: str, comp_op: str, line_no: int = None):
-        """Process @Post varRef(Entry compOp Exit) directive"""
-        if line_no is None:
-            line_no = self.current_start_line
-            
+
+    def process_post_entry_exit(self, var_ref: Expression, comp_op: str):
+        line_no = self.current_start_line
         result = self.guardian_verifier.verify_post_entry_exit(
             var_ref=var_ref,
             comp_op=comp_op,
-            line_no=line_no
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
         )
-        
         self.recorder.record_verification_result(line_no, "postEntryExit", result)
-        
         return result
-    
-    def process_post_ret_expr(self, comp_op: str, intent_expr):
-        """Process @Post returnExpression compOp intentExpression directive"""
-        result = self.guardian_verifier.verify_during_return_expression(
+
+    def process_post_return_expression(self, comp_op: str, value_expr: Expression):
+        line_no = self.current_start_line
+        result = self.guardian_verifier.verify_post_return_expression(
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            value_expr=value_expr,
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "postRetExpr", result)
-        
+        self.recorder.record_verification_result(line_no, "postRetExpr", result)
         return result
-    
-    def process_post_ret_var(self, var_ref: str, comp_op: str, intent_expr):
-        """Process @Post return varRef compOp intentExpression directive"""
-        result = self.guardian_verifier.verify_during_return_expression(
+
+    def process_post_return_variable(self, var_ref: Expression, comp_op: str, value_expr: Expression):
+        line_no = self.current_start_line
+        result = self.guardian_verifier.verify_post_return_variable(
+            var_ref=var_ref,
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            value_expr=value_expr,
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "postRetVar", result)
-        
+        self.recorder.record_verification_result(line_no, "postRetVar", result)
         return result
-    
-    def process_post_ret_join(self, comp_op: str, intent_expr):
-        """Process @Post returnValues compOp intentExpression directive"""
-        result = self.guardian_verifier.verify_post_return_values(
+
+    def process_post_direct_comparison(self, lhs_expr: Expression, comp_op: str, rhs_expr: Expression):
+        line_no = self.current_start_line
+        result = self.guardian_verifier.verify_post_direct_comparison(
+            lhs_expr=lhs_expr,
             comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=self.current_start_line
+            rhs_expr=rhs_expr,
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
         )
-        
-        self.recorder.record_verification_result(self.current_start_line, "postRetJoin", result)
-        
+        self.recorder.record_verification_result(line_no, "postDirectCmp", result)
         return result
-    
-    def process_post_direct_cmp(self, left_expr, comp_op: str, right_expr):
-        """Process @Post intentExpression compOp intentExpression directive"""
-        # For direct comparisons, we evaluate both expressions and compare
-        result = {
-            'status': 'success',
-            'message': f'Post direct comparison: {left_expr} {comp_op} {right_expr}',
-            'line': self.current_start_line
-        }
-        
-        self.recorder.record_verification_result(self.current_start_line, "postDirectCmp", result)
-        
-        return result
-    
-    def process_post_unchanged(self, var_ref: str, line_no: int = None):
-        """Process @Post Unchanged(varRef) directive"""
-        if line_no is None:
-            line_no = self.current_start_line
-            
+
+    def process_post_unchanged(self, var_ref: Expression):
+        line_no = self.current_start_line
         result = self.guardian_verifier.verify_post_unchanged(
             var_ref=var_ref,
-            line_no=line_no
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
         )
-        
         self.recorder.record_verification_result(line_no, "postUnchanged", result)
-        
-        return result
-
-    # Additional methods for updated visitor pattern
-    
-    def process_during_return_expression(self, comp_op: str, intent_expr, line_no: int):
-        """Process @During returnExpression compOp intentExpression directive"""
-        result = self.guardian_verifier.verify_during_return_expression(
-            comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=line_no
-        )
-        
-        self.recorder.record_verification_result(line_no, "duringReturnExpression", result)
-        return result
-
-    def process_during_return_variable(self, var_ref: str, comp_op: str, intent_expr, line_no: int):
-        """Process @During return varRef compOp intentExpression directive"""
-        # This maps to existing process_during_ret_var with line_no parameter
-        result = self.guardian_verifier.verify_during_return_expression(
-            comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=line_no
-        )
-        
-        self.recorder.record_verification_result(line_no, "duringReturnVariable", result)
-        return result
-
-    def process_during_direct_comparison(self, lhs_expr, comp_op: str, rhs_expr, line_no: int):
-        """Process @During intentExpression compOp intentExpression directive"""
-        # This maps to existing process_during_direct_cmp with line_no parameter
-        result = {
-            'status': 'success',
-            'message': f'During direct comparison: {lhs_expr} {comp_op} {rhs_expr}',
-            'line': line_no
-        }
-        
-        self.recorder.record_verification_result(line_no, "duringDirectComparison", result)
-        return result
-
-    def process_post_return_expression(self, comp_op: str, intent_expr, line_no: int):
-        """Process @Post returnExpression compOp intentExpression directive"""
-        # This maps to existing process_post_ret_expr with line_no parameter
-        result = self.guardian_verifier.verify_post_return_values(
-            comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=line_no
-        )
-        
-        self.recorder.record_verification_result(line_no, "postReturnExpression", result)
-        return result
-
-    def process_post_return_variable(self, var_ref: str, comp_op: str, intent_expr, line_no: int):
-        """Process @Post return varRef compOp intentExpression directive"""
-        # This maps to existing process_post_ret_var with line_no parameter
-        result = self.guardian_verifier.verify_post_return_values(
-            comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=line_no
-        )
-        
-        self.recorder.record_verification_result(line_no, "postReturnVariable", result)
-        return result
-
-    def process_post_return_values(self, comp_op: str, intent_expr, line_no: int):
-        """Process @Post returnValues compOp intentExpression directive"""
-        # This maps to existing process_post_ret_join with line_no parameter
-        result = self.guardian_verifier.verify_post_return_values(
-            comp_op=comp_op,
-            intent_expr=intent_expr,
-            line_no=line_no
-        )
-        
-        self.recorder.record_verification_result(line_no, "postReturnValues", result)
-        return result
-
-    def process_post_direct_comparison(self, lhs_expr, comp_op: str, rhs_expr, line_no: int):
-        """Process @Post intentExpression compOp intentExpression directive"""
-        # This maps to existing process_post_direct_cmp with line_no parameter
-        result = {
-            'status': 'success',
-            'message': f'Post direct comparison: {lhs_expr} {comp_op} {rhs_expr}',
-            'line': line_no
-        }
-        
-        self.recorder.record_verification_result(line_no, "postDirectComparison", result)
         return result
 
     def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:
@@ -2014,3 +1924,6 @@ class ContractAnalyzer:
     # 공통 ‘한 줄 helper’
     def register_var(self, var_obj):
         self.snapman.register(var_obj, self.ser)
+
+    def _cfg_node_at(self, line_no: int):
+        return (self.brace_count.get(line_no, {}) or {}).get("cfg_node")

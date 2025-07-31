@@ -35,6 +35,7 @@ class CFGNode:
 
         self.statements = []  # 기본 블록 내의 명령어 리스트
         self.variables = {}  # var_name -> Variables 객체
+        self.before_env: dict[str, Variables] | None = None  # ← 이 라인 직전
 
         self.function_exit_node = False
         self.return_vals = {}
