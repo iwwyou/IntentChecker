@@ -12,10 +12,11 @@ if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
 from Domain.Variable import Variables
-from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
+from Domain.Interval import Interval, IntegerInterval, UnsignedIntegerInterval, BoolInterval
 from Domain.IR import Expression
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
+from functools import reduce
 
 
 class GuardianVerificationEngine:
@@ -68,43 +69,421 @@ class GuardianVerificationEngine:
         except Exception as e:
             return self._err("duringBeforeAfter", f"internal error: {e}", line_no)
 
-    def verify_during_assign_current(self, *, var_ref, comp_op, line_no, cfg_node):
-        return self._todo("duringAssignCurrent", line_no)
+    def verify_during_assign_current(self, *, var_ref, comp_op,
+                                     line_no, cfg_node):
 
-    def verify_during_return_expression(self, *, comp_op, value_expr, line_no, cfg_node):
-        return self._todo("duringRetExpr", line_no)
+        fcfg = self.analyzer.current_target_function_cfg
 
-    def verify_during_return_variable(self, *, var_ref, comp_op, value_expr, line_no, cfg_node):
-        return self._todo("duringRetVar", line_no)
+        # 1)  Assign 값  ― assign_env 를 통째로 변수-환경으로 사용
+        assign_val = self.analyzer.evaluator.evaluate_expression(
+            var_ref, fcfg.assign_env, None, None)
 
-    def verify_during_direct_comparison(self, *, lhs_expr, comp_op, rhs_expr, line_no, cfg_node):
-        return self._todo("duringDirectCmp", line_no)
+        if assign_val is None:
+            return self._err("duringAssignCurrent",
+                             "no initial assignment for variable", line_no)
+
+        # 2)  Current 값
+        current_val = self.analyzer.evaluator.evaluate_expression(
+            var_ref, cfg_node.variables, None, None)
+
+        # 3)  비교
+        cmp = self._compare_values(assign_val, comp_op, current_val)
+        status = "success" if cmp["satisfied"] else "violation"
+
+        return {
+            "status": status,
+            "kind": "duringAssignCurrent",
+            "line": line_no,
+            "details": {
+                "variable": self._expr_to_str(var_ref),
+                "assign_value": str(assign_val),
+                "current_value": str(current_val),
+                "operator": comp_op,
+                **cmp
+            },
+            "message": f'{self._expr_to_str(var_ref)}(Assign {comp_op} Current) '
+                       f'→ {cmp["message"]}',
+        }
+
+    def verify_during_return_expression(
+        self, *, comp_op: str, value_expr: Expression,
+        line_no: int, cfg_node: CFGNode
+    ) -> dict[str, any]:
+
+        try:
+            # ── 1) “현재 함수” CFG -------------------------------
+            fcfg = self.analyzer.current_target_function_cfg
+            if fcfg is None:
+                return self._err("duringRetExpr",
+                                  "no active FunctionCFG", line_no)
+
+            # ── 2) return 값 확보 -------------------------------
+            # builder 가 EXIT.return_vals[ln] 에 저장해 둔다.
+            ret_vals = fcfg.get_exit_node().return_vals
+            if line_no not in ret_vals:
+                return self._err("duringRetExpr",
+                                  f"no return at line {line_no}", line_no)
+            ret_val = ret_vals[line_no]
+
+            # ── 3) valueExpr 평가 -------------------------------
+            rhs_val = self.analyzer.evaluator.evaluate_expression(
+                value_expr, cfg_node.variables, None, None)
+
+            # ── 4) 비교 ----------------------------------------
+            cmp = self._compare_values(ret_val, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+
+            return {
+                "status":  status,
+                "kind":    "duringRetExpr",
+                "line":    line_no,
+                "details": {
+                    "return_value": str(ret_val),
+                    "expected":     str(rhs_val),
+                    "operator":     comp_op,
+                    **cmp
+                },
+                "message": (f"returnExpression {comp_op} {self._pretty_expr(value_expr)} "
+                            f"→ {cmp['message']}")
+            }
+
+        except Exception as e:
+            return self._err("duringRetExpr", f"internal error: {e}", line_no)
+
+    # ────────────────────────────────────────────────────────────────
+    #  DURING : return var  비교
+    # ----------------------------------------------------------------
+    def verify_during_return_variable(
+            self, *, var_ref, comp_op, value_expr, line_no, cfg_node
+    ) -> dict[str, any]:
+
+        try:
+            fcfg = self.analyzer.current_target_function_cfg
+            exit_n = fcfg.get_exit_node()
+
+            # ① “해당‧또는 가장 가까운 이전” return-값 가져오기 -------------
+            if line_no in exit_n.return_vals:
+                ret_val = exit_n.return_vals[line_no]
+            else:  # 앞쪽에서 찾기
+                prevs = [ln for ln in exit_n.return_vals if ln < line_no]
+                if not prevs:
+                    return self._err("duringRetVar",
+                                     "no return value available", line_no)
+                ln_sel = max(prevs)  # 가장 가까운 것
+                ret_val = exit_n.return_vals[ln_sel]
+
+            # ② LHS 값 추출  -------------------------------------------------
+            if var_ref.context == "ReturnElemRef":
+                idx = int(var_ref.index.literal, 0)
+                if not isinstance(ret_val, (list, tuple)):
+                    return self._err("duringRetVar",
+                                     "function does not return a tuple", line_no)
+                if idx >= len(ret_val):
+                    return self._err("duringRetVar",
+                                     f"tuple index {idx} out of range", line_no)
+                lhs_val = ret_val[idx]
+
+            else:  # 보통의 varRef (이름 있는 return 변수 등)
+                lhs_val = self.analyzer.evaluator.evaluate_expression(
+                    var_ref, cfg_node.variables, None, None
+                )
+
+            # ③ RHS 값 계산  -------------------------------------------------
+            rhs_val = self.analyzer.evaluator.evaluate_expression(
+                value_expr, cfg_node.variables, None, None
+            )
+
+            # ④ 비교  --------------------------------------------------------
+            cmp = self._compare_values(lhs_val, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+
+            return {
+                "status": status,
+                "kind": "duringRetVar",
+                "line": line_no,
+                "details": {
+                    "variable": self._pretty_expr(var_ref),
+                    "actual": str(lhs_val),
+                    "expected": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'return {self._pretty_expr(var_ref)} {comp_op} '
+                           f'{rhs_val}  →  {cmp["message"]}'
+            }
+
+        except Exception as e:
+            return self._err("duringRetVar", f"internal error: {e}", line_no)
+
+    # ────────────────────────────────────────────────────────────────
+    #  DURING :  valueExpr  op  valueExpr
+    # ----------------------------------------------------------------
+    def verify_during_direct_comparison(
+            self, *, lhs_expr, comp_op, rhs_expr, line_no, cfg_node
+    ) -> dict[str, any]:
+
+        try:
+            ev = self.analyzer.evaluator  # 평가기 단축명
+            vars_env = cfg_node.variables  # 현재 변수 Env
+
+            # ① 두 피연산식 계산 -------------------------------------------------
+            lhs_val = ev.evaluate_expression(lhs_expr, vars_env, None, None)
+            rhs_val = ev.evaluate_expression(rhs_expr, vars_env, None, None)
+
+            # ② 비교 ------------------------------------------------------------
+            cmp = self._compare_values(lhs_val, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+
+            # ③ 결과 dict -------------------------------------------------------
+            return {
+                "status": status,
+                "kind": "duringDirectCmp",
+                "line": line_no,
+                "details": {
+                    "lhs": str(lhs_val),
+                    "rhs": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp  # satisfied / violated / uncertain / confidence
+                },
+                "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
+                           f'{self._pretty_expr(rhs_expr)}  →  {cmp["message"]}'
+            }
+
+        except Exception as e:
+            return self._err("duringDirectCmp",
+                             f"internal error: {e}", line_no)
 
     # === POST =======================================================
 
-    def verify_post_entry_exit(self, *, var_ref, comp_op, line_no, fn_cfg):
-        return self._todo("postEntryExit", line_no)
+    # GuardianVerificationEngine.py
+    # ────────────────────────────────────────────────────────────────
+    #  POST :  varRef( Entry <op> Exit )
+    # ----------------------------------------------------------------
+    def verify_post_entry_exit(
+            self, *, var_ref, comp_op: str, line_no: int, fn_cfg
+    ) -> dict[str, any]:
 
-    def verify_post_return_expression(self, *, comp_op, value_expr, line_no, fn_cfg):
-        return self._todo("postRetExpr", line_no)
+        ev = self.analyzer.evaluator  # 평가기 별칭
 
-    def verify_post_return_variable(self, *, var_ref, comp_op, value_expr, line_no, fn_cfg):
-        return self._todo("postRetVar", line_no)
+        # 1) Entry-Env  =  FunctionCFG.related_variables
+        entry_env = fn_cfg.related_variables
+        try:
+            entry_val = ev.evaluate_expression(var_ref, entry_env, None, None)
+        except Exception as e:
+            return self._err("postEntryExit",
+                             f"entry-value eval error: {e}", line_no)
 
-    def verify_post_direct_comparison(self, *, lhs_expr, comp_op, rhs_expr, line_no, fn_cfg):
-        return self._todo("postDirectCmp", line_no)
+        exit_node = fn_cfg.get_exit_node()
+        preds = list(fn_cfg.graph.predecessors(exit_node))
 
-    def verify_post_unchanged(self, *, var_ref, line_no, fn_cfg):
-        return self._todo("postUnchanged", line_no)
+        if preds:
+            after_val = ev.evaluate_expression(var_ref, preds[0].variables, None, None)
+            for p in preds[1:]:
+                v = ev.evaluate_expression(var_ref, p.variables, None, None)
+                after_val = self._join_val(after_val, v)
+        else:
+            after_val = entry_val  # fall-back (void 함수 등)
 
-    # ---------------------------------------------------------------
-    # Simple placeholders
-    # ---------------------------------------------------------------
-    def _ok(self, tag, ln):
-        return {"status": "success", "message": f"{tag} satisfied (stub)", "line": ln}
+        # 3) 비교
+        cmp = self._compare_values(entry_val, comp_op, after_val)
+        status = "success" if cmp["satisfied"] else "violation"
 
-    def _todo(self, tag, ln):
-        return {"status": "todo", "message": f"{tag} verification not implemented yet", "line": ln}
+        return {
+            "status": status,
+            "kind": "postEntryExit",
+            "line": line_no,
+            "details": {
+                "variable": self._pretty_expr(var_ref),
+                "entry_value": str(entry_val),
+                "exit_value": str(after_val),
+                "operator": comp_op,
+                **cmp
+            },
+            "message": f'{self._pretty_expr(var_ref)}(Entry {comp_op} Exit) '
+                       f'→ {cmp["message"]}',
+        }
+
+    def verify_post_return_expression(
+            self, *, comp_op: str, value_expr, line_no: int, fn_cfg
+    ):
+        ev = self.analyzer.evaluator
+
+        # 1) EXIT-env  (EXIT predecessor variables 전부 join)
+        exit_node = fn_cfg.get_exit_node()
+        preds = list(fn_cfg.graph.predecessors(exit_node))
+
+        if preds:
+            exit_env = VariableEnv.copy_variables(preds[0].variables)
+            for p in preds[1:]:
+                for k, v in p.variables.items():
+                    exit_env[k] = self._join_val(exit_env.get(k), v)
+        else:
+            exit_env = fn_cfg.related_variables  # fallback
+
+        # 2) <returnExpression>  값 (모든 return 줄을 join)
+        ret_vals = list(exit_node.return_vals.values())
+        if not ret_vals:  # void 함수
+            return_val = None
+        else:
+            return_val = reduce(self._join_val, ret_vals)
+
+        # 3) RHS  valueExpr 평가
+        rhs_val = ev.evaluate_expression(value_expr, exit_env, None, None)
+
+        # 4) 비교
+        cmp = self._compare_values(return_val, comp_op, rhs_val)
+        status = "success" if cmp["satisfied"] else "violation"
+
+        return {
+            "status": status,
+            "kind": "postRetExpr",
+            "line": line_no,
+            "details": {
+                "return_join": str(return_val),
+                "rhs_value": str(rhs_val),
+                "operator": comp_op,
+                **cmp
+            },
+            "message": f'returnExpression {comp_op} {self._pretty_expr(value_expr)} '
+                       f'→ {cmp["message"]}',
+        }
+
+    def verify_post_return_variable(
+            self, *, var_ref, comp_op: str, value_expr, line_no: int, fn_cfg
+    ):
+        ev = self.analyzer.evaluator
+
+        # 1) EXIT-env  작성 (pred-join)
+        exit_node = fn_cfg.get_exit_node()
+        preds = list(fn_cfg.graph.predecessors(exit_node))
+
+        if preds:
+            exit_env = VariableEnv.copy_variables(preds[0].variables)
+            for p in preds[1:]:
+                for k, v in p.variables.items():
+                    exit_env[k] = self._join_val(exit_env.get(k), v)
+        else:
+            exit_env = fn_cfg.related_variables
+
+        # 2) return 값 중 var_ref 에 해당하는 부분 추출 & join
+        comp_vals = []
+        for rv in exit_node.return_vals.values():
+            comp_vals.append(self._pick_from_return(rv, var_ref))
+
+        if not comp_vals:
+            ret_comp = None
+        else:
+            ret_comp = reduce(self._join_val, comp_vals)
+
+        # 3) RHS 평가
+        rhs_val = ev.evaluate_expression(value_expr, exit_env, None, None)
+
+        # 4) 비교
+        cmp = self._compare_values(ret_comp, comp_op, rhs_val)
+        status = "success" if cmp["satisfied"] else "violation"
+
+        return {
+            "status": status,
+            "kind": "postRetVar",
+            "line": line_no,
+            "details": {
+                "variable": self._pretty_expr(var_ref),
+                "return_value": str(ret_comp),
+                "rhs_value": str(rhs_val),
+                "operator": comp_op,
+                **cmp
+            },
+            "message": f'return {self._pretty_expr(var_ref)} {comp_op} '
+                       f'{self._pretty_expr(value_expr)} → {cmp["message"]}',
+        }
+
+    def verify_post_direct_comparison(
+            self, *, lhs_expr, comp_op: str, rhs_expr,
+            line_no: int, fn_cfg):
+        """
+        @Post  <valueExpr>  op  <valueExpr>
+        Exit 시점(env-join)에서 두 값을 평가해 비교
+        """
+        ev = self.analyzer.evaluator
+
+        # 1) EXIT-env  ( predecessor 변수 join )
+        exit_node = fn_cfg.get_exit_node()
+        preds = list(fn_cfg.graph.predecessors(exit_node))
+
+        if preds:
+            exit_env = VariableEnv.copy_variables(preds[0].variables)
+            for p in preds[1:]:
+                for k, v in p.variables.items():
+                    exit_env[k] = self._join_val(exit_env.get(k), v)
+        else:  # fall-back (void 함수 등)
+            exit_env = fn_cfg.related_variables
+
+        # 2) 두 operand 평가
+        lhs_val = ev.evaluate_expression(lhs_expr, exit_env, None, None)
+        rhs_val = ev.evaluate_expression(rhs_expr, exit_env, None, None)
+
+        # 3) 비교
+        cmp = self._compare_values(lhs_val, comp_op, rhs_val)
+        status = "success" if cmp["satisfied"] else "violation"
+
+        return {
+            "status": status,
+            "kind": "postDirectCmp",
+            "line": line_no,
+            "details": {
+                "lhs_value": str(lhs_val),
+                "rhs_value": str(rhs_val),
+                "operator": comp_op,
+                **cmp
+            },
+            "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
+                       f'{self._pretty_expr(rhs_expr)} → {cmp["message"]}',
+        }
+
+    def verify_post_unchanged(
+            self, *, var_ref, line_no: int, fn_cfg):
+        """
+        @Post  Unchanged( x )   ≡   x(Entry == Exit)
+        """
+        ev = self.analyzer.evaluator
+
+        # 1) Entry 값  (FunctionCFG.related_variables)
+        entry_env = fn_cfg.related_variables
+        try:
+            entry_val = ev.evaluate_expression(var_ref, entry_env, None, None)
+        except Exception as e:
+            return self._err("postUnchanged",
+                             f"entry-value eval error: {e}", line_no)
+
+        # 2) Exit 값  (pred-join)
+        exit_node = fn_cfg.get_exit_node()
+        preds = list(fn_cfg.graph.predecessors(exit_node))
+
+        if preds:
+            exit_val = ev.evaluate_expression(var_ref, preds[0].variables, None, None)
+            for p in preds[1:]:
+                v = ev.evaluate_expression(var_ref, p.variables, None, None)
+                exit_val = self._join_val(exit_val, v)
+        else:  # fallback
+            exit_val = entry_val
+
+        # 3) 비교 (항상 '==' 로 고정)
+        cmp = self._compare_values(entry_val, '==', exit_val)
+        status = "success" if cmp["satisfied"] else "violation"
+
+        return {
+            "status": status,
+            "kind": "postUnchanged",
+            "line": line_no,
+            "details": {
+                "variable": self._pretty_expr(var_ref),
+                "entry_value": str(entry_val),
+                "exit_value": str(exit_val),
+                **cmp
+            },
+            "message": f'Unchanged({self._pretty_expr(var_ref)}) '
+                       f'→ {cmp["message"]}',
+        }
 
     # ----------------------------------------------------------------
     # helper: uniform ok / error payloads
@@ -202,12 +581,8 @@ class GuardianVerificationEngine:
         return {"state": "uncertain", "confidence": round(conf, 3)}
 
     def _compare_values(self, left, op: str, right) -> dict:
-        """
-        Interval  ➜  확률 기반 판정
-        스칼라    ➜  기존 True/False
-        """
-        # Interval ↔ Interval ----------------------------------------
-        if (hasattr(left, "min_value") and hasattr(right, "min_value")):
+        # ───────── Interval ↔ Interval (기존) ─────────
+        if hasattr(left, "min_value") and hasattr(right, "min_value"):
             info = self._compare_intervals_prob(left, right, op)
             return {
                 "satisfied": info["state"] == "satisfied",
@@ -217,7 +592,24 @@ class GuardianVerificationEngine:
                 "message": f"{info['state']} (conf={info['confidence']})"
             }
 
-        # 스칼라 ↔ 스칼라 --------------------------------------------
+        # ───────── 스칼라 ↔ Interval (주로 in / not in) ─────────
+        if not hasattr(left, "min_value") and hasattr(right, "min_value"):
+            if op in {"in", "not in"}:
+                if right.min_value is None or right.max_value is None:
+                    return {"satisfied": False, "violated": True,
+                            "uncertain": True, "confidence": 0.0,
+                            "message": "interval unknown"}
+                inside = right.min_value <= left <= right.max_value
+                satisfied = inside if op == "in" else not inside
+                return {
+                    "satisfied": satisfied,
+                    "violated": not satisfied,
+                    "uncertain": False,
+                    "confidence": 1.0,
+                    "message": f"{left} {op} [{right.min_value},{right.max_value}] = {satisfied}"
+                }
+
+        # ───────── 스칼라 ↔ 스칼라 (기존 + in/not in 방어) ─────────
         try:
             tbl = {
                 '<': lambda a, b: a < b,
@@ -227,7 +619,15 @@ class GuardianVerificationEngine:
                 '==': lambda a, b: a == b,
                 '!=': lambda a, b: a != b,
             }
-            satisfied = tbl[op](left, right)
+            if op in tbl:
+                satisfied = tbl[op](left, right)
+            elif op == "in":
+                satisfied = left == right  # 스칼라끼리 in 은 동일성으로 취급
+            elif op == "not in":
+                satisfied = left != right
+            else:
+                raise ValueError(f"unsupported op {op}")
+
             return {
                 "satisfied": satisfied,
                 "violated": not satisfied,
@@ -239,3 +639,64 @@ class GuardianVerificationEngine:
             return {"satisfied": False, "violated": True,
                     "uncertain": True, "confidence": 0.0,
                     "message": f"comparison error: {e}"}
+
+    def _expr_to_str(self, e):  # 간단 문자열 직렬화 helper
+        if getattr(e, "identifier", None):
+            return e.identifier
+        if getattr(e, "member", None):
+            return f"{self._expr_to_str(e.base)}.{e.member}"
+        if getattr(e, "index", None):
+            idx = getattr(e.index, "literal", "?")
+            return f"{self._expr_to_str(e.base)}[{idx}]"
+        return str(e)
+
+    def _pick_from_return(self, ret_v, var_ref):
+        """
+        ret_v :  한 줄의 return 값 (Interval, list, tuple …)
+        var_ref.context:
+            • "ReturnTupleBase"        → 전체 반환
+            • "ReturnElemRef"          → return[i]
+        """
+        # 전체 tuple 그대로
+        if var_ref.context == "ReturnTupleBase":
+            return ret_v
+
+        # return[ idx ]  ── element 추출
+        if var_ref.context == "ReturnElemRef":
+            idx = int(var_ref.index.literal, 0)
+            if isinstance(ret_v, (list, tuple)) and idx < len(ret_v):
+                return ret_v[idx]
+            return None
+        # 기타 경우는 evaluator 로 해결하도록 위임
+        return ret_v
+
+    @staticmethod
+    def _join_val(a: Any, b: Any):  # <-- 기존 것 교체
+        """
+        두 값의 '추상적 합집합'  – Interval · 리스트/튜플 · 스칼라 까지 지원
+        * ⊥ propagation 은 각 클래스 join() 내부에 이미 있음.
+        * 서로 다른 Interval 타입 → VariableEnv._merge_values 로 보수적 join
+        """
+        # (1) one-side None  → 다른 쪽
+        if a is None:
+            return b
+        if b is None:
+            return a
+
+        # (2) same concrete Interval subclass
+        if type(a) is type(b) and hasattr(a, "join"):
+            return a.join(b)
+
+        # (3) 둘 다 Interval 이지만 타입이 다르다 → 보수적 TOP
+        if isinstance(a, Interval) and isinstance(b, Interval):
+            return VariableEnv._merge_values(a, b, "join")
+
+        # (4) 리스트 / 튜플  (길이 동일 가정, 다르면 TOP)
+        if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+            if len(a) != len(b):
+                return "⊤"
+            merged = [GuardianVerificationEngine._join_val(x, y) for x, y in zip(a, b)]
+            return type(a)(merged)
+
+        # (5) 나머지 스칼라 – 값이 다르면 TOP 기호로
+        return a if a == b else "⊤"

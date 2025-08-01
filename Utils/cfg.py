@@ -1,5 +1,6 @@
 # SolidityGuardian/Utils/CFG.py
 import networkx as nx
+from typing import Any
 from Domain.IR import *
 from Domain.Variable import *
 
@@ -273,7 +274,7 @@ class FunctionCFG(CFG):
         self.parameters: list[str] = []  # ←★ 추가
         self.return_types: list[SolType] = []   # 이름 없는 리턴
         self.return_vars : list = [] # 이름이 있는 리턴
-        self.assign_envs: dict[int, dict[str, Variables]] = {}  # ★ line_no → {var: rhs}
+        self.assign_env: dict[str, Variables] = {}   # 최초 스냅샷 전용
 
         self.exit_node.function_exit_node = True
 
