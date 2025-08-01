@@ -61,6 +61,42 @@ class Evaluation :
             return self.evaluate_new_expression_context(expr, variables,
                                                         callerObject, callerContext)
 
+        # ──────────────────────────────────────────────────────────
+        # ②  varRef 계열  (NEW)
+        #     · VarRefBase           → identifier eval
+        #     · VarRefMemberAccess   → member-access eval
+        #     · VarRefIndexAccess    → index-access eval
+        #     · ReturnElemRef        → return tuple element
+        # ──────────────────────────────────────────────────────────
+        if expr.context == "VarRefBase":
+            return self.evaluate_identifier_context(expr, variables, callerObject, callerContext)
+
+        elif expr.context == "VarRefMemberAccess":
+            return self.evaluate_member_access_context(expr, variables, callerObject, callerContext)
+
+        elif expr.context == "VarRefIndexAccess":
+            return self.evaluate_index_access_context(expr, variables, callerObject, callerContext)
+
+        elif expr.context == "ReturnElemRef":
+            return self.evaluate_return_elem_ref_context(expr, variables, callerObject, callerContext)
+
+        # valueExpr 계열 (annotation용)
+        if expr.context == "InlineInterval":  # [a , b]
+            return self.evaluate_inline_interval(expr)
+
+        elif expr.context == "PercentOfFuncContext":  # PercentOf(x, n)
+            return self.evaluate_percent_of(expr, variables, callerObject, callerContext)
+
+        elif expr.context == "CeilFuncContext":  # ceil(x , n)
+            return self.evaluate_ceil(expr, variables, callerObject, callerContext)
+
+        elif expr.context == "FloorFuncContext":  # floor(x , n)
+            return self.evaluate_floor(expr, variables, callerObject, callerContext)
+
+        elif expr.context in {"AddrLiteralExprContext",
+                              "SymAddrLiteralExprContext"}:  # address … / symbolicAddress …
+            return self.evaluate_address_literal(expr)
+
         # 단항 연산자
         if expr.operator in ['-', '!', '~'] and expr.expression:
             return self.evaluate_unary_operator(expr, variables, callerObject, callerContext)
@@ -1175,6 +1211,71 @@ class Evaluation :
 
                 return joined
         return
+
+    def evaluate_return_elem_ref_context(self, expr: Expression,
+                                         variables, callerObject, callerContext):
+        """
+        expr    : Expression(ReturnElemRef)
+                 - expr.base  = Expression(identifier='return', ...)
+                 - expr.index = Expression(literal='N', ...)
+        """
+        # (1)  'return' 변수는 함수 종료 시 Recorder / CFG 가 variables dict 에 넣어둔다고 가정
+        ret_var = variables.get("return")
+        if ret_var is None:
+            raise ValueError("return tuple not available in current context")
+
+        # (2)  인덱스 계산 (정수 값 또는 Interval → int 로 캐스팅)
+        idx_val = self.evaluate_expression(expr.index, variables, callerObject, callerContext)
+        idx = int(idx_val.min_value) if hasattr(idx_val, "min_value") else int(idx_val)
+
+        # (3)  튜플(리스트) 원소 반환
+        return ret_var.value[idx]
+
+    # 1) [lo , hi] ------------------------------------------------
+    def evaluate_inline_interval(self, expr, *a):
+        lo = int(expr.elements[0].literal, 0)
+        hi = int(expr.elements[1].literal, 0)
+        cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval
+        bits = 256 if cls is IntegerInterval else 256  # 필요하면 가변
+        return cls(lo, hi, bits)
+
+    # 2) PercentOf(x , n)  ---------------------------------------
+    def evaluate_percent_of(self, expr, variables, *a):
+        # arguments[0] = valueExpr  , arguments[1] = 퍼센트(int)
+        base_iv = self.evaluate_expression(expr.arguments[0], variables, *a)
+        pct = int(expr.arguments[1].literal, 0)
+
+        # interval 스케일링 (보수적: 전방향 ⌈ / ⌊ )
+        lo = (base_iv.min_value * pct + 99) // 100
+        hi = (base_iv.max_value * pct) // 100
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    # 3) ceil(x , n)  --------------------------------------------
+    def evaluate_ceil(self, expr, variables, *a):
+        base_iv = self.evaluate_expression(expr.arguments[0], variables, *a)
+        unit = int(expr.arguments[1].literal, 0)
+
+        def _ceil(v): return ((v + unit - 1) // unit) * unit
+
+        lo = _ceil(base_iv.min_value)
+        hi = _ceil(base_iv.max_value)
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    # 4) floor(x , n)  -------------------------------------------
+    def evaluate_floor(self, expr, variables, *a):
+        base_iv = self.evaluate_expression(expr.arguments[0], variables, *a)
+        unit = int(expr.arguments[1].literal, 0)
+
+        def _floor(v): return (v // unit) * unit
+
+        lo = _floor(base_iv.min_value)
+        hi = _floor(base_iv.max_value)
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    # 5) address / symbolicAddress -------------------------------
+    def evaluate_address_literal(self, expr, *a):
+        val = int(expr.literal, 0)
+        return UnsignedIntegerInterval(val, val, 160)
 
     @staticmethod
     def calculate_default_interval(var_type):

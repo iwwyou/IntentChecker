@@ -815,29 +815,32 @@ class ContractAnalyzer:
                 elif isinstance(v, StructVariable) and isinstance(resolved, StructVariable):
                     v.copy_from(resolved)
 
-            # ────────────────── ③ CFG-빌더 / 레코더 위임 ─────────
-            #    · 그래프/노드 업데이트는 cfg_builder에게
-            #    · 분석 기록은 rec_mgr 에게
-            self.builder.build_variable_declaration(
-                cur_block=cur_blk,
-                var_obj=v,
-                type_obj=type_obj,
-                init_expr=init_expr,
-                line_no=self.current_start_line,
-                fcfg=self.current_target_function_cfg,
-                brace_count=self.brace_count,  # ← builder가 필요하다면 전달
-            )
+        # ────────────────── ③ CFG-빌더 / 레코더 위임 ─────────
+        #    · 그래프/노드 업데이트는 cfg_builder에게
+        #    · 분석 기록은 rec_mgr 에게
+        self.builder.build_variable_declaration(
+            cur_block=cur_blk,
+            var_obj=v,
+            type_obj=type_obj,
+            init_expr=init_expr,
+            line_no=self.current_start_line,
+            fcfg=self.current_target_function_cfg,
+            brace_count=self.brace_count,  # ← builder가 필요하다면 전달
+        )
 
-            self.recorder.record_variable_declaration(
-                line_no=self.current_start_line,
-                var_name=var_name,
-                var_obj=v,
-            )
+        self.recorder.record_variable_declaration(
+            line_no=self.current_start_line,
+            var_name=var_name,
+            var_obj=v,
+        )
 
-            # ────────────────── ④ 저장 & 정리 ────────────────────
-            ccf.functions[self.current_target_function] = self.current_target_function_cfg
-            self.contract_cfgs[self.current_target_contract] = ccf
-            self.current_target_function_cfg = None
+        fcfg = self.current_target_function_cfg
+        fcfg.assign_env[var_name] = VariableEnv.deep_clone_variable(v, var_name)
+
+        # ────────────────── ④ 저장 & 정리 ────────────────────
+        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        self.contract_cfgs[self.current_target_contract] = ccf
+        self.current_target_function_cfg = None
 
     # Analyzer/ContractAnalyzer.py
     def process_assignment_expression(self, expr: Expression) -> None:

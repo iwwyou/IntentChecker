@@ -10,6 +10,7 @@ from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterv
 from Domain.Variable import GlobalVariable, Variables, ArrayVariable, StructVariable, EnumVariable
 from Domain.Address import AddressSymbolicManager
 from Domain.Type import SolType
+from Utils.Helper import VariableEnv
 
 class StaticCFGFactory:
 
@@ -223,6 +224,9 @@ class StaticCFGFactory:
                 fcfg.add_related_variable(v)
         for gv in ccf.globals.values():
             fcfg.add_related_variable(gv)
+
+        entry_vars = VariableEnv.copy_variables(fcfg.related_variables)  # deep-copy
+        fcfg.assign_env.update(entry_vars)  # ←  dict 의 내장 update()
 
         return fcfg
 
