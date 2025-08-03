@@ -11,13 +11,11 @@ from typing import TYPE_CHECKING, Dict, Any, List, Optional
 if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
-from Domain.Variable import Variables
-from Domain.Interval import Interval, IntegerInterval, UnsignedIntegerInterval, BoolInterval
+from Domain.Interval import Interval
 from Domain.IR import Expression
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
 from functools import reduce
-
 
 class GuardianVerificationEngine:
     def __init__(self, analyzer: "ContractAnalyzer"):
@@ -29,7 +27,7 @@ class GuardianVerificationEngine:
     def verify_during_before_after(
         self, *, var_ref: Expression, comp_op: str,
         line_no: int, cfg_node: CFGNode
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
 
         try:
             # 1. before / after variable environments -----------------

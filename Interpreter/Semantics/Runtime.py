@@ -10,6 +10,7 @@ from Utils.Helper import VariableEnv
 from Domain.Variable import Variables, MappingVariable, ArrayVariable, StructVariable
 from Domain.IR import Expression
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
+from Domain.Annotation import DuringAnnotation, PostAnnotation
 
 import copy
 from collections import deque
@@ -237,6 +238,11 @@ class Runtime:
                 # 블록 내 문장 해석
                 for stmt in node.statements:
                     cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
+                    
+                    # during annotation 검증 (라인별)
+                    if hasattr(stmt, 'src_line') and stmt.src_line:
+                        self._verify_during_annotations(stmt.src_line, node, cur_vars)
+                    
                     if "__STOP__" in return_values:  # 플래그만 넣어도 되고
                         break
 
@@ -253,6 +259,9 @@ class Runtime:
 
         self._force_join_before_exit(fcfg)
         self._sync_named_return_vars(fcfg)  # ★ 여기서 값/객체 맞춰 주기
+        
+        # post annotation 검증 (함수 종료 시점)
+        self._verify_post_annotations(fcfg)
 
         self.an.current_target_function = _old_func
         self.an.current_target_function_cfg = _old_fcfg
@@ -646,4 +655,172 @@ class Runtime:
             return str(val)
 
         # 3) 그 밖엔 불확정
+        return None
+
+    def _verify_during_annotations(self, line_no: int, cfg_node: CFGNode, variables: dict):
+        """라인별 during annotation 검증"""
+        if line_no not in self.an.brace_count:
+            return
+            
+        brace_info = self.an.brace_count[line_no]
+        during_annotations = brace_info.get('during_annotations', [])
+        
+        for annotation in during_annotations:
+            if not isinstance(annotation, DuringAnnotation):
+                continue
+                
+            try:
+                verification_result = self._verify_single_during_annotation(
+                    annotation, line_no, cfg_node, variables
+                )
+                
+                # 검증 결과를 분석 리포트에 기록
+                if verification_result:
+                    self.an.analysis_per_line[line_no].append({
+                        'type': 'during_verification',
+                        'annotation_type': annotation.annotation_type,
+                        'result': verification_result
+                    })
+                    
+            except Exception as e:
+                # 오류 발생 시 로그 기록
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'during_verification_error',
+                    'annotation_type': annotation.annotation_type,
+                    'error': str(e)
+                })
+
+    def _verify_single_during_annotation(self, annotation: DuringAnnotation, 
+                                       line_no: int, cfg_node: CFGNode, 
+                                       variables: dict) -> dict:
+        """개별 during annotation 검증"""
+        from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
+        
+        guardian = GuardianVerificationEngine(self.an)
+        
+        if annotation.annotation_type == "beforeAfter":
+            return guardian.verify_during_before_after(
+                var_ref=annotation.var_ref,
+                comp_op=annotation.comp_op,
+                line_no=line_no,
+                cfg_node=cfg_node
+            )
+            
+        elif annotation.annotation_type == "assignCurrent":
+            return guardian.verify_during_assign_current(
+                var_ref=annotation.var_ref,
+                comp_op=annotation.comp_op,
+                line_no=line_no,
+                cfg_node=cfg_node
+            )
+            
+        elif annotation.annotation_type == "returnExpression":
+            return guardian.verify_during_return_expression(
+                comp_op=annotation.comp_op,
+                value_expr=annotation.value_expr,
+                line_no=line_no,
+                cfg_node=cfg_node
+            )
+            
+        elif annotation.annotation_type == "returnVariable":
+            return guardian.verify_during_return_variable(
+                var_ref=annotation.var_ref,
+                comp_op=annotation.comp_op,
+                value_expr=annotation.value_expr,
+                line_no=line_no,
+                cfg_node=cfg_node
+            )
+            
+        elif annotation.annotation_type == "directComparison":
+            return guardian.verify_during_direct_comparison(
+                lhs_expr=annotation.lhs_expr,
+                comp_op=annotation.comp_op,
+                rhs_expr=annotation.rhs_expr,
+                line_no=line_no,
+                cfg_node=cfg_node
+            )
+            
+        return None
+
+    def _verify_post_annotations(self, fcfg: FunctionCFG):
+        """함수 종료 시점에서 모든 post annotation 검증"""
+        from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
+        
+        guardian = GuardianVerificationEngine(self.an)
+        
+        # brace_count에서 모든 post annotation 수집
+        for line_no, brace_info in self.an.brace_count.items():
+            post_annotations = brace_info.get('post_annotations', [])
+            
+            for annotation in post_annotations:
+                if not isinstance(annotation, PostAnnotation):
+                    continue
+                    
+                try:
+                    verification_result = self._verify_single_post_annotation(
+                        annotation, line_no, fcfg, guardian
+                    )
+                    
+                    # 검증 결과를 분석 리포트에 기록
+                    if verification_result:
+                        self.an.analysis_per_line[line_no].append({
+                            'type': 'post_verification',
+                            'annotation_type': annotation.annotation_type,
+                            'result': verification_result
+                        })
+                        
+                except Exception as e:
+                    # 오류 발생 시 로그 기록
+                    self.an.analysis_per_line[line_no].append({
+                        'type': 'post_verification_error',
+                        'annotation_type': annotation.annotation_type,
+                        'error': str(e)
+                    })
+
+    def _verify_single_post_annotation(self, annotation: PostAnnotation, 
+                                     line_no: int, fcfg: FunctionCFG,
+                                     guardian) -> dict:
+        """개별 post annotation 검증"""
+        
+        if annotation.annotation_type == "entryExit":
+            return guardian.verify_post_entry_exit(
+                var_ref=annotation.var_ref,
+                comp_op=annotation.comp_op,
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+            
+        elif annotation.annotation_type == "returnExpression":
+            return guardian.verify_post_return_expression(
+                comp_op=annotation.comp_op,
+                value_expr=annotation.value_expr,
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+            
+        elif annotation.annotation_type == "returnVariable":
+            return guardian.verify_post_return_variable(
+                var_ref=annotation.var_ref,
+                comp_op=annotation.comp_op,
+                value_expr=annotation.value_expr,
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+            
+        elif annotation.annotation_type == "directComparison":
+            return guardian.verify_post_direct_comparison(
+                lhs_expr=annotation.lhs_expr,
+                comp_op=annotation.comp_op,
+                rhs_expr=annotation.rhs_expr,
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+            
+        elif annotation.annotation_type == "unchanged":
+            return guardian.verify_post_unchanged(
+                var_ref=annotation.var_ref,
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+            
         return None

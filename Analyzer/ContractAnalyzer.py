@@ -8,6 +8,7 @@ from solcx import (
 )
 from solcx.exceptions import SolcError
 from Domain.Address import *
+from Domain.Annotation import DuringAnnotation, PostAnnotation
 from Utils.Helper import *
 from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
@@ -1709,6 +1710,63 @@ class ContractAnalyzer:
         self._batch_targets.add(self.current_target_function_cfg)
 
     # -----------------------------------------------------------
+    # ANNOTATION STORAGE HELPERS
+    # -----------------------------------------------------------
+    
+    def store_during_annotation(self, annotation_type: str, line_no: int, **params):
+        """During annotation을 brace_count에 저장"""
+        if line_no not in self.brace_count:
+            self.brace_count[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
+        
+        if 'during_annotations' not in self.brace_count[line_no]:
+            self.brace_count[line_no]['during_annotations'] = []
+        
+        # DuringAnnotation 객체 생성
+        annotation = DuringAnnotation(annotation_type, line_no, **params)
+        self.brace_count[line_no]['during_annotations'].append(annotation)
+
+    def store_post_annotation(self, annotation_type: str, line_no: int, **params):
+        """Post annotation을 brace_count에 저장"""
+        if line_no not in self.brace_count:
+            self.brace_count[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
+        
+        if 'post_annotations' not in self.brace_count[line_no]:
+            self.brace_count[line_no]['post_annotations'] = []
+        
+        # PostAnnotation 객체 생성
+        annotation = PostAnnotation(annotation_type, line_no, **params)
+        self.brace_count[line_no]['post_annotations'].append(annotation)
+
+    def get_function_lines(self, function_name: str) -> tuple[int, int] | None:
+        """함수의 시작/끝 라인 번호 반환"""
+        ccf = self.contract_cfgs.get(self.current_target_contract)
+        if not ccf or function_name not in ccf.functions:
+            return None
+        
+        fcfg = ccf.functions[function_name]
+        entry_node = fcfg.get_entry_node()
+        
+        # 함수 시작 라인 찾기
+        start_line = None
+        for ln, info in self.brace_count.items():
+            if info.get('cfg_node') is entry_node:
+                start_line = ln
+                break
+        
+        if start_line is None:
+            return None
+            
+        # 함수 끝 라인 찾기 (brace 균형으로 계산)
+        balance = 0
+        for ln in range(start_line, max(self.brace_count.keys()) + 1):
+            info = self.brace_count.get(ln, {})
+            balance += info.get('open', 0) - info.get('close', 0)
+            if balance == 0 and ln > start_line:
+                return (start_line, ln)
+        
+        return None
+
+    # -----------------------------------------------------------
     # DURING-INTENT PROCESSORS
     # -----------------------------------------------------------
 
@@ -1719,6 +1777,15 @@ class ContractAnalyzer:
         comp_op  : '<' '>' … 등
         """
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_during_annotation(
+            "beforeAfter",
+            line_no,
+            var_ref=var_ref,
+            comp_op=comp_op
+        )
+        
         result = self.guardian_verifier.verify_during_before_after(
             var_ref=var_ref,
             comp_op=comp_op,
@@ -1731,9 +1798,18 @@ class ContractAnalyzer:
     def process_during_assign_current(self, var_ref: Expression, comp_op: str):
         """
         @During  x(Assign <= Current)
-        현재 statement 가 “할당” 문장인지 여부까지 Guardian 쪽에서 검사
+        현재 statement 가 "할당" 문장인지 여부까지 Guardian 쪽에서 검사
         """
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_during_annotation(
+            "assignCurrent",
+            line_no,
+            var_ref=var_ref,
+            comp_op=comp_op
+        )
+        
         result = self.guardian_verifier.verify_during_assign_current(
             var_ref=var_ref,
             comp_op=comp_op,
@@ -1748,6 +1824,15 @@ class ContractAnalyzer:
         @During  returnExpression  op  valueExpr
         """
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_during_annotation(
+            "returnExpression",
+            line_no,
+            comp_op=comp_op,
+            value_expr=value_expr
+        )
+        
         result = self.guardian_verifier.verify_during_return_expression(
             comp_op=comp_op,
             value_expr=value_expr,
@@ -1762,6 +1847,16 @@ class ContractAnalyzer:
         @During  return x  op  valueExpr     (tuple 원소 가능)
         """
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_during_annotation(
+            "returnVariable",
+            line_no,
+            var_ref=var_ref,
+            comp_op=comp_op,
+            value_expr=value_expr
+        )
+        
         result = self.guardian_verifier.verify_during_return_variable(
             var_ref=var_ref,
             comp_op=comp_op,
@@ -1777,6 +1872,16 @@ class ContractAnalyzer:
         @During  valueExpr  op  valueExpr
         """
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_during_annotation(
+            "directComparison",
+            line_no,
+            lhs_expr=lhs_expr,
+            comp_op=comp_op,
+            rhs_expr=rhs_expr
+        )
+        
         result = self.guardian_verifier.verify_during_direct_comparison(
             lhs_expr=lhs_expr,
             comp_op=comp_op,
@@ -1793,6 +1898,15 @@ class ContractAnalyzer:
 
     def process_post_entry_exit(self, var_ref: Expression, comp_op: str):
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_post_annotation(
+            "entryExit",
+            line_no,
+            var_ref=var_ref,
+            comp_op=comp_op
+        )
+        
         result = self.guardian_verifier.verify_post_entry_exit(
             var_ref=var_ref,
             comp_op=comp_op,
@@ -1804,6 +1918,15 @@ class ContractAnalyzer:
 
     def process_post_return_expression(self, comp_op: str, value_expr: Expression):
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_post_annotation(
+            "returnExpression",
+            line_no,
+            comp_op=comp_op,
+            value_expr=value_expr
+        )
+        
         result = self.guardian_verifier.verify_post_return_expression(
             comp_op=comp_op,
             value_expr=value_expr,
@@ -1815,6 +1938,16 @@ class ContractAnalyzer:
 
     def process_post_return_variable(self, var_ref: Expression, comp_op: str, value_expr: Expression):
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_post_annotation(
+            "returnVariable",
+            line_no,
+            var_ref=var_ref,
+            comp_op=comp_op,
+            value_expr=value_expr
+        )
+        
         result = self.guardian_verifier.verify_post_return_variable(
             var_ref=var_ref,
             comp_op=comp_op,
@@ -1827,6 +1960,16 @@ class ContractAnalyzer:
 
     def process_post_direct_comparison(self, lhs_expr: Expression, comp_op: str, rhs_expr: Expression):
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_post_annotation(
+            "directComparison",
+            line_no,
+            lhs_expr=lhs_expr,
+            comp_op=comp_op,
+            rhs_expr=rhs_expr
+        )
+        
         result = self.guardian_verifier.verify_post_direct_comparison(
             lhs_expr=lhs_expr,
             comp_op=comp_op,
@@ -1839,6 +1982,14 @@ class ContractAnalyzer:
 
     def process_post_unchanged(self, var_ref: Expression):
         line_no = self.current_start_line
+        
+        # annotation 저장
+        self.store_post_annotation(
+            "unchanged",
+            line_no,
+            var_ref=var_ref
+        )
+        
         result = self.guardian_verifier.verify_post_unchanged(
             var_ref=var_ref,
             line_no=line_no,
