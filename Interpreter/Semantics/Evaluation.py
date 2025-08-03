@@ -48,6 +48,8 @@ class Evaluation :
             return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallContext":
             return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "LibraryFunctionCallContext":
+            return self.evaluate_library_function_call_context(expr, variables, callerObject, callerContext)
         elif expr.context == "TupleExpressionContext":
             return self.evaluate_tuple_expression_context(expr, variables,
                                                           callerObject, callerContext)
@@ -601,9 +603,66 @@ class Evaluation :
             raise ValueError(f"type() with unsupported base '{T}'")
 
         # ──────────────────────────────────────────────────────────────
-        # 6. 기타 – 심볼릭 보수적 값
+        # 6. 라이브러리 함수 호출 처리 (using directive 지원)
+        # ──────────────────────────────────────────────────────────────
+        # baseVal이 Variables 객체이고 member가 함수 호출인 경우
+        if isinstance(baseVal, Variables):
+            # 현재 컨트랙트의 using directive 확인
+            current_contract = self.an.current_target_contract
+            if current_contract and current_contract in self.an.contract_cfgs:
+                contract_cfg = self.an.contract_cfgs[current_contract]
+                
+                # baseVal의 타입 추출
+                base_type = self._get_variable_type_string(baseVal)
+                
+                # 라이브러리 함수 검색
+                library_function = contract_cfg.find_library_function(base_type, member)
+                if library_function:
+                    # 라이브러리 함수 호출을 위한 Expression 생성
+                    # baseVal을 첫 번째 인자로 하는 함수 호출로 변환
+                    return Expression(
+                        function=Expression(identifier=f"{library_function.function_name}"),
+                        library_function_cfg=library_function,
+                        implicit_first_arg=baseVal,  # baseVal을 첫 번째 인자로 전달
+                        operator='library_call',
+                        context='LibraryFunctionCallContext'
+                    )
+        
+        # ──────────────────────────────────────────────────────────────
+        # 7. 기타 – 심볼릭 보수적 값
         # ──────────────────────────────────────────────────────────────
         return f"symbolic({baseVal}.{member})"
+
+    def _get_variable_type_string(self, var: Variables) -> str:
+        """Variables 객체에서 타입 문자열 추출"""
+        if hasattr(var, 'typeInfo') and var.typeInfo:
+            type_info = var.typeInfo
+            if type_info.typeCategory == "elementary":
+                return type_info.elementaryTypeName
+            elif type_info.typeCategory == "array":
+                return f"{self._get_type_string_from_soltype(type_info.arrayBaseType)}[]"
+            elif type_info.typeCategory == "mapping":
+                return "mapping"
+            elif type_info.typeCategory == "struct":
+                return type_info.structTypeName
+            elif type_info.typeCategory == "enum":
+                return type_info.enumTypeName
+        
+        # 기본값으로 "unknown" 반환
+        return "unknown"
+    
+    def _get_type_string_from_soltype(self, sol_type) -> str:
+        """SolType 객체에서 타입 문자열 추출"""
+        if sol_type.typeCategory == "elementary":
+            return sol_type.elementaryTypeName
+        elif sol_type.typeCategory == "array":
+            return f"{self._get_type_string_from_soltype(sol_type.arrayBaseType)}[]"
+        elif sol_type.typeCategory == "struct":
+            return sol_type.structTypeName
+        elif sol_type.typeCategory == "enum":
+            return sol_type.enumTypeName
+        else:
+            return "unknown"
 
     def evaluate_index_access_context(self, expr, variables, callerObject=None, callerContext=None):
         """
@@ -971,6 +1030,74 @@ class Evaluation :
         self.an.current_target_function = saved_function
 
         return return_value
+
+    def evaluate_library_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
+        """
+        라이브러리 함수 호출 처리
+        expr.library_function_cfg: 라이브러리 함수의 FunctionCFG
+        expr.implicit_first_arg: 첫 번째 인자로 전달될 baseVal (Variables 객체)
+        expr.arguments: 추가 인자들 (있는 경우)
+        """
+        library_function_cfg = expr.library_function_cfg
+        implicit_first_arg = expr.implicit_first_arg
+        
+        if not library_function_cfg:
+            return f"symbolic_library_call({expr.function.identifier})"
+        
+        # 1) 인자 준비 - implicit_first_arg를 첫 번째 인자로 설정
+        arguments = [implicit_first_arg]
+        if hasattr(expr, 'arguments') and expr.arguments:
+            arguments.extend(expr.arguments)
+        
+        # 2) 파라미터와 인자 매핑
+        param_names = getattr(library_function_cfg, 'parameters', [])
+        
+        if len(param_names) != len(arguments):
+            return f"symbolic_library_call_mismatch({expr.function.identifier})"
+        
+        # 3) 라이브러리 함수의 related_variables에 인자 값 설정
+        caller_env = variables.copy()  # 호출자 환경 백업
+        
+        for i, param_name in enumerate(param_names):
+            if isinstance(arguments[i], Variables):
+                # Variables 객체인 경우 value 추출
+                arg_val = arguments[i].value if hasattr(arguments[i], 'value') else arguments[i]
+            else:
+                # Expression인 경우 평가
+                arg_val = self.evaluate_expression(arguments[i], variables, None, None)
+            
+            # 라이브러리 함수의 파라미터에 값 설정
+            if param_name in library_function_cfg.related_variables:
+                library_function_cfg.related_variables[param_name].value = arg_val
+            else:
+                # 파라미터가 없으면 새로 생성 (간단한 Variables 객체)
+                from Domain.Variable import Variables
+                param_var = Variables(identifier=param_name, scope="local")
+                param_var.value = arg_val
+                library_function_cfg.related_variables[param_name] = param_var
+        
+        # 4) 라이브러리 함수 실행
+        try:
+            # 현재 함수 컨텍스트 저장
+            saved_function = self.an.current_target_function
+            saved_function_cfg = self.an.current_target_function_cfg
+            
+            # 라이브러리 함수로 컨텍스트 변경
+            self.an.current_target_function = library_function_cfg.function_name
+            self.an.current_target_function_cfg = library_function_cfg
+            
+            # 라이브러리 함수 CFG 실행
+            return_value = self.runtime.interpret_function_cfg(library_function_cfg, caller_env)
+            
+            # 함수 컨텍스트 복원
+            self.an.current_target_function = saved_function
+            self.an.current_target_function_cfg = saved_function_cfg
+            
+            return return_value
+            
+        except Exception as e:
+            # 오류 발생 시 symbolic 값 반환
+            return f"symbolic_library_error({expr.function.identifier}: {str(e)})"
 
     def update_mapping_in_cfg(self, mapVarName: str, key_str: str, new_var_obj: Variables):
         """

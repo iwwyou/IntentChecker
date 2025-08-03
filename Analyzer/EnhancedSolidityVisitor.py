@@ -102,8 +102,31 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#libraryDefinition.
     def visitLibraryDefinition(self, ctx:SolidityParser.LibraryDefinitionContext):
+        library_name = ctx.identifier().getText()
+        
+        # ContractAnalyzer에서 해당 라이브러리의 CFG 생성
+        self.contract_analyzer.make_library_cfg(library_name)
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#usingDirective.
+    def visitUsingDirective(self, ctx:SolidityParser.UsingDirectiveContext):
+        """
+        using directive를 처리한다.
+        using LibraryName for TargetType;
+        using LibraryName for *;
+        """
+        library_name = ctx.identifierPath().getText()
+        
+        # 타겟 타입 결정
+        target_type = None
+        if ctx.typeName():
+            target_type = ctx.typeName().getText()
+        # ctx.Star()가 있으면 target_type은 None (모든 타입에 적용)
+        
+        # ContractAnalyzer에 using directive 추가
+        self.contract_analyzer.process_using_directive(library_name, target_type)
+        
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#inheritanceSpecifier.
     def visitInheritanceSpecifier(self, ctx:SolidityParser.InheritanceSpecifierContext):
@@ -271,6 +294,23 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#usingDirective.
     def visitUsingDirective(self, ctx:SolidityParser.UsingDirectiveContext):
+        # using LibraryName for TypeName; 또는 using LibraryName for *;
+        
+        # 라이브러리 이름 추출
+        library_name = ctx.identifierPath().getText()
+        
+        # 대상 타입 추출 (for 다음에 오는 부분)
+        target_type = None
+        if ctx.typeName():
+            # 특정 타입에 대한 using directive
+            target_type = ctx.typeName().getText()
+        elif ctx.getChildCount() > 4 and ctx.getChild(3).getText() == '*':
+            # using Library for *; (모든 타입에 적용)
+            target_type = None
+        
+        # ContractAnalyzer에 using directive 등록
+        self.contract_analyzer.add_using_directive(library_name, target_type)
+        
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#userDefinableOperators.

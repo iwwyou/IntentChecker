@@ -46,7 +46,8 @@ class ContractAnalyzer:
         self._seen_stmt_ids: set[int] = set()
 
         # for Multiple Contract
-        self.contract_cfgs = {} # name -> CFG
+        self.contract_cfgs = {} # name -> ContractCFG
+        self.library_cfgs = {}  # name -> LibraryCFG
 
         self.evaluator = Evaluation(self)
         self.updater = Update(self)
@@ -419,6 +420,40 @@ class ContractAnalyzer:
         cfg = StaticCFGFactory.make_contract_cfg(self, contract_name)
 
         self.brace_count[self.current_start_line]['cfg_node'] = cfg
+
+    def make_library_cfg(self, library_name: str):
+        """
+        library-level CFG를 처음 만들 때 한 번 호출.
+        라이브러리는 state variable이 없고 함수만 포함한다.
+        """
+        from Utils.CFG import LibraryCFG
+        
+        self.current_target_contract = library_name  # 라이브러리도 contract로 처리
+        library_cfg = LibraryCFG(library_name)
+        
+        # 라이브러리 CFG를 저장
+        self.library_cfgs[library_name] = library_cfg
+        self.contract_cfgs[library_name] = library_cfg  # 호환성을 위해 contract_cfgs에도 저장
+        
+        self.brace_count[self.current_start_line]['cfg_node'] = library_cfg
+        
+    def process_using_directive(self, library_name: str, target_type: str = None):
+        """
+        using directive 처리: using LibraryName for TargetType;
+        현재 컨트랙트에 라이브러리를 연결한다.
+        """
+        # 현재 컨트랙트 CFG 가져오기
+        current_contract_cfg = self.contract_cfgs.get(self.current_target_contract)
+        if not current_contract_cfg:
+            raise ValueError(f"No contract CFG found for {self.current_target_contract}")
+            
+        # 라이브러리 CFG 찾기 또는 로드
+        library_cfg = self.load_library_cfg(library_name)
+        if not library_cfg:
+            raise ValueError(f"Library '{library_name}' not found. Please ensure it's defined or available.")
+            
+        # 컨트랙트에 라이브러리 연결
+        current_contract_cfg.add_using_library(library_cfg, target_type)
 
     # for interactiveEnumDefinition in Solidity.g4
     def process_enum_definition(self, enum_name):
@@ -2088,3 +2123,35 @@ class ContractAnalyzer:
 
     def _cfg_node_at(self, line_no: int):
         return (self.brace_count.get(line_no, {}) or {}).get("cfg_node")
+
+    def load_library_cfg(self, library_name: str) -> 'LibraryCFG':
+        """
+        라이브러리 CFG를 로드한다.
+        1. 메모리에 이미 있으면 반환
+        2. 없으면 파일에서 로드 시도 (향후 구현)
+        3. 그래도 없으면 None 반환
+        """
+        # 1. 메모리에서 찾기
+        if library_name in self.library_cfgs:
+            return self.library_cfgs[library_name]
+
+        # 2. 파일에서 로드 (향후 구현 예정)
+        # library_cfg = self.load_library_from_file(library_name)
+        # if library_cfg:
+        #     self.library_cfgs[library_name] = library_cfg
+        #     return library_cfg
+
+        # 3. 찾을 수 없음
+        return None
+
+    def save_library_cfg(self, library_name: str, file_path: str = None):
+        """
+        라이브러리 CFG를 파일로 저장 (향후 구현 예정)
+        """
+        if library_name not in self.library_cfgs:
+            raise ValueError(f"Library '{library_name}' not found in memory")
+
+        # library_cfg = self.library_cfgs[library_name]
+        # serialized = library_cfg.serialize_for_storage()
+        # 파일 저장 로직 (pickle, json 등)
+        pass
