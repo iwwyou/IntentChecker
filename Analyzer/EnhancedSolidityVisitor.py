@@ -108,26 +108,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         self.contract_analyzer.make_library_cfg(library_name)
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#usingDirective.
-    def visitUsingDirective(self, ctx:SolidityParser.UsingDirectiveContext):
-        """
-        using directive를 처리한다.
-        using LibraryName for TargetType;
-        using LibraryName for *;
-        """
-        library_name = ctx.identifierPath().getText()
-        
-        # 타겟 타입 결정
-        target_type = None
-        if ctx.typeName():
-            target_type = ctx.typeName().getText()
-        # ctx.Star()가 있으면 target_type은 None (모든 타입에 적용)
-        
-        # ContractAnalyzer에 using directive 추가
-        self.contract_analyzer.process_using_directive(library_name, target_type)
-        
-        return self.visitChildren(ctx)
-
     # Visit a parse tree produced by SolidityParser#inheritanceSpecifier.
     def visitInheritanceSpecifier(self, ctx:SolidityParser.InheritanceSpecifierContext):
         return self.visitChildren(ctx)

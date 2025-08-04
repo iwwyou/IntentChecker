@@ -659,6 +659,7 @@ expression
   | expression callArgumentList                           # FunctionCall
   | PayableKeyword callArgumentList                       # PayableFunctionCall
   | elementaryTypeName '(' identifier ')'                 # TypeConversion
+  | 'type' '(' typeName ')'                               # MetaType
   | ('++'|'--'|'!'|'~'|'delete'|'-') expression           # UnaryPrefixOp
   | expression ('++'|'--')                                # UnarySuffixOp
   | expression '**' expression                            # Exponentiation
