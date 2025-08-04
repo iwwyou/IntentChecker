@@ -48,8 +48,7 @@ class Evaluation :
             return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallContext":
             return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
-        elif expr.context == "LibraryFunctionCallContext":
-            return self.evaluate_library_function_call_context(expr, variables, callerObject, callerContext)
+
         elif expr.context == "TupleExpressionContext":
             return self.evaluate_tuple_expression_context(expr, variables,
                                                           callerObject, callerContext)
@@ -418,6 +417,37 @@ class Evaluation :
         baseVal = self.evaluate_expression(expr.base, variables, None,
                                            "MemberAccessContext")
         member = expr.member
+        
+        # ──────────────────────────────────────────────────────────────
+        # 0. Function call context 처리 (using directive 지원)
+        # ──────────────────────────────────────────────────────────────
+        # callerContext가 "functionCallContext"인 경우 - a.mul(b)에서 a.mul 부분이 호출될 때
+        if callerContext == "functionCallContext":
+            # baseVal이 Variables, mapping, Struct 등에 대해 라이브러리 함수 호출 처리
+            if isinstance(baseVal, (Variables, MappingVariable, StructVariable)):
+                # 현재 컨트랙트의 using directive 확인
+                current_contract = self.an.current_target_contract
+                if current_contract and current_contract in self.an.contract_cfgs:
+                    contract_cfg = self.an.contract_cfgs[current_contract]
+                    
+                    # baseVal의 타입 추출
+                    base_type = self._get_variable_type_string(baseVal) if isinstance(baseVal, Variables) else "unknown"
+                    
+                    # 라이브러리 함수 검색
+                    library_function = contract_cfg.find_library_function(base_type, member)
+                    if library_function:
+                        # 라이브러리 함수가 발견되면 특별한 Expression 객체 반환
+                        # evaluate_function_call_context에서 이것을 인식하여 라이브러리 함수로 처리
+                        result_expr = Expression(
+                            function=Expression(identifier=member),
+                            operator='library_call',
+                            context='LibraryFunctionCallContext'
+                        )
+                        # 라이브러리 함수 정보와 첫 번째 인자를 임시로 저장
+                        result_expr._library_function_cfg = library_function
+                        result_expr._implicit_first_arg = baseVal
+                        return result_expr
+        
         # ──────────────────────────────────────────────────────────────
         # 1. Global-var (block / msg / tx)
         # ──────────────────────────────────────────────────────────────
@@ -603,33 +633,7 @@ class Evaluation :
             raise ValueError(f"type() with unsupported base '{T}'")
 
         # ──────────────────────────────────────────────────────────────
-        # 6. 라이브러리 함수 호출 처리 (using directive 지원)
-        # ──────────────────────────────────────────────────────────────
-        # baseVal이 Variables 객체이고 member가 함수 호출인 경우
-        if isinstance(baseVal, Variables):
-            # 현재 컨트랙트의 using directive 확인
-            current_contract = self.an.current_target_contract
-            if current_contract and current_contract in self.an.contract_cfgs:
-                contract_cfg = self.an.contract_cfgs[current_contract]
-                
-                # baseVal의 타입 추출
-                base_type = self._get_variable_type_string(baseVal)
-                
-                # 라이브러리 함수 검색
-                library_function = contract_cfg.find_library_function(base_type, member)
-                if library_function:
-                    # 라이브러리 함수 호출을 위한 Expression 생성
-                    # baseVal을 첫 번째 인자로 하는 함수 호출로 변환
-                    return Expression(
-                        function=Expression(identifier=f"{library_function.function_name}"),
-                        library_function_cfg=library_function,
-                        implicit_first_arg=baseVal,  # baseVal을 첫 번째 인자로 전달
-                        operator='library_call',
-                        context='LibraryFunctionCallContext'
-                    )
-        
-        # ──────────────────────────────────────────────────────────────
-        # 7. 기타 – 심볼릭 보수적 값
+        # 6. 기타 – 심볼릭 보수적 값
         # ──────────────────────────────────────────────────────────────
         return f"symbolic({baseVal}.{member})"
 
@@ -956,7 +960,23 @@ class Evaluation :
         if expr.context == "IdentifierExpContext":
             function_name = expr.identifier
         elif expr.function.context == "MemberAccessContext":  # dynamic array에 대한 push, pop
-            return self.evaluate_expression(expr.function, variables, None, "functionCallContext")
+            # member access를 평가하여 라이브러리 함수인지 확인
+            function_result = self.evaluate_expression(expr.function, variables, None, "functionCallContext")
+            
+            # 라이브러리 함수 호출인 경우
+            if (isinstance(function_result, Expression) and 
+                hasattr(function_result, 'context') and 
+                function_result.context == 'LibraryFunctionCallContext'):
+                
+                # 라이브러리 함수 호출로 처리
+                return self.evaluate_library_function_call_context(
+                    expr, variables, function_result._implicit_first_arg, 
+                    function_result._library_function_cfg
+                )
+            
+            # 일반적인 member access 결과 반환 (dynamic array push/pop 등)
+            return function_result
+            
         elif expr.function.context == "IdentifierExpContext":
             function_name = expr.function.identifier
         else:
@@ -1031,22 +1051,20 @@ class Evaluation :
 
         return return_value
 
-    def evaluate_library_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
+    def evaluate_library_function_call_context(self, expr, variables, implicit_first_arg, library_function_cfg):
         """
         라이브러리 함수 호출 처리
-        expr.library_function_cfg: 라이브러리 함수의 FunctionCFG
-        expr.implicit_first_arg: 첫 번째 인자로 전달될 baseVal (Variables 객체)
-        expr.arguments: 추가 인자들 (있는 경우)
+        expr: 원래 FunctionCallContext Expression 객체 (arguments 포함)
+        implicit_first_arg: 첫 번째 인자로 전달될 baseVal (Variables 객체)  
+        library_function_cfg: 라이브러리 함수의 FunctionCFG
         """
-        library_function_cfg = expr.library_function_cfg
-        implicit_first_arg = expr.implicit_first_arg
         
         if not library_function_cfg:
-            return f"symbolic_library_call({expr.function.identifier})"
+            return f"symbolic_library_call(unknown_function)"
         
         # 1) 인자 준비 - implicit_first_arg를 첫 번째 인자로 설정
         arguments = [implicit_first_arg]
-        if hasattr(expr, 'arguments') and expr.arguments:
+        if expr.arguments:  # FunctionCallContext에서 온 인자들 추가
             arguments.extend(expr.arguments)
         
         # 2) 파라미터와 인자 매핑

@@ -20,6 +20,10 @@ from Interpreter.Semantics.Refine import Refine
 from Interpreter.Semantics.Runtime import Runtime
 from Interpreter.Engine import Engine
 from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
+import json
+import os
+import pathlib
+from typing import Dict, List
 
 class ContractAnalyzer:
 
@@ -2124,34 +2128,183 @@ class ContractAnalyzer:
     def _cfg_node_at(self, line_no: int):
         return (self.brace_count.get(line_no, {}) or {}).get("cfg_node")
 
+    def analyze_and_save_library(self, library_source: str, library_name: str = None) -> str:
+        """
+        라이브러리 소스 코드를 분석하여 CFG를 생성하고 저장한다.
+        ContractParser를 활용하여 청크 단위로 분석
+        
+        Args:
+            library_source: 라이브러리 Solidity 소스 코드
+            library_name: 라이브러리 이름 (None이면 소스에서 자동 추출)
+            
+        Returns:
+            저장된 라이브러리 이름
+        """
+        from .ContractParser import ContractParser
+        
+        # 1. 소스를 청크로 분할
+        try:
+            parser = ContractParser()
+            chunks = parser.parse_library_source(library_source)
+        except Exception as e:
+            raise ValueError(f"Failed to parse library source: {e}")
+        
+        # 2. 각 청크를 순차적으로 처리
+        current_library_name = library_name
+        
+        for chunk in chunks:
+            code = chunk.code
+            start_line = chunk.start_line
+            end_line = chunk.end_line
+            event = chunk.event
+            
+            # 빈 줄은 건너뛰기 (ContractParser에서 이미 처리하지만 추가 확인)
+            if code.strip() == "" or code.strip() == "\n":
+                continue
+                
+            # 라이브러리 이름 자동 추출
+            if current_library_name is None and chunk.chunk_type == "library":
+                if chunk.context_info and "name" in chunk.context_info:
+                    current_library_name = chunk.context_info["name"]
+                elif code.strip().startswith("library"):
+                    parts = code.strip().split()
+                    if len(parts) >= 2:
+                        current_library_name = parts[1].rstrip("{")
+            
+            # 코드 업데이트 및 분석
+            self.update_code(start_line, end_line, code, event)
+        
+        if current_library_name is None:
+            raise ValueError("Could not determine library name from source")
+        
+        # 3. 라이브러리 CFG 저장
+        self.save_library_cfg(current_library_name)
+        
+        return current_library_name
+
+    def save_library_cfg(self, library_name: str, file_path: str = None):
+        """
+        라이브러리 CFG를 JSON 파일로 저장한다.
+        
+        Args:
+            library_name: 저장할 라이브러리 이름
+            file_path: 저장할 파일 경로 (None이면 기본 경로 사용)
+        """
+        if library_name not in self.library_cfgs:
+            raise ValueError(f"Library '{library_name}' not found in memory")
+
+        library_cfg = self.library_cfgs[library_name]
+        
+        # 기본 저장 경로 설정
+        if file_path is None:
+            libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
+            libraries_dir.mkdir(exist_ok=True)
+            file_path = libraries_dir / f"{library_name}.json"
+        else:
+            file_path = pathlib.Path(file_path)
+            
+        # LibraryCFG를 직렬화
+        serialized_data = self._serialize_library_cfg(library_cfg)
+        
+        # JSON 파일로 저장
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
+            print(f"✓ Library '{library_name}' saved to {file_path}")
+        except Exception as e:
+            raise ValueError(f"Failed to save library '{library_name}': {e}")
+
     def load_library_cfg(self, library_name: str) -> 'LibraryCFG':
         """
         라이브러리 CFG를 로드한다.
         1. 메모리에 이미 있으면 반환
-        2. 없으면 파일에서 로드 시도 (향후 구현)
+        2. 없으면 파일에서 로드 시도
         3. 그래도 없으면 None 반환
         """
         # 1. 메모리에서 찾기
         if library_name in self.library_cfgs:
             return self.library_cfgs[library_name]
 
-        # 2. 파일에서 로드 (향후 구현 예정)
-        # library_cfg = self.load_library_from_file(library_name)
-        # if library_cfg:
-        #     self.library_cfgs[library_name] = library_cfg
-        #     return library_cfg
+        # 2. 파일에서 로드
+        library_cfg = self._load_library_from_file(library_name)
+        if library_cfg:
+            self.library_cfgs[library_name] = library_cfg
+            return library_cfg
 
         # 3. 찾을 수 없음
         return None
 
-    def save_library_cfg(self, library_name: str, file_path: str = None):
-        """
-        라이브러리 CFG를 파일로 저장 (향후 구현 예정)
-        """
-        if library_name not in self.library_cfgs:
-            raise ValueError(f"Library '{library_name}' not found in memory")
+    def _load_library_from_file(self, library_name: str) -> 'LibraryCFG':
+        """파일에서 라이브러리 CFG를 로드"""
+        libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
+        file_path = libraries_dir / f"{library_name}.json"
+        
+        if not file_path.exists():
+            return None
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                serialized_data = json.load(f)
+            
+            # 역직렬화하여 LibraryCFG 객체 생성
+            library_cfg = self._deserialize_library_cfg(serialized_data)
+            return library_cfg
+            
+        except Exception as e:
+            print(f"Warning: Failed to load library '{library_name}': {e}")
+            return None
 
-        # library_cfg = self.library_cfgs[library_name]
-        # serialized = library_cfg.serialize_for_storage()
-        # 파일 저장 로직 (pickle, json 등)
-        pass
+    def _serialize_library_cfg(self, library_cfg) -> Dict:
+        """LibraryCFG 객체를 직렬화 가능한 dict로 변환"""
+        from Utils.CFG import LibraryCFG, FunctionCFG
+        
+        serialized = {
+            "library_name": library_cfg.contract_name,
+            "functions": {},
+            "type": "LibraryCFG"
+        }
+        
+        # 함수들 직렬화
+        for func_name, func_cfg in library_cfg.functions.items():
+            serialized["functions"][func_name] = self._serialize_function_cfg(func_cfg)
+            
+        return serialized
+
+    def _serialize_function_cfg(self, func_cfg) -> Dict:
+        """FunctionCFG를 직렬화 가능한 dict로 변환"""
+        return {
+            "function_name": func_cfg.function_name,
+            "function_type": getattr(func_cfg, 'function_type', 'function'),
+            "parameters": getattr(func_cfg, 'parameters', []),
+            "return_types": getattr(func_cfg, 'return_types', []),
+            # 필요한 다른 속성들 추가
+        }
+
+    def _deserialize_library_cfg(self, data: Dict):
+        """직렬화된 데이터에서 LibraryCFG 객체를 생성"""
+        from Utils.CFG import LibraryCFG, FunctionCFG
+        
+        library_name = data["library_name"]
+        library_cfg = LibraryCFG(library_name)
+        
+        # 함수들 역직렬화
+        for func_name, func_data in data["functions"].items():
+            func_cfg = self._deserialize_function_cfg(func_data, library_cfg)
+            library_cfg.functions[func_name] = func_cfg
+            
+        return library_cfg
+
+    def _deserialize_function_cfg(self, data: Dict, parent_cfg):
+        """직렬화된 데이터에서 FunctionCFG 객체를 생성"""
+        from Utils.CFG import FunctionCFG
+        
+        # 간단한 FunctionCFG 생성 (실제로는 더 복잡할 수 있음)
+        func_cfg = FunctionCFG(
+            function_name=data["function_name"],
+            parent_contract=parent_cfg
+        )
+        func_cfg.function_type = data.get("function_type", "function")
+        func_cfg.parameters = data.get("parameters", [])
+        func_cfg.return_types = data.get("return_types", [])
+        
+        return func_cfg

@@ -177,6 +177,10 @@ class ContractCFG(CFG):
         self.functions = {}  # name -> FunctionCFG
 
         self.globals: dict[str, GlobalVariable] = {}
+        
+        # Using directive 지원: type -> LibraryCFG
+        self.using_libraries: dict[str, 'LibraryCFG'] = {}  # "uint256" -> SafeMathLibrary
+        self.using_all_libraries: list['LibraryCFG'] = []   # using Library for *;
 
     def initialize_state_variable_node(self):
         self.state_variable_node = CFGNode('State_Variable')
@@ -262,6 +266,34 @@ class ContractCFG(CFG):
 
     def get_function_cfg(self, function_name):
         return self.functions[function_name]
+    
+    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):
+        """
+        using directive 처리: using LibraryName for TargetType;
+        target_type이 None이면 모든 타입에 적용 (using LibraryName for *;)
+        """
+        if target_type is None:
+            self.using_all_libraries.append(library_cfg)
+        else:
+            self.using_libraries[target_type] = library_cfg
+    
+    def find_library_function(self, target_type: str, function_name: str) -> 'FunctionCFG':
+        """
+        target_type에 대한 라이브러리 함수를 찾아 반환
+        예: find_library_function("uint256", "mul") -> SafeMath.mul
+        """
+        # 특정 타입에 대한 라이브러리 검색
+        if target_type in self.using_libraries:
+            library_cfg = self.using_libraries[target_type]
+            if function_name in library_cfg.functions:
+                return library_cfg.functions[function_name]
+        
+        # using * 라이브러리들에서 검색
+        for library_cfg in self.using_all_libraries:
+            if function_name in library_cfg.functions:
+                return library_cfg.functions[function_name]
+        
+        return None
 
 
 class FunctionCFG(CFG):
@@ -341,3 +373,50 @@ class FunctionCFG(CFG):
             if not self.graph.edges[condition_node, successor].get('condition', False):  # False branch
                 return successor
         return None  # False block을 찾지 못한 경우 None 반환
+
+
+class LibraryCFG(CFG):
+    """
+    Solidity 라이브러리를 위한 CFG 클래스
+    라이브러리는 state variable, constructor가 없고 함수만 포함
+    """
+    def __init__(self, library_name):
+        super().__init__('library')
+        self.library_name = library_name
+        self.functions = {}  # function_name -> FunctionCFG
+        
+        # 라이브러리는 state variable이 없으므로 ContractCFG와 달리 관련 속성들 제외
+        self.structDefs = {}  # name -> StructDefinition 객체
+        self.enumDefs = {}   # name -> EnumDefinition 객체
+        
+    def add_function_cfg(self, function_name, function_cfg):
+        """라이브러리 함수 CFG 추가"""
+        self.functions[function_name] = function_cfg
+        
+    def get_function_cfg(self, function_name):
+        """라이브러리 함수 CFG 반환"""
+        return self.functions.get(function_name)
+        
+    def has_function(self, function_name: str) -> bool:
+        """라이브러리에 해당 함수가 있는지 확인"""
+        return function_name in self.functions
+        
+    def define_struct(self, struct_def_obj):
+        """라이브러리 내 구조체 정의 추가"""
+        self.structDefs[struct_def_obj.struct_name] = struct_def_obj
+        
+    def define_enum(self, enum_name, enum_def):
+        """라이브러리 내 열거형 정의 추가"""
+        if enum_name not in self.enumDefs:
+            self.enumDefs[enum_name] = enum_def
+        else:
+            raise ValueError(f"Enum {enum_name} is already defined in library {self.library_name}.")
+            
+    def serialize_for_storage(self) -> dict:
+        """라이브러리 CFG를 저장을 위해 직렬화"""
+        return {
+            'library_name': self.library_name,
+            'functions': {name: cfg for name, cfg in self.functions.items()},
+            'structDefs': self.structDefs,
+            'enumDefs': self.enumDefs
+        }
