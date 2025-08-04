@@ -52,6 +52,9 @@ class ContractAnalyzer:
         # for Multiple Contract
         self.contract_cfgs = {} # name -> ContractCFG
         self.library_cfgs = {}  # name -> LibraryCFG
+        
+        # 라이브러리 파일 저장 경로 (기본값: Libraries 디렉토리)
+        self.libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
 
         self.evaluator = Evaluation(self)
         self.updater = Update(self)
@@ -2197,9 +2200,8 @@ class ContractAnalyzer:
         
         # 기본 저장 경로 설정
         if file_path is None:
-            libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
-            libraries_dir.mkdir(exist_ok=True)
-            file_path = libraries_dir / f"{library_name}.json"
+            self.libraries_dir.mkdir(exist_ok=True)
+            file_path = self.libraries_dir / f"{library_name}.json"
         else:
             file_path = pathlib.Path(file_path)
             
@@ -2236,8 +2238,7 @@ class ContractAnalyzer:
 
     def _load_library_from_file(self, library_name: str) -> 'LibraryCFG':
         """파일에서 라이브러리 CFG를 로드"""
-        libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
-        file_path = libraries_dir / f"{library_name}.json"
+        file_path = self.libraries_dir / f"{library_name}.json"
         
         if not file_path.exists():
             return None
