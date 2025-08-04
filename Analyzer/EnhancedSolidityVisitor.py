@@ -2280,9 +2280,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         return result_expr
 
-    def visitLiteralWithSubDenomination(self, ctx: SolidityParser.LiteralWithSubDenominationContext):
-        return self.visitChildren(ctx)
-
     # Visit a parse tree produced by SolidityParser#TypeNameExp.
     def visitTypeNameExp(self, ctx:SolidityParser.TypeNameExpContext):
         return self.visitChildren(ctx)

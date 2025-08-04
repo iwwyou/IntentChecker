@@ -14,16 +14,15 @@ from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
 from Analyzer.RecordManager import RecordManager
 from Analyzer.StaticCFGFactory import StaticCFGFactory
+from Analyzer.CFGSerializer import CFGSerializer
 from Interpreter.Semantics.Evaluation import Evaluation
 from Interpreter.Semantics.Update import Update
 from Interpreter.Semantics.Refine import Refine
 from Interpreter.Semantics.Runtime import Runtime
 from Interpreter.Engine import Engine
 from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
-import json
-import os
 import pathlib
-from typing import Dict, List
+from typing import Dict
 
 class ContractAnalyzer:
 
@@ -55,6 +54,9 @@ class ContractAnalyzer:
         
         # 라이브러리 파일 저장 경로 (기본값: Libraries 디렉토리)
         self.libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
+        
+        # CFG 직렬화/역직렬화 담당
+        self.cfg_serializer = CFGSerializer()
 
         self.evaluator = Evaluation(self)
         self.updater = Update(self)
@@ -2188,6 +2190,7 @@ class ContractAnalyzer:
     def save_library_cfg(self, library_name: str, file_path: str = None):
         """
         라이브러리 CFG를 JSON 파일로 저장한다.
+        CFGSerializer에 위임
         
         Args:
             library_name: 저장할 라이브러리 이름
@@ -2198,23 +2201,8 @@ class ContractAnalyzer:
 
         library_cfg = self.library_cfgs[library_name]
         
-        # 기본 저장 경로 설정
-        if file_path is None:
-            self.libraries_dir.mkdir(exist_ok=True)
-            file_path = self.libraries_dir / f"{library_name}.json"
-        else:
-            file_path = pathlib.Path(file_path)
-            
-        # LibraryCFG를 직렬화
-        serialized_data = self._serialize_library_cfg(library_cfg)
-        
-        # JSON 파일로 저장
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
-            print(f"✓ Library '{library_name}' saved to {file_path}")
-        except Exception as e:
-            raise ValueError(f"Failed to save library '{library_name}': {e}")
+        # CFGSerializer에 위임
+        return self.cfg_serializer.save_library_cfg(library_cfg, library_name, file_path)
 
     def load_library_cfg(self, library_name: str) -> 'LibraryCFG':
         """
@@ -2227,8 +2215,8 @@ class ContractAnalyzer:
         if library_name in self.library_cfgs:
             return self.library_cfgs[library_name]
 
-        # 2. 파일에서 로드
-        library_cfg = self._load_library_from_file(library_name)
+        # 2. CFGSerializer를 통해 파일에서 로드
+        library_cfg = self.cfg_serializer.load_library_cfg(library_name)
         if library_cfg:
             self.library_cfgs[library_name] = library_cfg
             return library_cfg
@@ -2236,9 +2224,66 @@ class ContractAnalyzer:
         # 3. 찾을 수 없음
         return None
 
-    def _load_library_from_file(self, library_name: str) -> 'LibraryCFG':
-        """파일에서 라이브러리 CFG를 로드"""
-        file_path = self.libraries_dir / f"{library_name}.json"
+
+
+
+    
+    def save_contract_cfg(self, contract_name: str, file_path: str = None):
+        """
+        컨트랙트 CFG를 JSON 파일로 저장한다.
+        
+        Args:
+            contract_name: 저장할 컨트랙트 이름
+            file_path: 저장할 파일 경로 (None이면 기본 경로 사용)
+        """
+        if contract_name not in self.contract_cfgs:
+            raise ValueError(f"Contract '{contract_name}' not found in memory")
+
+        contract_cfg = self.contract_cfgs[contract_name]
+        
+        # 기본 저장 경로 설정
+        if file_path is None:
+            contracts_dir = pathlib.Path(__file__).parent.parent / "Contracts"
+            contracts_dir.mkdir(exist_ok=True)
+            file_path = contracts_dir / f"{contract_name}.json"
+        else:
+            file_path = pathlib.Path(file_path)
+            
+        # ContractCFG를 직렬화
+        serialized_data = self._serialize_contract_cfg(contract_cfg)
+        
+        # JSON 파일로 저장
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
+            print(f"✓ Contract '{contract_name}' saved to {file_path}")
+        except Exception as e:
+            raise ValueError(f"Failed to save contract '{contract_name}': {e}")
+
+    def load_contract_cfg(self, contract_name: str) -> 'ContractCFG':
+        """
+        컨트랙트 CFG를 로드한다.
+        1. 메모리에 이미 있으면 반환
+        2. 없으면 파일에서 로드 시도
+        3. 그래도 없으면 None 반환
+        """
+        # 1. 메모리에서 찾기
+        if contract_name in self.contract_cfgs:
+            return self.contract_cfgs[contract_name]
+
+        # 2. 파일에서 로드
+        contract_cfg = self._load_contract_from_file(contract_name)
+        if contract_cfg:
+            self.contract_cfgs[contract_name] = contract_cfg
+            return contract_cfg
+
+        # 3. 찾을 수 없음
+        return None
+
+    def _load_contract_from_file(self, contract_name: str) -> 'ContractCFG':
+        """파일에서 컨트랙트 CFG를 로드"""
+        contracts_dir = pathlib.Path(__file__).parent.parent / "Contracts"
+        file_path = contracts_dir / f"{contract_name}.json"
         
         if not file_path.exists():
             return None
@@ -2247,65 +2292,91 @@ class ContractAnalyzer:
             with open(file_path, 'r', encoding='utf-8') as f:
                 serialized_data = json.load(f)
             
-            # 역직렬화하여 LibraryCFG 객체 생성
-            library_cfg = self._deserialize_library_cfg(serialized_data)
-            return library_cfg
+            # 역직렬화하여 ContractCFG 객체 생성
+            contract_cfg = self._deserialize_contract_cfg(serialized_data)
+            return contract_cfg
             
         except Exception as e:
-            print(f"Warning: Failed to load library '{library_name}': {e}")
+            print(f"Warning: Failed to load contract '{contract_name}': {e}")
             return None
 
-    def _serialize_library_cfg(self, library_cfg) -> Dict:
-        """LibraryCFG 객체를 직렬화 가능한 dict로 변환"""
-        from Utils.CFG import LibraryCFG, FunctionCFG
+    def _serialize_contract_cfg(self, contract_cfg) -> Dict:
+        """
+        ContractCFG를 직렬화 가능한 dict로 변환
+        CFG 클래스의 serialize_for_storage 메서드 활용
+        """
+        if hasattr(contract_cfg, 'serialize_for_storage'):
+            return contract_cfg.serialize_for_storage()
         
-        serialized = {
-            "library_name": library_cfg.contract_name,
-            "functions": {},
-            "type": "LibraryCFG"
-        }
+        # 호환성을 위한 기본 직렬화
+        serialized_functions = {}
+        for func_name, func_cfg in contract_cfg.functions.items():
+            serialized_functions[func_name] = self._serialize_function_cfg(func_cfg)
         
-        # 함수들 직렬화
-        for func_name, func_cfg in library_cfg.functions.items():
-            serialized["functions"][func_name] = self._serialize_function_cfg(func_cfg)
-            
-        return serialized
-
-    def _serialize_function_cfg(self, func_cfg) -> Dict:
-        """FunctionCFG를 직렬화 가능한 dict로 변환"""
         return {
-            "function_name": func_cfg.function_name,
-            "function_type": getattr(func_cfg, 'function_type', 'function'),
-            "parameters": getattr(func_cfg, 'parameters', []),
-            "return_types": getattr(func_cfg, 'return_types', []),
-            # 필요한 다른 속성들 추가
+            "cfg_type": contract_cfg.cfg_type,
+            "contract_name": contract_cfg.contract_name,
+            "functions": serialized_functions,
+            "type": "ContractCFG"
         }
 
-    def _deserialize_library_cfg(self, data: Dict):
-        """직렬화된 데이터에서 LibraryCFG 객체를 생성"""
-        from Utils.CFG import LibraryCFG, FunctionCFG
+    def _deserialize_contract_cfg(self, data: Dict):
+        """직렬화된 데이터에서 ContractCFG 객체를 생성"""
+        from Utils.CFG import ContractCFG
         
-        library_name = data["library_name"]
-        library_cfg = LibraryCFG(library_name)
+        contract_name = data["contract_name"]
+        contract_cfg = ContractCFG(contract_name)
         
         # 함수들 역직렬화
-        for func_name, func_data in data["functions"].items():
-            func_cfg = self._deserialize_function_cfg(func_data, library_cfg)
-            library_cfg.functions[func_name] = func_cfg
+        if "functions" in data:
+            for func_name, func_data in data["functions"].items():
+                func_cfg = self._deserialize_function_cfg(func_data, contract_cfg)
+                contract_cfg.functions[func_name] = func_cfg
             
-        return library_cfg
-
-    def _deserialize_function_cfg(self, data: Dict, parent_cfg):
-        """직렬화된 데이터에서 FunctionCFG 객체를 생성"""
-        from Utils.CFG import FunctionCFG
+        return contract_cfg
+    
+    def serialize_all_cfgs(self, output_dir: str = None) -> Dict[str, str]:
+        """
+        모든 CFG를 직렬화하여 파일로 저장
         
-        # 간단한 FunctionCFG 생성 (실제로는 더 복잡할 수 있음)
-        func_cfg = FunctionCFG(
-            function_name=data["function_name"],
-            parent_contract=parent_cfg
-        )
-        func_cfg.function_type = data.get("function_type", "function")
-        func_cfg.parameters = data.get("parameters", [])
-        func_cfg.return_types = data.get("return_types", [])
+        Args:
+            output_dir: 출력 디렉토리 (None이면 기본 디렉토리 사용)
+            
+        Returns:
+            저장된 파일들의 딕셔너리 {cfg_name: file_path}
+        """
+        if output_dir is None:
+            output_dir = pathlib.Path(__file__).parent.parent / "SerializedCFGs"
+        else:
+            output_dir = pathlib.Path(output_dir)
+            
+        output_dir.mkdir(exist_ok=True)
+        saved_files = {}
         
-        return func_cfg
+        # 라이브러리 CFG들 저장
+        for lib_name, lib_cfg in self.library_cfgs.items():
+            file_path = output_dir / f"{lib_name}_library.json"
+            try:
+                serialized_data = self._serialize_library_cfg(lib_cfg)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(serialized_data, f, indent=2, ensure_ascii=False)
+                saved_files[f"{lib_name}_library"] = str(file_path)
+            except Exception as e:
+                print(f"Failed to save library {lib_name}: {e}")
+        
+        # 컨트랙트 CFG들 저장
+        for contract_name, contract_cfg in self.contract_cfgs.items():
+            # 라이브러리는 이미 위에서 처리했으므로 건너뛰기
+            if contract_name in self.library_cfgs:
+                continue
+                
+            file_path = output_dir / f"{contract_name}_contract.json"
+            try:
+                serialized_data = self._serialize_contract_cfg(contract_cfg)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(serialized_data, f, indent=2, ensure_ascii=False)
+                saved_files[f"{contract_name}_contract"] = str(file_path)
+            except Exception as e:
+                print(f"Failed to save contract {contract_name}: {e}")
+        
+        return saved_files
