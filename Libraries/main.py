@@ -43,6 +43,7 @@ class LibraryManager:
     def analyze_library_file(self, sol_file_path: pathlib.Path) -> str:
         """
         .sol 파일을 분석하여 objectfile에 저장
+        ContractAnalyzer의 완전한 파싱 파이프라인을 사용
         
         Args:
             sol_file_path: 분석할 .sol 파일 경로
@@ -60,20 +61,48 @@ class LibraryManager:
             print(f"✗ 소스 파일 읽기 실패: {e}")
             raise
         
-        # 2. 라이브러리 분석 및 저장
+        # 2. ContractAnalyzer 초기화 (새로운 분석을 위해 상태 리셋)
+        self.analyzer = ContractAnalyzer()
+        
+        # 3. 라이브러리 분석 및 저장 (완전한 파싱 파이프라인 포함)
         try:
             library_name = self.analyzer.analyze_and_save_library(library_source)
             print(f"✓ 라이브러리 '{library_name}' 분석 완료")
             
-            # 3. 분석된 CFG를 objectfile 디렉토리로 이동
+            # 4. 분석 결과 요약 출력
+            self._print_analysis_summary(library_name)
+            
+            # 5. 분석된 CFG를 objectfile 디렉토리로 이동
             self._move_to_objectfile(library_name)
             
             return library_name
             
         except Exception as e:
             print(f"✗ 라이브러리 분석 실패: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
+    def _print_analysis_summary(self, library_name: str):
+        """분석 결과 요약 출력 - Library CFG와 Function CFG 생성 확인"""
+        try:
+            if library_name in self.analyzer.library_cfgs:
+                library_cfg = self.analyzer.library_cfgs[library_name]
+                print(f"  📊 CFG 생성 결과:")
+                print(f"    ✓ Library CFG 생성됨: {library_cfg.library_name}")
+                
+                if hasattr(library_cfg, 'functions') and library_cfg.functions:
+                    print(f"    ✓ Function CFG 개수: {len(library_cfg.functions)}")
+                    for func_name, func_cfg in library_cfg.functions.items():
+                        cfg_type = getattr(func_cfg, 'function_type', 'function')
+                        print(f"      - {func_name} ({cfg_type})")
+                else:
+                    print(f"    ⚠ Function CFG 없음")
+            else:
+                print(f"  ✗ Library CFG 생성 실패: {library_name}")
+        except Exception as e:
+            print(f"  ⚠ CFG 확인 중 오류: {e}")
+
     def _move_to_objectfile(self, library_name: str):
         """분석된 라이브러리 CFG를 objectfile 디렉토리로 이동"""
         # 기본 Libraries 디렉토리에서 objectfile로 이동
@@ -123,33 +152,52 @@ class LibraryManager:
             print("저장된 객체 파일이 없습니다.")
     
     def test_library_loading(self, library_name: str):
-        """라이브러리 로딩 테스트"""
+        """라이브러리 로딩 테스트 (CFGSerializer 사용)"""
         print(f"\n=== {library_name} 로딩 테스트 ===")
         
-        # ContractAnalyzer의 라이브러리 경로를 objectfile로 변경
-        original_lib_dir = None
-        if hasattr(self.analyzer, 'libraries_dir'):
-            original_lib_dir = self.analyzer.libraries_dir
-        
-        # 임시로 objectfile 디렉토리로 변경
-        self.analyzer.libraries_dir = self.objectfile_dir
-        
         try:
-            loaded_library = self.analyzer.load_library_cfg(library_name)
-            if loaded_library:
-                print("✓ 라이브러리 로드 성공")
-                print(f"  - 라이브러리 이름: {loaded_library.contract_name}")
-                if hasattr(loaded_library, 'functions'):
-                    print(f"  - 함수 개수: {len(loaded_library.functions)}")
-                    print(f"  - 함수 목록: {list(loaded_library.functions.keys())}")
+            # CFGSerializer를 사용하여 objectfile에서 직접 로드
+            from Analyzer.CFGSerializer import CFGSerializer
+            serializer = CFGSerializer(str(self.objectfile_dir.parent))
+            
+            # objectfile 디렉토리에서 로드
+            library_file = self.objectfile_dir / f"{library_name}.json"
+            if library_file.exists():
+                loaded_library = serializer.load_library_cfg(library_name, str(library_file))
+                if loaded_library:
+                    print("✓ 라이브러리 로드 성공")
+                    self._print_loaded_library_info(loaded_library)
+                else:
+                    print("✗ 라이브러리 로드 실패 - 역직렬화 실패")
             else:
-                print("✗ 라이브러리 로드 실패")
+                print(f"✗ 라이브러리 파일 없음: {library_file}")
+                
         except Exception as e:
             print(f"✗ 라이브러리 로드 중 오류: {e}")
-        finally:
-            # 원래 경로로 복원
-            if original_lib_dir:
-                self.analyzer.libraries_dir = original_lib_dir
+            import traceback
+            traceback.print_exc()
+    
+    def _print_loaded_library_info(self, loaded_library):
+        """로드된 라이브러리 정보 출력"""
+        try:
+            print(f"  📖 라이브러리 정보:")
+            library_name = getattr(loaded_library, 'library_name', 
+                                 getattr(loaded_library, 'contract_name', 'Unknown'))
+            print(f"    - 이름: {library_name}")
+            
+            if hasattr(loaded_library, 'functions'):
+                print(f"    - 함수 개수: {len(loaded_library.functions)}")
+                if loaded_library.functions:
+                    print(f"    - 함수 목록: {list(loaded_library.functions.keys())}")
+                    
+            if hasattr(loaded_library, 'structDefs'):
+                print(f"    - Struct 개수: {len(loaded_library.structDefs)}")
+                
+            if hasattr(loaded_library, 'enumDefs'):
+                print(f"    - Enum 개수: {len(loaded_library.enumDefs)}")
+                
+        except Exception as e:
+            print(f"    ⚠ 라이브러리 정보 출력 중 오류: {e}")
     
     def test_using_directive_simulation(self):
         """using directive 시뮬레이션 테스트"""
@@ -202,13 +250,13 @@ def main():
     
     manager = LibraryManager()
     
-    # 1. 모든 라이브러리 분석
+    # 1. 모든 라이브러리 분석 (완전한 파싱 파이프라인 사용)
     analyzed_libs = manager.analyze_all_libraries()
     
     # 2. 저장된 객체 파일들 확인
     manager.list_object_files()
     
-    # 3. 각 라이브러리 로딩 테스트
+    # 3. 각 라이브러리 로딩 테스트 (CFGSerializer 사용)
     for sol_file, lib_name in analyzed_libs.items():
         manager.test_library_loading(lib_name)
     

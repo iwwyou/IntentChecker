@@ -139,6 +139,40 @@ class CFGNode:
         :return: Variables 객체
         """
         return self.variables.get(var_name)
+    
+    def serialize_for_storage(self) -> dict:
+        """CFGNode를 저장을 위해 직렬화"""
+        serialized_statements = []
+        for stmt in self.statements:
+            if hasattr(stmt, 'serialize_for_storage'):
+                serialized_statements.append(stmt.serialize_for_storage())
+            else:
+                serialized_statements.append(str(stmt))
+        
+        serialized_variables = {}
+        for var_name, var_obj in self.variables.items():
+            if hasattr(var_obj, 'serialize_for_storage'):
+                serialized_variables[var_name] = var_obj.serialize_for_storage()
+            else:
+                serialized_variables[var_name] = str(var_obj)
+        
+        return {
+            'name': self.name,
+            'condition_node': self.condition_node,
+            'condition_node_type': self.condition_node_type,
+            'branch_node': self.branch_node,
+            'is_true_branch': self.is_true_branch,
+            'join_point_node': self.join_point_node,
+            'fixpoint_evaluation_node': self.fixpoint_evaluation_node,
+            'is_for_increment': self.is_for_increment,
+            'loop_exit_node': self.loop_exit_node,
+            'is_loop_body': self.is_loop_body,
+            'unchecked_block': self.unchecked_block,
+            'function_exit_node': self.function_exit_node,
+            'src_line': self.src_line,
+            'statements': serialized_statements,
+            'variables': serialized_variables
+        }
 
 class CFG:
     def __init__(self, cfg_type):
@@ -155,6 +189,31 @@ class CFG:
 
     def get_exit_node(self):
         return self.exit_node
+    
+    def serialize_graph_structure(self) -> dict:
+        """그래프 구조를 직렬화"""
+        nodes = []
+        edges = []
+        
+        for node in self.graph.nodes():
+            if hasattr(node, 'serialize_for_storage'):
+                nodes.append(node.serialize_for_storage())
+            else:
+                nodes.append({'name': str(node)})
+        
+        for edge in self.graph.edges(data=True):
+            source_name = edge[0].name if hasattr(edge[0], 'name') else str(edge[0])
+            target_name = edge[1].name if hasattr(edge[1], 'name') else str(edge[1])
+            edges.append({
+                'source': source_name,
+                'target': target_name,
+                'data': edge[2]
+            })
+        
+        return {
+            'nodes': nodes,
+            'edges': edges
+        }
 
 
 class ContractCFG(CFG):
@@ -294,6 +353,53 @@ class ContractCFG(CFG):
                 return library_cfg.functions[function_name]
         
         return None
+    
+    def serialize_for_storage(self) -> dict:
+        """ContractCFG를 저장을 위해 직렬화"""
+        serialized_functions = {}
+        for func_name, func_cfg in self.functions.items():
+            if hasattr(func_cfg, 'serialize_for_storage'):
+                serialized_functions[func_name] = func_cfg.serialize_for_storage()
+            else:
+                serialized_functions[func_name] = str(func_cfg)
+        
+        serialized_globals = {}
+        for var_name, var_obj in self.globals.items():
+            if hasattr(var_obj, 'serialize_for_storage'):
+                serialized_globals[var_name] = var_obj.serialize_for_storage()
+            else:
+                serialized_globals[var_name] = str(var_obj)
+        
+        serialized_using_libraries = {}
+        for target_type, lib_cfg in self.using_libraries.items():
+            if hasattr(lib_cfg, 'serialize_for_storage'):
+                serialized_using_libraries[target_type] = lib_cfg.serialize_for_storage()
+            else:
+                serialized_using_libraries[target_type] = str(lib_cfg)
+        
+        serialized_using_all_libraries = []
+        for lib_cfg in self.using_all_libraries:
+            if hasattr(lib_cfg, 'serialize_for_storage'):
+                serialized_using_all_libraries.append(lib_cfg.serialize_for_storage())
+            else:
+                serialized_using_all_libraries.append(str(lib_cfg))
+        
+        return {
+            'cfg_type': self.cfg_type,
+            'contract_name': self.contract_name,
+            'functions': serialized_functions,
+            'globals': serialized_globals,
+            'structDefs': self.structDefs,
+            'structVars': self.structVars,
+            'enumDefs': self.enumDefs,
+            'enumVars': self.enumVars,
+            'using_libraries': serialized_using_libraries,
+            'using_all_libraries': serialized_using_all_libraries,
+            'constructor': self.constructor.serialize_for_storage() if self.constructor and hasattr(self.constructor, 'serialize_for_storage') else str(self.constructor) if self.constructor else None,
+            'fallback': self.fallback.serialize_for_storage() if self.fallback and hasattr(self.fallback, 'serialize_for_storage') else str(self.fallback) if self.fallback else None,
+            'receive': self.receive.serialize_for_storage() if self.receive and hasattr(self.receive, 'serialize_for_storage') else str(self.receive) if self.receive else None,
+            'graph_structure': self.serialize_graph_structure()
+        }
 
 
 class FunctionCFG(CFG):
@@ -373,6 +479,42 @@ class FunctionCFG(CFG):
             if not self.graph.edges[condition_node, successor].get('condition', False):  # False branch
                 return successor
         return None  # False block을 찾지 못한 경우 None 반환
+    
+    def serialize_for_storage(self) -> dict:
+        """FunctionCFG를 저장을 위해 직렬화"""
+        serialized_related_variables = {}
+        for var_name, var_obj in self.related_variables.items():
+            if hasattr(var_obj, 'serialize_for_storage'):
+                serialized_related_variables[var_name] = var_obj.serialize_for_storage()
+            else:
+                serialized_related_variables[var_name] = str(var_obj)
+        
+        serialized_assign_env = {}
+        for var_name, var_obj in self.assign_env.items():
+            if hasattr(var_obj, 'serialize_for_storage'):
+                serialized_assign_env[var_name] = var_obj.serialize_for_storage()
+            else:
+                serialized_assign_env[var_name] = str(var_obj)
+        
+        serialized_return_types = []
+        for ret_type in self.return_types:
+            if hasattr(ret_type, 'serialize_for_storage'):
+                serialized_return_types.append(ret_type.serialize_for_storage())
+            else:
+                serialized_return_types.append(str(ret_type))
+        
+        return {
+            'cfg_type': self.cfg_type,
+            'function_type': self.function_type,
+            'function_name': self.function_name,
+            'parameters': self.parameters,
+            'return_types': serialized_return_types,
+            'return_vars': self.return_vars,
+            'related_variables': serialized_related_variables,
+            'assign_env': serialized_assign_env,
+            'modifiers': self.modifiers,
+            'graph_structure': self.serialize_graph_structure()
+        }
 
 
 class LibraryCFG(CFG):
@@ -414,9 +556,18 @@ class LibraryCFG(CFG):
             
     def serialize_for_storage(self) -> dict:
         """라이브러리 CFG를 저장을 위해 직렬화"""
+        serialized_functions = {}
+        for func_name, func_cfg in self.functions.items():
+            if hasattr(func_cfg, 'serialize_for_storage'):
+                serialized_functions[func_name] = func_cfg.serialize_for_storage()
+            else:
+                serialized_functions[func_name] = str(func_cfg)
+        
         return {
+            'cfg_type': self.cfg_type,
             'library_name': self.library_name,
-            'functions': {name: cfg for name, cfg in self.functions.items()},
+            'functions': serialized_functions,
             'structDefs': self.structDefs,
-            'enumDefs': self.enumDefs
+            'enumDefs': self.enumDefs,
+            'graph_structure': self.serialize_graph_structure()
         }

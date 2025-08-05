@@ -285,11 +285,10 @@ class ContractAnalyzer:
             self.current_context_type = self.determine_top_level_context(new_code)
             self.current_target_contract = self.find_contract_context(start_line)
 
-            if self.current_context_type == "contract" :
+            if self.current_context_type in ["contract", "library", "interface"] :
                 return
 
             self.current_target_function = self.find_function_context(start_line)
-
 
         # 최종적으로 context가 제대로 파악되지 않은 경우 기본값 처리
         if not self.current_target_contract:
@@ -323,7 +322,7 @@ class ContractAnalyzer:
             brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
-                if context_type == "contract":
+                if context_type in ["contract", "library", "interface"]:
                     return self.full_code_lines[line].split()[1]  # contract 이름 반환
         return None
 
@@ -2136,7 +2135,8 @@ class ContractAnalyzer:
     def analyze_and_save_library(self, library_source: str, library_name: str = None) -> str:
         """
         라이브러리 소스 코드를 분석하여 CFG를 생성하고 저장한다.
-        ContractParser를 활용하여 청크 단위로 분석
+        ContractParser를 활용하여 청크 단위로 분석하고, 
+        test.py의 simulate_inputs와 동일한 파싱 파이프라인을 사용
         
         Args:
             library_source: 라이브러리 Solidity 소스 코드
@@ -2146,6 +2146,8 @@ class ContractAnalyzer:
             저장된 라이브러리 이름
         """
         from .ContractParser import ContractParser
+        from .EnhancedSolidityVisitor import EnhancedSolidityVisitor
+        from Utils.Helper import ParserHelpers
         
         # 1. 소스를 청크로 분할
         try:
@@ -2154,8 +2156,9 @@ class ContractAnalyzer:
         except Exception as e:
             raise ValueError(f"Failed to parse library source: {e}")
         
-        # 2. 각 청크를 순차적으로 처리
+        # 2. 각 청크를 순차적으로 처리 (test.py의 simulate_inputs 로직과 동일)
         current_library_name = library_name
+        visitor = EnhancedSolidityVisitor(self)
         
         for chunk in chunks:
             code = chunk.code
@@ -2163,21 +2166,42 @@ class ContractAnalyzer:
             end_line = chunk.end_line
             event = chunk.event
             
-            # 빈 줄은 건너뛰기 (ContractParser에서 이미 처리하지만 추가 확인)
-            if code.strip() == "" or code.strip() == "\n":
+            # 빈 줄은 건너뛰기
+            if not code.strip():
                 continue
-                
+            
+            # 코드 업데이트 (solidity 소스 갱신)
+            self.update_code(start_line, end_line, code, event)
+            
+            stripped = code.lstrip()
+            
             # 라이브러리 이름 자동 추출
             if current_library_name is None and chunk.chunk_type == "library":
                 if chunk.context_info and "name" in chunk.context_info:
                     current_library_name = chunk.context_info["name"]
-                elif code.strip().startswith("library"):
-                    parts = code.strip().split()
+                elif stripped.startswith("library"):
+                    parts = stripped.split()
                     if len(parts) >= 2:
                         current_library_name = parts[1].rstrip("{")
             
-            # 코드 업데이트 및 분석
-            self.update_code(start_line, end_line, code, event)
+            # 디버그 주석 처리 (만약 있다면)
+            if stripped.startswith("// @"):
+                # 디버그 주석은 라이브러리 분석에서는 일반적으로 사용하지 않지만 
+                # 일관성을 위해 처리 로직 유지
+                continue
+            
+            # 일반 Solidity 코드 - test.py와 동일한 파싱 파이프라인
+            if code.strip():
+                try:
+                    # 현재 컨텍스트 타입 가져오기
+                    ctx = self.get_current_context_type()
+                    # 파스 트리 생성
+                    tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+                    # EnhancedSolidityVisitor로 방문
+                    visitor.visit(tree)
+                except Exception as e:
+                    print(f"Warning: Failed to parse chunk at line {start_line}: {e}")
+                    continue
         
         if current_library_name is None:
             raise ValueError("Could not determine library name from source")
@@ -2223,160 +2247,3 @@ class ContractAnalyzer:
 
         # 3. 찾을 수 없음
         return None
-
-
-
-
-    
-    def save_contract_cfg(self, contract_name: str, file_path: str = None):
-        """
-        컨트랙트 CFG를 JSON 파일로 저장한다.
-        
-        Args:
-            contract_name: 저장할 컨트랙트 이름
-            file_path: 저장할 파일 경로 (None이면 기본 경로 사용)
-        """
-        if contract_name not in self.contract_cfgs:
-            raise ValueError(f"Contract '{contract_name}' not found in memory")
-
-        contract_cfg = self.contract_cfgs[contract_name]
-        
-        # 기본 저장 경로 설정
-        if file_path is None:
-            contracts_dir = pathlib.Path(__file__).parent.parent / "Contracts"
-            contracts_dir.mkdir(exist_ok=True)
-            file_path = contracts_dir / f"{contract_name}.json"
-        else:
-            file_path = pathlib.Path(file_path)
-            
-        # ContractCFG를 직렬화
-        serialized_data = self._serialize_contract_cfg(contract_cfg)
-        
-        # JSON 파일로 저장
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(serialized_data, f, indent=2, ensure_ascii=False)
-            print(f"✓ Contract '{contract_name}' saved to {file_path}")
-        except Exception as e:
-            raise ValueError(f"Failed to save contract '{contract_name}': {e}")
-
-    def load_contract_cfg(self, contract_name: str) -> 'ContractCFG':
-        """
-        컨트랙트 CFG를 로드한다.
-        1. 메모리에 이미 있으면 반환
-        2. 없으면 파일에서 로드 시도
-        3. 그래도 없으면 None 반환
-        """
-        # 1. 메모리에서 찾기
-        if contract_name in self.contract_cfgs:
-            return self.contract_cfgs[contract_name]
-
-        # 2. 파일에서 로드
-        contract_cfg = self._load_contract_from_file(contract_name)
-        if contract_cfg:
-            self.contract_cfgs[contract_name] = contract_cfg
-            return contract_cfg
-
-        # 3. 찾을 수 없음
-        return None
-
-    def _load_contract_from_file(self, contract_name: str) -> 'ContractCFG':
-        """파일에서 컨트랙트 CFG를 로드"""
-        contracts_dir = pathlib.Path(__file__).parent.parent / "Contracts"
-        file_path = contracts_dir / f"{contract_name}.json"
-        
-        if not file_path.exists():
-            return None
-            
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                serialized_data = json.load(f)
-            
-            # 역직렬화하여 ContractCFG 객체 생성
-            contract_cfg = self._deserialize_contract_cfg(serialized_data)
-            return contract_cfg
-            
-        except Exception as e:
-            print(f"Warning: Failed to load contract '{contract_name}': {e}")
-            return None
-
-    def _serialize_contract_cfg(self, contract_cfg) -> Dict:
-        """
-        ContractCFG를 직렬화 가능한 dict로 변환
-        CFG 클래스의 serialize_for_storage 메서드 활용
-        """
-        if hasattr(contract_cfg, 'serialize_for_storage'):
-            return contract_cfg.serialize_for_storage()
-        
-        # 호환성을 위한 기본 직렬화
-        serialized_functions = {}
-        for func_name, func_cfg in contract_cfg.functions.items():
-            serialized_functions[func_name] = self._serialize_function_cfg(func_cfg)
-        
-        return {
-            "cfg_type": contract_cfg.cfg_type,
-            "contract_name": contract_cfg.contract_name,
-            "functions": serialized_functions,
-            "type": "ContractCFG"
-        }
-
-    def _deserialize_contract_cfg(self, data: Dict):
-        """직렬화된 데이터에서 ContractCFG 객체를 생성"""
-        from Utils.CFG import ContractCFG
-        
-        contract_name = data["contract_name"]
-        contract_cfg = ContractCFG(contract_name)
-        
-        # 함수들 역직렬화
-        if "functions" in data:
-            for func_name, func_data in data["functions"].items():
-                func_cfg = self._deserialize_function_cfg(func_data, contract_cfg)
-                contract_cfg.functions[func_name] = func_cfg
-            
-        return contract_cfg
-    
-    def serialize_all_cfgs(self, output_dir: str = None) -> Dict[str, str]:
-        """
-        모든 CFG를 직렬화하여 파일로 저장
-        
-        Args:
-            output_dir: 출력 디렉토리 (None이면 기본 디렉토리 사용)
-            
-        Returns:
-            저장된 파일들의 딕셔너리 {cfg_name: file_path}
-        """
-        if output_dir is None:
-            output_dir = pathlib.Path(__file__).parent.parent / "SerializedCFGs"
-        else:
-            output_dir = pathlib.Path(output_dir)
-            
-        output_dir.mkdir(exist_ok=True)
-        saved_files = {}
-        
-        # 라이브러리 CFG들 저장
-        for lib_name, lib_cfg in self.library_cfgs.items():
-            file_path = output_dir / f"{lib_name}_library.json"
-            try:
-                serialized_data = self._serialize_library_cfg(lib_cfg)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(serialized_data, f, indent=2, ensure_ascii=False)
-                saved_files[f"{lib_name}_library"] = str(file_path)
-            except Exception as e:
-                print(f"Failed to save library {lib_name}: {e}")
-        
-        # 컨트랙트 CFG들 저장
-        for contract_name, contract_cfg in self.contract_cfgs.items():
-            # 라이브러리는 이미 위에서 처리했으므로 건너뛰기
-            if contract_name in self.library_cfgs:
-                continue
-                
-            file_path = output_dir / f"{contract_name}_contract.json"
-            try:
-                serialized_data = self._serialize_contract_cfg(contract_cfg)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(serialized_data, f, indent=2, ensure_ascii=False)
-                saved_files[f"{contract_name}_contract"] = str(file_path)
-            except Exception as e:
-                print(f"Failed to save contract {contract_name}: {e}")
-        
-        return saved_files
