@@ -8,7 +8,7 @@
       "function_name": "wad",
       "parameters": [],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E941ED0>"
+        "<Domain.Type.SolType object at 0x000001E7E01372B0>"
       ],
       "return_vars": [],
       "related_variables": {},
@@ -88,7 +88,7 @@
       "function_name": "ray",
       "parameters": [],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E9422F0>"
+        "<Domain.Type.SolType object at 0x000001E7E0136F50>"
       ],
       "return_vars": [],
       "related_variables": {},
@@ -171,18 +171,18 @@
         "b"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E9431C0>"
+        "<Domain.Type.SolType object at 0x000001E7E0136A10>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E95B0A0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E95B160>",
-        "c": "<Domain.Variable.Variables object at 0x000001A43E940700>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01368C0>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0136CB0>",
+        "c": "<Domain.Variable.Variables object at 0x000001E7E01363B0>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E958CA0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E9595A0>",
-        "c": "<Domain.Variable.Variables object at 0x000001A43E943EB0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0149C90>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0149180>",
+        "c": "<Domain.Variable.Variables object at 0x000001E7E0134640>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -236,12 +236,12 @@
             "function_exit_node": false,
             "src_line": null,
             "statements": [
-              "<Domain.IR.Statement object at 0x000001A43E943D90>"
+              "<Domain.IR.Statement object at 0x000001E7E0136050>"
             ],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E941330>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E941C90>",
-              "c": "<Domain.Variable.Variables object at 0x000001A43E940700>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0134CD0>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E0136350>",
+              "c": "<Domain.Variable.Variables object at 0x000001E7E01363B0>"
             }
           },
           {
@@ -260,9 +260,9 @@
             "src_line": 17,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E959F90>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E95A800>",
-              "c": "<Domain.Variable.Variables object at 0x000001A43E95A6B0>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0149870>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E014B460>",
+              "c": "<Domain.Variable.Variables object at 0x000001E7E014A890>"
             }
           },
           {
@@ -281,9 +281,9 @@
             "src_line": 17,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E95AD10>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E95A200>",
-              "c": "<Domain.Variable.Variables object at 0x000001A43E95BCA0>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E014AB00>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E0148070>",
+              "c": "<Domain.Variable.Variables object at 0x000001E7E0148B80>"
             }
           }
         ],
@@ -330,20 +330,20 @@
         "errorMessage"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E95A050>"
+        "<Domain.Type.SolType object at 0x000001E7E014AFE0>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E9430A0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E942CE0>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E942260>",
-        "c": "<Domain.Variable.Variables object at 0x000001A43E97FA60>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0171D20>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0171300>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E0172FE0>",
+        "c": "<Domain.Variable.Variables object at 0x000001E7E0173FA0>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E97E890>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E97DEA0>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97D900>",
-        "c": "<Domain.Variable.Variables object at 0x000001A43E97FBB0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0170C10>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0171990>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01723B0>",
+        "c": "<Domain.Variable.Variables object at 0x000001E7E01725C0>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -398,9 +398,9 @@
             "src_line": null,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E97C700>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E97C640>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97D360>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0171C00>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01729E0>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E0171E70>"
             }
           },
           {
@@ -419,9 +419,9 @@
             "src_line": 23,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E97C070>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E97C670>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97CDF0>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0171F60>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01713F0>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E0171570>"
             }
           },
           {
@@ -439,13 +439,13 @@
             "function_exit_node": false,
             "src_line": 23,
             "statements": [
-              "<Domain.IR.Statement object at 0x000001A43E97F6D0>"
+              "<Domain.IR.Statement object at 0x000001E7E0171BA0>"
             ],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E97C760>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E97C310>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97C5E0>",
-              "c": "<Domain.Variable.Variables object at 0x000001A43E97FA60>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0171DB0>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E0170A60>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01709A0>",
+              "c": "<Domain.Variable.Variables object at 0x000001E7E0173FA0>"
             }
           }
         ],
@@ -491,16 +491,16 @@
         "b"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E97F2E0>"
+        "<Domain.Type.SolType object at 0x000001E7E0173AF0>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E97D1E0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E97C9A0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0170E20>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0173190>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E97E950>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E97FE80>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0173B80>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0170100>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -559,18 +559,18 @@
         "errorMessage"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E97D0F0>"
+        "<Domain.Type.SolType object at 0x000001E7E0173160>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E97F6A0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E97DE40>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97C8B0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0171810>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0173C40>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E0173E50>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E97F0A0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E97E9E0>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97E140>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01716F0>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01716C0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E0171AE0>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -629,18 +629,18 @@
         "errorMessage"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E9BC610>"
+        "<Domain.Type.SolType object at 0x000001E7E01AC550>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E9BCDC0>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E9BD480>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BD240>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01AF5B0>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01AC370>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01AD240>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E9BFB50>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E9BF7F0>",
-        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF4C0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01AF1F0>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01AC6D0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01AE3B0>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -695,9 +695,9 @@
             "src_line": null,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E97DBA0>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E97DD50>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BCD60>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E01737C0>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01AFA90>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01ACB50>"
             }
           },
           {
@@ -716,9 +716,9 @@
             "src_line": 57,
             "statements": [],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E9BF1C0>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E9BE9E0>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF490>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E01AF3D0>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01AF250>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01ADCF0>"
             }
           },
           {
@@ -736,12 +736,12 @@
             "function_exit_node": false,
             "src_line": 57,
             "statements": [
-              "<Domain.IR.Statement object at 0x000001A43E9BED40>"
+              "<Domain.IR.Statement object at 0x000001E7E01ADF90>"
             ],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E9BDDE0>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E9BF820>",
-              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF760>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E01AF880>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01AE4D0>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001E7E01AE5C0>"
             }
           }
         ],
@@ -787,16 +787,16 @@
         "b"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E9BD8A0>"
+        "<Domain.Type.SolType object at 0x000001E7E01AE500>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E9BDF30>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E9BECE0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01AE560>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01ACFA0>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E9BD990>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E9BC5E0>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E01AC220>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01AE950>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -850,11 +850,11 @@
             "function_exit_node": false,
             "src_line": null,
             "statements": [
-              "<Domain.IR.Statement object at 0x000001A43E958280>"
+              "<Domain.IR.Statement object at 0x000001E7E0135E40>"
             ],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E958C70>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E9581C0>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E0137940>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E01355A0>"
             }
           }
         ],
@@ -881,16 +881,16 @@
         "b"
       ],
       "return_types": [
-        "<Domain.Type.SolType object at 0x000001A43E95B460>"
+        "<Domain.Type.SolType object at 0x000001E7E0135720>"
       ],
       "return_vars": [],
       "related_variables": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E958760>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E941930>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0135030>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E01354B0>"
       },
       "assign_env": {
-        "a": "<Domain.Variable.Variables object at 0x000001A43E943520>",
-        "b": "<Domain.Variable.Variables object at 0x000001A43E942860>"
+        "a": "<Domain.Variable.Variables object at 0x000001E7E0172110>",
+        "b": "<Domain.Variable.Variables object at 0x000001E7E0170400>"
       },
       "modifiers": {},
       "graph_structure": {
@@ -944,11 +944,11 @@
             "function_exit_node": false,
             "src_line": null,
             "statements": [
-              "<Domain.IR.Statement object at 0x000001A43E97DC90>"
+              "<Domain.IR.Statement object at 0x000001E7E014BC70>"
             ],
             "variables": {
-              "a": "<Domain.Variable.Variables object at 0x000001A43E97FEE0>",
-              "b": "<Domain.Variable.Variables object at 0x000001A43E97FCA0>"
+              "a": "<Domain.Variable.Variables object at 0x000001E7E014BA60>",
+              "b": "<Domain.Variable.Variables object at 0x000001E7E014B8E0>"
             }
           }
         ],

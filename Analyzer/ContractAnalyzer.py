@@ -259,7 +259,10 @@ class ContractAnalyzer:
 
             parent_context = self.find_parent_context(start_line)
             if parent_context in ["contract", "library", "interface", "abstract contract"] : # 시작 규칙 : interactiveSourceUnit
-                self.current_context_type = "stateVariableDeclaration"
+                if 'constant' in stripped_code or 'immutable' in stripped_code :
+                    self.current_context_type = "constantVariableDeclaration"
+                else :
+                    self.current_context_type = "stateVariableDeclaration"
                 self.current_target_contract = self.find_contract_context(start_line)
             elif parent_context == "struct" : # 시작 규칙 : interactiveStructUnit
                 self.current_context_type = "structMember"

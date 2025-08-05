@@ -22,7 +22,7 @@ class ParserHelpers:
         'receive':'interactiveSourceUnit',  'event':'interactiveSourceUnit',
         'error':'interactiveSourceUnit',    'modifier':'interactiveSourceUnit',
         'stateVariableDeclaration':'interactiveSourceUnit',
-
+        'constantVariableDeclaration': 'interactiveSourceUnit',
         'enumMember':'interactiveEnumUnit',
         'structMember':'interactiveStructUnit',
 
