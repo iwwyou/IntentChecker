@@ -342,20 +342,60 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         if not fname:
             raise ValueError("function name missing")
 
-        params = self.visitParameterList(ctx.parameterList(0)) \
-            if ctx.parameterList(0) else []
-        rets = self.visitParameterList(ctx.parameterList(1)) \
-            if ctx.parameterList(1) else []
+        # ------------------------------------------------------------
+        # ① returns 절 존재 여부를 먼저 확인한다
+        # ------------------------------------------------------------
+        #
+        # ‣ 'returns' 는 리터럴 토큰이라 ANTLR 에서 T__n 형태의 TerminalNode 로 들어옵니다.
+        #   따라서 children 중 텍스트 비교로 존재 여부를 판단하는 편이 가장 단순-안전합니다.
+        #
+        has_returns = any(
+            isinstance(ch, TerminalNodeImpl) and ch.getText() == "returns"
+            for ch in ctx.getChildren()
+        )
 
-        # ── ② modifierInvocation 만 수집하되 override/virtual 은 필터링 -----
-        mods: list[str] = []
+        # ------------------------------------------------------------
+        # ② parameterList() 들을 파라미터 / 리턴으로 분리
+        # ------------------------------------------------------------
+        #
+        #   * returns 가 있으면  ⟶  parameterList() 가
+        #       • 1 개 :   그것이 returns
+        #       • 2 개 :   (0) 파라미터, (1) returns
+        #   * returns 가 없으면 ⟶  parameterList() 가
+        #       • 0 개 :   모두 없음
+        #       • 1 개 :   그것이 파라미터
+        #
+        plists = list(ctx.parameterList())
+        params_ctx, returns_ctx = None, None
+
+        if has_returns:
+            if len(plists) == 1:  # 파라미터 없음, returns 만 존재
+                returns_ctx = plists[0]
+            elif len(plists) == 2:  # 둘 다 존재
+                params_ctx, returns_ctx = plists
+        else:
+            if len(plists) == 1:  # 파라미터만 존재
+                params_ctx = plists[0]
+
+        # ------------------------------------------------------------
+        # ③ 실제 파라미터 / 리턴 목록 추출
+        # ------------------------------------------------------------
+        params = self.visitParameterList(params_ctx) if params_ctx else []
+        rets = self.visitParameterList(returns_ctx) if returns_ctx else []
+
+        # ------------------------------------------------------------
+        # ④ modifierInvocation(override/virtual 제외) 수집
+        # ------------------------------------------------------------
+        mods = []
         for m in ctx.getChildren():
             if isinstance(m, SolidityParser.ModifierInvocationContext):
                 name = m.identifierPath().getText()
-                # ※ override / virtual 은 modifier 가 아님
                 if name not in {"override", "virtual"}:
                     mods.append(name)
 
+        # ------------------------------------------------------------
+        # ⑤ ContractAnalyzer 로 전달
+        # ------------------------------------------------------------
         self.contract_analyzer.process_function_definition(
             function_name=fname,
             parameters=params,

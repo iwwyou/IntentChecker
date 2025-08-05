@@ -218,16 +218,29 @@ class StaticCFGFactory:
             else:
                 fcfg.return_types.append(r_type)
 
+        # ───────────────────────────────────────────────────────────────
+        # ❶  상태 변수 / 전역 변수 주입 – 라이브러리면 건너뛴다
+        # ───────────────────────────────────────────────────────────────
         ccf = an.contract_cfgs[an.current_target_contract]
-        if ccf.state_variable_node:
-            for v in ccf.state_variable_node.variables.values():
-                fcfg.add_related_variable(v)
-        for gv in ccf.globals.values():
-            fcfg.add_related_variable(gv)
 
-        entry_vars = VariableEnv.copy_variables(fcfg.related_variables)  # deep-copy
-        fcfg.assign_env.update(entry_vars)  # ←  dict 의 내장 update()
+        # 라이브러리는 상태 변수를 갖지 않으므로 skip
+        if ccf.cfg_type != "library":
+            # (1) 상태 변수
+            if getattr(ccf, "state_variable_node", None) \
+                    and getattr(ccf.state_variable_node, "variables", None):
+                for v in ccf.state_variable_node.variables.values():
+                    fcfg.add_related_variable(v)
 
+            # (2) 전역 변수 (block.timestamp 등)
+            if getattr(ccf, "globals", None):
+                for gv in ccf.globals.values():
+                    fcfg.add_related_variable(gv)
+
+        # ───────────────────────────────────────────────────────────────
+        # ❷  entry-env 스냅 (변경 없음)
+        # ───────────────────────────────────────────────────────────────
+        entry_vars = VariableEnv.copy_variables(fcfg.related_variables)
+        fcfg.assign_env.update(entry_vars)
         return fcfg
 
     @staticmethod

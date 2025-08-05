@@ -1,0 +1,978 @@
+{
+  "cfg_type": "library",
+  "library_name": "SafeMath",
+  "functions": {
+    "wad": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "wad",
+      "parameters": [],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E941ED0>"
+      ],
+      "return_vars": [],
+      "related_variables": {},
+      "assign_env": {},
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_8",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_8",
+            "data": {}
+          },
+          {
+            "source": "Block_8",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "ray": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "ray",
+      "parameters": [],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E9422F0>"
+      ],
+      "return_vars": [],
+      "related_variables": {},
+      "assign_env": {},
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_12",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_12",
+            "data": {}
+          },
+          {
+            "source": "Block_12",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "add": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "add",
+      "parameters": [
+        "a",
+        "b"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E9431C0>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E95B0A0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E95B160>",
+        "c": "<Domain.Variable.Variables object at 0x000001A43E940700>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E958CA0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E9595A0>",
+        "c": "<Domain.Variable.Variables object at 0x000001A43E943EB0>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_16",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [
+              "<Domain.IR.Statement object at 0x000001A43E943D90>"
+            ],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E941330>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E941C90>",
+              "c": "<Domain.Variable.Variables object at 0x000001A43E940700>"
+            }
+          },
+          {
+            "name": "require_condition_17",
+            "condition_node": true,
+            "condition_node_type": "require",
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 17,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E959F90>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E95A800>",
+              "c": "<Domain.Variable.Variables object at 0x000001A43E95A6B0>"
+            }
+          },
+          {
+            "name": "require_true_17",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": true,
+            "is_true_branch": true,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 17,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E95AD10>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E95A200>",
+              "c": "<Domain.Variable.Variables object at 0x000001A43E95BCA0>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_16",
+            "data": {}
+          },
+          {
+            "source": "Block_16",
+            "target": "require_condition_17",
+            "data": {}
+          },
+          {
+            "source": "require_condition_17",
+            "target": "EXIT",
+            "data": {
+              "condition": false
+            }
+          },
+          {
+            "source": "require_condition_17",
+            "target": "require_true_17",
+            "data": {
+              "condition": true
+            }
+          },
+          {
+            "source": "require_true_17",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "sub": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "sub",
+      "parameters": [
+        "a",
+        "b",
+        "errorMessage"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E95A050>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E9430A0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E942CE0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E942260>",
+        "c": "<Domain.Variable.Variables object at 0x000001A43E97FA60>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E97E890>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E97DEA0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97D900>",
+        "c": "<Domain.Variable.Variables object at 0x000001A43E97FBB0>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_23",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E97C700>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E97C640>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97D360>"
+            }
+          },
+          {
+            "name": "require_condition_23",
+            "condition_node": true,
+            "condition_node_type": "require",
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 23,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E97C070>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E97C670>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97CDF0>"
+            }
+          },
+          {
+            "name": "require_true_23",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": true,
+            "is_true_branch": true,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 23,
+            "statements": [
+              "<Domain.IR.Statement object at 0x000001A43E97F6D0>"
+            ],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E97C760>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E97C310>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97C5E0>",
+              "c": "<Domain.Variable.Variables object at 0x000001A43E97FA60>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_23",
+            "data": {}
+          },
+          {
+            "source": "Block_23",
+            "target": "require_condition_23",
+            "data": {}
+          },
+          {
+            "source": "require_condition_23",
+            "target": "EXIT",
+            "data": {
+              "condition": false
+            }
+          },
+          {
+            "source": "require_condition_23",
+            "target": "require_true_23",
+            "data": {
+              "condition": true
+            }
+          },
+          {
+            "source": "require_true_23",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "mul": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "mul",
+      "parameters": [
+        "a",
+        "b"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E97F2E0>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E97D1E0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E97C9A0>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E97E950>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E97FE80>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "div": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "div",
+      "parameters": [
+        "a",
+        "b",
+        "errorMessage"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E97D0F0>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E97F6A0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E97DE40>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97C8B0>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E97F0A0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E97E9E0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E97E140>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "mod": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "mod",
+      "parameters": [
+        "a",
+        "b",
+        "errorMessage"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E9BC610>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E9BCDC0>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E9BD480>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BD240>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E9BFB50>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E9BF7F0>",
+        "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF4C0>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_57",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E97DBA0>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E97DD50>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BCD60>"
+            }
+          },
+          {
+            "name": "require_condition_57",
+            "condition_node": true,
+            "condition_node_type": "require",
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 57,
+            "statements": [],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E9BF1C0>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E9BE9E0>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF490>"
+            }
+          },
+          {
+            "name": "require_true_57",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": true,
+            "is_true_branch": true,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": 57,
+            "statements": [
+              "<Domain.IR.Statement object at 0x000001A43E9BED40>"
+            ],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E9BDDE0>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E9BF820>",
+              "errorMessage": "<Domain.Variable.Variables object at 0x000001A43E9BF760>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_57",
+            "data": {}
+          },
+          {
+            "source": "Block_57",
+            "target": "require_condition_57",
+            "data": {}
+          },
+          {
+            "source": "require_condition_57",
+            "target": "EXIT",
+            "data": {
+              "condition": false
+            }
+          },
+          {
+            "source": "require_condition_57",
+            "target": "require_true_57",
+            "data": {
+              "condition": true
+            }
+          },
+          {
+            "source": "require_true_57",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "min": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "min",
+      "parameters": [
+        "a",
+        "b"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E9BD8A0>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E9BDF30>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E9BECE0>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E9BD990>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E9BC5E0>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_62",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [
+              "<Domain.IR.Statement object at 0x000001A43E958280>"
+            ],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E958C70>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E9581C0>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_62",
+            "data": {}
+          },
+          {
+            "source": "Block_62",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "max": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "max",
+      "parameters": [
+        "a",
+        "b"
+      ],
+      "return_types": [
+        "<Domain.Type.SolType object at 0x000001A43E95B460>"
+      ],
+      "return_vars": [],
+      "related_variables": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E958760>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E941930>"
+      },
+      "assign_env": {
+        "a": "<Domain.Variable.Variables object at 0x000001A43E943520>",
+        "b": "<Domain.Variable.Variables object at 0x000001A43E942860>"
+      },
+      "modifiers": {},
+      "graph_structure": {
+        "nodes": [
+          {
+            "name": "ENTRY",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "EXIT",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": true,
+            "src_line": null,
+            "statements": [],
+            "variables": {}
+          },
+          {
+            "name": "Block_66",
+            "condition_node": false,
+            "condition_node_type": null,
+            "branch_node": false,
+            "is_true_branch": false,
+            "join_point_node": false,
+            "fixpoint_evaluation_node": false,
+            "is_for_increment": false,
+            "loop_exit_node": false,
+            "is_loop_body": false,
+            "unchecked_block": false,
+            "function_exit_node": false,
+            "src_line": null,
+            "statements": [
+              "<Domain.IR.Statement object at 0x000001A43E97DC90>"
+            ],
+            "variables": {
+              "a": "<Domain.Variable.Variables object at 0x000001A43E97FEE0>",
+              "b": "<Domain.Variable.Variables object at 0x000001A43E97FCA0>"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ENTRY",
+            "target": "Block_66",
+            "data": {}
+          },
+          {
+            "source": "Block_66",
+            "target": "EXIT",
+            "data": {}
+          }
+        ]
+      }
+    },
+    "sqrt": {
+      "cfg_type": "function",
+      "function_type": "function",
+      "function_name": "sqrt",
+      "parameters": [
+        "a"
+      ],
+      "return_types": [],
+      "return_vars": [
+        

@@ -95,8 +95,8 @@ class ContractAnalyzer:
         for ccf in self.contract_cfgs.values():
             for fcfg in ccf.functions.values():
                 # assign_envs (FunctionCFG 전역)  ←★
-                if old_ln in fcfg.assign_envs:
-                    fcfg.assign_envs[new_ln] = fcfg.assign_envs.pop(old_ln)
+                if old_ln in fcfg.assign_env:
+                    fcfg.assign_env[new_ln] = fcfg.assign_env.pop(old_ln)
 
                 # 노드-수준 before_envs
                 for blk in fcfg.graph.nodes:
@@ -192,6 +192,9 @@ class ContractAnalyzer:
             self.full_code_lines[ln] for ln in sorted(self.full_code_lines)
         )
 
+        if new_code.startswith("pragma"):
+            return
+
         # add / modify 는 새 코드를 바로 분석
         if event in {"add", "modify"} and new_code.strip():
             self.analyze_context(start_line, new_code)
@@ -255,7 +258,7 @@ class ContractAnalyzer:
                 pass
 
             parent_context = self.find_parent_context(start_line)
-            if parent_context == "contract" : # 시작 규칙 : interactiveSourceUnit
+            if parent_context in ["contract", "library", "interface", "abstract contract"] : # 시작 규칙 : interactiveSourceUnit
                 self.current_context_type = "stateVariableDeclaration"
                 self.current_target_contract = self.find_contract_context(start_line)
             elif parent_context == "struct" : # 시작 규칙 : interactiveStructUnit
@@ -285,7 +288,7 @@ class ContractAnalyzer:
             self.current_context_type = self.determine_top_level_context(new_code)
             self.current_target_contract = self.find_contract_context(start_line)
 
-            if self.current_context_type in ["contract", "library", "interface"] :
+            if self.current_context_type in ["contract", "library", "interface", "abstract contract"] :
                 return
 
             self.current_target_function = self.find_function_context(start_line)
@@ -322,7 +325,7 @@ class ContractAnalyzer:
             brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
-                if context_type in ["contract", "library", "interface"]:
+                if context_type in ["contract", "library", "interface", "abstract contract"]:
                     return self.full_code_lines[line].split()[1]  # contract 이름 반환
         return None
 
@@ -361,6 +364,8 @@ class ContractAnalyzer:
                 return "interface"
             elif stripped_code.startswith("library"):
                 return "library"
+            elif stripped_code.startswith("abstract contract") :
+                return "abstract contract"
             elif stripped_code.startswith("function"):
                 return "function"
             elif stripped_code.startswith("constructor"):
@@ -619,21 +624,43 @@ class ContractAnalyzer:
         if contract_cfg is None:
             raise ValueError(f"Unable to find contract CFG for {self.current_target_contract}")
 
-        # 2. 반드시 초기화식이 있어야 함
+        # 2. 반드시 초기화식이 있어야 함 (constant 변수는 항상 초기화 필요)
         if init_expr is None:
             raise ValueError(f"Constant variable '{variable_obj.identifier}' must have an initializer.")
+
+        # 3. constant로 선언 불가능한 타입 검증
+        if isinstance(variable_obj, (ArrayVariable, StructVariable, MappingVariable)):
+            type_name = type(variable_obj).__name__.replace('Variable', '').lower()
+            raise ValueError(f"{type_name.capitalize()} variables cannot be declared as constant: '{variable_obj.identifier}'")
 
         if not contract_cfg.state_variable_node:
             contract_cfg.initialize_state_variable_node()
 
-        #    평가 컨텍스트는 현재까지의 state-variable 노드 변수들
+        # 4. 평가 컨텍스트는 현재까지의 state-variable 노드 변수들
         state_vars = contract_cfg.state_variable_node.variables
-        value = self.evaluator.evaluate_expression(init_expr, state_vars, None, None)
-        if value is None:
-            raise ValueError(f"Unable to evaluate constant expression for '{variable_obj.identifier}'")
+        
+        # 5. constant 표현식 평가 (value types와 string만 지원)
+        if isinstance(variable_obj, EnumVariable):
+            # 열거형도 value type이므로 지원
+            value = self.evaluator.evaluate_expression(init_expr, state_vars, None, None)
+            if value is None:
+                raise ValueError(f"Unable to evaluate constant enum expression for '{variable_obj.identifier}'")
+            variable_obj.value = value
+        elif variable_obj.typeInfo.typeCategory == "elementary":
+            # value types (int, uint, bool, address 등)과 string 지원
+            et = variable_obj.typeInfo.elementaryTypeName
+            if et in ["string", "bytes"] or et.startswith(("int", "uint", "bool")) or et == "address":
+                value = self.evaluator.evaluate_expression(init_expr, state_vars, None, None)
+                if value is None:
+                    raise ValueError(f"Unable to evaluate constant expression for '{variable_obj.identifier}'")
+                variable_obj.value = value
+            else:
+                raise ValueError(f"Type '{et}' cannot be declared as constant: '{variable_obj.identifier}'")
+        else:
+            # 기타 지원되지 않는 타입
+            raise ValueError(f"Type category '{variable_obj.typeInfo.typeCategory}' cannot be declared as constant: '{variable_obj.identifier}'")
 
-        variable_obj.value = value
-        variable_obj.isConstant = True  # (안전용 중복 설정)
+        variable_obj.isConstant = True  # constant 플래그 설정
 
         self.register_var(variable_obj)
 
@@ -2169,7 +2196,7 @@ class ContractAnalyzer:
             # 빈 줄은 건너뛰기
             if not code.strip():
                 continue
-            
+
             # 코드 업데이트 (solidity 소스 갱신)
             self.update_code(start_line, end_line, code, event)
             
