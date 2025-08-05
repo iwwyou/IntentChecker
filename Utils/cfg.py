@@ -521,13 +521,16 @@ class LibraryCFG(CFG):
     """
     Solidity 라이브러리를 위한 CFG 클래스
     라이브러리는 state variable, constructor가 없고 함수만 포함
+    하지만 constant 변수는 가질 수 있음
     """
     def __init__(self, library_name):
         super().__init__('library')
         self.library_name = library_name
         self.functions = {}  # function_name -> FunctionCFG
         
-        # 라이브러리는 state variable이 없으므로 ContractCFG와 달리 관련 속성들 제외
+        # 라이브러리도 constant 변수를 가질 수 있으므로 state_variable_node 지원
+        self.state_variable_node = None
+        
         self.structDefs = {}  # name -> StructDefinition 객체
         self.enumDefs = {}   # name -> EnumDefinition 객체
         
@@ -553,6 +556,31 @@ class LibraryCFG(CFG):
             self.enumDefs[enum_name] = enum_def
         else:
             raise ValueError(f"Enum {enum_name} is already defined in library {self.library_name}.")
+    
+    def initialize_state_variable_node(self):
+        """라이브러리의 constant 변수를 위한 state variable node 초기화"""
+        self.state_variable_node = CFGNode('Library_Constants')
+        self.graph.add_node(self.state_variable_node)
+
+        # 기존 entry node의 successor를 새로운 state variable node의 successor로 설정
+        successors = list(self.graph.successors(self.entry_node))
+        for succ in successors:
+            self.graph.add_edge(self.state_variable_node, succ)
+            self.graph.remove_edge(self.entry_node, succ)
+
+        # 새로운 state variable node를 entry node의 successor로 설정
+        self.graph.add_edge(self.entry_node, self.state_variable_node)
+    
+    def add_state_variable(self, variable_obj, expr=None, line_no=None):
+        """라이브러리 constant 변수 추가 (ContractCFG와 호환성을 위해)"""
+        if not self.state_variable_node:
+            self.initialize_state_variable_node()
+        
+        # constant 변수를 state_variable_node에 추가
+        self.state_variable_node.add_variable(variable_obj.identifier, variable_obj)
+        
+        if expr is not None:
+            self.state_variable_node.add_expression(expr)
             
     def serialize_for_storage(self) -> dict:
         """라이브러리 CFG를 저장을 위해 직렬화"""
