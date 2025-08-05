@@ -223,18 +223,16 @@ class StaticCFGFactory:
         # ───────────────────────────────────────────────────────────────
         ccf = an.contract_cfgs[an.current_target_contract]
 
-        # 라이브러리는 상태 변수를 갖지 않으므로 skip
-        if ccf.cfg_type != "library":
-            # (1) 상태 변수
-            if getattr(ccf, "state_variable_node", None) \
-                    and getattr(ccf.state_variable_node, "variables", None):
-                for v in ccf.state_variable_node.variables.values():
-                    fcfg.add_related_variable(v)
+        # (1) state / constant variables  ─ 존재할 때만 주입
+        sv_node = getattr(ccf, "state_variable_node", None)
+        if sv_node and getattr(sv_node, "variables", None):
+            for v in sv_node.variables.values():
+                fcfg.add_related_variable(v)
 
-            # (2) 전역 변수 (block.timestamp 등)
-            if getattr(ccf, "globals", None):
-                for gv in ccf.globals.values():
-                    fcfg.add_related_variable(gv)
+        # (2) 글로벌 변수 (block.timestamp 등) ─ ContractCFG 만 가짐
+        if getattr(ccf, "globals", None):
+            for gv in ccf.globals.values():
+                fcfg.add_related_variable(gv)
 
         # ───────────────────────────────────────────────────────────────
         # ❷  entry-env 스냅 (변경 없음)

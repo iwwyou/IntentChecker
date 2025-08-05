@@ -7,7 +7,7 @@ soltotestjson.py의 로직을 기반으로 ContractAnalyzer에 맞게 개선
 
 from __future__ import annotations
 import re
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 
 @dataclass
@@ -107,8 +107,8 @@ class ContractParser:
                 i += 1
                 current_line += 1
                 continue
-            
-            # 단독 '}' 처리 - JSON으로 내보내지 않음
+
+            # 단독 '}' 처리
             if self._ONLY_CLO.match(stripped):
                 self.brace_level -= 1
                 if self.current_context_stack:
@@ -116,8 +116,9 @@ class ContractParser:
                 i += 1
                 current_line += 1
                 continue
-            
-            # 코드 청크 분석
+
+
+                # 코드 청크 분석
             chunk = self._analyze_code_line(raw_line, current_line)
             if chunk:
                 chunks.append(chunk)
@@ -183,13 +184,11 @@ class ContractParser:
         if contract_match:
             contract_type = contract_match.group(1)  # contract, interface, library
             contract_name = contract_match.group(2)
-            
+
             if self._OPEN_BLK.search(stripped):
                 self.brace_level += 1
                 self.current_context_stack.append(f"{contract_type}:{contract_name}")
-                
-                # 가짜 닫는 괄호 추가
-                code = f"{stripped}\n}}"
+                code = f"{stripped}\n}}"  # 헤더 + 가짜 닫는 괄호
                 return CodeChunk(
                     code=code,
                     start_line=line_no,
@@ -204,30 +203,28 @@ class ContractParser:
         
         # 함수/생성자/수정자 시작
         if self._FUNCTION_START.match(stripped):
-            if self._OPEN_BLK.search(stripped):
-                self.brace_level += 1
-                func_info = self._extract_function_info(stripped)
-                context_name = f"function:{func_info.get('name', 'anonymous')}"
-                self.current_context_stack.append(context_name)
-                
-                # 가짜 닫는 괄호 추가
-                code = f"{stripped}\n}}"
-                return CodeChunk(
-                    code=code,
-                    start_line=line_no,
-                    end_line=line_no + 1,
-                    event="add",
-                    chunk_type="function",
-                    context_info=func_info
-                )
-        
+            if self._FUNCTION_START.match(stripped):
+                if self._OPEN_BLK.search(stripped):
+                    self.brace_level += 1
+                    func_info = self._extract_function_info(stripped)
+                    self.current_context_stack.append(
+                        f"function:{func_info.get('name', 'anonymous')}"
+                    )
+                    code = f"{stripped}\n}}"  # 헤더 + 가짜 닫는 괄호
+                    return CodeChunk(
+                        code=code,
+                        start_line=line_no,
+                        end_line=line_no + 1,
+                        event="add",
+                        chunk_type="function",
+                        context_info=func_info
+                    )
+
         # { 로 끝나는 기타 블록 (if, for, while 등)
         if self._OPEN_BLK.search(stripped):
             self.brace_level += 1
             block_type = self._determine_block_type(stripped)
             self.current_context_stack.append(f"block:{block_type}")
-            
-            # 가짜 닫는 괄호 추가
             code = f"{stripped}\n}}"
             return CodeChunk(
                 code=code,
@@ -237,14 +234,14 @@ class ContractParser:
                 chunk_type="block",
                 context_info={"block_type": block_type}
             )
-        
+
         # 세미콜론으로 끝나는 문장
         if self._ONE_LINER.search(stripped):
             stmt_type = self._determine_statement_type(stripped)
             return CodeChunk(
                 code=stripped,
                 start_line=line_no,
-                end_line=line_no,
+                end_line=line_no,  # 한 줄만 차지!
                 event="add",
                 chunk_type="statement",
                 context_info={
@@ -252,7 +249,7 @@ class ContractParser:
                     "context": self._get_current_context()
                 }
             )
-        
+
         # 기타 처리되지 않은 라인
         return CodeChunk(
             code=stripped,
@@ -345,31 +342,3 @@ class ContractParser:
         if not self.current_context_stack:
             return "global"
         return self.current_context_stack[-1]
-
-    def parse_library_source(self, source: str) -> List[CodeChunk]:
-        """
-        라이브러리 소스 코드를 특별히 처리
-        analyze_and_save_library에서 사용
-        """
-        chunks = self.parse_contract(source)
-        
-        # 라이브러리 관련 청크만 필터링하거나 특별 처리
-        library_chunks = []
-        for chunk in chunks:
-            # 빈 줄과 주석은 건너뛰기
-            if chunk.chunk_type in ["empty", "comment"]:
-                continue
-            library_chunks.append(chunk)
-            
-        return library_chunks
-
-# 편의 함수들
-def parse_contract_source(source: str) -> List[CodeChunk]:
-    """컨트랙트 소스 파싱 편의 함수"""
-    parser = ContractParser()
-    return parser.parse_contract(source)
-
-def parse_library_source(source: str) -> List[CodeChunk]:
-    """라이브러리 소스 파싱 편의 함수"""
-    parser = ContractParser()
-    return parser.parse_library_source(source)

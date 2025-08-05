@@ -571,16 +571,29 @@ class LibraryCFG(CFG):
         # 새로운 state variable node를 entry node의 successor로 설정
         self.graph.add_edge(self.entry_node, self.state_variable_node)
     
-    def add_state_variable(self, variable_obj, expr=None, line_no=None):
-        """라이브러리 constant 변수 추가 (ContractCFG와 호환성을 위해)"""
-        if not self.state_variable_node:
+    def add_state_variable(self,
+                           variable_obj,        # Variables | EnumVariable …
+                           expr=None,           # Expression | Interval | None
+                           line_no=None):
+        """
+        라이브러리 constant 변수(= state-level 상수)를 노드에 추가
+        ContractCFG 와 동일한 signature 를 유지한다.
+        """
+        # (1) state-variable 노드가 없으면 생성
+        if self.state_variable_node is None:
             self.initialize_state_variable_node()
-        
-        # constant 변수를 state_variable_node에 추가
-        self.state_variable_node.add_variable(variable_obj.identifier, variable_obj)
-        
-        if expr is not None:
-            self.state_variable_node.add_expression(expr)
+
+        # (2) 노드에 ‘대입 스테이트먼트’ 형태로 기록
+        #     - CFGNode.add_assign_statement(좌변, 우변, 연산자, line_no)
+        self.state_variable_node.add_assign_statement(
+            exprLeft     = variable_obj,  # 좌변
+            exprOperator = '=',           # 단순 대입
+            exprRight    = expr,          # 초기화 식 (없어도 None 허용)
+            line_no      = line_no
+        )
+
+        # (3) 변수 테이블에 등록
+        self.state_variable_node.variables[variable_obj.identifier] = variable_obj
             
     def serialize_for_storage(self) -> dict:
         """라이브러리 CFG를 저장을 위해 직렬화"""

@@ -2182,27 +2182,31 @@ class ContractAnalyzer:
         # 1. 소스를 청크로 분할
         try:
             parser = ContractParser()
-            chunks = parser.parse_library_source(library_source)
+            chunks = parser.parse_contract(library_source)
         except Exception as e:
             raise ValueError(f"Failed to parse library source: {e}")
         
         # 2. 각 청크를 순차적으로 처리 (test.py의 simulate_inputs 로직과 동일)
         current_library_name = library_name
         visitor = EnhancedSolidityVisitor(self)
-        
+
+        offset = 0  # ← ① 누적 오프셋
         for chunk in chunks:
             code = chunk.code
-            start_line = chunk.start_line
-            end_line = chunk.end_line
+            s = chunk.start_line
+            e = chunk.end_line
             event = chunk.event
-            
-            # 빈 줄은 건너뛰기
-            if not code.strip():
-                continue
 
             # 코드 업데이트 (solidity 소스 갱신)
-            self.update_code(start_line, end_line, code, event)
-            
+            self.update_code(s, e, chunk.code, chunk.event)
+
+            # 2) **줄 수만큼 offset 갱신**  ── comment·empty 도 포함!
+            if event == "add":
+                offset += len(code.splitlines())  # ← 실제로 들어간 줄 수
+
+            if chunk.chunk_type in ("empty", "comment"):
+                continue
+
             stripped = code.lstrip()
             
             # 라이브러리 이름 자동 추출
@@ -2230,7 +2234,7 @@ class ContractAnalyzer:
                     # EnhancedSolidityVisitor로 방문
                     visitor.visit(tree)
                 except Exception as e:
-                    print(f"Warning: Failed to parse chunk at line {start_line}: {e}")
+                    print(f"Warning: Failed to parse chunk at line {s}: {e}")
                     continue
         
         if current_library_name is None:

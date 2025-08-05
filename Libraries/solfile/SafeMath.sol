@@ -74,7 +74,8 @@ library SafeMath {
                 b = x;
                 x = (a / x + x) / 2;
             }
-        } else if (a != 0) {
+        }
+        else if (a != 0) {
             b = 1;
         }
     }
