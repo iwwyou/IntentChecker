@@ -570,7 +570,7 @@ class DynamicCFGBuilder:
             *,
             cur_block: CFGNode,
             revert_id: str | None,
-            string_literal: str | None,
+            expression_arg: Expression | None,
             call_args: list[Expression] | None,
             line_no: int,
             fcfg: FunctionCFG,
@@ -582,7 +582,7 @@ class DynamicCFGBuilder:
         """
         # ① statement
         cur_block.add_revert_statement(revert_id,
-                                       string_literal,
+                                       expression_arg,
                                        call_args,
                                        line_no)
 

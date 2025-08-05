@@ -580,10 +580,10 @@ emitStatement
   : 'emit' expression callArgumentList ';' ;
 
 revertStatement // must be modified in solidity language grammar
-  : 'revert' ( identifier ( callArgumentList )? | '(' stringLiteral ')')? ';' ;
+  : 'revert' ( identifier ( callArgumentList )? | '(' expression ')')? ';' ;
 
 requireStatement
-  : 'require' '(' expression (',' stringLiteral)? ')' ';' ;
+  : 'require' '(' expression (',' expression)? ')' ';' ;
 
 assertStatement
   : 'assert' '(' expression ')' ';' ;

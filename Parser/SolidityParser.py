@@ -679,11 +679,11 @@ def serializedATN():
         3,260,130,0,1624,1625,3,30,15,0,1625,1626,5,2,0,0,1626,231,1,0,0,
         0,1627,1636,5,97,0,0,1628,1630,3,270,135,0,1629,1631,3,30,15,0,1630,
         1629,1,0,0,0,1630,1631,1,0,0,0,1631,1637,1,0,0,0,1632,1633,5,23,
-        0,0,1633,1634,3,280,140,0,1634,1635,5,24,0,0,1635,1637,1,0,0,0,1636,
+        0,0,1633,1634,3,260,130,0,1634,1635,5,24,0,0,1635,1637,1,0,0,0,1636,
         1628,1,0,0,0,1636,1632,1,0,0,0,1636,1637,1,0,0,0,1637,1638,1,0,0,
         0,1638,1639,5,2,0,0,1639,233,1,0,0,0,1640,1641,5,98,0,0,1641,1642,
-        5,23,0,0,1642,1645,3,260,130,0,1643,1644,5,16,0,0,1644,1646,3,280,
-        140,0,1645,1643,1,0,0,0,1645,1646,1,0,0,0,1646,1647,1,0,0,0,1647,
+        5,23,0,0,1642,1645,3,260,130,0,1643,1644,5,16,0,0,1644,1646,3,260,
+        130,0,1645,1643,1,0,0,0,1645,1646,1,0,0,0,1646,1647,1,0,0,0,1647,
         1648,5,24,0,0,1648,1649,5,2,0,0,1649,235,1,0,0,0,1650,1651,5,99,
         0,0,1651,1652,5,23,0,0,1652,1653,3,260,130,0,1653,1654,5,24,0,0,
         1654,1655,5,2,0,0,1655,237,1,0,0,0,1656,1659,3,74,37,0,1657,1658,
@@ -12260,8 +12260,8 @@ class SolidityParser ( Parser ):
             return self.getTypedRuleContext(SolidityParser.IdentifierContext,0)
 
 
-        def stringLiteral(self):
-            return self.getTypedRuleContext(SolidityParser.StringLiteralContext,0)
+        def expression(self):
+            return self.getTypedRuleContext(SolidityParser.ExpressionContext,0)
 
 
         def callArgumentList(self):
@@ -12316,7 +12316,7 @@ class SolidityParser ( Parser ):
                 self.state = 1632
                 self.match(SolidityParser.T__22)
                 self.state = 1633
-                self.stringLiteral()
+                self.expression(0)
                 self.state = 1634
                 self.match(SolidityParser.T__23)
                 pass
@@ -12342,12 +12342,11 @@ class SolidityParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def expression(self):
-            return self.getTypedRuleContext(SolidityParser.ExpressionContext,0)
-
-
-        def stringLiteral(self):
-            return self.getTypedRuleContext(SolidityParser.StringLiteralContext,0)
+        def expression(self, i:int=None):
+            if i is None:
+                return self.getTypedRuleContexts(SolidityParser.ExpressionContext)
+            else:
+                return self.getTypedRuleContext(SolidityParser.ExpressionContext,i)
 
 
         def getRuleIndex(self):
@@ -12390,7 +12389,7 @@ class SolidityParser ( Parser ):
                 self.state = 1643
                 self.match(SolidityParser.T__15)
                 self.state = 1644
-                self.stringLiteral()
+                self.expression(0)
 
 
             self.state = 1647

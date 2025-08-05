@@ -1104,6 +1104,20 @@ class Evaluation :
             self.an.current_target_function = library_function_cfg.function_name
             self.an.current_target_function_cfg = library_function_cfg
             
+            # 라이브러리의 constant 변수들을 caller_env에 추가
+            # library_function_cfg가 속한 LibraryCFG 찾기
+            library_cfg = None
+            for lib_name, lib_cfg in self.an.library_cfgs.items():
+                if library_function_cfg in lib_cfg.functions.values():
+                    library_cfg = lib_cfg
+                    break
+            
+            # 라이브러리 constant 변수들을 환경에 추가
+            if library_cfg and library_cfg.state_variable_node:
+                for var_name, var_obj in library_cfg.state_variable_node.variables.items():
+                    if var_name not in caller_env:  # 호출자 변수와 충돌하지 않도록
+                        caller_env[var_name] = var_obj
+            
             # 라이브러리 함수 CFG 실행
             return_value = self.runtime.interpret_function_cfg(library_function_cfg, caller_env)
             

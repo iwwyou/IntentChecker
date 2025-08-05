@@ -1336,14 +1336,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#revertStatement.
     def visitRevertStatement(self, ctx:SolidityParser.RevertStatementContext):
-        # 1. identifier와 stringLiteral 둘 중 하나를 처리
+        # 1. identifier와 expression 둘 중 하나를 처리 (문법 변경으로 stringLiteral -> expression)
         revert_identifier = None
-        string_literal = None
+        expression_arg = None
 
         if ctx.identifier():
             revert_identifier = self.visitIdentifier(ctx.identifier())
-        elif ctx.stringLiteral():
-            string_literal = self.visitStringLiteral(ctx.stringLiteral())
+        elif ctx.expression():
+            expression_arg = self.visitExpression(ctx.expression())
 
         # 2. callArgumentList가 존재하는지 여부 확인 및 처리
         call_argument_list = []
@@ -1351,21 +1351,20 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             call_argument_list = self.visitCallArgumentList(ctx.callArgumentList())
 
         # 3. ContractAnalyzer의 process_revert_statement 메소드 호출
-        self.contract_analyzer.process_revert_statement(revert_identifier, string_literal, call_argument_list)
+        self.contract_analyzer.process_revert_statement(revert_identifier, expression_arg, call_argument_list)
 
     # Visit a parse tree produced by SolidityParser#requireStatement.
     def visitRequireStatement(self, ctx:SolidityParser.RequireStatementContext):
-        # 1. 'require'의 조건식(expression)을 방문하여 추출
-        condition_expr = self.visit(ctx.expression())
+        # 1. 'require'의 조건식(첫 번째 expression)을 방문하여 추출
+        condition_expr = self.visitExpression(ctx.expression(0))
 
-        # 2. 에러 메시지(stringLiteral) 처리 - 선택적
-        if ctx.stringLiteral():
-            error_message = ctx.stringLiteral().getText()
-        else:
-            error_message = None
+        # 2. 에러 메시지(두 번째 expression) 처리 - 선택적 (문법 변경으로 stringLiteral -> expression)
+        error_message_expr = None
+        if len(ctx.expression()) > 1:
+            error_message_expr = self.visitExpression(ctx.expression(1))
 
         # 3. ContractAnalyzer에서 process_require_statement 호출
-        self.contract_analyzer.process_require_statement(condition_expr, error_message)
+        self.contract_analyzer.process_require_statement(condition_expr, error_message_expr)
 
     # Visit a parse tree produced by SolidityParser#assertStatement.
     def visitAssertStatement(self, ctx:SolidityParser.AssertStatementContext):

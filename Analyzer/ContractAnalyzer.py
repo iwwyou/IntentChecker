@@ -1528,7 +1528,7 @@ class ContractAnalyzer:
     def process_revert_statement(
             self,
             revert_identifier: str | None = None,
-            string_literal: str | None = None,
+            expression_arg: Expression | None = None,
             call_argument_list: list[Expression] | None = None,
     ) -> None:
         # ── 1. CFG context ---------------------------------------------------
@@ -1543,7 +1543,7 @@ class ContractAnalyzer:
         self.builder.build_revert_statement(
             cur_block=cur_blk,
             revert_id=revert_identifier,
-            string_literal=string_literal,
+            expression_arg=expression_arg,
             call_args=call_argument_list,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
@@ -1554,7 +1554,7 @@ class ContractAnalyzer:
         self.recorder.record_revert(
             line_no=self.current_start_line,
             revert_id=revert_identifier,
-            string_literal=string_literal,
+            expression_arg=expression_arg,
             call_args=call_argument_list,
         )
 
@@ -1566,7 +1566,7 @@ class ContractAnalyzer:
     def process_require_statement(
             self,
             condition_expr: Expression,
-            string_literal: str | None,
+            error_message_expr: Expression | None,
     ) -> None:
         # 1) CFG context -----------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
