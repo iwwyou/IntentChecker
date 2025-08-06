@@ -120,13 +120,13 @@ class CFGNode:
                                src_line=line_no)
         self.statements.append(break_stmt)
 
-    def add_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None,
+    def add_revert_statement(self, revert_identifier=None, expression_arg=None, call_argument_list=None,
                              line_no=None):
         # 4. Revert 문장을 Statement 객체로 만들어서 현재 블록에 추가
         revert_statement = Statement(
             statement_type="revert",
             identifier=revert_identifier,
-            string_literal=string_literal,
+            expression_arg=expression_arg,
             arguments=call_argument_list,
             src_line=line_no
         )

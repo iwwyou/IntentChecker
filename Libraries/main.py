@@ -18,6 +18,9 @@ from typing import Dict, List
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
 from Analyzer.ContractAnalyzer import ContractAnalyzer
+from Analyzer.ContractParser import ContractParser
+from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
+from Utils.Helper import ParserHelpers
 
 class LibraryManager:
     """라이브러리 관리 클래스"""
@@ -66,7 +69,7 @@ class LibraryManager:
         
         # 3. 라이브러리 분석 및 저장 (완전한 파싱 파이프라인 포함)
         try:
-            library_name = self.analyzer.analyze_and_save_library(library_source)
+            library_name = self.analyze_and_save_library(library_source)
             print(f"✓ 라이브러리 '{library_name}' 분석 완료")
             
             # 4. 분석 결과 요약 출력
@@ -116,6 +119,102 @@ class LibraryManager:
             print(f"✓ {library_name}.json을 objectfile 디렉토리로 이동")
         else:
             print(f"⚠ {library_name}.json 파일을 찾을 수 없습니다")
+    
+    def analyze_and_save_library(self, library_source: str, library_name: str = None) -> str:
+        """
+        라이브러리 소스 코드를 분석하여 CFG를 생성하고 저장한다.
+        ContractParser를 활용하여 청크 단위로 분석하고, 
+        test.py의 simulate_inputs와 동일한 파싱 파이프라인을 사용
+        
+        Args:
+            library_source: 라이브러리 Solidity 소스 코드
+            library_name: 라이브러리 이름 (None이면 소스에서 자동 추출)
+            
+        Returns:
+            저장된 라이브러리 이름
+        """
+        # 1. 소스를 청크로 분할
+        try:
+            parser = ContractParser()
+            chunks = parser.parse_contract(library_source)
+        except Exception as e:
+            raise ValueError(f"Failed to parse library source: {e}")
+        
+        # 2. 각 청크를 순차적으로 처리 (test.py의 simulate_inputs 로직과 동일)
+        current_library_name = library_name
+        visitor = EnhancedSolidityVisitor(self.analyzer)
+
+        offset = 0  # ← ① 누적 오프셋
+        for chunk in chunks:
+            code = chunk.code
+            s = chunk.start_line
+            e = chunk.end_line
+            event = chunk.event
+
+            # 코드 업데이트 (solidity 소스 갱신)
+            self.analyzer.update_code(s, e, chunk.code, chunk.event)
+
+            # 2) **줄 수만큼 offset 갱신**  ── comment·empty 도 포함!
+            if event == "add":
+                offset += len(code.splitlines())  # ← 실제로 들어간 줄 수
+
+            if chunk.chunk_type in ("empty", "comment"):
+                continue
+
+            stripped = code.lstrip()
+            
+            # 라이브러리 이름 자동 추출
+            if current_library_name is None and chunk.chunk_type == "library":
+                if chunk.context_info and "name" in chunk.context_info:
+                    current_library_name = chunk.context_info["name"]
+                elif stripped.startswith("library"):
+                    parts = stripped.split()
+                    if len(parts) >= 2:
+                        current_library_name = parts[1].rstrip("{")
+            
+            # 디버그 주석 처리 (만약 있다면)
+            if stripped.startswith("// @"):
+                # 디버그 주석은 라이브러리 분석에서는 일반적으로 사용하지 않지만 
+                # 일관성을 위해 처리 로직 유지
+                continue
+            
+            # 일반 Solidity 코드 - test.py와 동일한 파싱 파이프라인
+            if code.strip():
+                try:
+                    # 현재 컨텍스트 타입 가져오기
+                    ctx = self.analyzer.get_current_context_type()
+                    # 파스 트리 생성
+                    tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+                    # EnhancedSolidityVisitor로 방문
+                    visitor.visit(tree)
+                except Exception as e:
+                    print(f"Warning: Failed to parse chunk at line {s}: {e}")
+                    continue
+        
+        if current_library_name is None:
+            raise ValueError("Could not determine library name from source")
+        
+        # 3. 라이브러리 CFG 저장
+        self.save_library_cfg(current_library_name)
+        
+        return current_library_name
+
+    def save_library_cfg(self, library_name: str, file_path: str = None):
+        """
+        라이브러리 CFG를 JSON 파일로 저장한다.
+        CFGSerializer에 위임
+        
+        Args:
+            library_name: 저장할 라이브러리 이름
+            file_path: 저장할 파일 경로 (None이면 기본 경로 사용)
+        """
+        if library_name not in self.analyzer.library_cfgs:
+            raise ValueError(f"Library '{library_name}' not found in memory")
+
+        library_cfg = self.analyzer.library_cfgs[library_name]
+        
+        # CFGSerializer에 위임
+        return self.analyzer.cfg_serializer.save_library_cfg(library_cfg, library_name, file_path)
     
     def analyze_all_libraries(self) -> Dict[str, str]:
         """solfile의 모든 .sol 파일들을 분석"""

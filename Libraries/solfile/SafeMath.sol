@@ -88,7 +88,7 @@ library SafeMath {
     }
 
     function wdiv(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(mul(a, WAD), b);
+        return div(mul(a, WAD), b, "error");
     }
 
     function wdivRound(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -96,7 +96,7 @@ library SafeMath {
     }
 
     function rdiv(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(mul(a, RAY), b);
+        return div(mul(a, RAY), b, "error");
     }
 
     function rdivRound(uint256 a, uint256 b) internal pure returns (uint256) {

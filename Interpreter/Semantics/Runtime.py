@@ -42,7 +42,7 @@ class Runtime:
     def eng(self):
         return self.an.engine
 
-    def update_statement_with_variables(self, stmt, current_variables, ret_acc=None):
+    def update_statement_with_variables(self, stmt, current_variables, ret_acc=None, execution_context=None):
         if stmt.statement_type == 'variableDeclaration':
             return self.interpret_variable_declaration_statement(stmt, current_variables)
         elif stmt.statement_type == 'assignment':
@@ -52,9 +52,9 @@ class Runtime:
         elif stmt.statement_type == 'functionCall':
             return self.interpret_function_call_statement(stmt, current_variables)
         elif stmt.statement_type == 'return':
-            return self.interpret_return_statement(stmt, current_variables, ret_acc)
+            return self.interpret_return_statement(stmt, current_variables, ret_acc, execution_context)
         elif stmt.statement_type == 'revert':
-            return self.interpret_revert_statement(stmt, current_variables)
+            return self.interpret_revert_statement(stmt, current_variables, execution_context)
         elif stmt.statement_type == 'break':
             return self.interpret_break_statement(stmt, current_variables)
         elif stmt.statement_type == 'continue':
@@ -95,6 +95,8 @@ class Runtime:
 
         # return_values를 모아둘 자료구조 (나중에 exit node에서 join)
         return_values = []
+        # 실행 중단 플래그를 포함한 실행 컨텍스트
+        execution_context = {"stopped": False}
 
         while work:
             node = work.popleft()
@@ -225,7 +227,7 @@ class Runtime:
             elif node.is_for_increment:
                 # 1) 증감 expression 들을 모두 실행
                 for stmt in node.statements:
-                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
+                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values, execution_context)
 
                 # 2) successors 에 전달
                 for succ in fcfg.graph.successors(node):
@@ -237,13 +239,13 @@ class Runtime:
                 # condition node가 아닌 일반 블록
                 # 블록 내 문장 해석
                 for stmt in node.statements:
-                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
+                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values, execution_context)
                     
                     # during annotation 검증 (라인별)
                     if hasattr(stmt, 'src_line') and stmt.src_line:
                         self._verify_during_annotations(stmt.src_line, node, cur_vars)
                     
-                    if "__STOP__" in return_values:  # 플래그만 넣어도 되고
+                    if execution_context["stopped"]:  # 실행 중단 플래그 확인
                         break
 
                 # return이나 revert를 만나지 않았다면 successors 방문
@@ -447,7 +449,7 @@ class Runtime:
 
         return variables
 
-    def interpret_return_statement(self, stmt, variables, ret_acc=None):
+    def interpret_return_statement(self, stmt, variables, ret_acc=None, execution_context=None):
         rexpr = stmt.return_expr
         r_val = self.eval.evaluate_expression(rexpr, variables, None, None)
 
@@ -464,7 +466,10 @@ class Runtime:
         exit_node.return_vals[stmt.src_line] = r_val
         if ret_acc is not None:
             ret_acc.append(r_val)
-            ret_acc.append("__STOP__")  # 실행 중단 플래그
+            
+        # 실행 중단 플래그 설정
+        if execution_context is not None:
+            execution_context["stopped"] = True
 
         return variables
 
