@@ -595,6 +595,8 @@ class DynamicCFGBuilder:
             g.remove_edge(cur_block, succ)
 
         g.add_edge(cur_block, exit_n)
+        g.edges[cur_block, exit_n]["abnormal"] = True  # ★ 추가
+        g.edges[cur_block, exit_n]["abnormal_reason"] = "revert"  # (선택)
 
         # ③ 데이터-플로우 갱신
         fcfg.update_block(cur_block)
@@ -653,6 +655,8 @@ class DynamicCFGBuilder:
         #   False  → EXIT
         exit_n = fcfg.get_exit_node()
         G.add_edge(cond, exit_n, condition=False)
+        G.edges[cond, exit_n]["abnormal"] = True  # ★ 추가
+        G.edges[cond, exit_n]["abnormal_reason"] = "require(false)"  # (선택)
 
         #   True   → t_blk
         G.add_node(t_blk)
@@ -719,6 +723,8 @@ class DynamicCFGBuilder:
 
         exit_n = fcfg.get_exit_node()
         G.add_edge(cond, exit_n, condition=False)
+        G.edges[cond, exit_n]["abnormal"] = True  # ★ 추가
+        G.edges[cond, exit_n]["abnormal_reason"] = "assert(false)"  # (선택)
 
         G.add_node(t_blk)
         G.add_edge(cond, t_blk, condition=True)

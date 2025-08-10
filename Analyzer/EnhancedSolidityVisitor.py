@@ -289,7 +289,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             target_type = None
         
         # ContractAnalyzer에 using directive 등록
-        self.contract_analyzer.add_using_directive(library_name, target_type)
+        self.contract_analyzer.process_using_directive(library_name, target_type)
         
         return self.visitChildren(ctx)
 

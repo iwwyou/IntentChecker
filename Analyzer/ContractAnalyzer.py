@@ -1113,6 +1113,8 @@ class ContractAnalyzer:
 
         cur_blk = self.builder.get_current_block()
 
+        cur_blk.before_envs[self.current_start_line] = VariableEnv.copy_variables(cur_blk.variables)
+
         # ② 실제 호출 해석  ---------------------------------------------
         _ = self.evaluator.evaluate_function_call_context(
             expr,

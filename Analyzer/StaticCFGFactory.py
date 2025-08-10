@@ -238,6 +238,7 @@ class StaticCFGFactory:
         # ❷  entry-env 스냅 (변경 없음)
         # ───────────────────────────────────────────────────────────────
         entry_vars = VariableEnv.copy_variables(fcfg.related_variables)
+        fcfg.entry_env = entry_vars  # ★ 추가: 함수 진입 스냅샷
         fcfg.assign_env.update(entry_vars)
         return fcfg
 

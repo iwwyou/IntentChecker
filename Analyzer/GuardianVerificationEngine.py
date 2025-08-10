@@ -263,8 +263,9 @@ class GuardianVerificationEngine:
 
         ev = self.analyzer.evaluator  # 평가기 별칭
 
-        # 1) Entry-Env  =  FunctionCFG.related_variables
-        entry_env = fn_cfg.related_variables
+        # entry_env = fn_cfg.related_variables  # (기존)
+        entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)  # ★ 진입 스냅샷 우선
+
         try:
             entry_val = ev.evaluate_expression(var_ref, entry_env, None, None)
         except Exception as e:
