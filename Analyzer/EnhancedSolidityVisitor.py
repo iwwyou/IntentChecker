@@ -695,23 +695,39 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visitChildren(ctx)
 
     # ───────────────── DURING ───────────────────────────────────────
-    def visitTemporalBeforeAfter(self, ctx: SolidityParser.TemporalBeforeAfterContext, **kw):
+    def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
         # y ( Before > After )
         lhs_expr = self.visitVarRef(ctx.varRef())
-        op = self._comp_op(ctx)
+        op = self._relop_from_ctx(ctx)
         self.contract_analyzer.process_during_before_after(lhs_expr, op)  # ← rhs 없음
         return None
 
-    def visitTemporalAssignCurrent(self, ctx: SolidityParser.TemporalAssignCurrentContext, **kw):
+    def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
         # x ( Assign <= Current )
         lhs_expr = self.visitVarRef(ctx.varRef())
-        op = self._comp_op(ctx)
+        op = self._relop_from_ctx(ctx)
         self.contract_analyzer.process_during_assign_current(lhs_expr, op)
         return None
 
-    # Visit a parse tree produced by SolidityParser#DuringCommonPredicate.
     def visitDuringCommonPredicate(self, ctx: SolidityParser.DuringCommonPredicateContext):
-        return self.visitChildren(ctx)
+        """
+        DURING 전용 분기 래퍼.
+        내부의 commonPredicate를 직접 파싱해서 DURING 전용 process_*로 보낸다.
+        """
+        cp = ctx.commonPredicate()  # 이게 ReturnExprCmpContext/ReturnVarCmpContext/RelationalCmpContext 중 하나
+        payload = self.visit(cp)  # 아래 visitReturnExprCmp/visitReturnVarCmp/visitRelationalCmp가 dict 반환
+
+        kind = payload["type"]
+        if kind == "ReturnExprCmp":
+            self.contract_analyzer.process_during_return_expression(
+                payload["op"], payload["rhs"])
+        elif kind == "ReturnVarCmp":
+            self.contract_analyzer.process_during_return_variable(
+                payload["lhs"], payload["op"], payload["rhs"])
+        elif kind == "RelationalCmp":
+            self.contract_analyzer.process_during_direct_comparison(
+                payload["lhs"], payload["op"], payload["rhs"])
+        return None
 
     # ───────────────── POST ────────────────────────────────────────
     # Visit a parse tree produced by SolidityParser#postIntent.
@@ -726,10 +742,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitPostClause(self, ctx: SolidityParser.PostClauseContext):
         return self.visitChildren(ctx)
 
-    def visitTemporalEntryExit(self, ctx: SolidityParser.TemporalEntryExitContext):
+    def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())
-        comp_op = self._comp_op(ctx)
-        self.contract_analyzer.process_post_entry_exit(var_ref_expr, comp_op)
+        op = self._relop_from_ctx(ctx)
+        self.contract_analyzer.process_post_entry_exit(var_ref_expr, op)
         return None
 
     def visitUnchangedVar(self, ctx: SolidityParser.UnchangedVarContext):
@@ -737,9 +753,24 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         self.contract_analyzer.process_post_unchanged(var_ref_expr)
         return None
 
-    # Visit a parse tree produced by SolidityParser#PostCommonPredicate.
     def visitPostCommonPredicate(self, ctx: SolidityParser.PostCommonPredicateContext):
-        return self.visitChildren(ctx)
+        """
+        POST 전용 분기 래퍼.
+        """
+        cp = ctx.commonPredicate()
+        payload = self.visit(cp)
+
+        kind = payload["type"]
+        if kind == "ReturnExprCmp":
+            self.contract_analyzer.process_post_return_expression(
+                payload["op"], payload["rhs"])
+        elif kind == "ReturnVarCmp":
+            self.contract_analyzer.process_post_return_variable(
+                payload["lhs"], payload["op"], payload["rhs"])
+        elif kind == "RelationalCmp":
+            self.contract_analyzer.process_post_direct_comparison(
+                payload["lhs"], payload["op"], payload["rhs"])
+        return None
 
     # Visit a parse tree produced by SolidityParser#IntInterval.
     def visitSeedValue(self, ctx: SolidityParser.SeedValueContext):
@@ -808,17 +839,28 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitInlineArray(self, ctx: SolidityParser.InlineArrayContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#ReturnExprCmp.
+    # commonPredicate #ReturnExprCmp
     def visitReturnExprCmp(self, ctx: SolidityParser.ReturnExprCmpContext):
-        return self.visitChildren(ctx)
+        # returnExpression <op> value
+        op = self._relop_from_ctx(ctx)
+        rhs = self._parse_value(ctx.value())
+        return {"type": "ReturnExprCmp", "op": op, "rhs": rhs}
 
-    # Visit a parse tree produced by SolidityParser#ReturnVarCmp.
+    # commonPredicate #ReturnVarCmp
     def visitReturnVarCmp(self, ctx: SolidityParser.ReturnVarCmpContext):
-        return self.visitChildren(ctx)
+        # return varRef <op> value
+        lhs = self.visitVarRef(ctx.varRef())
+        op = self._relop_from_ctx(ctx)
+        rhs = self._parse_value(ctx.value())
+        return {"type": "ReturnVarCmp", "lhs": lhs, "op": op, "rhs": rhs}
 
-    # Visit a parse tree produced by SolidityParser#RelationalCmp.
+    # commonPredicate #RelationalCmp
     def visitRelationalCmp(self, ctx: SolidityParser.RelationalCmpContext):
-        return self.visitChildren(ctx)
+        # value <op> value
+        lhs = self._parse_value(ctx.value(0))
+        op = self._relop_from_ctx(ctx)
+        rhs = self._parse_value(ctx.value(1))
+        return {"type": "RelationalCmp", "lhs": lhs, "op": op, "rhs": rhs}
 
     def visitVarRef(self, ctx: SolidityParser.VarRefContext):
         # 그냥 children 으로 위임
@@ -2497,9 +2539,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 )
         return elems
 
-    def _parse_value_expr(self, ctx: SolidityParser.ValueExprContext):
+    def _parse_value(self, ctx: SolidityParser.ValueContext):
         return self.visit(ctx)
 
-    def _comp_op(self, ctx):
-        raw = ctx.compOp().getText()          # '<', '>', 'in', 'notin', …
+    def _relop_from_ctx(self, ctx) -> str:
+        """
+        각 alt context(Temporal*, Return*Cmp, RelationalCmp)에는 relOp()가 존재.
+        'not in'이 토큰화될 때 'notin'처럼 붙을 수 있어 정규화.
+        """
+        raw = ctx.relOp().getText()
+        raw = raw.replace(" ", "")
         return "not in" if raw == "notin" else raw

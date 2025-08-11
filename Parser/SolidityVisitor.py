@@ -314,13 +314,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#TemporalBeforeAfter.
-    def visitTemporalBeforeAfter(self, ctx:SolidityParser.TemporalBeforeAfterContext):
+    # Visit a parse tree produced by SolidityParser#DuringBeforeAfter.
+    def visitDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#TemporalAssignCurrent.
-    def visitTemporalAssignCurrent(self, ctx:SolidityParser.TemporalAssignCurrentContext):
+    # Visit a parse tree produced by SolidityParser#DuringAssignCurrent.
+    def visitDuringAssignCurrent(self, ctx:SolidityParser.DuringAssignCurrentContext):
         return self.visitChildren(ctx)
 
 
@@ -344,8 +344,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#TemporalEntryExit.
-    def visitTemporalEntryExit(self, ctx:SolidityParser.TemporalEntryExitContext):
+    # Visit a parse tree produced by SolidityParser#PostEntryExit.
+    def visitPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
         return self.visitChildren(ctx)
 
 

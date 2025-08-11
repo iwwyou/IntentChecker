@@ -284,8 +284,8 @@ duringClause
   ;
 
 predicateDuring
-  : varRef '(' 'Before'  relOp 'After'   ')'   #TemporalBeforeAfter
-  | varRef '(' 'Assign'  relOp 'Current' ')'   #TemporalAssignCurrent
+  : varRef '(' 'Before'  relOp 'After'   ')'   #DuringBeforeAfter
+  | varRef '(' 'Assign'  relOp 'Current' ')'   #DuringAssignCurrent
   | commonPredicate                            #DuringCommonPredicate
   ;
 
@@ -305,7 +305,7 @@ postClause
   ;
 
 predicatePost
-  : varRef '(' 'Entry' relOp 'Exit' ')'        #TemporalEntryExit
+  : varRef '(' 'Entry' relOp 'Exit' ')'        #PostEntryExit
   | 'Unchanged' '(' varRef ')'                 #UnchangedVar
   | commonPredicate                            #PostCommonPredicate
   ;

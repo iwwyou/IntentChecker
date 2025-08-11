@@ -557,21 +557,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#TemporalBeforeAfter.
-    def enterTemporalBeforeAfter(self, ctx:SolidityParser.TemporalBeforeAfterContext):
+    # Enter a parse tree produced by SolidityParser#DuringBeforeAfter.
+    def enterDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#TemporalBeforeAfter.
-    def exitTemporalBeforeAfter(self, ctx:SolidityParser.TemporalBeforeAfterContext):
+    # Exit a parse tree produced by SolidityParser#DuringBeforeAfter.
+    def exitDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#TemporalAssignCurrent.
-    def enterTemporalAssignCurrent(self, ctx:SolidityParser.TemporalAssignCurrentContext):
+    # Enter a parse tree produced by SolidityParser#DuringAssignCurrent.
+    def enterDuringAssignCurrent(self, ctx:SolidityParser.DuringAssignCurrentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#TemporalAssignCurrent.
-    def exitTemporalAssignCurrent(self, ctx:SolidityParser.TemporalAssignCurrentContext):
+    # Exit a parse tree produced by SolidityParser#DuringAssignCurrent.
+    def exitDuringAssignCurrent(self, ctx:SolidityParser.DuringAssignCurrentContext):
         pass
 
 
@@ -611,12 +611,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#TemporalEntryExit.
-    def enterTemporalEntryExit(self, ctx:SolidityParser.TemporalEntryExitContext):
+    # Enter a parse tree produced by SolidityParser#PostEntryExit.
+    def enterPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#TemporalEntryExit.
-    def exitTemporalEntryExit(self, ctx:SolidityParser.TemporalEntryExitContext):
+    # Exit a parse tree produced by SolidityParser#PostEntryExit.
+    def exitPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
         pass
 
 

@@ -6350,7 +6350,7 @@ class SolidityParser ( Parser ):
 
 
 
-    class TemporalBeforeAfterContext(PredicateDuringContext):
+    class DuringBeforeAfterContext(PredicateDuringContext):
 
         def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PredicateDuringContext
             super().__init__(parser)
@@ -6364,16 +6364,16 @@ class SolidityParser ( Parser ):
 
 
         def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterTemporalBeforeAfter" ):
-                listener.enterTemporalBeforeAfter(self)
+            if hasattr( listener, "enterDuringBeforeAfter" ):
+                listener.enterDuringBeforeAfter(self)
 
         def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitTemporalBeforeAfter" ):
-                listener.exitTemporalBeforeAfter(self)
+            if hasattr( listener, "exitDuringBeforeAfter" ):
+                listener.exitDuringBeforeAfter(self)
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTemporalBeforeAfter" ):
-                return visitor.visitTemporalBeforeAfter(self)
+            if hasattr( visitor, "visitDuringBeforeAfter" ):
+                return visitor.visitDuringBeforeAfter(self)
             else:
                 return visitor.visitChildren(self)
 
@@ -6403,7 +6403,7 @@ class SolidityParser ( Parser ):
                 return visitor.visitChildren(self)
 
 
-    class TemporalAssignCurrentContext(PredicateDuringContext):
+    class DuringAssignCurrentContext(PredicateDuringContext):
 
         def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PredicateDuringContext
             super().__init__(parser)
@@ -6417,16 +6417,16 @@ class SolidityParser ( Parser ):
 
 
         def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterTemporalAssignCurrent" ):
-                listener.enterTemporalAssignCurrent(self)
+            if hasattr( listener, "enterDuringAssignCurrent" ):
+                listener.enterDuringAssignCurrent(self)
 
         def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitTemporalAssignCurrent" ):
-                listener.exitTemporalAssignCurrent(self)
+            if hasattr( listener, "exitDuringAssignCurrent" ):
+                listener.exitDuringAssignCurrent(self)
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTemporalAssignCurrent" ):
-                return visitor.visitTemporalAssignCurrent(self)
+            if hasattr( visitor, "visitDuringAssignCurrent" ):
+                return visitor.visitDuringAssignCurrent(self)
             else:
                 return visitor.visitChildren(self)
 
@@ -6441,7 +6441,7 @@ class SolidityParser ( Parser ):
             self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,100,self._ctx)
             if la_ == 1:
-                localctx = SolidityParser.TemporalBeforeAfterContext(self, localctx)
+                localctx = SolidityParser.DuringBeforeAfterContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 959
                 self.varRef()
@@ -6458,7 +6458,7 @@ class SolidityParser ( Parser ):
                 pass
 
             elif la_ == 2:
-                localctx = SolidityParser.TemporalAssignCurrentContext(self, localctx)
+                localctx = SolidityParser.DuringAssignCurrentContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
                 self.state = 966
                 self.varRef()
@@ -6740,6 +6740,34 @@ class SolidityParser ( Parser ):
                 return visitor.visitChildren(self)
 
 
+    class PostEntryExitContext(PredicatePostContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PredicatePostContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def varRef(self):
+            return self.getTypedRuleContext(SolidityParser.VarRefContext,0)
+
+        def relOp(self):
+            return self.getTypedRuleContext(SolidityParser.RelOpContext,0)
+
+
+        def enterRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "enterPostEntryExit" ):
+                listener.enterPostEntryExit(self)
+
+        def exitRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "exitPostEntryExit" ):
+                listener.exitPostEntryExit(self)
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitPostEntryExit" ):
+                return visitor.visitPostEntryExit(self)
+            else:
+                return visitor.visitChildren(self)
+
+
     class UnchangedVarContext(PredicatePostContext):
 
         def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PredicatePostContext
@@ -6765,34 +6793,6 @@ class SolidityParser ( Parser ):
                 return visitor.visitChildren(self)
 
 
-    class TemporalEntryExitContext(PredicatePostContext):
-
-        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PredicatePostContext
-            super().__init__(parser)
-            self.copyFrom(ctx)
-
-        def varRef(self):
-            return self.getTypedRuleContext(SolidityParser.VarRefContext,0)
-
-        def relOp(self):
-            return self.getTypedRuleContext(SolidityParser.RelOpContext,0)
-
-
-        def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterTemporalEntryExit" ):
-                listener.enterTemporalEntryExit(self)
-
-        def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitTemporalEntryExit" ):
-                listener.exitTemporalEntryExit(self)
-
-        def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitTemporalEntryExit" ):
-                return visitor.visitTemporalEntryExit(self)
-            else:
-                return visitor.visitChildren(self)
-
-
 
     def predicatePost(self):
 
@@ -6803,7 +6803,7 @@ class SolidityParser ( Parser ):
             self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,104,self._ctx)
             if la_ == 1:
-                localctx = SolidityParser.TemporalEntryExitContext(self, localctx)
+                localctx = SolidityParser.PostEntryExitContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 1002
                 self.varRef()
