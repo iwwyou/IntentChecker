@@ -57,6 +57,8 @@ class CFGSerializer:
             
         # LibraryCFG를 직렬화
         serialized_data = self._serialize_library_cfg(library_cfg)
+        # 추가: 안전화
+        serialized_data = self._json_safe(serialized_data)
         
         # JSON 파일로 저장
         try:
@@ -160,6 +162,7 @@ class CFGSerializer:
             
         # ContractCFG를 직렬화
         serialized_data = self._serialize_contract_cfg(contract_cfg)
+        serialized_data = self._json_safe(serialized_data)
         
         # JSON 파일로 저장
         try:
@@ -298,6 +301,7 @@ class CFGSerializer:
             file_path = output_dir / f"{lib_name}_library.json"
             try:
                 serialized_data = self._serialize_library_cfg(lib_cfg)
+                serialized_data = self._json_safe(serialized_data)
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(serialized_data, f, indent=2, ensure_ascii=False)
                 saved_files[f"{lib_name}_library"] = str(file_path)
@@ -317,6 +321,7 @@ class CFGSerializer:
             file_path = output_dir / f"{contract_name}_contract.json"
             try:
                 serialized_data = self._serialize_contract_cfg(contract_cfg)
+                serialized_data = self._json_safe(serialized_data)
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(serialized_data, f, indent=2, ensure_ascii=False)
                 saved_files[f"{contract_name}_contract"] = str(file_path)
@@ -391,3 +396,162 @@ class CFGSerializer:
         
         print(f"Load complete: {len(contract_cfgs)} contracts, {len(library_cfgs)} libraries")
         return contract_cfgs, library_cfgs
+
+    # Analyzer/CFGSerializer.py (CFGSerializer 클래스 내부)
+
+    def _soltype_safe(self, t):
+        try:
+            from Domain.Type import SolType
+        except Exception:
+            SolType = None
+
+        if t is None:
+            return None
+        if SolType is not None and isinstance(t, SolType):
+            out = {"typeCategory": getattr(t, "typeCategory", None)}
+            cat = out["typeCategory"]
+            if cat == "elementary":
+                out["elementaryTypeName"] = getattr(t, "elementaryTypeName", None)
+                out["intTypeLength"] = getattr(t, "intTypeLength", None)
+            elif cat == "array":
+                out["arrayBaseType"] = self._soltype_safe(getattr(t, "arrayBaseType", None))
+                out["arrayLength"] = getattr(t, "arrayLength", None)
+                out["isDynamicArray"] = getattr(t, "isDynamicArray", False)
+            elif cat == "mapping":
+                out["mappingKeyType"] = self._soltype_safe(getattr(t, "mappingKeyType", None))
+                out["mappingValueType"] = self._soltype_safe(getattr(t, "mappingValueType", None))
+            elif cat == "struct":
+                out["structTypeName"] = getattr(t, "structTypeName", None)
+            elif cat == "enum":
+                out["enumTypeName"] = getattr(t, "enumTypeName", None)
+            elif cat == "userDefined":
+                out["userTypeName"] = getattr(t, "userTypeName", None)
+            return out
+        # 모르는 타입이면 문자열
+        return str(t)
+
+    def _interval_safe(self, iv):
+        try:
+            from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
+        except Exception:
+            IntegerInterval = UnsignedIntegerInterval = BoolInterval = tuple()
+
+        # Interval 계열
+        if isinstance(iv, (IntegerInterval, UnsignedIntegerInterval, BoolInterval)):
+            return {
+                "_kind": iv.__class__.__name__,
+                "min": getattr(iv, "min_value", None),
+                "max": getattr(iv, "max_value", None),
+                "bits": getattr(iv, "type_length", None),
+            }
+        # 원시 타입
+        if iv is None or isinstance(iv, (bool, int, float, str)):
+            return iv
+        # 기타는 문자열로
+        return str(iv)
+
+    def _var_safe(self, v):
+        try:
+            from Domain.Variable import (
+                Variables, ArrayVariable, StructVariable,
+                MappingVariable, EnumVariable,
+                StructDefinition, EnumDefinition
+            )
+        except Exception:
+            # import 실패 시 그냥 문자열
+            return None
+
+        # Array
+        if isinstance(v, ArrayVariable):
+            return {
+                "_kind": "ArrayVariable",
+                "id": v.identifier,
+                "scope": v.scope,
+                "typeInfo": self._soltype_safe(getattr(v, "typeInfo", None)),
+                "elements": [self._json_safe(e) for e in getattr(v, "elements", [])],
+            }
+
+        # Struct
+        if isinstance(v, StructVariable):
+            return {
+                "_kind": "StructVariable",
+                "id": v.identifier,
+                "scope": v.scope,
+                "typeInfo": self._soltype_safe(getattr(v, "typeInfo", None)),
+                "members": {k: self._json_safe(val) for k, val in getattr(v, "members", {}).items()},
+            }
+
+        # Mapping
+        if isinstance(v, MappingVariable):
+            return {
+                "_kind": "MappingVariable",
+                "id": v.identifier,
+                "scope": v.scope,
+                "typeInfo": self._soltype_safe(getattr(v, "typeInfo", None)),
+                "mapping": {str(k): self._json_safe(val) for k, val in getattr(v, "mapping", {}).items()},
+            }
+
+        # EnumVariable
+        if isinstance(v, EnumVariable):
+            return {
+                "_kind": "EnumVariable",
+                "id": v.identifier,
+                "scope": v.scope,
+                "enum": getattr(getattr(v, "typeInfo", None), "enumTypeName", None),
+                "members": getattr(v, "members", {}),
+                "value": self._json_safe(getattr(v, "value", None)),
+                "valueIndex": getattr(v, "valueIndex", None),
+            }
+
+        # 일반 Variables (leaf)
+        if isinstance(v, Variables):
+            return {
+                "_kind": "Variables",
+                "id": v.identifier,
+                "scope": v.scope,
+                "isConstant": getattr(v, "isConstant", False),
+                "typeInfo": self._soltype_safe(getattr(v, "typeInfo", None)),
+                "value": self._interval_safe(getattr(v, "value", None)),
+            }
+
+        # Struct/Enum Definition (Library/ContractCFG.serialize_for_storage 안의 structDefs/enumDefs 보호)
+        if "StructDefinition" in v.__class__.__name__:
+            return {
+                "_kind": "StructDefinition",
+                "struct_name": getattr(v, "struct_name", None),
+                "members": [
+                    {
+                        "member_name": m.get("member_name"),
+                        "member_type": self._soltype_safe(m.get("member_type")),
+                    }
+                    for m in getattr(v, "members", [])
+                ],
+            }
+        if "EnumDefinition" in v.__class__.__name__:
+            return {
+                "_kind": "EnumDefinition",
+                "enum_name": getattr(v, "enum_name", None),
+                "members": list(getattr(v, "members", [])),
+            }
+
+        return None
+
+    def _json_safe(self, obj):
+        # 원시
+        if obj is None or isinstance(obj, (bool, int, float, str)):
+            return obj
+        # 컨테이너
+        if isinstance(obj, (list, tuple, set)):
+            return [self._json_safe(x) for x in obj]
+        if isinstance(obj, dict):
+            return {str(k): self._json_safe(v) for k, v in obj.items()}
+
+        # Variables / 파생
+        v = self._var_safe(obj)
+        if v is not None:
+            return v
+
+        # Interval
+        iv = self._interval_safe(obj)
+        # _interval_safe는 비-interval이면 문자열을 돌려줄 수 있으니, 그대로 반환
+        return iv

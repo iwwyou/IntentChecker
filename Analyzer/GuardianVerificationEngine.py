@@ -6,16 +6,14 @@ Provides temporal state checking capabilities for SolQDebug.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict, Any, List, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
-from Domain.Interval import Interval
 from Domain.IR import Expression
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
-from functools import reduce
 
 class GuardianVerificationEngine:
     def __init__(self, analyzer: "ContractAnalyzer"):
@@ -257,232 +255,146 @@ class GuardianVerificationEngine:
     # ────────────────────────────────────────────────────────────────
     #  POST :  varRef( Entry <op> Exit )
     # ----------------------------------------------------------------
-    def verify_post_entry_exit(
-            self, *, var_ref, comp_op: str, line_no: int, fn_cfg
-    ) -> dict[str, any]:
-
-        ev = self.analyzer.evaluator  # 평가기 별칭
-
-        # entry_env = fn_cfg.related_variables  # (기존)
-        entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)  # ★ 진입 스냅샷 우선
-
+    def verify_post_entry_exit(self, *, var_ref, comp_op: str, line_no: int, fn_cfg) -> dict[str, any]:
+        ev = self.analyzer.evaluator
         try:
-            entry_val = ev.evaluate_expression(var_ref, entry_env, None, None)
+            entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
+            entry_val = self._materialize(ev.evaluate_expression(var_ref, entry_env, None, None))
+
+            exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
+
+            cmp = self._compare_values(entry_val, comp_op, exit_val)
+            status = "success" if cmp["satisfied"] else "violation"
+            return {
+                "status": status,
+                "kind": "postEntryExit",
+                "line": line_no,
+                "details": {
+                    "variable": self._pretty_expr(var_ref),
+                    "entry_value": str(entry_val),
+                    "exit_value": str(exit_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'{self._pretty_expr(var_ref)}(Entry {comp_op} Exit) → {cmp["message"]}',
+            }
         except Exception as e:
-            return self._err("postEntryExit",
-                             f"entry-value eval error: {e}", line_no)
+            return self._err("postEntryExit", f"internal error: {e}", line_no)
 
-        exit_node = fn_cfg.get_exit_node()
-        preds = list(fn_cfg.graph.predecessors(exit_node))
-
-        if preds:
-            after_val = ev.evaluate_expression(var_ref, preds[0].variables, None, None)
-            for p in preds[1:]:
-                v = ev.evaluate_expression(var_ref, p.variables, None, None)
-                after_val = self._join_val(after_val, v)
-        else:
-            after_val = entry_val  # fall-back (void 함수 등)
-
-        # 3) 비교
-        cmp = self._compare_values(entry_val, comp_op, after_val)
-        status = "success" if cmp["satisfied"] else "violation"
-
-        return {
-            "status": status,
-            "kind": "postEntryExit",
-            "line": line_no,
-            "details": {
-                "variable": self._pretty_expr(var_ref),
-                "entry_value": str(entry_val),
-                "exit_value": str(after_val),
-                "operator": comp_op,
-                **cmp
-            },
-            "message": f'{self._pretty_expr(var_ref)}(Entry {comp_op} Exit) '
-                       f'→ {cmp["message"]}',
-        }
-
-    def verify_post_return_expression(
-            self, *, comp_op: str, value_expr, line_no: int, fn_cfg
-    ):
-        ev = self.analyzer.evaluator
-
-        # 1) EXIT-env  (EXIT predecessor variables 전부 join)
-        exit_node = fn_cfg.get_exit_node()
-        preds = list(fn_cfg.graph.predecessors(exit_node))
-
-        if preds:
-            exit_env = VariableEnv.copy_variables(preds[0].variables)
-            for p in preds[1:]:
-                for k, v in p.variables.items():
-                    exit_env[k] = self._join_val(exit_env.get(k), v)
-        else:
-            exit_env = fn_cfg.related_variables  # fallback
-
-        # 2) <returnExpression>  값 (모든 return 줄을 join)
-        ret_vals = list(exit_node.return_vals.values())
-        if not ret_vals:  # void 함수
-            return_val = None
-        else:
-            return_val = reduce(self._join_val, ret_vals)
-
-        # 3) RHS  valueExpr 평가
-        rhs_val = ev.evaluate_expression(value_expr, exit_env, None, None)
-
-        # 4) 비교
-        cmp = self._compare_values(return_val, comp_op, rhs_val)
-        status = "success" if cmp["satisfied"] else "violation"
-
-        return {
-            "status": status,
-            "kind": "postRetExpr",
-            "line": line_no,
-            "details": {
-                "return_join": str(return_val),
-                "rhs_value": str(rhs_val),
-                "operator": comp_op,
-                **cmp
-            },
-            "message": f'returnExpression {comp_op} {self._pretty_expr(value_expr)} '
-                       f'→ {cmp["message"]}',
-        }
-
-    def verify_post_return_variable(
-            self, *, var_ref, comp_op: str, value_expr, line_no: int, fn_cfg
-    ):
-        ev = self.analyzer.evaluator
-
-        # 1) EXIT-env  작성 (pred-join)
-        exit_node = fn_cfg.get_exit_node()
-        preds = list(fn_cfg.graph.predecessors(exit_node))
-
-        if preds:
-            exit_env = VariableEnv.copy_variables(preds[0].variables)
-            for p in preds[1:]:
-                for k, v in p.variables.items():
-                    exit_env[k] = self._join_val(exit_env.get(k), v)
-        else:
-            exit_env = fn_cfg.related_variables
-
-        # 2) return 값 중 var_ref 에 해당하는 부분 추출 & join
-        comp_vals = []
-        for rv in exit_node.return_vals.values():
-            comp_vals.append(self._pick_from_return(rv, var_ref))
-
-        if not comp_vals:
-            ret_comp = None
-        else:
-            ret_comp = reduce(self._join_val, comp_vals)
-
-        # 3) RHS 평가
-        rhs_val = ev.evaluate_expression(value_expr, exit_env, None, None)
-
-        # 4) 비교
-        cmp = self._compare_values(ret_comp, comp_op, rhs_val)
-        status = "success" if cmp["satisfied"] else "violation"
-
-        return {
-            "status": status,
-            "kind": "postRetVar",
-            "line": line_no,
-            "details": {
-                "variable": self._pretty_expr(var_ref),
-                "return_value": str(ret_comp),
-                "rhs_value": str(rhs_val),
-                "operator": comp_op,
-                **cmp
-            },
-            "message": f'return {self._pretty_expr(var_ref)} {comp_op} '
-                       f'{self._pretty_expr(value_expr)} → {cmp["message"]}',
-        }
-
-    def verify_post_direct_comparison(
-            self, *, lhs_expr, comp_op: str, rhs_expr,
-            line_no: int, fn_cfg):
-        """
-        @Post  <valueExpr>  op  <valueExpr>
-        Exit 시점(env-join)에서 두 값을 평가해 비교
-        """
-        ev = self.analyzer.evaluator
-
-        # 1) EXIT-env  ( predecessor 변수 join )
-        exit_node = fn_cfg.get_exit_node()
-        preds = list(fn_cfg.graph.predecessors(exit_node))
-
-        if preds:
-            exit_env = VariableEnv.copy_variables(preds[0].variables)
-            for p in preds[1:]:
-                for k, v in p.variables.items():
-                    exit_env[k] = self._join_val(exit_env.get(k), v)
-        else:  # fall-back (void 함수 등)
-            exit_env = fn_cfg.related_variables
-
-        # 2) 두 operand 평가
-        lhs_val = ev.evaluate_expression(lhs_expr, exit_env, None, None)
-        rhs_val = ev.evaluate_expression(rhs_expr, exit_env, None, None)
-
-        # 3) 비교
-        cmp = self._compare_values(lhs_val, comp_op, rhs_val)
-        status = "success" if cmp["satisfied"] else "violation"
-
-        return {
-            "status": status,
-            "kind": "postDirectCmp",
-            "line": line_no,
-            "details": {
-                "lhs_value": str(lhs_val),
-                "rhs_value": str(rhs_val),
-                "operator": comp_op,
-                **cmp
-            },
-            "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
-                       f'{self._pretty_expr(rhs_expr)} → {cmp["message"]}',
-        }
-
-    def verify_post_unchanged(
-            self, *, var_ref, line_no: int, fn_cfg):
-        """
-        @Post  Unchanged( x )   ≡   x(Entry == Exit)
-        """
-        ev = self.analyzer.evaluator
-
-        # 1) Entry 값  (FunctionCFG.related_variables)
-        entry_env = fn_cfg.related_variables
+    def verify_post_return_expression(self, *, comp_op: str, value_expr, line_no: int, fn_cfg):
         try:
-            entry_val = ev.evaluate_expression(var_ref, entry_env, None, None)
+            exit_node = fn_cfg.get_exit_node()
+            ret_vals = list(exit_node.return_vals.values())
+
+            if not ret_vals:
+                return_val = None  # void
+            else:
+                # 값 조인은 list/tuple 가능성 있으니 얇은 어댑터 사용
+                acc = ret_vals[0]
+                for v in ret_vals[1:]:
+                    acc = self._join_values(acc, v)
+                return_val = self._materialize(acc)
+
+            rhs_val = self._eval_on_exit_value(value_expr, fn_cfg, normal_only=True)
+
+            cmp = self._compare_values(return_val, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+            return {
+                "status": status,
+                "kind": "postRetExpr",
+                "line": line_no,
+                "details": {
+                    "return_join": str(return_val),
+                    "rhs_value": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'returnExpression {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}',
+            }
         except Exception as e:
-            return self._err("postUnchanged",
-                             f"entry-value eval error: {e}", line_no)
+            return self._err("postRetExpr", f"internal error: {e}", line_no)
 
-        # 2) Exit 값  (pred-join)
-        exit_node = fn_cfg.get_exit_node()
-        preds = list(fn_cfg.graph.predecessors(exit_node))
+    def verify_post_return_variable(self, *, var_ref, comp_op: str, value_expr, line_no: int, fn_cfg):
+        try:
+            exit_node = fn_cfg.get_exit_node()
+            comp_vals = []
+            for rv in exit_node.return_vals.values():
+                comp_vals.append(self._pick_from_return(rv, var_ref))
 
-        if preds:
-            exit_val = ev.evaluate_expression(var_ref, preds[0].variables, None, None)
-            for p in preds[1:]:
-                v = ev.evaluate_expression(var_ref, p.variables, None, None)
-                exit_val = self._join_val(exit_val, v)
-        else:  # fallback
-            exit_val = entry_val
+            if not comp_vals:
+                ret_comp = None
+            else:
+                acc = comp_vals[0]
+                for v in comp_vals[1:]:
+                    acc = self._join_values(acc, v)
+                ret_comp = self._materialize(acc)
 
-        # 3) 비교 (항상 '==' 로 고정)
-        cmp = self._compare_values(entry_val, '==', exit_val)
-        status = "success" if cmp["satisfied"] else "violation"
+            rhs_val = self._eval_on_exit_value(value_expr, fn_cfg, normal_only=True)
 
-        return {
-            "status": status,
-            "kind": "postUnchanged",
-            "line": line_no,
-            "details": {
-                "variable": self._pretty_expr(var_ref),
-                "entry_value": str(entry_val),
-                "exit_value": str(exit_val),
-                **cmp
-            },
-            "message": f'Unchanged({self._pretty_expr(var_ref)}) '
-                       f'→ {cmp["message"]}',
-        }
+            cmp = self._compare_values(ret_comp, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+            return {
+                "status": status,
+                "kind": "postRetVar",
+                "line": line_no,
+                "details": {
+                    "variable": self._pretty_expr(var_ref),
+                    "return_value": str(ret_comp),
+                    "rhs_value": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'return {self._pretty_expr(var_ref)} {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}',
+            }
+        except Exception as e:
+            return self._err("postRetVar", f"internal error: {e}", line_no)
+
+    def verify_post_direct_comparison(self, *, lhs_expr, comp_op: str, rhs_expr, line_no: int, fn_cfg):
+        try:
+            lhs_val = self._eval_on_exit_value(lhs_expr, fn_cfg, normal_only=True)
+            rhs_val = self._eval_on_exit_value(rhs_expr, fn_cfg, normal_only=True)
+
+            cmp = self._compare_values(lhs_val, comp_op, rhs_val)
+            status = "success" if cmp["satisfied"] else "violation"
+            return {
+                "status": status,
+                "kind": "postDirectCmp",
+                "line": line_no,
+                "details": {
+                    "lhs_value": str(lhs_val),
+                    "rhs_value": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'{self._pretty_expr(lhs_expr)} {comp_op} {self._pretty_expr(rhs_expr)} → {cmp["message"]}',
+            }
+        except Exception as e:
+            return self._err("postDirectCmp", f"internal error: {e}", line_no)
+
+    def verify_post_unchanged(self, *, var_ref, line_no: int, fn_cfg):
+        ev = self.analyzer.evaluator
+        try:
+            entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
+            entry_val = self._materialize(ev.evaluate_expression(var_ref, entry_env, None, None))
+
+            exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
+
+            cmp = self._compare_values(entry_val, '==', exit_val)
+            status = "success" if cmp["satisfied"] else "violation"
+            return {
+                "status": status,
+                "kind": "postUnchanged",
+                "line": line_no,
+                "details": {
+                    "variable": self._pretty_expr(var_ref),
+                    "entry_value": str(entry_val),
+                    "exit_value": str(exit_val),
+                    **cmp
+                },
+                "message": f'Unchanged({self._pretty_expr(var_ref)}) → {cmp["message"]}',
+            }
+        except Exception as e:
+            return self._err("postUnchanged", f"internal error: {e}", line_no)
 
     # ----------------------------------------------------------------
     # helper: uniform ok / error payloads
@@ -669,33 +581,90 @@ class GuardianVerificationEngine:
         # 기타 경우는 evaluator 로 해결하도록 위임
         return ret_v
 
-    @staticmethod
-    def _join_val(a: Any, b: Any):  # <-- 기존 것 교체
+    def _join_values(self, a, b):
         """
-        두 값의 '추상적 합집합'  – Interval · 리스트/튜플 · 스칼라 까지 지원
-        * ⊥ propagation 은 각 클래스 join() 내부에 이미 있음.
-        * 서로 다른 Interval 타입 → VariableEnv._merge_values 로 보수적 join
+        Helper의 _merge_values를 최대한 재사용.
+        단, list/tuple/dict 은 Helper가 모르므로 여기서만 얇게 감싸서 원소별 join.
         """
-        # (1) one-side None  → 다른 쪽
-        if a is None:
-            return b
-        if b is None:
-            return a
+        if a is None: return b
+        if b is None: return a
 
-        # (2) same concrete Interval subclass
-        if type(a) is type(b) and hasattr(a, "join"):
-            return a.join(b)
-
-        # (3) 둘 다 Interval 이지만 타입이 다르다 → 보수적 TOP
-        if isinstance(a, Interval) and isinstance(b, Interval):
-            return VariableEnv._merge_values(a, b, "join")
-
-        # (4) 리스트 / 튜플  (길이 동일 가정, 다르면 TOP)
+        # list/tuple → 원소별 재귀
         if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
             if len(a) != len(b):
                 return "⊤"
-            merged = [GuardianVerificationEngine._join_val(x, y) for x, y in zip(a, b)]
-            return type(a)(merged)
+            return type(a)(self._join_values(x, y) for x, y in zip(a, b))
 
-        # (5) 나머지 스칼라 – 값이 다르면 TOP 기호로
-        return a if a == b else "⊤"
+        # dict → key union 후 값별 재귀
+        if isinstance(a, dict) and isinstance(b, dict):
+            keys = set(a) | set(b)
+            return {k: self._join_values(a.get(k), b.get(k)) for k in keys}
+
+        # 나머지는 Helper에게 위임(Interval/Variables/Struct/Array/Mapping 등)
+        try:
+            return VariableEnv._merge_values(a, b, "join")
+        except Exception:
+            # 서로 다른 Interval형 조합 등에서 join이 예외를 던질 수 있음 → 보수적 ⊤
+            return "⊤"
+
+    def _materialize(self, v):
+        """
+        Variables/Struct/Array/Mapping → 값 뷰로 평탄화
+        Interval/스칼라 → 그대로
+        """
+        if v is None:
+            return None
+        if hasattr(v, "elements") and isinstance(getattr(v, "elements"), list):  # ArrayVariable
+            return [self._materialize(getattr(e, "value", e)) for e in v.elements]
+        if hasattr(v, "members") and isinstance(getattr(v, "members"), dict):  # StructVariable
+            return {k: self._materialize(getattr(m, "value", m)) for k, m in v.members.items()}
+        if hasattr(v, "mapping") and isinstance(getattr(v, "mapping"), dict):  # MappingVariable
+            return {k: self._materialize(getattr(m, "value", m)) for k, m in v.mapping.items()}
+        if hasattr(v, "value") and not (hasattr(v, "elements") or hasattr(v, "members") or hasattr(v, "mapping")):
+            return self._materialize(v.value)
+        if isinstance(v, (list, tuple)):
+            return type(v)(self._materialize(x) for x in v)
+        return v
+
+    # GuardianVerificationEngine.py  ─ GuardianVerificationEngine 클래스 내부
+
+    def _preds(self, fn_cfg, *, normal_only: bool = True):
+        """
+        EXIT의 predecessor 중 정상 경로만 뽑아옴.
+        (빌더에서 revert/require/assert(false) 엣지에 edge['abnormal']=True 를 붙였다고 가정)
+        """
+        G = fn_cfg.graph
+        exit_n = fn_cfg.get_exit_node()
+        out = []
+        for p in G.predecessors(exit_n):
+            ed = G.get_edge_data(p, exit_n, default={})
+            if normal_only and ed.get("abnormal"):
+                continue
+            out.append(p)
+        return out
+
+    def _exit_env(self, fn_cfg, *, normal_only: bool = True) -> dict:
+        """
+        EXIT 직전의 '변수 환경'을 Helper의 join으로 하나로 만든다.
+        ⇒ 이후 expr은 이 env로 한 번만 평가하면 됨.
+        """
+        preds = self._preds(fn_cfg, normal_only=normal_only)
+        if not preds:
+            # 본문이 비거나 pred가 없으면 entry/fallback 사용
+            return VariableEnv.copy_variables(getattr(fn_cfg, "related_variables", {}))
+
+        env = VariableEnv.copy_variables(preds[0].variables)
+        for p in preds[1:]:
+            env = VariableEnv.join_variables_simple(env, p.variables)
+        return env
+
+    def _eval_on_exit_value(self, expr, fn_cfg, *, normal_only: bool = True):
+        """
+        pred별로 평가해서 값을 join 하지 말고,
+        pred들의 env를 Helper join으로 합친 다음 expr을 '한 번'만 평가.
+        """
+        exit_env = self._exit_env(fn_cfg, normal_only=normal_only)
+        val = self.analyzer.evaluator.evaluate_expression(expr, exit_env, None, None)
+        return self._materialize(val)
+
+

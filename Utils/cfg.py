@@ -383,21 +383,41 @@ class ContractCFG(CFG):
                 serialized_using_all_libraries.append(lib_cfg.serialize_for_storage())
             else:
                 serialized_using_all_libraries.append(str(lib_cfg))
-        
+
+        def _ser_struct_def(def_obj):
+            return {
+                "struct_name": def_obj.struct_name,
+                "members": [
+                    {
+                        "member_name": m["member_name"],
+                        "member_type": getattr(m["member_type"], "elementaryTypeName", None)
+                                       or getattr(m["member_type"], "typeCategory", None)
+                                       or str(m["member_type"])
+                    }
+                    for m in def_obj.members
+                ]
+            }
+
+        def _ser_enum_def(def_obj):
+            return {
+                "enum_name": def_obj.enum_name,
+                "members": list(def_obj.members)
+            }
+
         return {
             'cfg_type': self.cfg_type,
             'contract_name': self.contract_name,
             'functions': serialized_functions,
             'globals': serialized_globals,
-            'structDefs': self.structDefs,
-            'structVars': self.structVars,
-            'enumDefs': self.enumDefs,
-            'enumVars': self.enumVars,
+            'structDefs': {k: _ser_struct_def(v) for k, v in self.structDefs.items()},
+            'structVars': self.structVars,  # 필요 없으면 빼도 됨 (아니면 안전화)
+            'enumDefs': {k: _ser_enum_def(v) for k, v in self.enumDefs.items()},
+            'enumVars': self.enumVars,  # 필요 없으면 빼도 됨
             'using_libraries': serialized_using_libraries,
             'using_all_libraries': serialized_using_all_libraries,
-            'constructor': self.constructor.serialize_for_storage() if self.constructor and hasattr(self.constructor, 'serialize_for_storage') else str(self.constructor) if self.constructor else None,
-            'fallback': self.fallback.serialize_for_storage() if self.fallback and hasattr(self.fallback, 'serialize_for_storage') else str(self.fallback) if self.fallback else None,
-            'receive': self.receive.serialize_for_storage() if self.receive and hasattr(self.receive, 'serialize_for_storage') else str(self.receive) if self.receive else None,
+            'constructor': ...,
+            'fallback': ...,
+            'receive': ...,
             'graph_structure': self.serialize_graph_structure()
         }
 
@@ -603,12 +623,32 @@ class LibraryCFG(CFG):
                 serialized_functions[func_name] = func_cfg.serialize_for_storage()
             else:
                 serialized_functions[func_name] = str(func_cfg)
-        
+
+        def _ser_struct_def(def_obj):
+            return {
+                "struct_name": def_obj.struct_name,
+                "members": [
+                    {
+                        "member_name": m["member_name"],
+                        "member_type": getattr(m["member_type"], "elementaryTypeName", None)
+                                       or getattr(m["member_type"], "typeCategory", None)
+                                       or str(m["member_type"])
+                    }
+                    for m in def_obj.members
+                ]
+            }
+
+        def _ser_enum_def(def_obj):
+            return {
+                "enum_name": def_obj.enum_name,
+                "members": list(def_obj.members)
+            }
+
         return {
             'cfg_type': self.cfg_type,
             'library_name': self.library_name,
             'functions': serialized_functions,
-            'structDefs': self.structDefs,
-            'enumDefs': self.enumDefs,
+            'structDefs': {k: _ser_struct_def(v) for k, v in self.structDefs.items()},
+            'enumDefs': {k: _ser_enum_def(v) for k, v in self.enumDefs.items()},
             'graph_structure': self.serialize_graph_structure()
         }
