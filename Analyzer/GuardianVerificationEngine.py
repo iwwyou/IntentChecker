@@ -19,9 +19,6 @@ class GuardianVerificationEngine:
     def __init__(self, analyzer: "ContractAnalyzer"):
         self.analyzer = analyzer
 
-    # === DURING =====================================================
-
-    # === DURING =====================================================
     def verify_during_before_after(
         self, *, var_ref: Expression, comp_op: str,
         line_no: int, cfg_node: CFGNode
@@ -44,22 +41,22 @@ class GuardianVerificationEngine:
             after_val  = ev.evaluate_expression(var_ref, after_env,  None, None)
 
             # 3. compare ---------------------------------------------
-            cmp_res = ev.compare_intervals(before_val, after_val, comp_op)
-            status  = "success" if cmp_res["satisfied"] else "violation"
-
+            cmp = self._compare_values(before_val, comp_op, after_val)
+            status = self._status_from_cmp(cmp)
             return {
-                "status":  status,
-                "kind":    "duringBeforeAfter",
-                "line":    line_no,
+                "status": status,
+                "kind": "duringBeforeAfter",
+                "line": line_no,
                 "details": {
-                    "variable":    self._pretty_expr(var_ref),
-                    "before":      str(before_val),
-                    "after":       str(after_val),
-                    "operator":    comp_op,
-                    "satisfied":   cmp_res["satisfied"],
+                    "variable": self._pretty_expr(var_ref),
+                    "before": str(before_val),
+                    "after": str(after_val),
+                    "operator": comp_op,
+                    **cmp,
+                    "prob_true": self._prob_true_from_cmp(cmp),
+                    "prob_false": round(1.0 - self._prob_true_from_cmp(cmp), 3),
                 },
-                "message": f'{self._pretty_expr(var_ref)}(Before {comp_op} After) '
-                           f'→ {cmp_res["message"]}',
+                "message": f'{self._pretty_expr(var_ref)}(Before {comp_op} After) → {cmp["message"]}',
             }
 
         except Exception as e:
@@ -84,7 +81,7 @@ class GuardianVerificationEngine:
 
         # 3)  비교
         cmp = self._compare_values(assign_val, comp_op, current_val)
-        status = "success" if cmp["satisfied"] else "violation"
+        status = self._status_from_cmp(cmp)
 
         return {
             "status": status,
@@ -104,7 +101,7 @@ class GuardianVerificationEngine:
     def verify_during_return_expression(
         self, *, comp_op: str, value_expr: Expression,
         line_no: int, cfg_node: CFGNode
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
 
         try:
             # ── 1) “현재 함수” CFG -------------------------------
@@ -127,7 +124,13 @@ class GuardianVerificationEngine:
 
             # ── 4) 비교 ----------------------------------------
             cmp = self._compare_values(ret_val, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
 
             return {
                 "status":  status,
@@ -140,7 +143,7 @@ class GuardianVerificationEngine:
                     **cmp
                 },
                 "message": (f"returnExpression {comp_op} {self._pretty_expr(value_expr)} "
-                            f"→ {cmp['message']}")
+                            f"→ {cmp['message']}{msg_tail}")
             }
 
         except Exception as e:
@@ -151,7 +154,7 @@ class GuardianVerificationEngine:
     # ----------------------------------------------------------------
     def verify_during_return_variable(
             self, *, var_ref, comp_op, value_expr, line_no, cfg_node
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
 
         try:
             fcfg = self.analyzer.current_target_function_cfg
@@ -191,7 +194,13 @@ class GuardianVerificationEngine:
 
             # ④ 비교  --------------------------------------------------------
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
 
             return {
                 "status": status,
@@ -205,7 +214,7 @@ class GuardianVerificationEngine:
                     **cmp
                 },
                 "message": f'return {self._pretty_expr(var_ref)} {comp_op} '
-                           f'{rhs_val}  →  {cmp["message"]}'
+                           f'{rhs_val}  →  {cmp["message"]} {msg_tail}'
             }
 
         except Exception as e:
@@ -216,7 +225,7 @@ class GuardianVerificationEngine:
     # ----------------------------------------------------------------
     def verify_during_direct_comparison(
             self, *, lhs_expr, comp_op, rhs_expr, line_no, cfg_node
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
 
         try:
             ev = self.analyzer.evaluator  # 평가기 단축명
@@ -228,7 +237,13 @@ class GuardianVerificationEngine:
 
             # ② 비교 ------------------------------------------------------------
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
 
             # ③ 결과 dict -------------------------------------------------------
             return {
@@ -242,7 +257,7 @@ class GuardianVerificationEngine:
                     **cmp  # satisfied / violated / uncertain / confidence
                 },
                 "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
-                           f'{self._pretty_expr(rhs_expr)}  →  {cmp["message"]}'
+                           f'{self._pretty_expr(rhs_expr)}  →  {cmp["message"]} {msg_tail}'
             }
 
         except Exception as e:
@@ -296,7 +311,7 @@ class GuardianVerificationEngine:
     # ────────────────────────────────────────────────────────────────
     #  POST :  varRef( Entry <op> Exit )
     # ----------------------------------------------------------------
-    def verify_post_entry_exit(self, *, var_ref, comp_op: str, line_no: int, fn_cfg) -> dict[str, any]:
+    def verify_post_entry_exit(self, *, var_ref, comp_op: str, line_no: int, fn_cfg) -> dict[str, Any]:
         ev = self.analyzer.evaluator
         try:
             entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
@@ -305,7 +320,13 @@ class GuardianVerificationEngine:
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(entry_val, comp_op, exit_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
+
             return {
                 "status": status,
                 "kind": "postEntryExit",
@@ -317,7 +338,7 @@ class GuardianVerificationEngine:
                     "operator": comp_op,
                     **cmp
                 },
-                "message": f'{self._pretty_expr(var_ref)}(Entry {comp_op} Exit) → {cmp["message"]}',
+                "message": f'{self._pretty_expr(var_ref)}(Entry {comp_op} Exit) → {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
             return self._err("postEntryExit", f"internal error: {e}", line_no)
@@ -339,7 +360,12 @@ class GuardianVerificationEngine:
             rhs_val = self._eval_on_exit_value(value_expr, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(return_val, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
             return {
                 "status": status,
                 "kind": "postRetExpr",
@@ -350,7 +376,7 @@ class GuardianVerificationEngine:
                     "operator": comp_op,
                     **cmp
                 },
-                "message": f'returnExpression {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}',
+                "message": f'returnExpression {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
             return self._err("postRetExpr", f"internal error: {e}", line_no)
@@ -373,7 +399,12 @@ class GuardianVerificationEngine:
             rhs_val = self._eval_on_exit_value(value_expr, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(ret_comp, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
             return {
                 "status": status,
                 "kind": "postRetVar",
@@ -385,7 +416,7 @@ class GuardianVerificationEngine:
                     "operator": comp_op,
                     **cmp
                 },
-                "message": f'return {self._pretty_expr(var_ref)} {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}',
+                "message": f'return {self._pretty_expr(var_ref)} {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
             return self._err("postRetVar", f"internal error: {e}", line_no)
@@ -396,7 +427,12 @@ class GuardianVerificationEngine:
             rhs_val = self._eval_on_exit_value(rhs_expr, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
             return {
                 "status": status,
                 "kind": "postDirectCmp",
@@ -407,7 +443,7 @@ class GuardianVerificationEngine:
                     "operator": comp_op,
                     **cmp
                 },
-                "message": f'{self._pretty_expr(lhs_expr)} {comp_op} {self._pretty_expr(rhs_expr)} → {cmp["message"]}',
+                "message": f'{self._pretty_expr(lhs_expr)} {comp_op} {self._pretty_expr(rhs_expr)} → {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
             return self._err("postDirectCmp", f"internal error: {e}", line_no)
@@ -421,7 +457,12 @@ class GuardianVerificationEngine:
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(entry_val, '==', exit_val)
-            status = "success" if cmp["satisfied"] else "violation"
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
             return {
                 "status": status,
                 "kind": "postUnchanged",
@@ -432,7 +473,7 @@ class GuardianVerificationEngine:
                     "exit_value": str(exit_val),
                     **cmp
                 },
-                "message": f'Unchanged({self._pretty_expr(var_ref)}) → {cmp["message"]}',
+                "message": f'Unchanged({self._pretty_expr(var_ref)}) → {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
             return self._err("postUnchanged", f"internal error: {e}", line_no)
@@ -477,7 +518,7 @@ class GuardianVerificationEngine:
     # ----------------------------------------------------------------
     # helper: uniform ok / error payloads
     # ----------------------------------------------------------------
-    def _err(self, kind: str, msg: str, ln: int) -> dict[str, any]:
+    def _err(self, kind: str, msg: str, ln: int) -> dict[str, Any]:
         return {"status": "error", "kind": kind, "line": ln, "message": msg}
 
     def _pretty_expr(self, expr: Expression) -> str:
@@ -567,19 +608,30 @@ class GuardianVerificationEngine:
             return {"state": "violated", "confidence": 0.0}
 
         conf = true_len / total if total else 0.5
-        return {"state": "uncertain", "confidence": round(conf, 3)}
+        info = {"state": "uncertain", "confidence": round(conf, 3)}
+
+        # ✨ 추가: unknown이면 false-support 구간을 계산해서 달아준다
+        try:
+            info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
+        except Exception:
+            info["false_regions"] = {"left": [], "right": [], "notes": "failed to compute"}
+
+        return info
 
     def _compare_values(self, left, op: str, right) -> dict:
         # ───────── Interval ↔ Interval (기존) ─────────
         if hasattr(left, "min_value") and hasattr(right, "min_value"):
             info = self._compare_intervals_prob(left, right, op)
-            return {
+            out = {
                 "satisfied": info["state"] == "satisfied",
                 "violated": info["state"] == "violated",
                 "uncertain": info["state"] == "uncertain",
                 "confidence": info["confidence"],
                 "message": f"{info['state']} (conf={info['confidence']})"
             }
+            if "false_regions" in info:
+                out["false_regions"] = info["false_regions"]
+            return out
 
         # ───────── 스칼라 ↔ Interval (주로 in / not in) ─────────
         if not hasattr(left, "min_value") and hasattr(right, "min_value"):
@@ -803,3 +855,134 @@ class GuardianVerificationEngine:
 
     def _status_from_state(self, st: str) -> str:
         return "success" if st == "satisfied" else ("violation" if st == "violated" else "unknown")
+
+    # GuardianVerificationEngine 내부에 추가
+
+    def _status_from_cmp(self, cmp: dict) -> str:
+        if cmp.get("satisfied"): return "success"
+        if cmp.get("violated"):  return "violation"
+        if cmp.get("uncertain"): return "unknown"
+        return "unknown"
+
+    def _prob_true_from_cmp(self, cmp: dict) -> float:
+        # 이 엔진에서 confidence는 "참일 확률" 의미로 일관 사용
+        if cmp.get("satisfied"): return 1.0
+        if cmp.get("violated"):  return 0.0
+        return float(cmp.get("confidence", 0.5))
+
+    def _prob_true_from_result(self, res: dict) -> float:
+        # verify_* 결과에서 details에 펼쳐 넣은 cmp를 그대로 사용
+        d = res.get("details", {})
+        if d.get("satisfied"): return 1.0
+        if d.get("violated"):  return 0.0
+        if "confidence" in d:  return float(d["confidence"])
+        # 비교 에러/정보부족 등
+        return 0.5
+
+    # GuardianVerificationEngine 내부에 추가
+
+    def _mk_interval(self, lo, hi):
+        """정수 구간 [lo,hi] (inclusive). lo>hi면 None."""
+        if lo is None or hi is None:
+            return None
+        lo = int(lo);
+        hi = int(hi)
+        if lo > hi:
+            return None
+        return [lo, hi]
+
+    def _intersect(self, a, b):
+        """a,b = [lo,hi]. 교집합 반환 또는 None."""
+        if a is None or b is None:
+            return None
+        return self._mk_interval(max(a[0], b[0]), min(a[1], b[1]))
+
+    def _minus(self, a, b):
+        """정수 구간 차집합: a\b → 구간 리스트"""
+        if a is None:
+            return []
+        inter = self._intersect(a, b)
+        if inter is None:
+            return [a]
+        out = []
+        if a[0] < inter[0]:
+            out.append([a[0], inter[0] - 1])
+        if inter[1] < a[1]:
+            out.append([inter[1] + 1, a[1]])
+        return out
+
+    def _false_regions_for_op(self, L, R, op: str) -> dict:
+        """
+        L,R: Interval-like (min_value, max_value).
+        unknown일 때 '거짓이 될 수 있는' 후보 구간을 보수적으로 리턴.
+        반환 예:
+          { "left":  [[l1,l2], ...],
+            "right": [[r1,r2], ...],
+            "notes": "inclusive integer intervals" }
+        """
+        if (getattr(L, "min_value", None) is None or getattr(L, "max_value", None) is None or
+                getattr(R, "min_value", None) is None or getattr(R, "max_value", None) is None):
+            return {"left": [], "right": [], "notes": "unknown bounds"}
+
+        a = [int(L.min_value), int(L.max_value)]
+        b = [int(R.min_value), int(R.max_value)]
+        left, right = [], []
+
+        if op == '>':
+            # 거짓(A<=B) 가능: A in [a_min, min(a_max, b_max)], B in [max(b_min, a_min), b_max]
+            lf = self._mk_interval(a[0], min(a[1], b[1]))
+            rf = self._mk_interval(max(b[0], a[0]), b[1])
+            left = [lf] if lf else []
+            right = [rf] if rf else []
+
+        elif op == '<':
+            # 거짓(A>=B) 가능
+            lf = self._mk_interval(max(a[0], b[0]), a[1])
+            rf = self._mk_interval(b[0], min(b[1], a[1]))
+            left, right = ([lf] if lf else [], [rf] if rf else [])
+
+        elif op == '>=':
+            # 거짓(A<B) 가능: 정수 의미로 b_max-1, a_min+1 보정
+            lf = self._mk_interval(a[0], min(a[1], b[1] - 1))
+            rf = self._mk_interval(max(b[0], a[0] + 1), b[1])
+            left, right = ([lf] if lf else [], [rf] if rf else [])
+
+        elif op == '<=':
+            # 거짓(A>B) 가능
+            lf = self._mk_interval(max(a[0], b[0] + 1), a[1])
+            rf = self._mk_interval(b[0], min(b[1], a[1] - 1))
+            left, right = ([lf] if lf else [], [rf] if rf else [])
+
+        elif op == '==':
+            # 거짓은 '겹침 밖' 영역. left_false = A \ (A∩B), right_false = B \ (A∩B)
+            inter = self._intersect(a, b)
+            left = self._minus(a, inter) if inter else [a]
+            right = self._minus(b, inter) if inter else [b]
+
+        elif op == '!=':
+            # 거짓은 '같을 수 있는' 영역. 즉 겹치는 부분이 false-support
+            inter = self._intersect(a, b)
+            left = [inter] if inter else []
+            right = [inter] if inter else []
+
+        elif op == 'in':
+            # 거짓은 left의 '오버플로' 부분 (left \ right)
+            inter = self._intersect(a, b)
+            left = self._minus(a, inter) if inter else [a]
+            right = []  # 오른쪽은 정보성 낮아 비움
+
+        elif op == 'not in':
+            # 거짓은 left⊆right 가 될 가능성. 보수적으로 left∩right를 “위험 후보”로 보고 리턴
+            inter = self._intersect(a, b)
+            left = [inter] if inter else []
+            right = [inter] if inter else []
+
+        else:
+            left, right = [], []
+
+        # None 정리
+        left = [x for x in left if x]
+        right = [x for x in right if x]
+        return {"left": left, "right": right, "notes": "inclusive integer intervals"}
+
+
