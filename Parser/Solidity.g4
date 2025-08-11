@@ -254,56 +254,61 @@ interactiveCatchClauseUnit
 // 0. Entry point
 //--------------------------------------------------
 intentUnit
-    : ( preIntent
-      | duringIntent
-      | postIntent
+    : ( preDirective
+      | duringDirective
+      | postDirective
       )* EOF
     ;
 
-//==================================================
-// 1)  PRE-INTENT
-//--------------------------------------------------
-preIntent
-    : '//' '@GlobalVar' identifier ('.' identifier)? '=' seedValue   #PreGlobal
-    | '//' '@StateVar'  varRef '=' seedValue                         #PreState
-    | '//' '@LocalVar'  varRef '=' seedValue                         #PreLocal
-    ;
+// ─────────────────────────────────────────────
+// 1) PRE
+preDirective
+  : '//' '@GlobalVar' identifier ('.' identifier)? '=' seedValue # PreGlobal
+  | '//' '@StateVar'  varRef '=' seedValue # PreState
+  | '//' '@LocalVar'  varRef '=' seedValue # PreLocal
+  ;
 
-//==================================================
-// 2)  DURING-INTENT
-//--------------------------------------------------
-duringIntent
-    : '//' '@During' logicExprDuring (',' logicExprDuring)* ;
+// ─────────────────────────────────────────────
+// 2) DURING
+duringDirective
+  : '//' '@During' duringFormula (',' duringFormula)*
+  ;
 
-logicExprDuring
-    : intentAtomDuring (logicOp intentAtomDuring)*
-    ;
+duringFormula
+  : duringClause (logicOp duringClause)*
+  ;
 
-intentAtomDuring
-    : varRef '(' WS* 'Before'  WS* compOp WS* 'After'   WS* ')'        #DuringBeforeAfter
-    | varRef '(' WS* 'Assign'  WS* compOp WS* 'Current' WS* ')'        #DuringAssignCurrent
-    | 'returnExpression' compOp valueExpr                              #DuringRetExpr
-    | 'return' varRef      compOp valueExpr                            #DuringRetVar   // tuple 원소 가능
-    | valueExpr            compOp valueExpr                            #DuringDirectCmp
-    ;
+duringClause
+  : predicateDuring
+  | predicateDuring '=>' predicateDuring
+  ;
 
-//==================================================
-// 3)  POST-INTENT
-//--------------------------------------------------
-postIntent
-    : '//' '@Post' logicExprPost (',' logicExprPost)* ;
+predicateDuring
+  : varRef '(' 'Before'  relOp 'After'   ')'   #TemporalBeforeAfter
+  | varRef '(' 'Assign'  relOp 'Current' ')'   #TemporalAssignCurrent
+  | commonPredicate                            #DuringCommonPredicate
+  ;
 
-logicExprPost
-    : intentAtomPost (logicOp intentAtomPost)*
-    ;
+// ─────────────────────────────────────────────
+// 3) POST
+postDirective
+  : '//' '@Post' postFormula (',' postFormula)*
+  ;
 
-intentAtomPost
-    : varRef '(' WS* 'Entry' WS* compOp WS* 'Exit' WS* ')'             #PostEntryExit
-    | 'returnExpression' compOp valueExpr                              #PostRetExpr     //(모든 return join)
-    | 'return' varRef      compOp valueExpr                            #PostRetVar      //(tuple 원소 단위)
-    | valueExpr            compOp valueExpr                            #PostDirectCmp
-    | 'Unchanged' '(' varRef ')'                                       #UnchangedPred
-    ;
+postFormula
+  : postClause (logicOp postClause)*
+  ;
+
+postClause
+  : predicatePost
+  | predicatePost '=>' predicatePost
+  ;
+
+predicatePost
+  : varRef '(' 'Entry' relOp 'Exit' ')'        #TemporalEntryExit
+  | 'Unchanged' '(' varRef ')'                 #UnchangedVar
+  | commonPredicate                            #PostCommonPredicate
+  ;
 
 //==================================================
 // 4)  Seed 값
@@ -318,6 +323,15 @@ seedValue
     | identifier ('.' identifier)?                          #EnumLiteral
     | inlineArrayAnnotation                                 #InlineArray
     ;
+
+// ─────────────────────────────────────────────
+// 공통 프레디킷 (alt-label은 여기 "한 곳"에만 둔다)
+// ─────────────────────────────────────────────
+commonPredicate
+  : 'returnExpression' relOp value   #ReturnExprCmp
+  | 'return' varRef      relOp value #ReturnVarCmp
+  | value                relOp value #RelationalCmp
+  ;
 
 //==================================================
 // 5)  변수·멤버·인덱스 참조
@@ -335,7 +349,7 @@ subAccess
 //==================================================
 // 6)  valueExpr ― “하나의 값” 을 만드는 식
 //--------------------------------------------------
-valueExpr
+value
     : arithExpr    #NExpr
     | addressExpr  #AExpr
     | boolExpr     #BExpr
@@ -380,11 +394,7 @@ boolExpr
 //--------------------------------------------------
 signedNumberLiteral : '-'? numberLiteral ;
 logicOp : '&&' | '||' ;
-compOp
-    : '<'  | '>'  | '<=' | '>=' | '==' | '!='        // 기존
-    | 'in'                                          // 포함
-    | 'not' 'in'                                    // 미포함  (띄어쓰기 상관없음)
-    ;
+relOp   : '<' | '>' | '<=' | '>=' | '==' | '!=' | 'in' | 'not' 'in' ;
 
 inlineArrayAnnotation
     : 'array' '[' inlineArrayElements? ']' ;

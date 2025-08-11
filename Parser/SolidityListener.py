@@ -530,129 +530,111 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#duringIntent.
-    def enterDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
+    # Enter a parse tree produced by SolidityParser#duringDirective.
+    def enterDuringDirective(self, ctx:SolidityParser.DuringDirectiveContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#duringIntent.
-    def exitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#logicExprDuring.
-    def enterLogicExprDuring(self, ctx:SolidityParser.LogicExprDuringContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#logicExprDuring.
-    def exitLogicExprDuring(self, ctx:SolidityParser.LogicExprDuringContext):
+    # Exit a parse tree produced by SolidityParser#duringDirective.
+    def exitDuringDirective(self, ctx:SolidityParser.DuringDirectiveContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#DuringBeforeAfter.
-    def enterDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
+    # Enter a parse tree produced by SolidityParser#duringFormula.
+    def enterDuringFormula(self, ctx:SolidityParser.DuringFormulaContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#DuringBeforeAfter.
-    def exitDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringAssignCurrent.
-    def enterDuringAssignCurrent(self, ctx:SolidityParser.DuringAssignCurrentContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringAssignCurrent.
-    def exitDuringAssignCurrent(self, ctx:SolidityParser.DuringAssignCurrentContext):
+    # Exit a parse tree produced by SolidityParser#duringFormula.
+    def exitDuringFormula(self, ctx:SolidityParser.DuringFormulaContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#DuringRetExpr.
-    def enterDuringRetExpr(self, ctx:SolidityParser.DuringRetExprContext):
+    # Enter a parse tree produced by SolidityParser#duringClause.
+    def enterDuringClause(self, ctx:SolidityParser.DuringClauseContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#DuringRetExpr.
-    def exitDuringRetExpr(self, ctx:SolidityParser.DuringRetExprContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringRetVar.
-    def enterDuringRetVar(self, ctx:SolidityParser.DuringRetVarContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringRetVar.
-    def exitDuringRetVar(self, ctx:SolidityParser.DuringRetVarContext):
+    # Exit a parse tree produced by SolidityParser#duringClause.
+    def exitDuringClause(self, ctx:SolidityParser.DuringClauseContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#DuringDirectCmp.
-    def enterDuringDirectCmp(self, ctx:SolidityParser.DuringDirectCmpContext):
+    # Enter a parse tree produced by SolidityParser#TemporalBeforeAfter.
+    def enterTemporalBeforeAfter(self, ctx:SolidityParser.TemporalBeforeAfterContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#DuringDirectCmp.
-    def exitDuringDirectCmp(self, ctx:SolidityParser.DuringDirectCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#postIntent.
-    def enterPostIntent(self, ctx:SolidityParser.PostIntentContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#postIntent.
-    def exitPostIntent(self, ctx:SolidityParser.PostIntentContext):
+    # Exit a parse tree produced by SolidityParser#TemporalBeforeAfter.
+    def exitTemporalBeforeAfter(self, ctx:SolidityParser.TemporalBeforeAfterContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#logicExprPost.
-    def enterLogicExprPost(self, ctx:SolidityParser.LogicExprPostContext):
+    # Enter a parse tree produced by SolidityParser#TemporalAssignCurrent.
+    def enterTemporalAssignCurrent(self, ctx:SolidityParser.TemporalAssignCurrentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#logicExprPost.
-    def exitLogicExprPost(self, ctx:SolidityParser.LogicExprPostContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PostEntryExit.
-    def enterPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostEntryExit.
-    def exitPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
+    # Exit a parse tree produced by SolidityParser#TemporalAssignCurrent.
+    def exitTemporalAssignCurrent(self, ctx:SolidityParser.TemporalAssignCurrentContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostRetExpr.
-    def enterPostRetExpr(self, ctx:SolidityParser.PostRetExprContext):
+    # Enter a parse tree produced by SolidityParser#DuringCommonPredicate.
+    def enterDuringCommonPredicate(self, ctx:SolidityParser.DuringCommonPredicateContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostRetExpr.
-    def exitPostRetExpr(self, ctx:SolidityParser.PostRetExprContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PostRetVar.
-    def enterPostRetVar(self, ctx:SolidityParser.PostRetVarContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostRetVar.
-    def exitPostRetVar(self, ctx:SolidityParser.PostRetVarContext):
+    # Exit a parse tree produced by SolidityParser#DuringCommonPredicate.
+    def exitDuringCommonPredicate(self, ctx:SolidityParser.DuringCommonPredicateContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostDirectCmp.
-    def enterPostDirectCmp(self, ctx:SolidityParser.PostDirectCmpContext):
+    # Enter a parse tree produced by SolidityParser#postDirective.
+    def enterPostDirective(self, ctx:SolidityParser.PostDirectiveContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostDirectCmp.
-    def exitPostDirectCmp(self, ctx:SolidityParser.PostDirectCmpContext):
+    # Exit a parse tree produced by SolidityParser#postDirective.
+    def exitPostDirective(self, ctx:SolidityParser.PostDirectiveContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#UnchangedPred.
-    def enterUnchangedPred(self, ctx:SolidityParser.UnchangedPredContext):
+    # Enter a parse tree produced by SolidityParser#postFormula.
+    def enterPostFormula(self, ctx:SolidityParser.PostFormulaContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#UnchangedPred.
-    def exitUnchangedPred(self, ctx:SolidityParser.UnchangedPredContext):
+    # Exit a parse tree produced by SolidityParser#postFormula.
+    def exitPostFormula(self, ctx:SolidityParser.PostFormulaContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#postClause.
+    def enterPostClause(self, ctx:SolidityParser.PostClauseContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#postClause.
+    def exitPostClause(self, ctx:SolidityParser.PostClauseContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#TemporalEntryExit.
+    def enterTemporalEntryExit(self, ctx:SolidityParser.TemporalEntryExitContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#TemporalEntryExit.
+    def exitTemporalEntryExit(self, ctx:SolidityParser.TemporalEntryExitContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#UnchangedVar.
+    def enterUnchangedVar(self, ctx:SolidityParser.UnchangedVarContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#UnchangedVar.
+    def exitUnchangedVar(self, ctx:SolidityParser.UnchangedVarContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#PostCommonPredicate.
+    def enterPostCommonPredicate(self, ctx:SolidityParser.PostCommonPredicateContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#PostCommonPredicate.
+    def exitPostCommonPredicate(self, ctx:SolidityParser.PostCommonPredicateContext):
         pass
 
 
@@ -725,6 +707,33 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#InlineArray.
     def exitInlineArray(self, ctx:SolidityParser.InlineArrayContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#ReturnExprCmp.
+    def enterReturnExprCmp(self, ctx:SolidityParser.ReturnExprCmpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#ReturnExprCmp.
+    def exitReturnExprCmp(self, ctx:SolidityParser.ReturnExprCmpContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#ReturnVarCmp.
+    def enterReturnVarCmp(self, ctx:SolidityParser.ReturnVarCmpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#ReturnVarCmp.
+    def exitReturnVarCmp(self, ctx:SolidityParser.ReturnVarCmpContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#RelationalCmp.
+    def enterRelationalCmp(self, ctx:SolidityParser.RelationalCmpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#RelationalCmp.
+    def exitRelationalCmp(self, ctx:SolidityParser.RelationalCmpContext):
         pass
 
 
@@ -953,12 +962,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#compOp.
-    def enterCompOp(self, ctx:SolidityParser.CompOpContext):
+    # Enter a parse tree produced by SolidityParser#relOp.
+    def enterRelOp(self, ctx:SolidityParser.RelOpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#compOp.
-    def exitCompOp(self, ctx:SolidityParser.CompOpContext):
+    # Exit a parse tree produced by SolidityParser#relOp.
+    def exitRelOp(self, ctx:SolidityParser.RelOpContext):
         pass
 
 
