@@ -279,8 +279,8 @@ duringFormula
   ;
 
 duringClause
-  : predicateDuring
-  | predicateDuring '=>' predicateDuring
+  : predicateDuring                                  # DuringClauseSingle
+  | predicateDuring '=>' predicateDuring             # DuringImplication
   ;
 
 predicateDuring
@@ -300,8 +300,8 @@ postFormula
   ;
 
 postClause
-  : predicatePost
-  | predicatePost '=>' predicatePost
+  : predicatePost                                    # PostClauseSingle
+  | predicatePost '=>' predicatePost                 # PostImplication
   ;
 
 predicatePost

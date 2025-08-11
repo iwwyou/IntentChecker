@@ -309,8 +309,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#duringClause.
-    def visitDuringClause(self, ctx:SolidityParser.DuringClauseContext):
+    # Visit a parse tree produced by SolidityParser#DuringClauseSingle.
+    def visitDuringClauseSingle(self, ctx:SolidityParser.DuringClauseSingleContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringImplication.
+    def visitDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
         return self.visitChildren(ctx)
 
 
@@ -339,8 +344,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#postClause.
-    def visitPostClause(self, ctx:SolidityParser.PostClauseContext):
+    # Visit a parse tree produced by SolidityParser#PostClauseSingle.
+    def visitPostClauseSingle(self, ctx:SolidityParser.PostClauseSingleContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostImplication.
+    def visitPostImplication(self, ctx:SolidityParser.PostImplicationContext):
         return self.visitChildren(ctx)
 
 

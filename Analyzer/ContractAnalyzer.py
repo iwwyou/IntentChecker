@@ -1967,6 +1967,23 @@ class ContractAnalyzer:
         self.recorder.record_verification_result(line_no, "duringDirectCmp", result)
         return result
 
+    def process_during_implication(self, antecedent: dict, consequent: dict):
+        line_no = self.current_start_line
+        self.store_during_annotation(
+            "implication",
+            line_no,
+            antecedent=antecedent,
+            consequent=consequent
+        )
+        result = self.guardian_verifier.verify_during_implication(
+            antecedent=antecedent,
+            consequent=consequent,
+            line_no=line_no,
+            cfg_node=self._cfg_node_at(line_no),
+        )
+        self.recorder.record_verification_result(line_no, "duringImplication", result)
+        return result
+
     # -----------------------------------------------------------
     # POST-INTENT PROCESSORS
     # -----------------------------------------------------------
@@ -2071,6 +2088,23 @@ class ContractAnalyzer:
             fn_cfg=self.current_target_function_cfg,
         )
         self.recorder.record_verification_result(line_no, "postUnchanged", result)
+        return result
+
+    def process_post_implication(self, antecedent: dict, consequent: dict):
+        line_no = self.current_start_line
+        self.store_post_annotation(
+            "implication",
+            line_no,
+            antecedent=antecedent,
+            consequent=consequent
+        )
+        result = self.guardian_verifier.verify_post_implication(
+            antecedent=antecedent,
+            consequent=consequent,
+            line_no=line_no,
+            fn_cfg=self.current_target_function_cfg,
+        )
+        self.recorder.record_verification_result(line_no, "postImplication", result)
         return result
 
     def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:

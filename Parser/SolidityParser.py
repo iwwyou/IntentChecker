@@ -6272,6 +6272,47 @@ class SolidityParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
+
+        def getRuleIndex(self):
+            return SolidityParser.RULE_duringClause
+
+     
+        def copyFrom(self, ctx:ParserRuleContext):
+            super().copyFrom(ctx)
+
+
+
+    class DuringClauseSingleContext(DuringClauseContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.DuringClauseContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def predicateDuring(self):
+            return self.getTypedRuleContext(SolidityParser.PredicateDuringContext,0)
+
+
+        def enterRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "enterDuringClauseSingle" ):
+                listener.enterDuringClauseSingle(self)
+
+        def exitRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "exitDuringClauseSingle" ):
+                listener.exitDuringClauseSingle(self)
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitDuringClauseSingle" ):
+                return visitor.visitDuringClauseSingle(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class DuringImplicationContext(DuringClauseContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.DuringClauseContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
         def predicateDuring(self, i:int=None):
             if i is None:
                 return self.getTypedRuleContexts(SolidityParser.PredicateDuringContext)
@@ -6279,23 +6320,19 @@ class SolidityParser ( Parser ):
                 return self.getTypedRuleContext(SolidityParser.PredicateDuringContext,i)
 
 
-        def getRuleIndex(self):
-            return SolidityParser.RULE_duringClause
-
         def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterDuringClause" ):
-                listener.enterDuringClause(self)
+            if hasattr( listener, "enterDuringImplication" ):
+                listener.enterDuringImplication(self)
 
         def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitDuringClause" ):
-                listener.exitDuringClause(self)
+            if hasattr( listener, "exitDuringImplication" ):
+                listener.exitDuringImplication(self)
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitDuringClause" ):
-                return visitor.visitDuringClause(self)
+            if hasattr( visitor, "visitDuringImplication" ):
+                return visitor.visitDuringImplication(self)
             else:
                 return visitor.visitChildren(self)
-
 
 
 
@@ -6308,12 +6345,14 @@ class SolidityParser ( Parser ):
             self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,99,self._ctx)
             if la_ == 1:
+                localctx = SolidityParser.DuringClauseSingleContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 952
                 self.predicateDuring()
                 pass
 
             elif la_ == 2:
+                localctx = SolidityParser.DuringImplicationContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
                 self.state = 953
                 self.predicateDuring()
@@ -6637,6 +6676,47 @@ class SolidityParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
+
+        def getRuleIndex(self):
+            return SolidityParser.RULE_postClause
+
+     
+        def copyFrom(self, ctx:ParserRuleContext):
+            super().copyFrom(ctx)
+
+
+
+    class PostClauseSingleContext(PostClauseContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PostClauseContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
+        def predicatePost(self):
+            return self.getTypedRuleContext(SolidityParser.PredicatePostContext,0)
+
+
+        def enterRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "enterPostClauseSingle" ):
+                listener.enterPostClauseSingle(self)
+
+        def exitRule(self, listener:ParseTreeListener):
+            if hasattr( listener, "exitPostClauseSingle" ):
+                listener.exitPostClauseSingle(self)
+
+        def accept(self, visitor:ParseTreeVisitor):
+            if hasattr( visitor, "visitPostClauseSingle" ):
+                return visitor.visitPostClauseSingle(self)
+            else:
+                return visitor.visitChildren(self)
+
+
+    class PostImplicationContext(PostClauseContext):
+
+        def __init__(self, parser, ctx:ParserRuleContext): # actually a SolidityParser.PostClauseContext
+            super().__init__(parser)
+            self.copyFrom(ctx)
+
         def predicatePost(self, i:int=None):
             if i is None:
                 return self.getTypedRuleContexts(SolidityParser.PredicatePostContext)
@@ -6644,23 +6724,19 @@ class SolidityParser ( Parser ):
                 return self.getTypedRuleContext(SolidityParser.PredicatePostContext,i)
 
 
-        def getRuleIndex(self):
-            return SolidityParser.RULE_postClause
-
         def enterRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "enterPostClause" ):
-                listener.enterPostClause(self)
+            if hasattr( listener, "enterPostImplication" ):
+                listener.enterPostImplication(self)
 
         def exitRule(self, listener:ParseTreeListener):
-            if hasattr( listener, "exitPostClause" ):
-                listener.exitPostClause(self)
+            if hasattr( listener, "exitPostImplication" ):
+                listener.exitPostImplication(self)
 
         def accept(self, visitor:ParseTreeVisitor):
-            if hasattr( visitor, "visitPostClause" ):
-                return visitor.visitPostClause(self)
+            if hasattr( visitor, "visitPostImplication" ):
+                return visitor.visitPostImplication(self)
             else:
                 return visitor.visitChildren(self)
-
 
 
 
@@ -6673,12 +6749,14 @@ class SolidityParser ( Parser ):
             self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,103,self._ctx)
             if la_ == 1:
+                localctx = SolidityParser.PostClauseSingleContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 995
                 self.predicatePost()
                 pass
 
             elif la_ == 2:
+                localctx = SolidityParser.PostImplicationContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
                 self.state = 996
                 self.predicatePost()

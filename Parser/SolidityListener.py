@@ -548,12 +548,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#duringClause.
-    def enterDuringClause(self, ctx:SolidityParser.DuringClauseContext):
+    # Enter a parse tree produced by SolidityParser#DuringClauseSingle.
+    def enterDuringClauseSingle(self, ctx:SolidityParser.DuringClauseSingleContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#duringClause.
-    def exitDuringClause(self, ctx:SolidityParser.DuringClauseContext):
+    # Exit a parse tree produced by SolidityParser#DuringClauseSingle.
+    def exitDuringClauseSingle(self, ctx:SolidityParser.DuringClauseSingleContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#DuringImplication.
+    def enterDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DuringImplication.
+    def exitDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
         pass
 
 
@@ -602,12 +611,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#postClause.
-    def enterPostClause(self, ctx:SolidityParser.PostClauseContext):
+    # Enter a parse tree produced by SolidityParser#PostClauseSingle.
+    def enterPostClauseSingle(self, ctx:SolidityParser.PostClauseSingleContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#postClause.
-    def exitPostClause(self, ctx:SolidityParser.PostClauseContext):
+    # Exit a parse tree produced by SolidityParser#PostClauseSingle.
+    def exitPostClauseSingle(self, ctx:SolidityParser.PostClauseSingleContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#PostImplication.
+    def enterPostImplication(self, ctx:SolidityParser.PostImplicationContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#PostImplication.
+    def exitPostImplication(self, ctx:SolidityParser.PostImplicationContext):
         pass
 
 

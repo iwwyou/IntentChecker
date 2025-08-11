@@ -694,6 +694,46 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitDuringClause(self, ctx: SolidityParser.DuringClauseContext):
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#DuringClauseSingle.
+    def visitDuringClauseSingle(self, ctx: SolidityParser.DuringClauseSingleContext):
+        return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#DuringImplication.
+    def visitDuringImplication(self, ctx: SolidityParser.DuringImplicationContext):
+        ante = self._build_during_predicate(ctx.predicateDuring(0))
+        cons = self._build_during_predicate(ctx.predicateDuring(1))
+        self.contract_analyzer.process_during_implication(ante, cons)
+        return None
+
+    def _build_during_predicate(self, pctx) -> dict:
+        P = SolidityParser
+        if isinstance(pctx, P.DuringBeforeAfterContext):
+            return {
+                "phase": "during",
+                "kind": "beforeAfter",
+                "var": self.visitVarRef(pctx.varRef()),
+                "op": self._relop_from_ctx(pctx),
+            }
+        if isinstance(pctx, P.DuringAssignCurrentContext):
+            return {
+                "phase": "during",
+                "kind": "assignCurrent",
+                "var": self.visitVarRef(pctx.varRef()),
+                "op": self._relop_from_ctx(pctx),
+            }
+        if isinstance(pctx, P.DuringCommonPredicateContext):
+            payload = self.visit(pctx.commonPredicate())  # dict 반환(아래 3개 visit)
+            t = payload["type"]
+            if t == "ReturnExprCmp":
+                return {"phase": "during", "kind": "retExpr", "op": payload["op"], "rhs": payload["rhs"]}
+            if t == "ReturnVarCmp":
+                return {"phase": "during", "kind": "retVar", "op": payload["op"], "lhs": payload["lhs"],
+                        "rhs": payload["rhs"]}
+            if t == "RelationalCmp":
+                return {"phase": "during", "kind": "direct", "op": payload["op"], "lhs": payload["lhs"],
+                        "rhs": payload["rhs"]}
+        raise ValueError("unknown DURING predicate type")
+
     # ───────────────── DURING ───────────────────────────────────────
     def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
         # y ( Before > After )
@@ -741,6 +781,41 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#postClause.
     def visitPostClause(self, ctx: SolidityParser.PostClauseContext):
         return self.visitChildren(ctx)
+
+    # Visit a parse tree produced by SolidityParser#PostClauseSingle.
+    def visitPostClauseSingle(self, ctx: SolidityParser.PostClauseSingleContext):
+        return self.visitChildren(ctx)
+
+    def visitPostImplication(self, ctx: SolidityParser.PostImplicationContext):
+        ante = self._build_post_predicate(ctx.predicatePost(0))
+        cons = self._build_post_predicate(ctx.predicatePost(1))
+        self.contract_analyzer.process_post_implication(ante, cons)
+        return None
+
+    # — POST predicate → dict(IR)
+    def _build_post_predicate(self, pctx) -> dict:
+        P = SolidityParser
+        if isinstance(pctx, P.PostEntryExitContext):
+            return {
+                "phase": "post",
+                "kind": "entryExit",
+                "var": self.visitVarRef(pctx.varRef()),
+                "op": self._relop_from_ctx(pctx),
+            }
+        if isinstance(pctx, P.UnchangedVarContext):
+            return {"phase": "post", "kind": "unchanged", "var": self.visitVarRef(pctx.varRef())}
+        if isinstance(pctx, P.PostCommonPredicateContext):
+            payload = self.visit(pctx.commonPredicate())
+            t = payload["type"]
+            if t == "ReturnExprCmp":
+                return {"phase": "post", "kind": "retExpr", "op": payload["op"], "rhs": payload["rhs"]}
+            if t == "ReturnVarCmp":
+                return {"phase": "post", "kind": "retVar", "op": payload["op"], "lhs": payload["lhs"],
+                        "rhs": payload["rhs"]}
+            if t == "RelationalCmp":
+                return {"phase": "post", "kind": "direct", "op": payload["op"], "lhs": payload["lhs"],
+                        "rhs": payload["rhs"]}
+        raise ValueError("unknown POST predicate type")
 
     def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
         var_ref_expr = self.visitVarRef(ctx.varRef())

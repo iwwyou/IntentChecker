@@ -249,6 +249,47 @@ class GuardianVerificationEngine:
             return self._err("duringDirectCmp",
                              f"internal error: {e}", line_no)
 
+    def verify_during_implication(self, *, antecedent: dict, consequent: dict, line_no: int, cfg_node: CFGNode) -> dict:
+        try:
+            a_res = self._eval_during_predicate(antecedent, line_no=line_no, cfg_node=cfg_node)
+            a_state = self._tri_state(a_res)
+
+            if a_state == "violated":  # A=false  → vacuously true
+                status = "success"
+                return {
+                    "status": status,
+                    "kind": "duringImplication",
+                    "line": line_no,
+                    "details": {"antecedent": a_res, "consequent": None, "logic": "vacuous-true"},
+                    "message": "A ⇒ B holds vacuously (A is false)."
+                }
+
+            if a_state == "satisfied":  # A=true   → B로 결정
+                b_res = self._eval_during_predicate(consequent, line_no=line_no, cfg_node=cfg_node)
+                b_state = self._tri_state(b_res)
+                status = self._status_from_state(b_state)
+                return {
+                    "status": status,
+                    "kind": "duringImplication",
+                    "line": line_no,
+                    "details": {"antecedent": a_res, "consequent": b_res},
+                    "message": f"A ⇒ B with A=true → B is {b_state}."
+                }
+
+            # A unknown
+            return {
+                "status": "unknown",
+                "kind": "duringImplication",
+                "line": line_no,
+                "details": {"antecedent": a_res, "consequent": None},
+                "message": "A ⇒ B unknown (A is uncertain)."
+            }
+
+        except Exception as e:
+            return self._err("duringImplication", f"internal error: {e}", line_no)
+
+
+
     # === POST =======================================================
 
     # GuardianVerificationEngine.py
@@ -395,6 +436,43 @@ class GuardianVerificationEngine:
             }
         except Exception as e:
             return self._err("postUnchanged", f"internal error: {e}", line_no)
+
+    def verify_post_implication(self, *, antecedent: dict, consequent: dict, line_no: int, fn_cfg) -> dict:
+        try:
+            a_res = self._eval_post_predicate(antecedent, line_no=line_no, fn_cfg=fn_cfg)
+            a_state = self._tri_state(a_res)
+
+            if a_state == "violated":
+                return {
+                    "status": "success",
+                    "kind": "postImplication",
+                    "line": line_no,
+                    "details": {"antecedent": a_res, "consequent": None, "logic": "vacuous-true"},
+                    "message": "A ⇒ B holds vacuously (A is false)."
+                }
+
+            if a_state == "satisfied":
+                b_res = self._eval_post_predicate(consequent, line_no=line_no, fn_cfg=fn_cfg)
+                b_state = self._tri_state(b_res)
+                status = self._status_from_state(b_state)
+                return {
+                    "status": status,
+                    "kind": "postImplication",
+                    "line": line_no,
+                    "details": {"antecedent": a_res, "consequent": b_res},
+                    "message": f"A ⇒ B with A=true → B is {b_state}."
+                }
+
+            return {
+                "status": "unknown",
+                "kind": "postImplication",
+                "line": line_no,
+                "details": {"antecedent": a_res, "consequent": None},
+                "message": "A ⇒ B unknown (A is uncertain)."
+            }
+
+        except Exception as e:
+            return self._err("postImplication", f"internal error: {e}", line_no)
 
     # ----------------------------------------------------------------
     # helper: uniform ok / error payloads
@@ -667,4 +745,61 @@ class GuardianVerificationEngine:
         val = self.analyzer.evaluator.evaluate_expression(expr, exit_env, None, None)
         return self._materialize(val)
 
+    # DURING predicate evaluator
+    def _eval_during_predicate(self, pred: dict, *, line_no: int, cfg_node: CFGNode) -> dict:
+        k = pred["kind"]
+        if k == "beforeAfter":
+            return self.verify_during_before_after(var_ref=pred["var"], comp_op=pred["op"], line_no=line_no,
+                                                   cfg_node=cfg_node)
+        if k == "assignCurrent":
+            return self.verify_during_assign_current(var_ref=pred["var"], comp_op=pred["op"], line_no=line_no,
+                                                     cfg_node=cfg_node)
+        if k == "retExpr":
+            return self.verify_during_return_expression(comp_op=pred["op"], value_expr=pred["rhs"], line_no=line_no,
+                                                        cfg_node=cfg_node)
+        if k == "retVar":
+            return self.verify_during_return_variable(var_ref=pred["lhs"], comp_op=pred["op"], value_expr=pred["rhs"],
+                                                      line_no=line_no, cfg_node=cfg_node)
+        if k == "direct":
+            return self.verify_during_direct_comparison(lhs_expr=pred["lhs"], comp_op=pred["op"], rhs_expr=pred["rhs"],
+                                                        line_no=line_no, cfg_node=cfg_node)
+        return self._err("duringPredicate", f"unknown DURING predicate kind: {k}", line_no)
 
+    # POST predicate evaluator
+    def _eval_post_predicate(self, pred: dict, *, line_no: int, fn_cfg) -> dict:
+        k = pred["kind"]
+        if k == "entryExit":
+            return self.verify_post_entry_exit(var_ref=pred["var"], comp_op=pred["op"], line_no=line_no, fn_cfg=fn_cfg)
+        if k == "unchanged":
+            return self.verify_post_unchanged(var_ref=pred["var"], line_no=line_no, fn_cfg=fn_cfg)
+        if k == "retExpr":
+            return self.verify_post_return_expression(comp_op=pred["op"], value_expr=pred["rhs"], line_no=line_no,
+                                                      fn_cfg=fn_cfg)
+        if k == "retVar":
+            return self.verify_post_return_variable(var_ref=pred["lhs"], comp_op=pred["op"], value_expr=pred["rhs"],
+                                                    line_no=line_no, fn_cfg=fn_cfg)
+        if k == "direct":
+            return self.verify_post_direct_comparison(lhs_expr=pred["lhs"], comp_op=pred["op"], rhs_expr=pred["rhs"],
+                                                      line_no=line_no, fn_cfg=fn_cfg)
+        return self._err("postPredicate", f"unknown POST predicate kind: {k}", line_no)
+
+    def _tri_state(self, res: dict) -> str:
+        """
+        result → 'satisfied' / 'violated' / 'uncertain'
+        (기존 verify_*들의 details에 들어있는 cmp 필드 기반)
+        """
+        d = res.get("details", {})
+        if d.get("satisfied"):
+            return "satisfied"
+        if d.get("violated"):
+            return "violated"
+        if d.get("uncertain"):
+            return "uncertain"
+        # fallback: status
+        st = res.get("status")
+        if st == "success":    return "satisfied"
+        if st == "violation":  return "violated"
+        return "uncertain"
+
+    def _status_from_state(self, st: str) -> str:
+        return "success" if st == "satisfied" else ("violation" if st == "violated" else "unknown")
