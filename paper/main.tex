@@ -1,0 +1,1120 @@
+% Pass options to packages before documentclass to avoid option clash
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=black}{hyperref}
+
+\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic style with author-year citations
+
+% Math packages first
+\usepackage{amsmath}%
+\usepackage{amssymb}%
+\usepackage{amsfonts}%
+\usepackage{amsthm}%
+\usepackage{amsopn}%
+\usepackage{amstext}%
+\usepackage{mathrsfs}%
+\usepackage{stmaryrd}% For llbracket, rrbracket
+\usepackage{mathpartir}%
+
+% Graphics and tables
+\usepackage{graphicx}%
+\DeclareGraphicsExtensions{.png,.pdf,.jpg}% PNG first, then PDF
+\usepackage{subcaption}% For subfigure environment
+\usepackage{caption}% For caption customization
+\captionsetup{justification=raggedright, singlelinecheck=false}% Left-align all captions by default
+\captionsetup[figure]{justification=centering, singlelinecheck=false}% Center-align figure captions
+\usepackage{tikz}%
+\usepackage{multirow}%
+\usepackage{booktabs}%
+\usepackage{tabularx}
+\usepackage{array}
+
+% Algorithm packages
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+
+% Other packages
+\usepackage{float}% For [H] option to force exact placement
+\usepackage{xcolor}%
+\usepackage{listings}%
+\usepackage{comment}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% Define Solidity language for listings
+\lstdefinelanguage{Solidity}{
+  keywords={contract, function, modifier, public, private, external, internal, view, pure, payable, returns, return, if, else, for, while, require, assert, mapping, address, uint256, uint, bool, string, memory, storage, calldata, event, emit, struct, enum, constructor, msg, this, new, delete, break, continue, throw, revert},
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={true, false, null, this, new},
+  ndkeywordstyle=\color{darkgray}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+% Listings default settings
+\lstset{
+  language=Solidity,
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color[RGB]{248,248,248},
+  numbers=left,
+  numbersep=6pt
+}
+
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%  meant for continuous numbers
+\newtheorem{proposition}[theorem]{Proposition}%
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+
+% Using author-year style to match submission guidelines
+\bibpunct{(}{)}{;}{a}{,}{ } % a = author-year citations
+
+% URL breaking settings (hyperref and url already loaded by sn-jnl.cls)
+\Urlmuskip=0mu plus 1mu
+\def\UrlBreaks{\do\/\do-\do\_\do\.\do\?\do\&}
+
+\makeatletter
+\renewcommand\@biblabel[1]{} % Remove numeric labels like [1]
+\makeatother
+\setlength{\bibsep}{0.2em}   % Space between bibliography items
+\setlength{\bibhang}{2em}
+
+% Custom math commands
+\newcommand{\Abort}{\mathsf{Abort}}
+\newcommand{\Norm}{\mathsf{Norm}}
+\newcommand{\Ret}{\mathsf{Ret}}
+\newcommand{\Env}{\mathit{Env}}
+
+
+\begin{document}
+
+\title[Solidity Guardian]{Solidity Guardian: Validating Developer Intentions in Smart Contracts via Intent Annotations to Mitigate Numeric Logical Vulnerability}
+
+\author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
+
+\author[1]{\fnm{Sundeuk} \sur{Kim}}\email{sd\_kim@korea.ac.kr}
+
+\author[1]{\fnm{Hyunwoo} \sur{Kim}}\email{khw0809@korea.ac.kr}
+
+\author*[1]{\fnm{Hoh Peter} \sur{In}}\email{hoh\_in@korea.ac.kr}
+
+\affil*[1]{\orgdiv{Department of Computer Science}, \orgname{Korea University},
+\orgaddress{\street{145, Anam-ro}, \city{Seonbuk-gu}, \postcode{02841}, \state{Seoul},
+\country{Republic of Korea}}}
+
+
+\abstract{In smart contract development, arithmetic issues such as integer division truncation, incorrect operation order, and scaling mismatches can silently violate the developer's intended numeric relationships—yet still result in successful transactions. These \textit{numeric logical vulnerabilities} typically evade runtime exceptions, static analysis rules, and dynamic testing, often leading to significant financial losses after deployment. This paper introduces \textbf{Solidity Guardian}, a lightweight tool that enables developers to declare intended numeric invariants directly in code and receive immediate feedback on compliance. By leveraging an \textit{Intent DSL}—structured around \texttt{@Pre}, \texttt{@During}, and \texttt{@Post} phases—and combining it with SolQDebug's interval-based abstract interpretation engine, Solidity Guardian continuously tracks variable ranges from function entry to exit. The system performs incremental parsing and selective control-flow analysis, allowing it to deliver deterministic \texttt{True/False/Unknown} verdicts within milliseconds (average 30 ms for functions up to 500 lines), seamlessly integrating with the development workflow. Our results demonstrate that this "intent annotation + deterministic checking" approach effectively prevents subtle numeric logic errors during development, proposing a new paradigm for mechanically verifying developer intent in smart contract programming.}
+
+
+\keywords{Smart Contract Development, Solidity, Numeric Vulnerabilities, Intent Annotations, Abstract Interpretation, Developer Tools}
+
+\maketitle
+\section{Introduction}
+% 여기서 왜 하필 Numeric에 집중했는지 써야됨 - AI 때문에, 값분석이 중요한 부분에서는 AI보다는... 그리고 디버깅 관점에서도
+
+\begin{comment}
+스마트 컨트랙트는 토큰 잔액, 수수료, 비율처럼 정수형 숫자를 직접 다루며 자산을 이동시킨다. 본 연구가 DappSCAN-Source에서 무작위 추출한 1 023개 실계약 함수를 분석한 결과, 82 %가 uint 기반 산술 연산을 포함하고 있었다. Solidity 0.8 이후 컴파일러가 오버플로를 자동으로 막아 주면서 전통적인 overflow 취약점은 크게 줄었지만, 연산 순서 착오·정수 나눗셈 내림·스케일 불일치 등으로 개발자가 기대한 수치 관계가 깨지는 숫자 논리 오류는 여전히 쉽사리 드러나지 않는다. 최근에는 대규모 언어 모델(LLM)이 코드 자동완성·리팩터링·버그 설명 등을 지원하지만, 자연어 생성에 특화된 LLM은 구체적인 값 추론이나 경계 조건 분석에는 상대적으로 약하다. 무엇보다 AI 도구가 작성한 코드에서 발생한 손실의 책임은 최종적으로 인간 개발자에게 귀속되므로, 수치 불변식을 기계적으로 검증하고 버그를 조기 차단하는 작업은 여전히 사람의 몫으로 남는다. 2023년 발생한 Sperax DAO 사고가 이를 방증한다. 단 한 줄의 실수로 _balanceOf 함수가 잔액을 여러 배로 부풀려 반환했고, 트랜잭션은 정상 처리로 기록되어 모니터링 시스템은 문제를 감지하지 못했다. 결국 약 30만 달러 상당의 토큰이 유출되고서야 취약점이 발견되었다.
+
+기존 도구들은 이런 오류를 놓친다. 정적 분석기는 미리 정의된 코드 패턴에 강하지만 개발자의 “10 % 분배” 같은 구체적 수치 의도를 추론하지 못한다. 퍼징과 심볼릭 실행은 경계값 입력을 우연히 찾아야 하는데 상태 공간이 폭발하면 현실적으로 어렵다. 주석-코드 불일치 검출 기법은 자연어와 코드를 느슨하게 매칭해 확률만 제시할 뿐, 참·거짓을 결정적으로 증명하지 않는다. 형식 검증은 정확하지만 완전한 불변식 명세 작성이 부담스러워 실제 프로젝트에 널리 쓰이지 못한다. 결국 “의도를 코드 옆에 재빨리 적고, 그 의도가 지켜졌는지 즉각 확인”할 수 있는 경량 메커니즘이 필요한 상황이다.
+
+우리는 이러한 공백을 메우기 위해 Solidity Guardian을 제안한다. 개발자는 코드 줄마다 한 줄로 의도를 선언한다. 주석 형태의 도메인 특화 언어는 @Pre, @During, @Post 세 구간으로 나뉘어 초기 상태, 실행 중 관계, 실행 후 불변식을 표현한다. 예컨대 @During devReward (Assign == Current * 10 / 100)처럼 “이 변수는 10 %가 되어야 한다”는 식으로 작성하면 된다. Guardian의 백엔드는 SolQDebug가 제공하는 인터벌 기반 추상 해석기를 활용해 편집기 내부에서 변수 값의 범위를 계산하고, 선언된 의도와 실제 범위를 비교해 ‘충족’, ‘위배’, ‘불확실’ 중 하나로 판정한다. 변경된 코드 조각만 부분 재해석하기 때문에 500줄 규모 함수도 평균 30 밀리초 이내에 결과를 돌려준다. 즉, 키를 누르는 동안에도 의도 위배 여부가 색상 아이콘으로 실시간 표시되어 개발 흐름을 끊지 않는다.
+
+Guardian은 두 가지 측면에서 기여한다. 첫째, “의도 주석 + 결정적 검사”라는 단순한 작업만으로 기존 정·동적 도구가 놓쳤던 숫자 논리 오류를 조기에 차단할 수 있음을 보인다. DappSCAN 실계약 1 023개 함수와 NumScout가 보고한 120건의 실제 결함을 대상으로 평가한 결과, Guardian은 추가로 92.5 %의 오류를 검출하면서도 거짓 양성률은 3.1 %에 머물렀다. 둘째, 인터랙티브 IDE 환경에 적합한 초경량 분석 파이프라인을 설계해 개발자 경험을 해치지 않고도 밀리초 단위 피드백을 제공함을 실증했다.
+
+본 연구의 기여점은 다음과 같다.
+Intent DSL 및 의미론 — 세 시점(@Pre/@During/@Post) 기반의 경량 주석 언어를 정의하고, 인터벌 상태 변화에 대한 형식적 의미를 정식화하였다.
+
+밀리초-응답 검증 엔진 — SolQDebug의 동적 CFG·인터벌 분석을 재사용하면서, 의도 비교 연산을 부분 재계산 방식으로 통합해 평균 30 ms의 피드백을 실현하였다.
+
+실계약 대규모 평가 — DappSCAN 1,023개 함수와 NumScout가 보고한 120건 실제 결함 중 92.5 %를 추가 탐지하고, 거짓 양성률 3.1 %를 유지함을 보였다.
+
+실무 적용 시나리오 제시 — 토큰 로직(수수료 10 %, 보상 배분, 소각 제한)·스테이킹·AMM 교환 비율 등 다양한 케이스에서 Guardian이 어떻게 즉각적 경고를 제공하는지 사례 분석을 수행하였다.
+
+이 논문은 먼저 Solidity 숫자 타입과 숫자 논리 오류의 사례를 정리한 뒤, 기존 도구가 실패하는 근본 원인을 분석한다. 이어서 Intent DSL의 문법과 의미를 자세히 설명하고, Guardian의 부분 재해석 기반 검증 엔진을 소개한다. 이후 대규모 실험으로 응답 시간과 오류 탐지 효과를 평가하고, 실무 적용 시나리오와 한계·확장 방향을 논의한 뒤 관련 연구와 비교하여 결론을 맺는다.
+\end{comment}
+
+Smart contracts handle assets directly by performing arithmetic operations on integer values such as token balances, fees, and percentages.  
+Our analysis of 1,023 randomly sampled smart contract functions from the DappSCAN-Source dataset revealed that approximately 82\% involved arithmetic operations on \texttt{uint} variables.  
+While Solidity 0.8 and later versions enforce automatic overflow checks, logical numeric errors—such as incorrect operation order, integer division truncation, and scaling mismatches—remain elusive and are not easily detected by conventional means.  
+
+Although large language models (LLMs) have recently been introduced to support tasks such as code completion, refactoring, and bug explanation, they often struggle with precise value inference and boundary condition analysis due to their generative nature.  
+Crucially, any financial loss resulting from LLM-generated code ultimately becomes the developer’s responsibility, underscoring the need for rigorous validation of numeric invariants during development.  
+A notable real-world example is the 2023 Sperax DAO incident.  
+A single-line bug in the \texttt{\_balanceOf} function caused account balances to be massively overstated.  
+Since the transaction executed successfully, monitoring systems failed to detect the issue until after approximately \$300,000 worth of tokens had been exploited.
+
+Existing tools often miss such vulnerabilities.  
+Static analyzers excel at detecting predefined patterns (e.g., unsafe \texttt{tx.origin} use or unchecked external calls) but are not designed to infer specific numeric intentions like “distribute 10\% of reward.”  
+Fuzzers and symbolic execution engines may fail to hit critical boundary conditions, especially when confronted with path explosion in complex mappings, loops, or modifiers.  
+Comment-code inconsistency (CCI) detectors provide probabilistic assessments based on weak correlations between natural language comments and code but cannot deliver definitive True/False verification.  
+Formal verification offers precision but demands exhaustive specification efforts, rendering it impractical for most real-world projects.  
+Thus, there is a pressing need for a lightweight mechanism that allows developers to express numeric intent alongside code and instantly verify its correctness.
+
+To fill this gap, we propose Solidity Guardian, a tool that enables developers to declare intent with a single-line annotation adjacent to the code.  
+Our domain-specific language (DSL) adopts a three-phase model—\texttt{@Pre}, \texttt{@During}, and \texttt{@Post}—to specify initial conditions, runtime constraints, and postconditions, respectively. Solidity Guardian leverages SolQDebug's interval-based abstract interpretation engine to compute variable ranges in the background and checks them against the declared intent.  
+The system performs partial re-analysis only on the changed code fragments, returning compliance results—\texttt{Satisfied}, \texttt{Violated}, or \texttt{Unknown}—within an average of 30 milliseconds for functions up to 500 lines.  
+As a result, developers receive real-time feedback via visual cues directly within the IDE, without disrupting their workflow.
+
+This paper makes the following contributions:
+\begin{itemize}
+    \item \textbf{Intent DSL and Formal Semantics}: We define a lightweight annotation language based on three execution phases and formalize its semantics in terms of interval state transitions.
+    \item \textbf{Millisecond-Scale Verification Engine}: By reusing SolQDebug’s dynamic control-flow graph (CFG) and interval analysis, we achieve millisecond-level feedback through partial recomputation.
+    \item \textbf{Large-Scale Empirical Evaluation}: Our evaluation on 1,023 DappSCAN functions and 120 real-world bugs reported by CHEN~\textit{et al.} demonstrates a 92.5\% additional detection rate with only a 3.1\% false positive rate.
+    \item \textbf{Practical Use Cases}: We analyze scenarios involving tokenomics (e.g., fee distributions, reward sharing, burn limits), staking contracts, and AMM exchange rates to illustrate how Guardian provides immediate and actionable feedback.
+\end{itemize}
+
+The rest of this paper is organized as follows.  
+We first review Solidity's numeric types and real-world examples of numeric logic flaws, followed by an analysis of why existing tools fail to detect them.  
+We then introduce the Intent DSL and its formal semantics, followed by the design of Guardian's verification engine based on partial re-analysis.  
+Subsequently, we present our evaluation results on responsiveness and detection effectiveness, discuss practical applications, limitations, and future directions, and conclude with a comparison to related work.
+
+
+\section{Background}
+
+\begin{table}[!t]
+        \centering
+        \caption{Distribution of Variable Types in Smart Contract Functions}
+        \label{tab:variable_distribution}
+        \resizebox{\columnwidth}{!}{
+        \begin{tabular}{lcc}
+            \hline
+            \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
+            \hline
+            \textbf{Total Functions Analyzed} & 1524 & \\
+            Excluded Functions & 501 & \\           
+            \textbf{Functions Considered for Analysis} & 1023 & \\
+            \hline
+            Functions using \textbf{uint} & 798 & 78.00587 \\
+            Functions using \textbf{int} & 5 & 0.48876 \\
+            Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\             
+            Functions using other types & 178 & 17.39980 \\
+            \hline
+        \end{tabular}}
+    \end{table}
+
+\subsection{Solidity and Its Numeric Types}
+
+\begin{comment}
+Solidity는 이더리움·EVM을 위해 설계된 정적 타입 객체지향 언어로, C++·JavaScript·Python 문법을 일부 차용한다. 언어 스펙은 튜링 완전하며, 계약 단위로 모듈화되고 변수·함수로 구성된다.
+
+솔리디티는 다음과 같은 변수 타입을 지원한다.
+Booleans - true / false 논리값
+Integers - 부호 없음 uint* / 부호 있음 int* (8–256bit)
+Fixpoint Numbers - 	선언만 가능, 현재 연산 미지원
+Address - 20 바이트 EOA·컨트랙트 주소
+Bytes<N> - 길이 고정 바이트 배열
+String/bytes - 가변 길이 UTF-8 문자열 / 바이트열
+Enums - 사용자 정의 열거형
+User-Defined Value Types - 기본형에 새 이름·범위 부여
+
+이와 같은 타입으로 선언되는 변수의 종류는 다음과 같다.
+
+global variable - 블록·트랜잭션 메타데이터(msg, block, tx 등)
+state variable - 계약에 영구 저장되는 변수
+local variable - 함수 실행 스택 영역에만 존재
+
+이러한 변수들을 통해 구현된 솔리디티에는 특히 Numeric 변수가 많은데, 본 연구는 대규모 컨트랙트 데이터셋인 DappScan 중 DappScan-Source에 대해 컴파일러 버전 0.8.0이상인 3,345개의 컨트랙트 중 across three size brackets (1–10 KB, 11–20 KB, and over 20 KB) 중 각 bucket별로 약 10%씩 무작위로 선정하여 103개의 솔리디티 파일 128개의 컨트랙트, 1524개 함수를 조사하였다. 이 중, 501개의 함수는 상태변수에 값을 할당하기만 하는 할당문, 상태변수 값을 리턴하기만 하는 리턴문, 리턴값 없이 함수 호출하고 종료하는 문장 등, 코드 로직이 없어 개발 의도를 작성하는 의미가 없는 함수로 통계에서 제외하였다. 
+Table.1은 그 결과로, 1023개의 함수 중 Numeric 변수 타입이 사용되는 함수의 비율은 82%에 육박한다. 특히, \texttt{uint} 타입은 사용된 비율이 78%에 달할 정도로 높은 사용률을 보였다. 이는 스마트 컨트랙트에서 토큰과 관련된 함수들이 다수를 차지하기 때문이다. 예를 들어, 토큰 발행을 담당하는 \texttt{mint} 함수, 토큰 전송을 수행하는 \texttt{transfer} 함수, 출금을 처리하는 \texttt{withdraw} 함수, 토큰을 소각하는 \texttt{burn} 함수, 토큰을 예치하는 \texttt{stake} 함수, 그리고 보상을 분배하는 \texttt{reward} 함수 등은 대부분 음수 값을 허용하지 않는다. 이러한 함수들은 일반적으로 토큰의 잔액을 관리하는데 사용되며, 음수가 될 수 없도록 설계되기 때문에 \texttt{int}보다는 \texttt{uint} 타입이 더 빈번하게 사용되는 경향이 있다. 이와 같이 Numeric 타입의 변수는 스마트 컨트랙트에서 매우 많이 사용되므로 개발 시 이 변수들을 잘 다루어야 한다.
+\end{comment}
+
+Solidity is a statically typed, contract-oriented programming language designed for the Ethereum Virtual Machine (EVM)~\cite{solidity, soldom}. Its syntax borrows elements from C++, JavaScript, and Python, and it supports modular development through contracts composed of variables and functions~\cite{soldom, solinf}. As a Turing-complete language, Solidity enables the implementation of complex decentralized applications with persistent on-chain state.
+
+Solidity supports a range of built-in data types~\cite{soltype}:
+\begin{itemize}
+    \item \textbf{Booleans} — logical \texttt{true} or \texttt{false} values.
+    \item \textbf{Integers} — signed (\texttt{intN}) and unsigned (\texttt{uintN}) integer types with widths from 8 to 256 bits.
+    \item \textbf{Fixed-point numbers} — declared but currently unsupported in arithmetic operations.
+    \item \textbf{Address} — 20-byte externally owned accounts (EOAs) or contract addresses.
+    \item \textbf{Fixed-size byte arrays} (\texttt{bytesN}) — statically sized byte sequences.
+    \item \textbf{Strings} and \textbf{dynamic bytes} — variable-length UTF-8 strings or byte sequences.
+    \item \textbf{Enums} — user-defined enumerated types.
+    \item \textbf{User-defined value types} — new type aliases with stricter invariants based on elementary types.
+\end{itemize}
+
+Variables of these types can be declared in three storage categories~\cite{solgvar, solsvar}:
+\begin{itemize}
+    \item \textbf{Global variables} — predefined variables and functions that expose blockchain metadata or serve as utility features (e.g., \texttt{msg}, \texttt{block}, \texttt{tx}).
+    \item \textbf{State variables} — persistent contract storage retained across transactions.
+    \item \textbf{Local variables} — ephemeral data residing in a function’s execution context.
+\end{itemize}
+
+Among these, numeric variables play a dominant role in smart contract logic. To quantify this, we analyzed a DappSCAN-Source dataset~\cite{dappscan} comprising contracts written in Solidity version 0.8.0 or later. From 3,345 available contracts, we randomly selected approximately 10\% of contracts from each size bracket (1–10 KB, 11–20 KB, and over 20 KB), yielding 103 Solidity files containing 128 contracts and 1,524 functions in total. We excluded 501 trivial functions, which consist solely of assignments, simple returns, or void function calls, as they lack substantive logic relevant to intent specification. 
+
+Table.1 summarizes our findings. Among the remaining 1,023 functions, over 82\% use numeric variables, with \texttt{uint} appearing in more than 78\% of cases. The prevalence of unsigned integers reflects the dominant use of numeric logic in token-related operations such as \texttt{mint}, \texttt{transfer}, \texttt{withdraw}, \texttt{burn}, \texttt{stake}, and \texttt{reward}. These functions typically enforce non-negative balances, making \texttt{uint} the preferred type. This empirical evidence highlights that numeric types are pervasive in Solidity contracts, underscoring the importance of carefully handling arithmetic operations during development to prevent critical logic errors.
+
+
+\subsection{Numeric Logical Vulnerabilities in Smart Contracts}
+
+    \begin{figure}
+                \centering
+          \begin{lstlisting}[
+              language=Solidity,
+              basicstyle=\scriptsize\ttfamily,
+              columns=flexible,
+              breaklines=true,
+              breakatwhitespace=false,
+              breakindent=0pt,
+              postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}}\space,
+              numbers=left, numbersep=6pt, xleftmargin=1.5em
+          ]
+// ..Code for other functions are omitted
+function _ensureRebasingMigration(address _account) internal {
+    if (nonRebasingCreditsPerToken[_account] == 0) {
+        nonRebasingCreditsPerToken[_account] = 1;
+        if (_creditBalances[_account] != 0) {            
+            uint256 bal = _balanceOf(_account);
+            nonRebasingSupply = nonRebasingSupply.add(bal);
+            _creditBalances[_account] = bal;
+        }            
+    }
+}
+function _balanceOf(address _account) private view returns (uint256) {
+    uint256 credits = _creditBalances[_account];
+    if (credits > 0) {
+        if (nonRebasingCreditsPerToken[_account] > 0) {
+            // The code should have been 
+            // credits/creditPerToken
+            return credits;
+        }
+        return credits.divPrecisely(rebasingCreditsPerToken);
+    }
+    return 0;
+}
+
+// ..Code for other functions are omitted
+        \end{lstlisting}
+        \caption{Motivation Example~\cite{fig1}}
+    \end{figure}
+    
+\begin{comment}
+블록체인에서 정상적으로 종료된 트랜잭션이라 해도, 계산 순서 착오·정수 나눗셈 내림·잘못된 분기 등으로 개발자의 의도를 깨뜨리면 치명적인 Numeric Logical Vulnerability가 된다. 이 오류들은 런타임 예외를 발생시키지 않으므로 테스트와 모니터링을 모두 통과한 채 영구히 기록된다.
+
+가장 대표적인 실사례는 2023년 2월 발생한 Sperax DAO 사고다. 그 핵심 코드는 Fig. 1에 제시한 _balanceOf 함수로, 잔액 정규화를 위해 credits / creditPerToken을 반환해야 할 자리에서(주석 처리된 의도) 실수로 credits 자체를 그대로 돌려주도록 구현되었다. 이 한 줄 오탈자로 인해 호출 계정의 잔액이 정상 값보다 수백 배 과대 계산되었고, 이어서 _ensureRebasingMigration(같은 그림 상단)에 의해 과대 잔액이 총공급량(nonRebasingSupply)에 그대로 합산되었다. 트랜잭션은 모두 success 상태로 기록되었기 때문에 모니터링 시스템은 이상을 탐지하지 못했으며, 공격자는 정상 출금처럼 보이는 호출을 반복해 약 30 만 달러 상당의 토큰을 인출한 뒤에야 문제가 드러났다.
+
+또한, NumScout 연구는 Dappscan dataset의 1,199개의 audit report를 분석하여 5개의 형태의 새로운 Numeric Logical Vulnerability를 보고하였다
+
+Operator-Order Error — 곱셈·나눗셈 순서가 뒤바뀌어 내림이 먼저 적용됨.
+reward / 100 * 10 식은 reward < 100인 모든 호출에서 0 wei를 반환했다. 이런 패턴만으로 37개 취약 계약과 2 400만 달러 상당의 잠재 손실을 추산.
+
+Div-In-Path — 조건식 내부 정수 나눗셈으로 분기 경로가 왜곡됨.
+if (msg.value / 1 ether > 3)는 3.9 ETH를 보내도 거짓 분기로 떨어졌으며, 실제 공격 기록 11건 확인.
+
+Minor Retention — 라운딩 잔여분(수수료·이자)이 계약에 영구 락업.
+분배 루프에서 남은 1 wei가 누적돼 3개월 동안 90 ETH가 묶여 있었다.
+
+Exchange Problem — 스케일 계수 불일치로 교환 비율이 10⁻¹⁸단위까지 틀어짐.
+디파이 AMM 4건에서 슬리피지 0.3 % 이상 손실 보고.
+
+Precision-Loss Trend — 반복 곱·나눗셈 루프로 누적 오차가 확대돼 계약 말기에 잔액이 음수로 전도.
+스테이킹 풀 두 곳에서 발견돼 긴급 업그레이드 실시.
+
+Solidity 0.8 이후 컴파일러가 정수 오버플로를 자동 revert로 막으면서 전통적 \emph{integer overflow} 취약점은 크게 줄었지만, 위와 같은 논리적 수치 오류는 예외 없이 성공 트랜잭션으로 남는다. 즉, 금액·비율·잔액에 대한 \emph{수치 불변식} 자체를 개발 단계에서 기계적으로 입증하지 않으면, 이러한 취약점은 사실상 탐지할 방법이 없다.
+\end{comment}
+
+In blockchain systems, even transactions that complete successfully at runtime may harbor severe \textit{numeric logical vulnerabilities} if they violate the developer’s intended logic due to subtle errors such as incorrect operation order, integer division truncation, or faulty branching conditions. Unlike runtime exceptions, these logic errors do not trigger reverts or explicit failures. Consequently, they can bypass both conventional testing and on-chain monitoring, becoming permanently recorded on the blockchain.
+
+A notable real-world example is the \textit{Sperax DAO incident} in February 2023. The root cause was a one-line logic error in the \texttt{\_balanceOf} function (Figure~\ref{fig:sperax}), which mistakenly returned the raw \texttt{credits} variable instead of performing the intended normalization \texttt{credits / creditPerToken}. This seemingly minor mistake led to an inflated account balance that exceeded the correct value by several hundred times. The overestimated balance was subsequently aggregated into the total supply via the \texttt{\_ensureRebasingMigration} function. Because all transactions executed successfully without exceptions, on-chain monitors failed to detect the anomaly. By the time the exploit was noticed, attackers had already drained tokens worth approximately \$300,000 under the guise of legitimate withdrawals.
+
+Furthermore, CHEN \textit{et al.}~\cite{numscout} conducted a systematic analysis of 1,199 audit reports from the DappSCAN dataset~\cite{dappscan}, identifying five distinct categories of novel numeric logical vulnerabilities:
+
+\begin{itemize}
+    \item \textbf{Div-In-Path}: Integer division within conditional expressions distorts control flow.  
+    A condition such as \texttt{if (msg.value / 1 ether > 3)} wrongly evaluates to false for \texttt{3.9 ETH}, failing the branch. Eleven real-world attack cases were documented
+    
+    \item \textbf{Operator-Order Error}: Arithmetic operations applied in the wrong order, causing premature integer truncation.  
+    For example, \texttt{reward / 100 * 10} always evaluates to zero when \texttt{reward < 100}.    
+    .
+    
+    \item \textbf{Minor Retention}: Rounding remainders (e.g., fees or interest) become permanently locked in the contract.  
+    In one case, successive remainder accumulation in a distribution loop resulted in 90 ETH remaining locked over three months.
+    
+    \item \textbf{Exchange Problem}: Scaling factor mismatches cause exchange rate deviations by up to \(10^{-18}\).  
+    Four DeFi AMM contracts were observed to exhibit slippage losses exceeding 0.3\%.
+    
+    \item \textbf{Precision-Loss Trend}: Repeated multiplication and division operations amplify rounding errors over time, potentially driving balances negative in contract end states.  
+    This vulnerability forced emergency upgrades in two staking pool contracts.
+\end{itemize}
+
+Since Solidity 0.8 introduced automatic integer overflow checks with revert semantics, traditional \textit{integer overflow} vulnerabilities have been largely mitigated. However, the aforementioned logical numeric errors remain undetectable by runtime safeguards, as they manifest only in semantically incorrect—but syntactically valid—execution outcomes. Therefore, unless developers explicitly verify numeric invariants on critical quantities such as amounts, ratios, or balances during development, these vulnerabilities are virtually impossible to detect using conventional methods.
+
+
+%────────────────────────────────────────────
+\section{Motivation}
+
+\subsection{Why Existing Tools Miss Numeric Logical Vulnerabilities}
+
+\begin{comment}
+스마트 컨트랙트 분석 도구들은 정적·동적·자연어(CCI)·형식 검증 등 다양한 계열로 발전해 왔다. 하지만 이들 대부분은 “개발자의 의도와 실행 결과가 어긋나는 수치 오류”를 결정적으로 잡아내지 못한다. 다음 한 줄 버그를 예로 보자.
+
+devReward = reward.div(100).mul(10);   // 의도: 10 %, 실제: 0 wei
+
+reward가 1 ~ 99라면 reward/100이 먼저 0으로 내림되고, 곱셈까지 거친 결과는 항상 0 wei다. 컴파일러 경고도 없고 오버플로·언더플로 검사에도 걸리지 않는다. 왜 그럴까?
+
+① 정적 분석(패턴·규칙 기반)
+Slither·Mythril 등은 SafeMath 호출, 잘 알려진 reentrancy·tx.origin 패턴같이 \emph{형태가 고정된 결함}을 탐지하도록 설계돼 있다. 하지만 연산 순서·라운딩·조건 왜곡처럼 “의도한 수치 vs. 실제 수치”를 비교해야 하는 오류는 규칙으로 기술하기 어렵다. 결과적으로 위 식은 “Clean”으로 통과한다.
+
+② 동적 분석·퍼징·콘콜릭
+Echidna·SFuzz 등은 무작위·심볼릭 입력으로 실행 경로를 탐색하지만, reward = 37처럼 \emph{정확히 경계값을 때리는} 입력을 스스로 찾아내기는 쉽지 않다. mapping·loop·modifier가 복잡한 함수는 상태 공간 폭발 때문에 깊이 제한에 걸려 미탐지된다.
+
+③ 자연어 CCI(주석–코드 불일치 탐지)
+최근 LLM·임베딩 기반 연구들은 “\textit{distribute 10 % fee}” 같은 문장을 코드와 매칭하려 한다. 그러나 자연어의 “10 %”를 실제 산술식과 \emph{정밀하게 증명}하지 못하고, 불일치 확률만 제시한다. 주석이 없거나 모호하면 공백이 더욱 커진다.
+
+④ 형식 검증(KEVM, VeriSmart 등)
+개발자가 직접 불변식·상태 머신 명세를 작성해야 한다. 현실 프로젝트에서는 작성 비용과 학습 곡선이 높아 널리 쓰이지 못한다. 명세가 빠진 구간은 그대로 사각지대다.
+
+결국 위와 같은 버그는 \texttt{success} 트랜잭션으로 체인에 영구 기록되고, 개발자는 배포 뒤 사용자 피해가 발생해야만 문제를 인지한다. 기존 도구들이 놓치는 핵심 공백은 다음 두 가지다.
+
+수치 불변식 의도 부재 – 코드만 보고는 “이 값이 10 %여야 한다”는 개발자 의도를 알 수 없다.
+
+결정적 증명 부재 – 의도를 주석 등으로 기술해도, 도구가 한 줄 안에서 \emph{참·거짓}을 즉시 판별해 주지 못한다.
+
+본 논문이 제안하는 Solidity Guardian은 개발자가 DSL 한 줄로 의도를 선언하면, 인터벌 해석을 통해 밀리초 단위로 결과 값을 계산 · 대조하여 \textbf{True/False}를 즉각 반환한다. 즉, 1 wei 단위 오차까지 회피할 수 있는 결정적 검증 메커니즘으로 이 공백을 메운다.
+\end{comment}
+
+Smart contract analysis tools have advanced across various categories, including static analysis, dynamic analysis, comment-code inconsistency (CCI) detection, and formal verification. However, most existing tools struggle to deterministically detect numeric logic errors—cases where the execution result violates the developer’s intent despite syntactically correct code. Consider the following simple yet critical example:
+
+\begin{lstlisting}[language=Solidity]
+// Intended: 10% of reward
+// Actual: 0 wei (when reward < 100)
+devReward = reward.div(100).mul(10);
+\end{lstlisting}
+
+If \texttt{reward} is between 1 and 99, the integer division \texttt{reward / 100} rounds down to zero, and the multiplication yields zero regardless of the intended 10\% computation. The compiler emits no warnings, nor does the overflow/underflow checker flag this issue. Why does this happen?
+
+\paragraph{(1) Static Analysis (Pattern- and Rule-Based)}
+Tools like \textsc{Slither} and \textsc{Mythril} focus on detecting fixed-form defects such as missing \textsc{SafeMath} checks, common reentrancy patterns, or misuse of \texttt{tx.origin}. However, errors related to arithmetic order, rounding behavior, or control-flow distortion—which require comparing intended versus actual numeric values—are difficult to encode as static patterns or rules. Consequently, expressions like the example above typically pass static analysis as “clean.”
+
+\paragraph{(2) Dynamic Analysis, Fuzzing, and Concolic Execution}
+Tools like \textsc{Echidna} and \textsc{SFuzz} explore execution paths through randomized or symbolic inputs. Nevertheless, discovering a critical boundary input (e.g., \texttt{reward = 37}) that triggers a logic violation is inherently difficult. Moreover, functions with complex mappings, loops, or modifiers exacerbate state-space explosion, causing tools to hit depth limits and miss violations.
+
+\paragraph{(3) Comment-Code Inconsistency (CCI) Detection with Natural Language Processing}
+Recent LLM- or embedding-based approaches attempt to align natural language comments (e.g., “distribute 10\% fee”) with code semantics. However, these models struggle to \textit{prove} a precise numeric relationship—such as “exactly 10\%”—and instead return only probabilistic mismatch scores. If comments are absent or ambiguous, this gap widens further.
+
+\paragraph{(4) Formal Verification (e.g., KEVM, VeriSmart)}
+Formal verification frameworks require developers to write explicit invariants or state-machine specifications. In practice, the steep learning curve and high annotation cost limit their adoption in real-world projects. Any code segments lacking formal specifications remain unanalyzed, creating blind spots.
+
+\smallskip
+
+As a result, numeric logic bugs like the example above are permanently recorded on-chain as \texttt{success} transactions. Developers often only discover the problem after user losses occur. Two critical gaps explain why existing tools fail to catch these issues:
+\begin{itemize}
+    \item \textbf{Lack of Intent Annotations}: Source code alone provides no way to infer that, for example, a value should represent exactly 10\% of another.
+    \item \textbf{Lack of Deterministic Checking}: Even when intent is described—through comments or annotations—existing tools cannot deterministically decide the correctness of a single arithmetic expression at the line level.
+\end{itemize}
+
+To fill this gap, we propose \textsc{Solidity Guardian}, a framework that allows developers to declare their intended numeric logic using a single-line domain-specific language (DSL). The system then applies interval-based abstract interpretation to compute and compare actual outcomes within milliseconds, providing immediate \textbf{True/False} feedback. This approach offers deterministic verification at sub-wei precision, addressing a critical need that previous tools have left unfilled.
+
+
+\subsection{Design Overview of Solidity Guardian}
+
+\begin{comment}
+앞 절에서 확인한 두 공백—(1) 코드만으로는 개발자의 수치 의도를 알 수 없고, (2) 의도를 기술하더라도 한 줄 산술식의 참 · 거짓을 즉시 판별해 주는 메커니즘이 없다는 점—을 해소하기 위해 우리는 Solidity Guardian을 설계하였다. 핵심 개념은 매우 단순하다.
+개발자는 코드 옆에 한 줄 \emph{Intent DSL}로 “이 값은 10 %이어야 한다” 혹은 “루프 후 \texttt{balance}는 0 이상이어야 한다”와 같은 수치 불변식을 선언하고, Guardian은 코드를 편집할 때마다 밀리초 내에 실제 결과 범위를 계산하여 의도와 대조한다. 결과는 \texttt{True/False/Unknown} 세 값으로 결정적으로 반환되며, 편집기가 즉각 색상 아이콘으로 표시한다.
+
+Intent DSL 요약
+
+세 시점 토큰: \texttt{@Pre}, \texttt{@During}, \texttt{@Post}.
+
+\texttt{@Pre} — 분석 입력(매핑 키·상태 변수)의 추상 구간 지정
+
+\texttt{@During} — 지점별 상태 변화 제약(\textit{Assign, Before/After})
+
+\texttt{@Post} — 함수 종료 시 기대 관계(\textit{Entry/Exit, returnValues})
+
+비교 연산 < > <= >= == != 을 지원하며, 우변은 상수·변수·구간 또는 선형 산술식으로 작성할 수 있다.
+
+예)
+
+solidity
+
+// @Pre   _amount = [1, 99]
+// @During devReward (Assign == Current * 10 / 100)
+// @Post  returnValues == reward * 10 / 100
+결정 검증 방식
+
+편집기가 코드를 저장하거나 한 줄을 확정할 때마다, 감소된 코드 조각만 재파싱한다.
+
+SolQDebug에서 검증된 동적 CFG와 인터벌 전파기를 호출해 각 변수의 실제 구간 
+
+\[
+  \text{정합(✓)} \;\;\Longleftrightarrow\;\;
+    I_{\text{actual}} \subseteq I_{\text{intent}}
+\]
+
+\[
+  \text{위배(✗)} \;\;\Longleftrightarrow\;\;
+    I_{\text{actual}} \cap I_{\text{intent}} = \varnothing
+\]
+
+\[
+  \text{불명확(△)} \;\;\Longleftrightarrow\;\;
+    I_{\text{actual}} \not\subseteq I_{\text{intent}}
+    \;\;\wedge\;\;
+    I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
+\]
+
+
+그 외는 △(불명확)으로 판정한다.
+
+이 절차는 파이썬 백엔드로 구현되어 500 라인 규모 함수에서도 평균 30 ms 이내에 완료된다.
+
+장점 요약
+
+\textbf{개발 단계 의도 선언} — 주석 한 줄로 수치 불변식을 기술하므로 학습 부담이 낮다.
+
+\textbf{밀리초 응답성} — 인터벌 해석을 부분 재계산하여 키 누름 수준의 지연만 발생.
+
+\textbf{결정적 결과} — 참·거짓을 즉시 반환하므로 1 wei 단위 오차도 놓치지 않는다.
+
+후속장 에서는 본 연구의 Intent Model과 Intent와 부합하는지 검증하는 방식에 대해소 소개한다
+\end{comment}
+To address the two critical gaps identified in the previous section—(1) the inability to infer a developer's numeric intent from code alone and (2) the lack of a mechanism to deterministically check whether a single-line arithmetic expression satisfies that intent—we propose \textbf{Solidity Guardian}. The core idea is straightforward:  
+Developers declare numeric invariants, such as ``this value must be 10\%'' or ``\texttt{balance} should be non-negative after the loop,'' using a single-line \textit{Intent DSL} placed directly alongside the code. Each time the code is edited, Solidity Guardian computes the actual range of the relevant variables within milliseconds and compares it against the declared intent. The outcome is deterministically categorized into one of three states—\texttt{True}, \texttt{False}, or \texttt{Unknown}—and immediately displayed in the editor using intuitive visual cues.
+
+\paragraph{Intent DSL Summary}
+Solidity Guardian introduces a simple domain-specific language with tokens reflecting three analysis stages:
+\begin{itemize}
+    \item \textbf{@Pre}: Declares the abstract input ranges (e.g., mapping keys, state variables).
+    \item \textbf{@During}: Specifies intermediate state constraints at specific program points (\textit{Assign}, \textit{Before/After}).
+    \item \textbf{@Post}: Declares the expected relationships at function exit (\textit{Entry/Exit}, \textit{returnValues}).
+\end{itemize}
+
+The DSL supports comparison operators $<, >, \leq, \geq, ==, !=$ with right-hand sides defined as constants, variables, intervals, or linear arithmetic expressions.
+
+\begin{lstlisting}[language=Solidity]
+// @Pre    _amount = [1, 99]
+// @During devReward (Assign == Current * 10 / 100)
+// @Post   returnValues == reward * 10 / 100
+\end{lstlisting}
+
+\paragraph{Deterministic Checking Procedure}
+Upon saving the file or confirming a line of code, Solidity Guardian re-parses only the modified code fragment. It leverages SolQDebug's verified dynamic control flow graph (CFG) and interval propagation engine to compute the actual value intervals of variables.
+
+\[
+  \textbf{Satisfied (✓)} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \subseteq I_{\text{intent}}
+\]
+
+\[
+  \textbf{Violated (✗)} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \cap I_{\text{intent}} = \varnothing
+\]
+
+\[
+  \textbf{Uncertain (△)} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \not\subseteq I_{\text{intent}} 
+    \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
+\]
+
+If neither satisfied nor violated, the system conservatively reports \texttt{Unknown}.  
+The entire verification process is implemented in a Python backend, consistently completing within an average of 30 milliseconds even for functions around 500 lines long.
+
+\paragraph{Key Advantages}
+\begin{itemize}
+    \item \textbf{Developer-Centric Intent Declarations}:  
+    Numeric invariants can be expressed with a single line of comment-like syntax, reducing the learning curve.
+    
+    \item \textbf{Millisecond-Level Responsiveness}:  
+    Partial recalculations allow feedback with minimal latency, comparable to keystroke delays.
+    
+    \item \textbf{Deterministic Results}:  
+    By providing clear \texttt{True}/\texttt{False} outcomes, the tool reliably detects even sub-wei deviations.
+\end{itemize}
+
+In the following sections, we present the formal \textit{Intent Model} used by Solidity Guardian and detail the verification procedure that determines compliance between declared intent and actual execution outcomes.
+
+
+\section{Preliminaries}
+
+\subsection{SolQDebug}
+
+SolQDebug is a source-level Solidity debugger designed to enable interactive abstract interpretation during code authoring. Rather than relying on traditional deployment and transaction-based testing workflows, SolQDebug performs interval-based static analysis on incomplete code fragments and reports symbolic value ranges directly in the Solidity editor. This millisecond-scale feedback loop allows developers to inspect how symbolic inputs propagate through variables and control structures, without compiling or deploying contracts.
+
+At the core of SolQDebug is an extended Solidity grammar that supports inline annotations for symbolic inputs. Developers declare ranges for global, state, and local variables using one-line directives (e.g., \texttt{// @StateVar x = [0, 100]}). The system incrementally constructs a dynamic control-flow graph (CFG) from live edits and executes abstract interpretation over a fixed-point lattice of interval values. Each edit updates only the affected region, enabling fast recomputation. A test-case isolation mechanism ensures that symbolic inputs do not interfere across runs.
+
+In the context of this work, we extend SolQDebug’s analysis core as the verification backend for \textit{Solidity Guardian}. Specifically, the interval domain interpreter, dynamic CFG builder, and per-statement memory model are adopted as-is. However, whereas SolQDebug was designed to compute “what values a variable can take,” Guardian checks “whether the observed behavior conforms to the developer’s intent.” 
+
+To support this shift in goal, we augment the interpreter to compare computed intervals against developer-declared postconditions and invariants. These logical intent specifications, written in a new annotation language (Section~4.1), allow Guardian to verify correctness properties such as value preservation, expected directional change, or relational constraints across entry, assignment, and exit. The reuse of SolQDebug's infrastructure ensures that verification is lightweight, precise, and responsive—consistent with Guardian’s goal of bridging the gap between program logic and developer intent.
+
+
+\section{Solidity Guardian}
+
+%────────────────────────────────────────────────────────
+\subsection{Intent Specification Model}
+\label{sec:intent-model}
+%────────────────────────────────────────────────────────
+
+\paragraph{Goal.}
+\textsc{Solidity Guardian} provides a light-weight, single-line
+annotation language that lets developers state—next to the code—
+\emph{what should hold}, not how to prove it.
+Each annotation is checked incrementally after every edit against
+an interval abstract state, producing a deterministic
+\texttt{True/False/Unknown} in a few milliseconds, plus a numeric
+\emph{confidence} and, when useful, a \emph{diagnostic interval}
+explaining where the uncertainty comes from.
+
+\vspace{0.25em}
+\noindent\textbf{Top-level shape.}
+An annotated file is a bag of \emph{intent directives} partitioned
+into three phases:
+\[
+\texttt{@Pre}\quad\texttt{@During}\quad\texttt{@Post}
+\]
+They may appear in any textual order but are interpreted in the
+semantic order:
+\emph{seed injection} $\rightarrow$ \emph{mid-execution checks}
+$\rightarrow$ \emph{exit-time checks}.
+The entry non-terminal is \texttt{intentUnit}.
+
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily,
+                   numbers=left, frame=single,
+                   caption={Guardian annotation grammar (top-level excerpt)},
+                   label={lst:intent-grammar-top}]
+intentUnit
+  : ( preDirective | duringDirective | postDirective )* EOF ;
+
+preDirective
+  : '//' '@GlobalVar' identifier ('.' identifier)? '=' seedValue  # PreGlobal
+  | '//' '@StateVar'  varRef '=' seedValue                        # PreState
+  | '//' '@LocalVar'  varRef '=' seedValue                        # PreLocal ;
+
+duringDirective
+  : '//' '@During' duringFormula (',' duringFormula)* ;
+postDirective
+  : '//' '@Post'   postFormula   (',' postFormula  )* ;
+\end{lstlisting}
+
+\paragraph{Formulas and clauses.}
+A \emph{formula} is a disjunction/conjunction of \emph{clauses}.
+Each clause is either a primitive predicate or an implication
+(“if–then”) between two predicates.  Logical operators use the
+usual precedence and are left-associative; short-circuiting is
+observed in the checker.
+
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily,frame=single]
+duringFormula : duringClause (logicOp duringClause)* ;
+postFormula   : postClause   (logicOp postClause  )* ;
+duringClause  : predicateDuring
+              | predicateDuring '=>' predicateDuring  # DuringImplication ;
+postClause    : predicatePost
+              | predicatePost   '=>' predicatePost    # PostImplication ;
+logicOp       : '&&' | '||' ;
+\end{lstlisting}
+
+%────────────────────────────────────────────
+\paragraph{Primitive predicates.}
+We distinguish \emph{phase-specific} predicates (temporal snapshots)
+from \emph{common} predicates that are shared across phases.
+
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily,frame=single]
+predicateDuring
+  : varRef '(' 'Before'  relOp 'After'   ')'  # DuringBeforeAfter
+  | varRef '(' 'Assign'  relOp 'Current' ')'  # DuringAssignCurrent
+  | commonPredicate                           # DuringCommonPredicate ;
+
+predicatePost
+  : varRef '(' 'Entry' relOp 'Exit' ')'       # PostEntryExit
+  | 'Unchanged' '(' varRef ')'                # UnchangedVar
+  | commonPredicate                           # PostCommonPredicate ;
+
+commonPredicate
+  : 'returnExpression' relOp value            # ReturnExprCmp
+  | 'return' varRef      relOp value          # ReturnVarCmp
+  | value                relOp value          # RelationalCmp ;
+
+relOp : '<' | '>' | '<=' | '>=' | '==' | '!=' | 'in' | 'not' 'in' ;
+\end{lstlisting}
+
+\noindent
+\textbf{Snapshot predicates (single-variable only).}
+To avoid ambiguity and encourage local reasoning, the snapshot
+forms intentionally restrict the left-hand side to a single
+\texttt{varRef}.  The operator is written \emph{between} named
+snapshots:
+\begin{center}
+\verb|v(Before < After)|,\quad
+\verb|v(Assign == Current)|,\quad
+\verb|v(Entry <= Exit)|.
+\end{center}
+Here, \texttt{Assign} captures the value immediately after the
+current assignment to \texttt{v}; \texttt{Before}/\texttt{After}
+denote the state around the current statement; and
+\texttt{Entry}/\texttt{Exit} refer to function entry/exit.
+
+\noindent
+\textbf{Return predicates.}
+\verb|returnExpression| refers to the unnamed return value at the
+relevant program point (\texttt{@During}: the particular \texttt{return}
+statement; \texttt{@Post}: the join over normal exits).
+\verb|return v| projects the $i$-th element for tuple returns via
+\verb|return[i]|.
+
+\noindent
+\textbf{Free comparisons.}
+Any two \emph{intent expressions} (\S\ref{sec:intent-expr}) can be
+compared using a relational operator, including membership
+\verb|in| / \verb|not in|.
+We normalise \verb|not in| lexically (whitespace-insensitive).
+
+%────────────────────────────────────────────
+\paragraph{Implication (\texorpdfstring{$\Rightarrow$}).}
+A clause \verb|A => B| reads “if A holds, then B must hold”.
+We use three-valued, short-circuit semantics
+(\textsf{T}, \textsf{F}, \textsf{U} for Unknown):
+\[
+\begin{array}{c|ccc}
+A\Rightarrow B & \textsf{T} & \textsf{F} & \textsf{U} \\\hline
+\textsf{T}      & \textsf{T} & \textsf{F} & \textsf{U}\\
+\textsf{F}      & \multicolumn{3}{c}{\textsf{T} \text{ (vacuously true)}} \\
+\textsf{U}      & \multicolumn{3}{c}{\textsf{U}}
+\end{array}
+\]
+That is, a false antecedent makes the implication hold
+vacuously; an unknown antecedent yields an unknown implication.
+
+%────────────────────────────────────────────
+\subsubsection{Intent expressions}
+\label{sec:intent-expr}
+%
+Every operand in \texttt{@During} and \texttt{@Post} is an
+\emph{intent expression} drawn from three families; the grammar
+below also serves as the developer-facing syntax.
+
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily,frame=single]
+value      : arithExpr | addressExpr | boolExpr ;
+arithExpr  : arithExpr ('+'|'-') arithTerm | arithTerm ;
+arithTerm  : arithTerm ('*'|'/'|'%') arithFactor | arithFactor ;
+arithFactor: signedNumberLiteral
+           | '[' signedNumberLiteral ',' signedNumberLiteral ']'
+           | varRef
+           | 'PercentOf' '(' arithExpr ',' numberLiteral ')'
+           | 'ceil'  '(' arithExpr ',' numberLiteral ')'
+           | 'floor' '(' arithExpr ',' numberLiteral ')'
+           | '(' arithExpr ')' ;
+addressExpr: 'address' numberLiteral
+           | 'symbolicAddress' numberLiteral
+           | varRef ;
+boolExpr   : booleanLiteral | varRef ;
+\end{lstlisting}
+
+\noindent
+\textbf{Helpers.}
+\texttt{PercentOf$(x,p)$}, \texttt{ceil$(n,d)$}, \texttt{floor$(n,d)$}
+are desugared arithmetically prior to evaluation.  This keeps the
+checker simple: it only needs interval arithmetic.
+
+%────────────────────────────────────────────
+\subsubsection{Pre‑Intent: seeding the abstract store}
+%
+\texttt{@Pre} directives inject symbolic seeds before analysis:
+intervals, Booleans, fixed/symbolic addresses, enums, and inline
+arrays.  They can target globals, state variables, or locals.
+\begin{comment}
+\paragraph*{Built-in arithmetic helpers.}
+\texttt{PercentOf}, \texttt{ceil}, \texttt{floor} are desugared
+before evaluation:
+\[
+\begin{aligned}
+\texttt{PercentOf}(x,p) &\;\triangleq\; (x\times p)/100,\\
+\texttt{ceil}(n,d)      &\;\triangleq\; (n+d-1)/d,\\
+\texttt{floor}(n,d)     &\;\triangleq\; n/d.
+\end{aligned}
+\]
+These rewrites mean no extra inference rules are required; the
+core lattice operations on intervals are sufficient.
+\end{comment}
+
+
+\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize\ttfamily]
+ //@Pre amount     = [1, 100]
+ //@Pre owner      = address 0x1234...
+ //@Pre isTrusted  = true
+ //@Pre buckets    = array[ [0,10], [11,20] ]
+\end{lstlisting}
+
+%────────────────────────────────────────────
+\subsubsection{During‑Intent: mid‑execution checks}
+%
+During a function body, Guardian exposes three snapshot predicates
+on a single variable \verb|v|, plus two return/free-comparison
+predicates.  Examples:
+
+\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize\ttfamily]
+ //@During balance[user](Before <= After)       // monotonicity
+ //@During fee(Assign == Current)               // direct effect
+ //@During return amountOut >= minOut           // unnamed return
+ //@During return[0] != 0                       // tuple element
+ //@During x + y == ceil(total, 100)            // free comparison
+\end{lstlisting}
+
+%────────────────────────────────────────────
+\subsubsection{Post‑Intent: exit‑time checks}
+%
+At function exit (normal paths), entry and exit snapshots of a
+variable can be related, return values inspected, or invariance
+asserted via \verb|Unchanged(v)|:
+\begin{lstlisting}[language=Solidity,basicstyle=\scriptsize\ttfamily]
+ //@Post balance[user](Entry < Exit)
+ //@Post Unchanged(owner)
+ //@Post returnExpression in [1_000, 10_000]
+ //@Post return[1] == fee
+\end{lstlisting}
+
+%────────────────────────────────────────────
+\subsubsection{Checking semantics and diagnostics}
+%
+Annotations are checked against an interval abstract state.  A
+comparison \verb|E1 relOp E2| evaluates to
+\textsf{True}/\textsf{False}/\textsf{Unknown}.
+When both sides are numeric intervals and the result is
+\textsf{Unknown}, Guardian reports:
+(i) a \emph{confidence} in $(0,1)$ capturing the fraction of the
+left interval that makes the predicate true, and
+(ii) a \emph{false-support region}, i.e., conservative sub-intervals
+of both operands where the predicate could be false.  This turns
+“Unknown” into actionable feedback.
+
+\begin{quote}\small
+Example:
+$A=[10,20]$, $B=[15,30]$, predicate $A>B$.
+The result is \textsf{Unknown}, confidence $\approx 0.5$,
+and the false-support is summarised as
+\verb|left=[[10,20]], right=[[15,30]]|, meaning that for values in
+those bands it is possible to pick counterparts falsifying $A>B$.
+\end{quote}
+
+\noindent
+The implication connective uses three-valued, short-circuit
+semantics with vacuous truth (\S\ref{lst:intent-grammar-top});
+conjunction/disjunction follow the standard Kleene tables.
+All diagnostics (confidence and false-support) propagate through
+the checker and are attached to the directive that produced them.
+
+
+
+\subsection{Guardian Verification Engine}
+
+\subsubsection{Architecture}
+
+\paragraph{Module inventory.}
+We layer Guardian on top of SolQDebug and add two modules:
+\emph{Intent Parser} and \emph{Intent Verification Engine}.
+The complete pipeline is:
+
+\begin{enumerate}[leftmargin=*,label=(A\arabic*)]
+  \item \textbf{Source Listener \& Edit Stream} (VS Code/LSP front-end)
+        – sends the edited lines with a small context window.
+  \item \textbf{Solidity Parser} (SolQDebug)
+        – produces/patches AST and a symbol table for changed regions.
+  \item \textbf{CFG Builder \& Patcher} (SolQDebug)
+        – splices the changed basic blocks into the dynamic CFG,
+          preserves node IDs, and re-wires edges.
+  \item \textbf{Abstract Interpreter (Interval)} (SolQDebug)
+        – re-propagates intervals from the edit point to the next
+          post-dominator using widening; records per-node environments.
+  \item \textbf{Snapshot Manager} (SolQDebug + Guardian glue)
+        – captures per-line hooks:
+        \(\sigma^{\mathsf{before}}_{\ell}\),
+        \(\sigma^{\mathsf{assign}}_{\mathit{fn}}\),
+        \(\sigma_{\mathit{curr}}\) (node env),
+        \(\sigma^{\mathsf{entry}}_{\mathit{fn}}\),
+        \(\sigma^{\mathsf{exit}}_{\mathit{fn}}\),
+        and maps of return values \(R[\ell]\).
+  \item \textbf{Intent Parser (ANTLR4)} (Guardian)
+        – parses \verb|//@Pre/@During/@Post| comments into
+          predicate ASTs (our grammar in §5.a),
+          with line numbers and function binding.
+  \item \textbf{Intent Verification Engine} (Guardian)
+        – evaluates each predicate over the appropriate snapshots,
+          returns \texttt{True/False/Unknown}, a \emph{confidence},
+          and—when unknown—\emph{false-support intervals}.
+  \item \textbf{Result Recorder \& Diagnostics} (Guardian)
+        – aggregates clause-level outcomes into formula-level results,
+          short-circuits \texttt{&&}/\texttt{||}/\(\Rightarrow\),
+          and emits IDE diagnostics.
+\end{enumerate}
+
+\paragraph{Data flow and interfaces.}
+Figure~\ref{fig:engine-arch} annotates the following artifacts:
+
+\begin{itemize}[leftmargin=*]
+  \item \textsf{AST patch} \(\rightarrow\) \textsf{CFG patch}.
+        Nodes carry \texttt{lineNo}, \texttt{variables}
+        (current env), and \texttt{before\_envs[lineNo]}.
+  \item \(\sigma^{\mathsf{entry}}_{\mathit{fn}}\),
+        \(\sigma^{\mathsf{exit}}_{\mathit{fn}}\):
+        entry env and the join of normal predecessors at EXIT.
+  \item \(\sigma^{\mathsf{assign}}_{\mathit{fn}}\): the “assignment” env
+        captured by the builder for the last assigned LHS (used by
+        \verb|v(Assign op Current)|).
+  \item \(R[\ell]\): map from the \texttt{return}-line to the abstract
+        return value at that point; tuples supported.
+  \item \textsf{Predicate AST}: produced by Intent Parser
+        (e.g. \texttt{kind=beforeAfter, var=balances[user], op="<="}).
+  \item \textsf{Verification Result}:
+        \(\{\textsf{status}\in\{\texttt{T,F,U}\},\ \textsf{confidence}\in[0,1],\
+          \textsf{false\_regions},\ \textsf{message}\}\).
+\end{itemize}
+
+\subsubsection{Verification semantics}
+
+\paragraph{Core abstract execution with hooks.}
+We reuse SolQDebug's small-step abstract interpreter to compute
+interval environments and instrument four hook points:
+
+\[
+\begin{aligned}
+&\textsf{Before}(S_\ell): && \sigma^{\mathsf{before}}_{\ell}\\
+&\textsf{After}(S_\ell):  && \sigma^{\mathsf{after}}_{\ell} \ (= \text{node env})\\
+&\textsf{Assign}(\mathit{fn}): && \sigma^{\mathsf{assign}}_{\mathit{fn}}\\
+&\textsf{Entry/Exit}(\mathit{fn}): && \sigma^{\mathsf{entry}}_{\mathit{fn}},\
+                                      \sigma^{\mathsf{exit}}_{\mathit{fn}}
+\end{aligned}
+\]
+%
+The builder records a map of return values \(R[\ell]\) for each
+\texttt{return} statement (tuples supported).  Exit environments are
+computed as the join of all \emph{normal} predecessors of the EXIT
+node.
+
+\paragraph{Expression evaluation.}
+We write \(\llbracket E \rrbracket_\sigma\) for evaluating an
+intent expression~\(E\) in environment \(\sigma\) to an interval
+(or a scalar/address/Boolean).  Built-ins are desugared:
+\(\texttt{PercentOf}(x,p)=(x\cdot p)/100\),
+\(\texttt{ceil}(n,d)=(n+d-1)/d\),
+\(\texttt{floor}(n,d)=n/d\).
+
+\paragraph{Interval comparison with diagnostics.}
+Given two values \(v_1,v_2\) and an operator \(op\),
+the comparator yields a tri-value and diagnostics:
+
+\[
+\mathcal{C}(v_1,op,v_2)
+ = \langle s\in\{\mathsf{T,F,U}\},\;
+    \textsf{conf}\in[0,1],\;
+    \textsf{falseRegions}\rangle.
+\]
+
+When both are numeric intervals, \(\mathsf{U}\) arises if neither
+truth nor falsity is guaranteed; then \textsf{conf} approximates
+the measure of the \emph{true zone} within the left interval, and
+\textsf{falseRegions} summarises conservative sub-intervals of the
+operands that can make the predicate false (details in Appendix~X).
+
+\paragraph{During‑intent predicates.}
+For a statement at line~\(\ell\) in function~\(\mathit{fn}\)
+with current node env \(\sigma_\ell\), we define:
+
+\[
+\begin{aligned}
+&\llbracket v(\mathrm{Before}\ op\ \mathrm{After})\rrbracket_{\ell}
+  &&= \mathcal{C}\bigl(
+      \llbracket v \rrbracket_{\sigma^{\mathsf{before}}_{\ell}}\!,
+      op,\;
+      \llbracket v \rrbracket_{\sigma_\ell}\bigr)\\[0.2em]
+&\llbracket v(\mathrm{Assign}\ op\ \mathrm{Current})\rrbracket_{\ell}
+  &&= \mathcal{C}\bigl(
+      \llbracket v \rrbracket_{\sigma^{\mathsf{assign}}_{\mathit{fn}}}\!,
+      op,\;
+      \llbracket v \rrbracket_{\sigma_\ell}\bigr)\\[0.2em]
+&\llbracket \mathrm{returnExpression}\ op\ E \rrbracket_{\ell}
+  &&= \mathcal{C}\bigl(R[\ell],\; op,\; \llbracket E \rrbracket_{\sigma_\ell}\bigr)\\[0.2em]
+&\llbracket \mathrm{return}\ v\ op\ E \rrbracket_{\ell}
+  &&= \mathcal{C}\bigl(\pi_v(R[\ell]),\; op,\; \llbracket E \rrbracket_{\sigma_\ell}\bigr)\\[0.2em]
+&\llbracket E_1\ op\ E_2 \rrbracket_{\ell}
+  &&= \mathcal{C}\bigl(\llbracket E_1 \rrbracket_{\sigma_\ell},\; op,\;
+                         \llbracket E_2 \rrbracket_{\sigma_\ell}\bigr),
+\end{aligned}
+\]
+where \(\pi_v\) projects the named element from a tuple return.
+
+\paragraph{Post‑intent predicates.}
+At function exit, let
+\(\sigma^{\mathsf{exit}}_{\mathit{fn}}\) be the join of normal
+predecessors, and let
+\(\mathsf{JoinRet} = \bigsqcup_{\ell} R[\ell]\) be the join of
+return values across normal exits.  Then:
+
+\[
+\begin{aligned}
+&\llbracket v(\mathrm{Entry}\ op\ \mathrm{Exit})\rrbracket_{\mathit{fn}}
+  &&= \mathcal{C}\bigl(
+      \llbracket v \rrbracket_{\sigma^{\mathsf{entry}}_{\mathit{fn}}}\!,
+      op,\;
+      \llbracket v \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}}\bigr)\\[0.2em]
+&\llbracket \mathrm{Unchanged}(v) \rrbracket_{\mathit{fn}}
+  &&= \mathcal{C}\bigl(
+      \llbracket v \rrbracket_{\sigma^{\mathsf{entry}}_{\mathit{fn}}}\!,
+      ==,\;
+      \llbracket v \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}}\bigr)\\[0.2em]
+&\llbracket \mathrm{returnExpression}\ op\ E \rrbracket_{\mathit{fn}}
+  &&= \mathcal{C}\bigl(\mathsf{JoinRet},\; op,\;
+                        \llbracket E \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}}\bigr)\\[0.2em]
+&\llbracket \mathrm{return}\ v\ op\ E \rrbracket_{\mathit{fn}}
+  &&= \mathcal{C}\bigl(\pi_v(\mathsf{JoinRet}),\; op,\;
+                        \llbracket E \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}}\bigr)\\[0.2em]
+&\llbracket E_1\ op\ E_2 \rrbracket_{\mathit{fn}}
+  &&= \mathcal{C}\bigl(\llbracket E_1 \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}},\; op,\;
+                        \llbracket E_2 \rrbracket_{\sigma^{\mathsf{exit}}_{\mathit{fn}}}\bigr).
+\end{aligned}
+\]
+
+\paragraph{Logic composition and implication.}
+Formulas are built from clauses using \texttt{&&}/\texttt{||} and
+implication \((\Rightarrow)\).  We adopt Kleene three-valued truth
+tables with short-circuit evaluation; implication follows
+vacuous truth:
+
+\[
+\mathsf{T}\Rightarrow s = s,\qquad
+\mathsf{F}\Rightarrow s = \mathsf{T},\qquad
+\mathsf{U}\Rightarrow s = \mathsf{U}.
+\]
+
+Diagnostics (confidence and false-support intervals) are attached
+to the leaf predicate that determined the result (first failing
+leaf for \texttt{&&}, first succeeding leaf for \texttt{||},
+consequent for \(\Rightarrow\) with true antecedent).
+
+
+%---------------------------------------------------------------------
+\section{Evaluation}
+
+%---------------------------------------------------------------------
+\section{Discussion}
+
+%---------------------------------------------------------------------
+\section{Related Work}
+% 논리 오류에 대한 연구 - 스마트 컨트랙트엔 없고 Frama C, Dafny? 혹은 스마트 컨트랙트 상에서는 zeus?
+
+% 주석 형태로 작성된거 기반 Static analysis
+
+% Solidity와 Abstract Interpretation
+
+    \subsection{Logical Vulnerabilities Detection in Software Systems}
+
+    \subsection{Code-Comment Inconsistency}
+\begin{comment}
+   스마트 컨트랙트를 포함한 다양한 오픈소스 소프트웨어 대해 주석과 실제 코드 동작의 일치성 분석 연구가 진행되고 있으며, 대부분의 연구가 이미 작성된 주석과 실제 오픈소스의 동작 일치 여부를 분석한 후, 불일치 시 실제 소스의 수정을 기여점으로 하고 있다. 
+
+   스마트 컨트랙트에 대한 코드 일치성 분석 연구는 대부분 Abstract Syntax Tree를 통해 DataLog로 표현 가능한 사실들을 추출하고 작성된 주석이 이 사실들을 만족하는지 검사하는 방식을 취하고 있다. 각 연구의 검사 대상으로는 먼저 DonCon~\cite{solapi}은 솔리디티 라이브러리에 대한 API 문서와 실제 코드의 함수 호출, 상속, 이벤트 발생, require, revert와 같은 특정 조건의 만족 여부 등이 일치하는지 검사한다. SmartCoCo~\cite{coco}는 modifier를 통한 함수의 접근제어, address 값의 0 여부, require문 등을 통한 parameter의 scope 만족 여부, 이벤트 발생 여부 등이 일치하는지 검사한다. 
+
+   자바 기반 소프트웨어에 대한 연구들은 주로 Javadocs 라는 표준화된 주석문서와 실제 코드 동작 일치성을 분석하며, 구체적으로는 Javadocs에 작성 가능한 메소드의 parameter, return, 함수의 기능들을 분석한다. 분석 방식으로는 @tComment~\cite{tcomment}는 실제 테스팅을 통해 Javadocs대로 실제 코드가 동작하는지를 분석하며, Panthaplackel et al~\cite{deep}은 딥러닝 모델을 통해 불일치 분석을 진행하며 또한 실시간 분석을 지원한다.
+
+   위 연구들이 주로 함수 단위의 분석에 초점을 맞추고 있는 반면, 본 연구는 함수 내부의 변수 및 문장 단위의 분석을 지원하는 보다 세밀한 접근 방식을 취하고 있다. 또한, 기존 연구들이 이미 작성된 주석을 분석하는 데 중점을 두는 것과 달리, 본 연구는 스마트 컨트랙트에서 변수와 문장 단위의 intent model을 새롭게 제안하였다. 이 intent model에 맞춰 작성된 주석은 현재 스마트 컨트랙트에 존재하지 않기 때문에, 본 연구는 기존 주석을 분석하는 것이 아니라, 개발자가 실시간으로 주석에 표현한 의도를 분석하는 데 중점을 두고자 한다.   
+\end{comment}    
+        Analyzing the consistency between comments and the actual behavior of code, including various open-source software such as smart contracts, has been a topic of active research. Most studies in this area focus on whether the written comments align with the actual behavior of the code, and when inconsistencies are identified, they often lead to suggestions for source code modifications.
+
+        For smart contracts, consistency analysis typically involves extracting facts from the Abstract Syntax Tree (AST) that can be expressed in DataLog and checking whether the comments align with these facts. For example, DonCon~\cite{solapi} examines whether API documentation in Solidity libraries is consistent with actual code, including function calls, inheritance, event emissions, and conditions like require and revert. Similarly, SmartCoCo~\cite{coco} checks for consistency between comments and function access control through modifiers, checks for zero address values, parameter scope satisfaction through require statements, and event emissions.
+
+        In Java-based software, the focus is typically on the consistency between standardized comment documentation (Javadocs) and the actual behavior of the code. This includes examining method parameters, return values, and method functionality as described in the Javadocs. For instance, @tComment~\cite{tcomment} tests whether the code behaves according to Javadocs, while Panthaplackel et al.~\cite{deep} use a deep learning model for inconsistency detection and support interactive analysis.
+
+        While previous studies have primarily focused on function-level analysis, this research adopts a more granular approach by supporting variable- and statement-level analysis within functions. Furthermore, unlike existing studies that concentrate on analyzing pre-existing comments, this research introduces a novel intent model for variables and statements in smart contracts. Since comments following this intent model do not yet exist in current smart contracts, this study does not focus on analyzing existing comments, but rather aims to analyze the developer’s intent as expressed through interactive annotations.
+
+%---------------------------------------------------------------------
+\section{Conclusion}
+
+
+% ─── ① 프리앰블에 토글 스위치 정의 ─────────────────────────
+\newif\ifshowack          % 새 불리언 생성
+\showackfalse             % false = 숨김, true = 표시
+% \showacktrue            % 카메라-레디 때는 이 줄만 주석 해제
+
+% ─── ② 본문에서 조건부로 삽입 ──────────────────────────────
+\ifshowack
+  \section*{Acknowledgment}  
+\fi
+
+\begin{thebibliography}{1}
+
+% Solidity and Its Numeric Types
+    \bibitem{solidity} "Solidity", 2025, Accessed: September 27, 2025 [Online]. Available: \url{https://docs.soliditylang.org/en/v0.8.30/}   
+
+    \bibitem{soldom} WOHRER, Maximilian; ZDUN, Uwe. "Smart contracts: security patterns in the ethereum ecosystem and solidity." In: 2018 International Workshop on Blockchain Oriented Software Engineering (IWBOSE). IEEE, 2018. p. 2-8.
+
+    \bibitem{solinf} "Language Influences", 2025, Accessed: September 27, 2025 [Online]. Available: \url{https://docs.soliditylang.org/en/v0.8.30/language-influences.html}
+
+    \bibitem{soltype} "Types", 2025, Accessed: September 27, 2025 [Online]. Available: \url{https://docs.soliditylang.org/en/v0.8.30/types.html}
+
+    \bibitem{solgvar} "Units and Globally Available Variables", 2025, Accessed: September 27, 2025 [Online]. Available: \url{https://docs.soliditylang.org/en/v0.8.30/units-and-global-variables.html}
+
+    \bibitem{solsvar} "Structure of a Contract", 2025, Accessed: September 27, 2025 [Online]. Available: \url{https://docs.soliditylang.org/en/v0.8.30/structure-of-a-contract.html} 
+
+    \bibitem{dappscan} ZHENG, Zibin, et al. "Dappscan: building large-scale datasets for smart contract weaknesses in dapp projects." IEEE Transactions on Software Engineering, 2024, 50.6: 1360-1373.
+
+% Numeric Logical Vulnerabilities in Smart Contracts
+    \bibitem{numscout} CHEN, Jiachi, et al. NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering, 2025.
+
+        % survey
+    \bibitem{detsurvey} VIDAL, Fernando Richter; IVAKI, Naghmeh; LARANJEIRO, Nuno \emph{Vulnerability detection techniques for smart contracts: A systematic literature review}, Journal of Systems and Software, 2024, 112160.
+    
+    % static analysis
+    \bibitem{securify} TSANKOV, Petar, et al. \emph{Securify: Practical security analysis of smart contracts}, In: Proceedings of the 2018 ACM SIGSAC conference on computer and communications security. 2018. p. 67-82.
+
+    \bibitem{slither} TSANKOV, Petar, et al. \emph{Slither: a static analysis framework for smart contracts}, In: 2019 IEEE/ACM 2nd International Workshop on Emerging Trends in Software Engineering for Blockchain (WETSEB). IEEE, 2019. p. 8-15.
+
+    \bibitem{mythril} YAO, Yao, et al. \emph{An improved vulnerability detection system of smart contracts based on symbolic execution}, In: 2022 IEEE International Conference on Big Data (Big Data). IEEE, 2022. p. 3225-3234.
+
+    \bibitem{solidet}HU, Tianyuan, et al. \emph{Detect defects of solidity smart contract based on the knowledge graph}, IEEE Transactions on Reliability, 2023, 73.1: 186-202.
+
+    \bibitem{ethersolve}PASQUA, Michele, et al. \emph{Enhancing Ethereum smart-contracts static analysis by computing a precise Control-Flow Graph of Ethereum bytecode}, Journal of Systems and Software, 2023, 200: 111653.
+
+    % dynamic analysis
+    \bibitem{confuzz}JIANG, Bo; LIU, Ye; CHAN, Wing Kwong. \emph{Contractfuzzer: Fuzzing smart contracts for vulnerability detection}, In: Proceedings of the 33rd ACM/IEEE international conference on automated software engineering. 2018. p. 259-269.
+
+    \bibitem{echidna}GRIECO, Gustavo, et al. \emph{Echidna: effective, usable, and fast fuzzing for smart contracts},In: Proceedings of the 29th ACM SIGSOFT international symposium on software testing and analysis. 2020. p. 557-560.
+
+    \bibitem{sfuzz}JIANG, NGUYEN, Tai D., et al. \emph{sfuzz: An efficient adaptive fuzzer for solidity smart contracts},  In: Proceedings of the ACM/IEEE 42nd International Conference on Software Engineering. 2020. p. 778-788.
+
+    \bibitem{transracer}MA, Chenyang; SONG, Wei; HUANG, Jeff. \emph{TransRacer: Function Dependence-Guided Transaction Race Detection for Smart Contracts},  In: Proceedings of the 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering. 2023. p. 947-959.
+
+    \bibitem{ityfuzz}SHOU, Chaofan; TAN, Shangyin; SEN, Koushik. \emph{Ityfuzz: Snapshot-based fuzzer for smart contract}, In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis. 2023. p. 322-333.
+
+    % formal verification
+    \bibitem{zeus}Kalra, Sukrit, Goel, Seep, Dhawan, Mohan, Sharma, Subodh.\emph{ZEUS: Analyzing safety of smart contracts}, In: Proceedings 2018 Network and Distributed System Security Symposium. Internet Society, Reston, VA, pp. 1–15.
+    
+    \bibitem{verismart}SO, Sunbeom, et al.\emph{Verismart: A highly precise safety verifier for ethereum smart contracts}, In: 2020 IEEE Symposium on Security and Privacy (SP). IEEE, 2020. p. 1678-1694.
+
+    \bibitem{pulse}STEPHENS, Jon, et al.\emph{SmartPulse: automated checking of temporal properties in smart contracts}, In: 2021 IEEE Symposium on Security and Privacy (SP). IEEE, 2021. p. 555-571.    
+
+    % learning
+    \bibitem{peculiar}WU, Hongjun, et al.\emph{Peculiar: Smart contract vulnerability detection based on crucial data flow graph and pre-training techniques}, In: 2021 IEEE 32nd International Symposium on Software Reliability Engineering (ISSRE). IEEE, 2021. p. 378-389.
+
+    \bibitem{tmlvd}ZHOU, Qihao, et al.\emph{Vulnerability analysis of smart contract for blockchain-based IoT applications: a machine learning approach}, IEEE Internet of Things Journal, 2022, 9.24: 24695-24707. 
+    
+    \bibitem{pscvfinder}YU, Lei, et al.\emph{Pscvfinder: a prompt-tuning based framework for smart contract vulnerability detection}, In: 2023 IEEE 34th International Symposium on Software Reliability Engineering (ISSRE). IEEE, 2023. p. 556-567. 
+
+    % others
+    \bibitem{debugsurvey} ZOU, Weiqin, et al. \emph{Smart contract development: Challenges and opportunities}, IEEE transactions on software engineering, 2019, 47.10: 2084-2106.
+
+% Related Works
+
+    % Logical Vulnerabilities Detection in Software Systems    
+
+    % Code Comment Inconsistency
+    % smart contract
+    \bibitem{solapi} ZHU, Chenguang, et al. \emph{Identifying solidity smart contract api documentation errors}, Proceedings of the 37th IEEE/ACM International Conference on Automated Software Engineering. 2022.
+
+    \bibitem{coco}HAO, Sicheng, et al. \emph{SmartCoCo: Checking Comment-Code Inconsistency in Smart Contracts via Constraint Propagation and Binding}, In: 2023 38th IEEE/ACM International Conference on Automated Software Engineering (ASE). IEEE, 2023. p. 294-306.
+
+    % java
+    \bibitem{tcomment} TAN, Shin Hwei, et al. , \emph{@tcomment: Testing javadoc comments to detect comment-code inconsistencies}, 2012 IEEE Fifth International Conference on Software Testing, Verification and Validation. IEEE, 2012. p. 260-269.
+
+    \bibitem{deep} PANTHAPLACKEL, Sheena, et al. \emph{Deep just-in-time inconsistency detection between comments and source code}, In: Proceedings of the AAAI Conference on Artificial Intelligence. 2021. p. 427-435.
+\end{thebibliography}
+
+
+
+\end{document}

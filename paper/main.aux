@@ -1,0 +1,99 @@
+\relax 
+\bibstyle{sn-basic}
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\Newlabel{1}{1}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{2}{section.1}\protected@file@percent }
+\citation{solidity,soldom}
+\citation{soldom,solinf}
+\citation{soltype}
+\citation{solgvar,solsvar}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{3}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Solidity and Its Numeric Types}{3}{subsection.2.1}\protected@file@percent }
+\citation{dappscan}
+\citation{fig1}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Motivation Example~\cite  {fig1}}}{4}{figure.caption.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Numeric Logical Vulnerabilities in Smart Contracts}{4}{subsection.2.2}\protected@file@percent }
+\citation{numscout}
+\citation{dappscan}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Motivation}{5}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Why Existing Tools Miss Numeric Logical Vulnerabilities}{5}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{(1) Static Analysis (Pattern- and Rule-Based)}{6}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{(2) Dynamic Analysis, Fuzzing, and Concolic Execution}{6}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{(3) Comment-Code Inconsistency (CCI) Detection with Natural Language Processing}{6}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{(4) Formal Verification (e.g., KEVM, VeriSmart)}{6}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Design Overview of Solidity Guardian}{7}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Intent DSL Summary}{7}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Deterministic Checking Procedure}{7}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Key Advantages}{8}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Preliminaries}{8}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}SolQDebug}{8}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Solidity Guardian}{9}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Intent Specification Model}{9}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:intent-model}{{5.1}{9}{Intent Specification Model}{subsection.5.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Goal.}{9}{section*.12}\protected@file@percent }
+\newlabel{lst:intent-grammar-top}{{1}{9}{Guardian annotation grammar (top-level excerpt)}{lstlisting.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Guardian annotation grammar (top-level excerpt)}}{9}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Formulas and clauses.}{9}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Primitive predicates.}{10}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Implication ($\Rightarrow $.}{11}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.1}Intent expressions}{11}{subsubsection.5.1.1}\protected@file@percent }
+\newlabel{sec:intent-expr}{{5.1.1}{11}{Intent expressions}{subsubsection.5.1.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.2}Pre‑Intent: seeding the abstract store}{11}{subsubsection.5.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.3}During‑Intent: mid‑execution checks}{11}{subsubsection.5.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.4}Post‑Intent: exit‑time checks}{12}{subsubsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.1.5}Checking semantics and diagnostics}{12}{subsubsection.5.1.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Guardian Verification Engine}{12}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.1}Architecture}{12}{subsubsection.5.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Module inventory.}{12}{section*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Data flow and interfaces.}{13}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.2}Verification semantics}{13}{subsubsection.5.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Core abstract execution with hooks.}{13}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Expression evaluation.}{14}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Interval comparison with diagnostics.}{14}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{During‑intent predicates.}{14}{section*.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Post‑intent predicates.}{14}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Logic composition and implication.}{14}{section*.23}\protected@file@percent }
+\citation{solapi}
+\citation{coco}
+\citation{tcomment}
+\citation{deep}
+\bibcite{solidity}{{1}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Evaluation}{15}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion}{15}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Related Work}{15}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Logical Vulnerabilities Detection in Software Systems}{15}{subsection.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Code-Comment Inconsistency}{15}{subsection.8.2}\protected@file@percent }
+\bibcite{soldom}{{2}{}{{}}{{}}}
+\bibcite{solinf}{{3}{}{{}}{{}}}
+\bibcite{soltype}{{4}{}{{}}{{}}}
+\bibcite{solgvar}{{5}{}{{}}{{}}}
+\bibcite{solsvar}{{6}{}{{}}{{}}}
+\bibcite{dappscan}{{7}{}{{}}{{}}}
+\bibcite{numscout}{{8}{}{{}}{{}}}
+\bibcite{detsurvey}{{9}{}{{}}{{}}}
+\bibcite{securify}{{10}{}{{}}{{}}}
+\bibcite{slither}{{11}{}{{}}{{}}}
+\bibcite{mythril}{{12}{}{{}}{{}}}
+\bibcite{solidet}{{13}{}{{}}{{}}}
+\bibcite{ethersolve}{{14}{}{{}}{{}}}
+\bibcite{confuzz}{{15}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Conclusion}{16}{section.9}\protected@file@percent }
+\bibcite{echidna}{{16}{}{{}}{{}}}
+\bibcite{sfuzz}{{17}{}{{}}{{}}}
+\bibcite{transracer}{{18}{}{{}}{{}}}
+\bibcite{ityfuzz}{{19}{}{{}}{{}}}
+\bibcite{zeus}{{20}{}{{}}{{}}}
+\bibcite{verismart}{{21}{}{{}}{{}}}
+\bibcite{pulse}{{22}{}{{}}{{}}}
+\bibcite{peculiar}{{23}{}{{}}{{}}}
+\bibcite{tmlvd}{{24}{}{{}}{{}}}
+\bibcite{pscvfinder}{{25}{}{{}}{{}}}
+\bibcite{debugsurvey}{{26}{}{{}}{{}}}
+\bibcite{solapi}{{27}{}{{}}{{}}}
+\bibcite{coco}{{28}{}{{}}{{}}}
+\bibcite{tcomment}{{29}{}{{}}{{}}}
+\bibcite{deep}{{30}{}{{}}{{}}}
+\providecommand\NAT@force@numbers{}\NAT@force@numbers
+\gdef \@abspage@last{18}
