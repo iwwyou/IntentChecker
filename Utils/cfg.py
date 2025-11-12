@@ -6,43 +6,58 @@ from Domain.Variable import *
 
 class CFGNode:
     def __init__(self, name,
-                 condition_node=False,
-                 condition_node_type=None,
-                 branch_node=False,
-                 is_true_branch=False,
-                 fixpoint_evaluation_node=False,
-                 loop_exit_node=False,
-                 is_for_increment=False,
-                 unchecked_block=False,
-                 src_line=None):
+                 # ───── condition / branch role flags ─────────────────────────
+                 condition_node: bool = False,
+                 condition_node_type: str | None = None,  # "if" | "else_if" | "require" | "while" | "for" | "do_while" …
+                 branch_node: bool = False,               # pruned-dummy/basic after a cond
+                 is_true_branch: bool = False,
+                 # ───── loop / join / sink flags ──────────────────────────────
+                 join_point_node: bool = False,           # 🔹 명시적 조인 노드
+                 fixpoint_evaluation_node: bool = False,  # φ / back-edge 합류 노드
+                 loop_exit_node: bool = False,            # while/for False-branch 종착
+                 is_for_increment: bool = False,          # for(i;cond;i++) 의 incr 블록
+                 is_loop_body: bool = False,              # 루프 본문 블록 여부(선택)
+                 # ───── misc ─────────────────────────────────────────────────
+                 unchecked_block: bool = False,
+                 src_line: int | None = None):
         self.name = name
 
+        # condition / branch
         self.condition_node = condition_node
         self.condition_expr = None
-        self.condition_node_type = condition_node_type
-
+        self.condition_node_type = condition_node_type  # 표준화: "else_if", "do_while" 사용
         self.branch_node = branch_node
         self.is_true_branch = is_true_branch
 
-        self.join_point_node = False
+        # join / loop / φ
+        self.join_point_node = join_point_node
         self.fixpoint_evaluation_node = fixpoint_evaluation_node
-        self.is_for_increment = is_for_increment
         self.loop_exit_node = loop_exit_node
-        self.is_loop_body = False
-        self.fixpoint_evaluation_node_vars = {} # 고정점 분석을 위한 while문 진입 전에 var 상태, join 하면서 변하는 변수의 상태
+        self.is_for_increment = is_for_increment
+        self.is_loop_body = is_loop_body
+
+        # φ/조인 관련 보조 env
+        self.fixpoint_evaluation_node_vars = {}  # while-header 진입 시점 env 스냅샷
         self.join_baseline_env = None
 
+        # unchecked
         self.unchecked_block = unchecked_block
 
-        self.statements = []  # 기본 블록 내의 명령어 리스트
-        self.variables = {}  # var_name -> Variables 객체
+        # payload
+        self.statements: list[Statement] = []   # 블록 내 명령어
+        self.variables: dict[str, Variables] = {}  # var_name -> Variables
         self.before_envs: dict[int, dict[str, Variables]] = {}
 
-        self.function_exit_node = False
-        self.return_vals = {}
-        self.src_line = src_line
+        # sink kinds
+        self.function_exit_node = False         # 함수 정상 종료(기본 EXIT)
+        self.return_exit_node = False           # 🔹 명시적 return 전용 sink
+        self.error_exit_node = False            # 🔹 revert/require 실패 전용 sink
 
-        self.function_evaluated=None
+        # return values (for exit aggregation)
+        self.return_vals: dict[int, object] = {}
+
+        self.src_line = src_line
+        self.function_evaluated = None
 
     def add_variable_declaration_statement(self, typeObj, varName, initExpr, line_no):
 
@@ -120,13 +135,13 @@ class CFGNode:
                                src_line=line_no)
         self.statements.append(break_stmt)
 
-    def add_revert_statement(self, revert_identifier=None, expression_arg=None, call_argument_list=None,
+    def add_revert_statement(self, revert_identifier=None, string_literal=None, call_argument_list=None,
                              line_no=None):
         # 4. Revert 문장을 Statement 객체로 만들어서 현재 블록에 추가
         revert_statement = Statement(
             statement_type="revert",
             identifier=revert_identifier,
-            expression_arg=expression_arg,
+            string_literal=string_literal,
             arguments=call_argument_list,
             src_line=line_no
         )
@@ -180,6 +195,7 @@ class CFG:
         self.cfg_type = cfg_type
         self.entry_node = CFGNode("ENTRY")
         self.exit_node = CFGNode("EXIT")
+        self.exit_node.function_exit_node = True  # 🔹 명시
         self.graph.add_node(self.entry_node)
         self.graph.add_node(self.exit_node)
         self.graph.add_edge(self.entry_node, self.exit_node)
@@ -294,7 +310,8 @@ class ContractCFG(CFG):
             self.graph.add_node(self.state_variable_node)
 
         # 상수 변수 정보를 노드에 추가
-        self.state_variable_node.variables[variable.identifier] = {'variable' : variable, 'expression' : expr}
+        variable.constant_expression = expr  # Store expression as attribute
+        self.state_variable_node.variables[variable.identifier] = variable
 
     def add_constructor_to_cfg(self, constructor_cfg):
         # 1. 상태변수 노드의 successor가 생성자가 되도록 설정
@@ -425,80 +442,80 @@ class ContractCFG(CFG):
 class FunctionCFG(CFG):
     def __init__(self, function_type, function_name=None):
         super().__init__('function')
-        self.function_type = function_type # constructor, fallback, receive, function
+        self.function_type = function_type  # constructor, fallback, receive, function, modifier
         self.function_name = function_name
-        self.modifiers = {}
-        self.related_variables = {}
-        self.parameters: list[str] = []  # ←★ 추가
-        self.return_types: list[SolType] = []   # 이름 없는 리턴
-        self.return_vars : list = [] # 이름이 있는 리턴
+        self.modifiers: dict[str, "FunctionCFG"] = {}
+        self.related_variables: dict[str, Variables] = {}
+        self.parameters: list[str] = []
+        self.return_types: list[SolType] = []
+        self.return_vars: list[Variables] = []
         self.assign_env: dict[str, Variables] = {}   # 최초 스냅샷 전용
 
+        # ── 분리된 sink 노드들 생성(빌더가 연결) ────────────────────────
         self.exit_node.function_exit_node = True
+        self.return_exit = CFGNode("RETURN")
+        self.return_exit.return_exit_node = True
+        self.error_exit = CFGNode("ERROR")
+        self.error_exit.error_exit_node = True
+        self.graph.add_node(self.return_exit)
+        self.graph.add_node(self.error_exit)
+
+    # ── helpers ----------------------------------------------------------
+    def get_return_exit_node(self) -> CFGNode:
+        return self.return_exit
+
+    def get_error_exit_node(self) -> CFGNode:
+        return self.error_exit
 
 
-    def update_block(self, block_node):
-        """
-        FunctionCFG 내에서 블록을 업데이트하는 메서드.
-        기존 그래프에 블록을 찾아 업데이트하거나, 새로운 블록이 추가된 경우 이를 반영.
-        """
-        # 그래프에서 block_node의 ID에 해당하는 노드를 찾아서 업데이트
+    def update_block(self, block_node: CFGNode):
         if self.graph.has_node(block_node):
-            # 이미 해당 노드가 그래프에 있으면, 노드 정보를 업데이트
-            existing_node = self.graph.nodes[block_node]
-            # 필요에 따라 기존 노드의 속성을 업데이트 (여기선 덮어쓰기)
             self.graph.nodes[block_node].update(block_node.__dict__)
-
         else:
-            raise ValueError(f"There is no {block_node} in functionCFG")
+            raise ValueError(f"There is no {block_node} in FunctionCFG")
 
-    def add_related_variable(self, variable_obj):
-        self.related_variables[variable_obj.identifier] = variable_obj
+    # 🔹 두 형태 모두 허용: (var_obj) 또는 (name, var_obj)
+    def add_related_variable(self, *args):
+        if len(args) == 1:
+            var_obj = args[0]
+            self.related_variables[var_obj.identifier] = var_obj
+        elif len(args) == 2:
+            name, var_obj = args
+            self.related_variables[name] = var_obj
+        else:
+            raise TypeError("add_related_variable expects (var_obj) or (name, var_obj)")
 
     def get_predecessor_node(self, cfg_node):
-        if self.graph.has_node(cfg_node) :
-            if self.graph.has_predecessor(cfg_node) :
-                return self.graph.predecessors(cfg_node)
-            else :
-                raise ValueError("There is no predecessor")
-        else :
+        if not self.graph.has_node(cfg_node):
             raise ValueError(f"There is no node in graph about {cfg_node}")
+        preds = list(self.graph.predecessors(cfg_node))
+        if not preds:
+            raise ValueError("There is no predecessor")
+        return preds
 
     def get_related_variable(self, var_name):
-        # 변수를 반환
         return self.related_variables.get(var_name, None)
 
     def integrate_modifier(self, modifier_cfg):
-        # 1. 기존 function entry node의 successor들을 저장
         successors = list(self.graph.successors(self.get_entry_node()))
-
-        # 2. 기존 function entry node의 successor를 modifier entry node로 설정
         self.graph.add_edge(self.get_entry_node(), modifier_cfg.get_entry_node())
-
-        # 3. Modifier의 exit node를 기존 function entry node의 successor로 연결
         for succ in successors:
             self.graph.add_edge(modifier_cfg.get_exit_node(), succ)
             self.graph.remove_edge(self.get_entry_node(), succ)
 
     def get_true_block(self, condition_node):
-        """
-        주어진 조건 노드의 true branch를 통해 true block을 반환
-        """
         successors = list(self.graph.successors(condition_node))
         for successor in successors:
-            if self.graph.edges[condition_node, successor].get('condition', False):  # True branch
+            if self.graph.edges[condition_node, successor].get('condition', False) is True:
                 return successor
-        return None  # True block을 찾지 못한 경우 None 반환
+        return None
 
     def get_false_block(self, condition_node):
-        """
-        주어진 조건 노드의 false branch를 통해 false block을 반환
-        """
         successors = list(self.graph.successors(condition_node))
         for successor in successors:
-            if not self.graph.edges[condition_node, successor].get('condition', False):  # False branch
+            if self.graph.edges[condition_node, successor].get('condition', False) is False:
                 return successor
-        return None  # False block을 찾지 못한 경우 None 반환
+        return None
     
     def serialize_for_storage(self) -> dict:
         """FunctionCFG를 저장을 위해 직렬화"""
