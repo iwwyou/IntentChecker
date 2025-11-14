@@ -12,12 +12,179 @@ if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
 from Domain.IR import Expression
+from Domain.Interval import IntegerInterval, UnsignedIntegerInterval
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
 
 class GuardianVerificationEngine:
     def __init__(self, analyzer: "ContractAnalyzer"):
         self.analyzer = analyzer
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  Guardian DSL Expression Evaluation
+    #  (VarRef*, InlineInterval, PercentOf, Ceil, Floor, Address literals)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def evaluate_guardian_expression(self, expr: Expression, variables: dict,
+                                     callerObject=None, callerContext=None):
+        """
+        Guardian DSL expression 평가 (주석 전용 구문)
+
+        Guardian-specific contexts:
+        - VarRefBase, VarRefMemberAccess, VarRefIndexAccess: 변수 참조
+        - ReturnElemRef: return tuple 원소 접근
+        - InlineInterval: [lo, hi] 구간 리터럴
+        - PercentOfFuncContext: PercentOf(x, n)
+        - CeilFuncContext: ceil(x, n)
+        - FloorFuncContext: floor(x, n)
+        - AddrLiteralExprContext, SymAddrLiteralExprContext: address 리터럴
+
+        일반 Solidity expression은 evaluator에 위임
+        """
+        ctx = expr.context
+
+        # ─── Guardian-specific contexts ───────────────────────────
+        if ctx == "ReturnElemRef":
+            return self._evaluate_return_elem_ref(expr, variables, callerObject, callerContext)
+
+        elif ctx == "InlineInterval":
+            return self._evaluate_inline_interval(expr)
+
+        elif ctx == "PercentOfFuncContext":
+            return self._evaluate_percent_of(expr, variables, callerObject, callerContext)
+
+        elif ctx == "CeilFuncContext":
+            return self._evaluate_ceil(expr, variables, callerObject, callerContext)
+
+        elif ctx == "FloorFuncContext":
+            return self._evaluate_floor(expr, variables, callerObject, callerContext)
+
+        elif ctx in {"AddrLiteralExprContext", "SymAddrLiteralExprContext"}:
+            return self._evaluate_address_literal(expr)
+
+        # ─── VarRef contexts → evaluator에 위임 ───────────────────
+        # VarRefBase, VarRefMemberAccess, VarRefIndexAccess는
+        # 일반 IdentifierExpContext, MemberAccessContext, IndexAccessExpContext와
+        # 동일하게 처리되므로 evaluator에 위임
+        elif ctx in {"VarRefBase", "VarRefMemberAccess", "VarRefIndexAccess"}:
+            return self.analyzer.evaluator.evaluate_expression(
+                expr, variables, callerObject, callerContext
+            )
+
+        # ─── 일반 Solidity expression → evaluator 위임 ───────────
+        else:
+            return self.analyzer.evaluator.evaluate_expression(
+                expr, variables, callerObject, callerContext
+            )
+
+    # ─── Guardian DSL 평가 헬퍼들 ─────────────────────────────────────
+
+    def _evaluate_return_elem_ref(self, expr: Expression, variables: dict,
+                                  callerObject=None, callerContext=None):
+        """
+        ReturnElemRef: return[N]
+
+        expr.base  = Expression(identifier='return', ...)
+        expr.index = Expression(literal='N', ...)
+        """
+        # (1) 'return' 변수 가져오기 (Recorder/CFG가 variables에 넣어둠)
+        ret_var = variables.get("return")
+        if ret_var is None:
+            raise ValueError("return tuple not available in current context")
+
+        # (2) 인덱스 계산
+        idx_val = self.evaluate_guardian_expression(
+            expr.index, variables, callerObject, callerContext
+        )
+        idx = int(idx_val.min_value) if hasattr(idx_val, "min_value") else int(idx_val)
+
+        # (3) 튜플 원소 반환
+        return ret_var.value[idx]
+
+    def _evaluate_inline_interval(self, expr: Expression):
+        """
+        InlineInterval: [lo, hi]
+
+        expr.elements[0] = Expression(literal='lo', ...)
+        expr.elements[1] = Expression(literal='hi', ...)
+        """
+        lo = int(expr.elements[0].literal, 0)
+        hi = int(expr.elements[1].literal, 0)
+        cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval
+        bits = 256  # 필요하면 가변
+        return cls(lo, hi, bits)
+
+    def _evaluate_percent_of(self, expr: Expression, variables: dict,
+                            callerObject=None, callerContext=None):
+        """
+        PercentOf(x, n): x의 n%
+
+        expr.arguments[0] = valueExpr (기준 값)
+        expr.arguments[1] = numberLiteral (퍼센트)
+        """
+        # 기준 값 평가
+        base_iv = self.evaluate_guardian_expression(
+            expr.arguments[0], variables, callerObject, callerContext
+        )
+        pct = int(expr.arguments[1].literal, 0)
+
+        # interval 스케일링 (보수적: 전방향 ceiling/floor)
+        lo = (base_iv.min_value * pct + 99) // 100
+        hi = (base_iv.max_value * pct) // 100
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    def _evaluate_ceil(self, expr: Expression, variables: dict,
+                      callerObject=None, callerContext=None):
+        """
+        ceil(x, n): x를 n 단위로 올림
+
+        expr.arguments[0] = arithExpr (기준 값)
+        expr.arguments[1] = numberLiteral (단위)
+        """
+        base_iv = self.evaluate_guardian_expression(
+            expr.arguments[0], variables, callerObject, callerContext
+        )
+        unit = int(expr.arguments[1].literal, 0)
+
+        def _ceil(v):
+            return ((v + unit - 1) // unit) * unit
+
+        lo = _ceil(base_iv.min_value)
+        hi = _ceil(base_iv.max_value)
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    def _evaluate_floor(self, expr: Expression, variables: dict,
+                       callerObject=None, callerContext=None):
+        """
+        floor(x, n): x를 n 단위로 내림
+
+        expr.arguments[0] = arithExpr (기준 값)
+        expr.arguments[1] = numberLiteral (단위)
+        """
+        base_iv = self.evaluate_guardian_expression(
+            expr.arguments[0], variables, callerObject, callerContext
+        )
+        unit = int(expr.arguments[1].literal, 0)
+
+        def _floor(v):
+            return (v // unit) * unit
+
+        lo = _floor(base_iv.min_value)
+        hi = _floor(base_iv.max_value)
+        return base_iv.__class__(lo, hi, base_iv.type_length)
+
+    def _evaluate_address_literal(self, expr: Expression):
+        """
+        address N / symbolicAddress N
+
+        expr.literal = 숫자 문자열
+        """
+        val = int(expr.literal, 0)
+        return UnsignedIntegerInterval(val, val, 160)
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  DURING / POST Verification Methods
+    # ═══════════════════════════════════════════════════════════════════
 
     def verify_during_before_after(
         self, *, var_ref: Expression, comp_op: str,
@@ -36,9 +203,8 @@ class GuardianVerificationEngine:
             after_env  = cfg_node.variables
 
             # 2. evaluate var_ref in the two envs ---------------------
-            ev = self.analyzer.evaluator   # shorthand
-            before_val = ev.evaluate_expression(var_ref, before_env, None, None)
-            after_val  = ev.evaluate_expression(var_ref, after_env,  None, None)
+            before_val = self.evaluate_guardian_expression(var_ref, before_env, None, None)
+            after_val  = self.evaluate_guardian_expression(var_ref, after_env,  None, None)
 
             # 3. compare ---------------------------------------------
             cmp = self._compare_values(before_val, comp_op, after_val)
@@ -68,7 +234,7 @@ class GuardianVerificationEngine:
         fcfg = self.analyzer.current_target_function_cfg
 
         # 1)  Assign 값  ― assign_env 를 통째로 변수-환경으로 사용
-        assign_val = self.analyzer.evaluator.evaluate_expression(
+        assign_val = self.evaluate_guardian_expression(
             var_ref, fcfg.assign_env, None, None)
 
         if assign_val is None:
@@ -76,7 +242,7 @@ class GuardianVerificationEngine:
                              "no initial assignment for variable", line_no)
 
         # 2)  Current 값
-        current_val = self.analyzer.evaluator.evaluate_expression(
+        current_val = self.evaluate_guardian_expression(
             var_ref, cfg_node.variables, None, None)
 
         # 3)  비교
@@ -119,7 +285,7 @@ class GuardianVerificationEngine:
             ret_val = ret_vals[line_no]
 
             # ── 3) valueExpr 평가 -------------------------------
-            rhs_val = self.analyzer.evaluator.evaluate_expression(
+            rhs_val = self.evaluate_guardian_expression(
                 value_expr, cfg_node.variables, None, None)
 
             # ── 4) 비교 ----------------------------------------
@@ -183,12 +349,12 @@ class GuardianVerificationEngine:
                 lhs_val = ret_val[idx]
 
             else:  # 보통의 varRef (이름 있는 return 변수 등)
-                lhs_val = self.analyzer.evaluator.evaluate_expression(
+                lhs_val = self.evaluate_guardian_expression(
                     var_ref, cfg_node.variables, None, None
                 )
 
             # ③ RHS 값 계산  -------------------------------------------------
-            rhs_val = self.analyzer.evaluator.evaluate_expression(
+            rhs_val = self.evaluate_guardian_expression(
                 value_expr, cfg_node.variables, None, None
             )
 
@@ -228,12 +394,11 @@ class GuardianVerificationEngine:
     ) -> dict[str, Any]:
 
         try:
-            ev = self.analyzer.evaluator  # 평가기 단축명
             vars_env = cfg_node.variables  # 현재 변수 Env
 
             # ① 두 피연산식 계산 -------------------------------------------------
-            lhs_val = ev.evaluate_expression(lhs_expr, vars_env, None, None)
-            rhs_val = ev.evaluate_expression(rhs_expr, vars_env, None, None)
+            lhs_val = self.evaluate_guardian_expression(lhs_expr, vars_env, None, None)
+            rhs_val = self.evaluate_guardian_expression(rhs_expr, vars_env, None, None)
 
             # ② 비교 ------------------------------------------------------------
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
@@ -312,10 +477,9 @@ class GuardianVerificationEngine:
     #  POST :  varRef( Entry <op> Exit )
     # ----------------------------------------------------------------
     def verify_post_entry_exit(self, *, var_ref, comp_op: str, line_no: int, fn_cfg) -> dict[str, Any]:
-        ev = self.analyzer.evaluator
         try:
             entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
-            entry_val = self._materialize(ev.evaluate_expression(var_ref, entry_env, None, None))
+            entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
 
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
@@ -449,10 +613,9 @@ class GuardianVerificationEngine:
             return self._err("postDirectCmp", f"internal error: {e}", line_no)
 
     def verify_post_unchanged(self, *, var_ref, line_no: int, fn_cfg):
-        ev = self.analyzer.evaluator
         try:
             entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
-            entry_val = self._materialize(ev.evaluate_expression(var_ref, entry_env, None, None))
+            entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
 
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
@@ -794,7 +957,7 @@ class GuardianVerificationEngine:
         pred들의 env를 Helper join으로 합친 다음 expr을 '한 번'만 평가.
         """
         exit_env = self._exit_env(fn_cfg, normal_only=normal_only)
-        val = self.analyzer.evaluator.evaluate_expression(expr, exit_env, None, None)
+        val = self.evaluate_guardian_expression(expr, exit_env, None, None)
         return self._materialize(val)
 
     # DURING predicate evaluator

@@ -733,6 +733,10 @@ class Engine:
                     cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
                     if "__STOP__" in return_values:
                         break
+
+                    # ═══ During Annotation 처리 ═══
+                    self._process_during_annotations(stmt, node, cur_vars)
+
                 for nxt in list(G.successors(node)):
                     if _is_sink(nxt): continue
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
@@ -740,6 +744,9 @@ class Engine:
 
         self._force_join_before_exit(fcfg)
         self._sync_named_return_vars(fcfg)
+
+        # ═══ Post Annotation 처리 ═══
+        self._process_post_annotations(fcfg)
 
         # 컨텍스트 복원
         an.current_target_function = _old_func
@@ -910,6 +917,11 @@ class Engine:
             new_out = self.transfer_function(n, in_env)
             n.variables = VariableEnv.copy_variables(new_out)
 
+            # ═══ During Annotation 처리 (일반 노드에서만) ═══
+            if not getattr(n, "condition_node", False):
+                for st in getattr(n, "statements", []):
+                    self._process_during_annotations(st, n, n.variables)
+
             changed = not VariableEnv.variables_equal(out_snapshot.get(n), new_out)
             out_snapshot[n] = VariableEnv.copy_variables(new_out)
 
@@ -921,6 +933,11 @@ class Engine:
             # ★ 이번 reinterpret 에서 '어디를 보여줄지'를 ContractAnalyzer에 남김
             if touched_lines:
                 self.an._last_touched_lines = set(touched_lines)
+
+        # ═══ Post Annotation 처리 ═══
+        # reinterpret_from은 seed부터 함수 끝(EXIT)까지 영향받는 모든 노드를 재해석하므로
+        # 항상 post annotation 검증 수행
+        self._process_post_annotations(fcfg)
 
     # =================================================================
     #  Helpers (branch feasible, bottom, EXIT sync, line utils)
@@ -1084,3 +1101,233 @@ class Engine:
                 return c
         #    (c) 최후수단: 첫 후보 반환
         return next(iter(exit_candidates))
+
+    # =================================================================
+    #  During / Post Annotation 처리
+    # =================================================================
+
+    def _process_during_annotations(self, stmt, node, cur_vars):
+        """
+        Statement 실행 후 해당 라인의 During annotations 검증
+
+        Args:
+            stmt: 실행된 Statement 객체
+            node: 현재 CFGNode
+            cur_vars: 현재 변수 환경
+        """
+        if not self._record_enabled:
+            return
+
+        line_no = getattr(stmt, "src_line", None)
+        if line_no is None:
+            return
+
+        # line_info에서 during_annotations 가져오기
+        line_info = self.an.line_info.get(line_no, {})
+        during_annotations = line_info.get('during_annotations', [])
+
+        if not during_annotations:
+            return
+
+        # 각 during annotation 검증
+        for annot in during_annotations:
+            try:
+                result = self._verify_during_annotation(annot, node, cur_vars)
+
+                # 결과를 analysis_per_line에 기록
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'during',
+                    'annotation_type': annot.annotation_type,
+                    'result': result
+                })
+
+            except Exception as e:
+                # 에러 발생 시 기록
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'during',
+                    'annotation_type': annot.annotation_type,
+                    'result': {
+                        'status': 'error',
+                        'message': f'During annotation processing error: {str(e)}'
+                    }
+                })
+
+    def _verify_during_annotation(self, annot, node, cur_vars):
+        """
+        개별 During annotation 검증
+
+        Args:
+            annot: DuringAnnotation 객체
+            node: CFGNode
+            cur_vars: 변수 환경
+
+        Returns:
+            검증 결과 딕셔너리
+        """
+        guardian = self.an.guardian_verifier
+        atype = annot.annotation_type
+
+        if atype == "beforeAfter":
+            return guardian.verify_during_before_after(
+                var_ref=annot.var_ref,
+                comp_op=annot.comp_op,
+                line_no=annot.line_no,
+                cfg_node=node
+            )
+
+        elif atype == "assignCurrent":
+            return guardian.verify_during_assign_current(
+                var_ref=annot.var_ref,
+                comp_op=annot.comp_op,
+                line_no=annot.line_no,
+                cfg_node=node
+            )
+
+        elif atype == "returnExpression":
+            return guardian.verify_during_return_expression(
+                comp_op=annot.comp_op,
+                value_expr=annot.value_expr,
+                line_no=annot.line_no,
+                cfg_node=node
+            )
+
+        elif atype == "returnVariable":
+            return guardian.verify_during_return_variable(
+                var_ref=annot.var_ref,
+                comp_op=annot.comp_op,
+                value_expr=annot.value_expr,
+                line_no=annot.line_no,
+                cfg_node=node
+            )
+
+        elif atype == "directComparison":
+            return guardian.verify_during_direct_comparison(
+                lhs_expr=annot.lhs_expr,
+                comp_op=annot.comp_op,
+                rhs_expr=annot.rhs_expr,
+                line_no=annot.line_no,
+                cfg_node=node
+            )
+
+        else:
+            return {
+                'status': 'error',
+                'message': f'Unknown during annotation type: {atype}'
+            }
+
+    def _process_post_annotations(self, fcfg):
+        """
+        함수 종료 시 Post annotations 검증
+
+        Args:
+            fcfg: FunctionCFG 객체
+        """
+        if not self._record_enabled:
+            return
+
+        # 함수 내 모든 post annotations 수집
+        post_annotations = []
+        for line_no, line_info in self.an.line_info.items():
+            annots = line_info.get('post_annotations', [])
+            post_annotations.extend(annots)
+
+        if not post_annotations:
+            return
+
+        # 각 post annotation 검증
+        for annot in post_annotations:
+            try:
+                result = self._verify_post_annotation(annot, fcfg)
+
+                # 결과를 analysis_per_line에 기록
+                line_no = annot.line_no
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'post',
+                    'annotation_type': annot.annotation_type,
+                    'result': result
+                })
+
+            except Exception as e:
+                # 에러 발생 시 기록
+                line_no = annot.line_no
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'post',
+                    'annotation_type': annot.annotation_type,
+                    'result': {
+                        'status': 'error',
+                        'message': f'Post annotation processing error: {str(e)}'
+                    }
+                })
+
+    def _verify_post_annotation(self, annot, fcfg):
+        """
+        개별 Post annotation 검증
+
+        Args:
+            annot: PostAnnotation 객체
+            fcfg: FunctionCFG
+
+        Returns:
+            검증 결과 딕셔너리
+        """
+        guardian = self.an.guardian_verifier
+        atype = annot.annotation_type
+
+        if atype == "entryExit":
+            return guardian.verify_post_entry_exit(
+                var_ref=annot.var_ref,
+                comp_op=annot.comp_op,
+                line_no=annot.line_no,
+                fn_cfg=fcfg
+            )
+
+        elif atype == "unchanged":
+            return guardian.verify_post_unchanged(
+                var_ref=annot.var_ref,
+                line_no=annot.line_no,
+                fn_cfg=fcfg
+            )
+
+        elif atype == "returnExpression":
+            return guardian.verify_post_return_expression(
+                comp_op=annot.comp_op,
+                value_expr=annot.value_expr,
+                line_no=annot.line_no,
+                fn_cfg=fcfg
+            )
+
+        elif atype == "returnVariable":
+            return guardian.verify_post_return_variable(
+                var_ref=annot.var_ref,
+                comp_op=annot.comp_op,
+                value_expr=annot.value_expr,
+                line_no=annot.line_no,
+                fn_cfg=fcfg
+            )
+
+        elif atype == "directComparison":
+            return guardian.verify_post_direct_comparison(
+                lhs_expr=annot.lhs_expr,
+                comp_op=annot.comp_op,
+                rhs_expr=annot.rhs_expr,
+                line_no=annot.line_no,
+                fn_cfg=fcfg
+            )
+
+        else:
+            return {
+                'status': 'error',
+                'message': f'Unknown post annotation type: {atype}'
+            }

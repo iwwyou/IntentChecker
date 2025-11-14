@@ -3,7 +3,10 @@
     "allow": [
       "Bash(pdflatex:*)",
       "Bash(/dev/null)",
-      "Bash(antlr4:*)"
+      "Bash(antlr4:*)",
+      "Bash(cat:*)",
+      "Bash(python:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

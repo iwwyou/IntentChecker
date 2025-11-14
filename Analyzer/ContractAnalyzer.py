@@ -23,6 +23,7 @@ from Interpreter.Semantics.Refine import Refine
 from Interpreter.Engine import Engine
 from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
 import pathlib
+import re
 from typing import Dict
 
 class ContractAnalyzer:
@@ -85,123 +86,184 @@ class ContractAnalyzer:
     def _shift_meta(self, old_ln: int, new_ln: int):
         """
         소스 라인 이동(old_ln → new_ln)에 맞춰
-        brace_count / analysis_per_line / Statement.src_line  를 모두 동기화
+        line_info / recorder.ledger / Statement.src_line / CFGNode.src_line 동기화
         """
-        # ① brace_count · analysis_per_line
-        for d in (self.line_info, self.analysis_per_line):
+        # ① line_info에 등록된 cfg_nodes들의 src_line 보정 (먼저 수행)
+        if old_ln in self.line_info:
+            info = self.line_info[old_ln]
+            if isinstance(info.get("cfg_nodes"), list):
+                for node in info["cfg_nodes"]:
+                    if hasattr(node, "src_line") and node.src_line == old_ln:
+                        node.src_line = new_ln
+
+        # ② line_info & recorder.ledger 이동
+        dicts_to_shift = (self.line_info, self.recorder.ledger)
+        for d in dicts_to_shift:
             if old_ln in d:
+                # (간단버전) 덮어쓰기. 이미 new_ln 에 값이 있으면 합치고 싶다면 merge 로직을 쓰세요.
                 d[new_ln] = d.pop(old_ln)
 
-        # ② 이미 생성된 CFG-Statement 들의 src_line 보정
+        # ③ 이미 생성된 CFG-Statement 들의 src_line 보정
+        stmt_count = 0
         for ccf in self.contract_cfgs.values():
             for fcfg in ccf.functions.values():
-                # assign_envs (FunctionCFG 전역)  ←★
-                if old_ln in fcfg.assign_env:
-                    fcfg.assign_env[new_ln] = fcfg.assign_env.pop(old_ln)
-
-                # 노드-수준 before_envs
                 for blk in fcfg.graph.nodes:
-                    if old_ln in blk.before_envs:
-                        blk.before_envs[new_ln] = blk.before_envs.pop(old_ln)
+                    # CFGNode 자체의 src_line도 업데이트
+                    if getattr(blk, "src_line", None) == old_ln:
+                        blk.src_line = new_ln
+                    # Statement들의 src_line 업데이트
+                    for st in blk.statements:
+                        if getattr(st, "src_line", None) == old_ln:
+                            st.src_line = new_ln
+                            stmt_count += 1
+        if stmt_count > 0:
+            pass
+            # print(f"DEBUG _shift_meta: Shifted {stmt_count} statements from line {old_ln} to {new_ln}")
 
     def _insert_lines(self, start: int, new_lines: list[str]):
+        new_lines = self.normalize_compound_control_lines(new_lines)
         offset = len(new_lines)
 
-        # ① 뒤 라인 밀기 (내림차순)
-        for old_ln in sorted([ln for ln in self.full_code_lines if ln >= start],
-                             reverse=True):
+        # start 라인에 control flow 노드가 있고, 새 코드가 연속되는 control flow인지 체크
+        skip_shift_at_start = False
+        if start in self.line_info:
+            cfg_nodes = self.line_info[start].get('cfg_nodes', [])
+            first_new_line = new_lines[0].strip() if new_lines else ""
+
+            # 같은 control flow의 연속인 경우:
+            # 1. if/else-if의 join + else/else-if
+            # 2. do의 끝 + while
+            # 3. try의 stub + catch
+            for node in cfg_nodes:
+                # if/else-if join + else/else-if
+                if (getattr(node, 'join_point_node', False) and
+                    (first_new_line.startswith('else if') or first_new_line.startswith('else'))):
+                    skip_shift_at_start = True
+                    break
+                # do end + while
+                if (getattr(node, 'is_do_end', False) and
+                    first_new_line.startswith('while')):
+                    skip_shift_at_start = True
+                    break
+                # try false_stub + catch
+                if (node.name.startswith('try_false_stub') and
+                    first_new_line.startswith('catch')):
+                    skip_shift_at_start = True
+                    break
+
+        # 뒤 라인 밀기 (skip_shift_at_start이면 start+1부터)
+        shift_from = start + 1 if skip_shift_at_start else start
+        for old_ln in sorted([ln for ln in self.full_code_lines if ln >= shift_from], reverse=True):
             self.full_code_lines[old_ln + offset] = self.full_code_lines.pop(old_ln)
-            self._shift_meta(old_ln, old_ln + offset)  # ★
+            self._shift_meta(old_ln, old_ln + offset)
 
-        # ② 새 코드 삽입
+        # 삽입
         for i, ln in enumerate(range(start, start + offset)):
-            self.full_code_lines[ln] = new_lines[i]
-            self.update_brace_count(ln, new_lines[i])
+            line = new_lines[i]
+            self.full_code_lines[ln] = line
+            self.update_brace_count(ln, line)  # ★ 항상 카운트
+            if self._should_trigger_analysis(line):  # ★ 트리거 라인만 분석
+                self.analyze_context(ln, line)
 
-    def update_code(self,
-                    start_line: int,
-                    end_line: int,
-                    new_code: str,
-                    event: str):
-        """
-        event ∈  {"add", "modify", "delete"}
-
-        • add     :  기존 로직 (뒤를 밀고 새 줄 삽입)
-        • modify  :  같은 줄 범위를 *덮어쓰기*  (라인 수는 유지)
-        • delete  :  먼저  analyse_context → 그 다음 완전히 없애고 뒤를 당김
-        """
-
-        # ──────────────────────────────────────────────────────────
-        # ① 사전 준비
-        # ----------------------------------------------------------
+    def update_code(self, start_line: int, end_line: int, new_code: str, event: str):
         self.current_start_line = start_line
         self.current_end_line = end_line
         self.current_edit_event = event
-        lines = new_code.split("\n")  # add / modify 용
 
         if event not in {"add", "modify", "delete"}:
             raise ValueError(f"unknown event '{event}'")
 
-        # ──────────────────────────────────────────────────────────
-        # ② event별 분기
-        # ----------------------------------------------------------
         if event == "add":
-            self._insert_lines(start_line, lines)  # ← 종전 알고리즘
+            lines = new_code.split("\n")
+            self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
+
 
         elif event == "modify":
-            # (1) 새 코드 줄 리스트
-            new_lines = new_code.split("\n")
-            # (2) ① 줄 수가 같지 않다면 → delete + add 로 fallback
-            if (end_line - start_line + 1) != len(new_lines):
+            raw_lines = new_code.split("\n")
+            norm_lines = self.normalize_compound_control_lines(raw_lines)
+            if (end_line - start_line + 1) != len(norm_lines):
                 self.update_code(start_line, end_line, "", event="delete")
-                # add (line 수가 달라졌으므로 뒤쪽을 밀어냄)
-                self.update_code(start_line, start_line + len(new_lines) - 1,
-                                 new_code, event="add")
+                self.update_code(start_line, start_line + len(norm_lines) - 1,
+                                 "\n".join(norm_lines), event="add")
                 return
 
-            # (3) ② 줄 수가 동일 → **덮어쓰기** 만 수행
             ln = start_line
-            for line in new_lines:
-                # full-code 버퍼 교체
+            for line in norm_lines:
                 self.full_code_lines[ln] = line
-                # 바로 context 분석
-                self.analyze_context(ln, line)
+                self.update_brace_count(ln, line)  # ★ 추가
+                if self._should_trigger_analysis(line):  # ★ 추가
+                    self.analyze_context(ln, line)
                 ln += 1
 
         elif event == "delete":
             offset = end_line - start_line + 1
-            # A.  삭제 전 rollback (종전 그대로)  …
-            # B-1.  메타데이터 pop
+
+            # 기존 라인 제거
             for ln in range(start_line, end_line + 1):
                 self.full_code_lines.pop(ln, None)
                 self.line_info.pop(ln, None)
-                self.analysis_per_line.pop(ln, None)
-            # B-2.  뒤쪽 라인을 앞으로 당김
-            keys_to_shift = sorted(
-                [ln for ln in self.full_code_lines if ln > end_line]
-            )
+                self.recorder.ledger.pop(ln, None)  # ← recorder 같이 비움
 
+            # 뒤쪽 라인 당기기
+            keys_to_shift = sorted([ln for ln in self.full_code_lines if ln > end_line])
             for old_ln in keys_to_shift:
                 new_ln = old_ln - offset
                 self.full_code_lines[new_ln] = self.full_code_lines.pop(old_ln)
-                self._shift_meta(old_ln, new_ln)  # ★
+                self._shift_meta(old_ln, new_ln)
 
-        # ──────────────────────────────────────────────────────────
-        # ③ full-code 재조합 & optional compile check
-        # ----------------------------------------------------------
-        self.full_code = "\n".join(
-            self.full_code_lines[ln] for ln in sorted(self.full_code_lines)
-        )
+        # full-code 재조합
+        self.full_code = "\n".join(self.full_code_lines[ln] for ln in sorted(self.full_code_lines))
 
-        if new_code.startswith("pragma"):
-            return
-
-        # add / modify 는 새 코드를 바로 분석
+        # add/modify 후 전체 블록의 컨텍스트 설정
+        # 여러 줄짜리 정의(함수/constructor/modifier 등)의 경우,
+        # 마지막 라인('}')이 분석을 스킵하므로 컨텍스트가 설정되지 않음
+        # 따라서 전체 코드 블록을 대상으로 한 번 더 analyze_context 호출
         if event in {"add", "modify"} and new_code.strip():
             self.analyze_context(start_line, new_code)
 
-        # 실험 코드라면 컴파일 생략 가능
-        # self.compile_check()
+    def normalize_compound_control_lines(self, lines: list[str]) -> list[str]:
+        """
+        한 물리 라인에 '} else if', '} else', '} while' 이 붙어있는 경우
+        '}' 과 그 뒤 토큰을 서로 다른 라인으로 나눠
+        [논리] 라인 배열로 정규화한다.
+        """
+        out: list[str] = []
+        # '}' 바로 뒤에 else/while 이 오는 모든 케이스를 split
+        pat = re.compile(r'}\s*(?=else\b|while\b)')
+
+        for s in lines:
+            rest = s
+            while True:
+                m = pat.search(rest)
+                if not m:
+                    out.append(rest)
+                    break
+                # '}' 까지를 앞라인, 그 뒤(else|while...)를 다음 라인으로
+                left = rest[:m.start()] + "}"
+                right = rest[m.end():].lstrip()
+                out.append(left)
+                rest = right
+        return out
+
+    # ContractAnalyzer.py (클래스 내부)
+    def _should_trigger_analysis(self, code_line: str) -> bool:
+        s = (code_line or "").strip()
+        if not s:
+            return False
+        if s == "}":  # 단독 '}'는 분석 스킵(괄호 카운트만)
+            return False
+        if s.startswith("//"):
+            return s.startswith("// @")  # 디버그 주석만 분석
+        if s.endswith(";"):
+            return True  # 일반 문장
+        # 여러 줄짜리 함수/modifier/constructor 정의의 끝 부분
+        # 예: "    ) external isAllowed {"
+        if ')' in s and '{' in s and not s.startswith(('if', 'for', 'while', 'else')):
+            return True
+        # 블록 헤더 키워드
+        return bool(re.match(
+            r"^(abstract\s+contract|contract|library|interface|function|constructor|modifier|"
+            r"struct|enum|event|if|else(\s+if)?\b|for|while|do\b|try|catch|unchecked|assembly)\b", s))
 
     def compile_check(self) -> None:
         wanted = '0.8.0'
@@ -226,31 +288,31 @@ class ContractAnalyzer:
     def update_brace_count(self, line_number, code):
         open_braces = code.count('{')
         close_braces = code.count('}')
-
-        # brace_count 업데이트
-        self.line_info[line_number] = {
-            'open': open_braces,
-            'close': close_braces,
-            'cfg_node': None
-        }
+        # 기존 정보 보존하면서 업데이트
+        if line_number not in self.line_info:
+            self.line_info[line_number] = {"open": 0, "close": 0, "cfg_nodes": []}
+        info = self.line_info[line_number]
+        info['open'] = open_braces
+        info['close'] = close_braces
 
     def analyze_context(self, start_line, new_code):
-        stripped_code = new_code.strip()
+        stripped_code = (new_code or "").strip()
+
+        # 단독 '}'는 컨텍스트 분석 불필요 (괄호 정보만으로 충분)
+        if stripped_code == "}":
+            return
+
+        if stripped_code.startswith('// @'):
+            self.current_context_type = "debugUnit"
+            self.current_target_contract = self.find_contract_context(start_line)
+            self.current_target_function = self.find_function_context(start_line)
+            return  # 이 함수 종료
 
         # 매 분석마다 초기화
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
         self.current_target_struct = None
-
-        if any(stripped_code.startswith(p) for p in self.INTENT_MARKERS):
-            self.current_context_type = "IntentUnit"  # ⇢ ParserHelpers 매핑
-            self.current_target_contract = self.find_contract_context(start_line)
-            self.current_target_function = self.find_function_context(start_line)
-
-            if not self.current_target_function:
-                raise ValueError(f"{stripped_code.split()[1]} must be inside a function (line {start_line})")
-            return
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
         if stripped_code.endswith(';'):
@@ -259,17 +321,18 @@ class ContractAnalyzer:
                 pass
 
             parent_context = self.find_parent_context(start_line)
-            if parent_context in ["contract", "library", "interface", "abstract contract"] : # 시작 규칙 : interactiveSourceUnit
-                if 'constant' in stripped_code or 'immutable' in stripped_code :
+            if parent_context in ["contract", "library", "interface",
+                                  "abstract contract"]:  # 시작 규칙 : interactiveSourceUnit
+                if 'constant' in stripped_code or 'immutable' in stripped_code:
                     self.current_context_type = "constantVariableDeclaration"
-                else :
+                else:
                     self.current_context_type = "stateVariableDeclaration"
                 self.current_target_contract = self.find_contract_context(start_line)
-            elif parent_context == "struct" : # 시작 규칙 : interactiveStructUnit
+            elif parent_context == "struct":  # 시작 규칙 : interactiveStructUnit
                 self.current_context_type = "structMember"
                 self.current_target_contract = self.find_contract_context(start_line)
                 self.current_target_struct = self.find_struct_context(start_line)
-            else : # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
+            else:  # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
                 self.current_target_function = self.find_function_context(start_line)
@@ -289,16 +352,60 @@ class ContractAnalyzer:
                     self.current_target_contract = self.find_contract_context(start_line)
 
         elif '{' in stripped_code: # definition 및 block 관련
-            self.current_context_type = self.determine_top_level_context(new_code)
-            self.current_target_contract = self.find_contract_context(start_line)
+            # 여러 줄짜리 함수/modifier/constructor 정의의 마지막 줄일 수 있음
+            # 예: "    ) external isAllowed {"
+            # 이 경우 위로 올라가서 function/modifier/constructor를 찾아야 함
+            if ')' in stripped_code and not stripped_code.startswith(('function', 'constructor', 'modifier', 'contract', 'struct', 'enum', 'if', 'for', 'while', 'else')):
+                # 위로 올라가서 function/modifier/constructor 키워드 찾기
+                for check_line in range(start_line - 1, 0, -1):
+                    check_code = self.full_code_lines.get(check_line, '').strip()
+                    if check_code.startswith('function'):
+                        self.current_context_type = 'function'
+                        self.current_target_contract = self.find_contract_context(start_line)
+                        # print(f"[analyze_context] Line {start_line}: Found function, contract={self.current_target_contract}")
+                        self.current_target_function = None  # 아직 함수가 생성되지 않음
+                        return
+                    elif check_code.startswith('modifier'):
+                        self.current_context_type = 'modifier'
+                        self.current_target_contract = self.find_contract_context(start_line)
+                        return
+                    elif check_code.startswith('constructor'):
+                        self.current_context_type = 'constructor'
+                        self.current_target_contract = self.find_contract_context(start_line)
+                        return
+                    # 빈 줄이나 파라미터 줄은 계속 위로
+                    if not check_code or check_code.startswith(('address', 'uint', 'int', 'bool', 'string', 'bytes')):
+                        continue
+                    else:
+                        break  # 다른 코드를 만나면 중단
 
-            if self.current_context_type in ["contract", "library", "interface", "abstract contract"] :
+            # Determine context type first
+            ctx = self.determine_top_level_context(new_code)
+
+            # statement 라인 (변수 선언, 대입 등)은 top-level context가 아님
+            # BUT control flow (if/else/for/while etc) should be processed
+            if ctx == 'simpleStatement':
+                # function/constructor 내부의 일반 statement
+                # current_context_type/contract/function은 그대로 유지
+                return  # 더 이상 진행하지 않음
+            elif '=' in stripped_code and ctx not in ['if', 'else_if', 'else', 'for', 'while', 'do_while', 'try', 'catch'] \
+                    and not stripped_code.startswith(('function', 'constructor', 'modifier')):
+                # 기타 assignment가 있는 statement
+                return  # 더 이상 진행하지 않음
+            else:
+                self.current_context_type = ctx
+                self.current_target_contract = self.find_contract_context(start_line)
+
+            if self.current_context_type in ["contract", "library", "interface", "abstract contract"]:
                 return
 
             self.current_target_function = self.find_function_context(start_line)
 
-        # 최종적으로 context가 제대로 파악되지 않은 경우 기본값 처리
-        if not self.current_target_contract:
+
+        # 최종적으로 context가 제대로 파악되지 않은 경우
+        # 여러 줄짜리 정의문의 중간 줄이거나, 컨텍스트 분석이 불필요한 줄은 조용히 넘어감
+        if not self.current_target_contract and self.current_context_type:
+            # context_type은 설정되었는데 contract를 찾지 못한 경우에만 오류
             raise ValueError(f"Contract context not found for line {start_line}")
         if self.current_context_type == "simpleStatement" and not self.current_target_function:
             raise ValueError(f"Function context not found for simple statement at line {start_line}")
@@ -308,7 +415,7 @@ class ContractAnalyzer:
 
         # 위로 거슬러 올라가면서 `{`와 `}`의 짝을 찾기
         for line in range(line_number - 1, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
             open_braces = brace_info['open']
             close_braces = brace_info['close']
 
@@ -325,34 +432,110 @@ class ContractAnalyzer:
 
     def find_contract_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 컨트랙트를 찾습니다.
+        close_brace_count = 0
+
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
-            if brace_info['open'] > 0 and brace_info['cfg_node']:
-                context_type = self.determine_top_level_context(self.full_code_lines[line])
-                if context_type in ["contract", "library", "interface", "abstract contract"]:
-                    return self.full_code_lines[line].split()[1]  # contract 이름 반환
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            open_braces = brace_info['open']
+            close_braces = brace_info['close']
+
+            # '}' 카운팅: 닫힌 괄호를 먼저 센다
+            if close_brace_count > 0:
+                close_brace_count -= open_braces
+                if close_brace_count <= 0:
+                    close_brace_count = 0
+            else:
+                # '{' 발견: 이 라인이 컨트랙트 선언인지 확인
+                if open_braces > 0:
+                    code_line = self.full_code_lines.get(line, '').strip()
+                    context_type = self.determine_top_level_context(code_line)
+                    if context_type in ["contract", "library", "interface", "abstract contract"]:
+                        # contract 이름 추출
+                        parts = code_line.split()
+                        # "abstract contract Name" or "contract Name" 형식
+                        if "contract" in parts:
+                            idx = parts.index("contract")
+                            if idx + 1 < len(parts):
+                                result = parts[idx + 1].split('{')[0].strip()
+                                return result
+                        elif "library" in parts:
+                            idx = parts.index("library")
+                            if idx + 1 < len(parts):
+                                result = parts[idx + 1].split('{')[0].strip()
+                                return result
+                        elif "interface" in parts:
+                            idx = parts.index("interface")
+                            if idx + 1 < len(parts):
+                                result = parts[idx + 1].split('{')[0].strip()
+                                return result
+                # 닫힌 괄호 누적
+                close_brace_count += close_braces
+
         return None
 
     def find_function_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
+        # 방법 1: '{' 문자가 있는 라인을 찾고, 그 라인부터 위로 function 키워드를 찾는다
+
+        # 먼저 가장 가까운 '{' 문자가 있는 라인을 찾기
+        open_brace_line = None
+        close_brace_count = 0
+
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
-            if brace_info['open'] > 0 and brace_info['cfg_node']:
-                context_type = self.determine_top_level_context(self.full_code_lines[line])
-                if context_type in ["function", "modifier"] :
-                    # 함수 이름 뒤에 붙은 '('를 기준으로 함수 이름만 추출
-                    function_declaration = self.full_code_lines[line]
-                    function_name = function_declaration.split()[1]  # 첫 번째는 함수 선언, 두 번째는 함수 이름 포함
-                    function_name = function_name.split('(')[0]  # 함수 이름만 추출
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            open_braces = brace_info['open']
+            close_braces = brace_info['close']
+
+            if close_brace_count > 0:
+                close_brace_count -= open_braces
+                if close_brace_count <= 0:
+                    close_brace_count = 0
+            else:
+                if open_braces > 0:
+                    open_brace_line = line
+                    break
+                close_brace_count += close_braces
+
+        if open_brace_line is None:
+            return None
+
+        # '{' 문자가 있는 라인부터 위로 올라가면서 function/constructor/modifier 키워드를 찾기
+        for line in range(open_brace_line, 0, -1):
+            code_line = self.full_code_lines.get(line, "").strip()
+            if not code_line:
+                continue
+
+            # function, constructor, modifier 키워드를 찾으면 함수 이름 추출
+            if code_line.startswith("function "):
+                # 함수 이름 추출
+                parts = code_line.split()
+                if len(parts) >= 2:
+                    function_name = parts[1].split('(')[0]
                     return function_name
+            elif code_line.startswith("constructor"):
+                return "constructor"
+            elif code_line.startswith("modifier "):
+                parts = code_line.split()
+                if len(parts) >= 2:
+                    modifier_name = parts[1].split('(')[0]
+                    return modifier_name
+            elif code_line.startswith("fallback"):
+                return "fallback"
+            elif code_line.startswith("receive"):
+                return "receive"
+
+            # contract/struct/interface 등을 만나면 함수가 아니므로 중단
+            if any(code_line.startswith(kw) for kw in ["contract ", "library ", "interface ", "struct ", "enum "]):
+                break
 
         return None
 
     def find_struct_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
-            if brace_info['open'] > 0 and brace_info['cfg_node']:
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            cfg_nodes = brace_info.get('cfg_nodes', [])
+            if brace_info['open'] > 0 and cfg_nodes:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
                 if context_type == "struct":
                     return self.full_code_lines[line].split()[1]
@@ -368,8 +551,6 @@ class ContractAnalyzer:
                 return "interface"
             elif stripped_code.startswith("library"):
                 return "library"
-            elif stripped_code.startswith("abstract contract") :
-                return "abstract contract"
             elif stripped_code.startswith("function"):
                 return "function"
             elif stripped_code.startswith("constructor"):
@@ -409,7 +590,9 @@ class ContractAnalyzer:
             elif stripped_code.startswith("return") :
                 return "return"
             else:
-                raise ValueError(f"Unknown context type for line: {code_line}")
+                # User-defined type 변수 선언 또는 일반 statement
+                # (예: LockedStake memory x = ..., mapping assignment 등)
+                return "simpleStatement"
 
         except ValueError as e:
             print(f"Error: {e}")
