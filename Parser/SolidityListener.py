@@ -503,39 +503,48 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PreGlobal.
-    def enterPreGlobal(self, ctx:SolidityParser.PreGlobalContext):
+    # Enter a parse tree produced by SolidityParser#debugInput.
+    def enterDebugInput(self, ctx:SolidityParser.DebugInputContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PreGlobal.
-    def exitPreGlobal(self, ctx:SolidityParser.PreGlobalContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PreState.
-    def enterPreState(self, ctx:SolidityParser.PreStateContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PreState.
-    def exitPreState(self, ctx:SolidityParser.PreStateContext):
+    # Exit a parse tree produced by SolidityParser#debugInput.
+    def exitDebugInput(self, ctx:SolidityParser.DebugInputContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PreLocal.
-    def enterPreLocal(self, ctx:SolidityParser.PreLocalContext):
+    # Enter a parse tree produced by SolidityParser#debugGlobalVar.
+    def enterDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PreLocal.
-    def exitPreLocal(self, ctx:SolidityParser.PreLocalContext):
+    # Exit a parse tree produced by SolidityParser#debugGlobalVar.
+    def exitDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#duringDirective.
-    def enterDuringDirective(self, ctx:SolidityParser.DuringDirectiveContext):
+    # Enter a parse tree produced by SolidityParser#debugStateVar.
+    def enterDebugStateVar(self, ctx:SolidityParser.DebugStateVarContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#duringDirective.
-    def exitDuringDirective(self, ctx:SolidityParser.DuringDirectiveContext):
+    # Exit a parse tree produced by SolidityParser#debugStateVar.
+    def exitDebugStateVar(self, ctx:SolidityParser.DebugStateVarContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#debugLocalVar.
+    def enterDebugLocalVar(self, ctx:SolidityParser.DebugLocalVarContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#debugLocalVar.
+    def exitDebugLocalVar(self, ctx:SolidityParser.DebugLocalVarContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#duringIntent.
+    def enterDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#duringIntent.
+    def exitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         pass
 
 
@@ -593,12 +602,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#postDirective.
-    def enterPostDirective(self, ctx:SolidityParser.PostDirectiveContext):
+    # Enter a parse tree produced by SolidityParser#postIntent.
+    def enterPostIntent(self, ctx:SolidityParser.PostIntentContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#postDirective.
-    def exitPostDirective(self, ctx:SolidityParser.PostDirectiveContext):
+    # Exit a parse tree produced by SolidityParser#postIntent.
+    def exitPostIntent(self, ctx:SolidityParser.PostIntentContext):
         pass
 
 
@@ -656,75 +665,75 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#IntInterval.
-    def enterIntInterval(self, ctx:SolidityParser.IntIntervalContext):
+    # Enter a parse tree produced by SolidityParser#DebugIntInterval.
+    def enterDebugIntInterval(self, ctx:SolidityParser.DebugIntIntervalContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#IntInterval.
-    def exitIntInterval(self, ctx:SolidityParser.IntIntervalContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#SymbolicAddress.
-    def enterSymbolicAddress(self, ctx:SolidityParser.SymbolicAddressContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#SymbolicAddress.
-    def exitSymbolicAddress(self, ctx:SolidityParser.SymbolicAddressContext):
+    # Exit a parse tree produced by SolidityParser#DebugIntInterval.
+    def exitDebugIntInterval(self, ctx:SolidityParser.DebugIntIntervalContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#SymbolicBytes.
-    def enterSymbolicBytes(self, ctx:SolidityParser.SymbolicBytesContext):
+    # Enter a parse tree produced by SolidityParser#DebugSymbolicAddress.
+    def enterDebugSymbolicAddress(self, ctx:SolidityParser.DebugSymbolicAddressContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#SymbolicBytes.
-    def exitSymbolicBytes(self, ctx:SolidityParser.SymbolicBytesContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#SymbolicString.
-    def enterSymbolicString(self, ctx:SolidityParser.SymbolicStringContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#SymbolicString.
-    def exitSymbolicString(self, ctx:SolidityParser.SymbolicStringContext):
+    # Exit a parse tree produced by SolidityParser#DebugSymbolicAddress.
+    def exitDebugSymbolicAddress(self, ctx:SolidityParser.DebugSymbolicAddressContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#BoolToken.
-    def enterBoolToken(self, ctx:SolidityParser.BoolTokenContext):
+    # Enter a parse tree produced by SolidityParser#DebugSymbolicBytes.
+    def enterDebugSymbolicBytes(self, ctx:SolidityParser.DebugSymbolicBytesContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#BoolToken.
-    def exitBoolToken(self, ctx:SolidityParser.BoolTokenContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#EnumLiteral.
-    def enterEnumLiteral(self, ctx:SolidityParser.EnumLiteralContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#EnumLiteral.
-    def exitEnumLiteral(self, ctx:SolidityParser.EnumLiteralContext):
+    # Exit a parse tree produced by SolidityParser#DebugSymbolicBytes.
+    def exitDebugSymbolicBytes(self, ctx:SolidityParser.DebugSymbolicBytesContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#IntArray.
-    def enterIntArray(self, ctx:SolidityParser.IntArrayContext):
+    # Enter a parse tree produced by SolidityParser#DebugSymbolicString.
+    def enterDebugSymbolicString(self, ctx:SolidityParser.DebugSymbolicStringContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#IntArray.
-    def exitIntArray(self, ctx:SolidityParser.IntArrayContext):
+    # Exit a parse tree produced by SolidityParser#DebugSymbolicString.
+    def exitDebugSymbolicString(self, ctx:SolidityParser.DebugSymbolicStringContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#AddressArray.
-    def enterAddressArray(self, ctx:SolidityParser.AddressArrayContext):
+    # Enter a parse tree produced by SolidityParser#DebugBoolToken.
+    def enterDebugBoolToken(self, ctx:SolidityParser.DebugBoolTokenContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#AddressArray.
-    def exitAddressArray(self, ctx:SolidityParser.AddressArrayContext):
+    # Exit a parse tree produced by SolidityParser#DebugBoolToken.
+    def exitDebugBoolToken(self, ctx:SolidityParser.DebugBoolTokenContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#DebugEnumLiteral.
+    def enterDebugEnumLiteral(self, ctx:SolidityParser.DebugEnumLiteralContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DebugEnumLiteral.
+    def exitDebugEnumLiteral(self, ctx:SolidityParser.DebugEnumLiteralContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#DebugIntArray.
+    def enterDebugIntArray(self, ctx:SolidityParser.DebugIntArrayContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DebugIntArray.
+    def exitDebugIntArray(self, ctx:SolidityParser.DebugIntArrayContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#DebugAddressArray.
+    def enterDebugAddressArray(self, ctx:SolidityParser.DebugAddressArrayContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DebugAddressArray.
+    def exitDebugAddressArray(self, ctx:SolidityParser.DebugAddressArrayContext):
         pass
 
 

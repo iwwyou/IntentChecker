@@ -254,74 +254,85 @@ interactiveCatchClauseUnit
 // 0. Entry point
 //--------------------------------------------------
 intentUnit
-    : ( preDirective
-      | duringDirective
-      | postDirective
-      )* EOF
+    : ( debugInput
+      | duringIntent
+      | postIntent
+      ) EOF
     ;
 
 // ─────────────────────────────────────────────
-// 1) PRE
-preDirective
-  : '//' '@GlobalVar' identifier ('.' identifier)? '=' seedValue # PreGlobal
-  | '//' '@StateVar'  varRef '=' seedValue # PreState
-  | '//' '@LocalVar'  varRef '=' seedValue # PreLocal
-  ;
+// 1) Test Input (Debugging block content)
+debugInput
+    : debugGlobalVar
+    | debugStateVar
+    | debugLocalVar
+    ;
+
+debugGlobalVar
+    : '//' '@GlobalVar' identifier ('.' identifier)? '=' debugValue
+    ;
+
+debugStateVar
+    : '//' '@StateVar' varRef '=' debugValue
+    ;
+
+debugLocalVar
+    : '//' '@LocalVar' varRef '=' debugValue
+    ;
 
 // ─────────────────────────────────────────────
-// 2) DURING
-duringDirective
-  : '//' '@During' duringFormula (',' duringFormula)*
-  ;
+// 2) DURING Intent
+duringIntent
+    : '//' '@During' duringFormula (',' duringFormula)*
+    ;
 
 duringFormula
-  : duringClause (logicOp duringClause)*
-  ;
+    : duringClause (logicOp duringClause)*
+    ;
 
 duringClause
-  : predicateDuring                                  # DuringClauseSingle
-  | predicateDuring '=>' predicateDuring             # DuringImplication
-  ;
+    : predicateDuring                      # DuringClauseSingle
+    | predicateDuring '=>' predicateDuring # DuringImplication
+    ;
 
 predicateDuring
-  : varRef '(' 'Before'  relOp 'After'   ')'   #DuringBeforeAfter
-  | varRef '(' 'Assign'  relOp 'Current' ')'   #DuringAssignCurrent
-  | commonPredicate                            #DuringCommonPredicate
-  ;
+    : varRef '(' 'Before'  relOp 'After'   ')' # DuringBeforeAfter
+    | varRef '(' 'Assign'  relOp 'Current' ')' # DuringAssignCurrent
+    | commonPredicate                          # DuringCommonPredicate
+    ;
 
 // ─────────────────────────────────────────────
-// 3) POST
-postDirective
-  : '//' '@Post' postFormula (',' postFormula)*
-  ;
+// 3) POST Intent
+postIntent
+    : '//' '@Post' postFormula (',' postFormula)*
+    ;
 
 postFormula
-  : postClause (logicOp postClause)*
-  ;
+    : postClause (logicOp postClause)*
+    ;
 
 postClause
-  : predicatePost                                    # PostClauseSingle
-  | predicatePost '=>' predicatePost                 # PostImplication
-  ;
+    : predicatePost                      # PostClauseSingle
+    | predicatePost '=>' predicatePost   # PostImplication
+    ;
 
 predicatePost
-  : varRef '(' 'Entry' relOp 'Exit' ')'        #PostEntryExit
-  | 'Unchanged' '(' varRef ')'                 #UnchangedVar
-  | commonPredicate                            #PostCommonPredicate
-  ;
+    : varRef '(' 'Entry' relOp 'Exit' ')' # PostEntryExit
+    | 'Unchanged' '(' varRef ')'          # UnchangedVar
+    | commonPredicate                     # PostCommonPredicate
+    ;
 
-//==================================================
-// 4)  Seed 값
-//--------------------------------------------------
-seedValue
-    : '[' signedNumberLiteral ',' signedNumberLiteral ']'                           #IntInterval
-    | 'symbolicAddress' numberLiteral                                               #SymbolicAddress
-    | 'symbolicBytes'   hexStringLiteral                                            #SymbolicBytes
-    | 'symbolicString'  hexStringLiteral                                            #SymbolicString
-    | ('true' | 'false' | 'any')                                                    #BoolToken
-    | identifier ('.' identifier)?                                                  #EnumLiteral
-    | 'array' '[' ( signedNumberLiteral (',' signedNumberLiteral)* )? ']'          #IntArray
-    | 'arrayAddress' '[' ( numberLiteral (',' numberLiteral)* )? ']'               #AddressArray
+// ─────────────────────────────────────────────
+// 4) Debug Value
+debugValue
+    : '[' signedNumberLiteral ',' signedNumberLiteral ']'                          # DebugIntInterval
+    | 'symbolicAddress' numberLiteral                                              # DebugSymbolicAddress
+    | 'symbolicBytes'   hexStringLiteral                                           # DebugSymbolicBytes
+    | 'symbolicString'  hexStringLiteral                                           # DebugSymbolicString
+    | ('true' | 'false' | 'any')                                                   # DebugBoolToken
+    | identifier ('.' identifier)?                                                 # DebugEnumLiteral
+    | 'array' '[' ( signedNumberLiteral (',' signedNumberLiteral)* )? ']'         # DebugIntArray
+    | 'arrayAddress' '[' ( numberLiteral (',' numberLiteral)* )? ']'              # DebugAddressArray
     ;
 
 // ─────────────────────────────────────────────

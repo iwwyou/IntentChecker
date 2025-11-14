@@ -284,23 +284,28 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PreGlobal.
-    def visitPreGlobal(self, ctx:SolidityParser.PreGlobalContext):
+    # Visit a parse tree produced by SolidityParser#debugInput.
+    def visitDebugInput(self, ctx:SolidityParser.DebugInputContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PreState.
-    def visitPreState(self, ctx:SolidityParser.PreStateContext):
+    # Visit a parse tree produced by SolidityParser#debugGlobalVar.
+    def visitDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PreLocal.
-    def visitPreLocal(self, ctx:SolidityParser.PreLocalContext):
+    # Visit a parse tree produced by SolidityParser#debugStateVar.
+    def visitDebugStateVar(self, ctx:SolidityParser.DebugStateVarContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#duringDirective.
-    def visitDuringDirective(self, ctx:SolidityParser.DuringDirectiveContext):
+    # Visit a parse tree produced by SolidityParser#debugLocalVar.
+    def visitDebugLocalVar(self, ctx:SolidityParser.DebugLocalVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#duringIntent.
+    def visitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         return self.visitChildren(ctx)
 
 
@@ -334,8 +339,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#postDirective.
-    def visitPostDirective(self, ctx:SolidityParser.PostDirectiveContext):
+    # Visit a parse tree produced by SolidityParser#postIntent.
+    def visitPostIntent(self, ctx:SolidityParser.PostIntentContext):
         return self.visitChildren(ctx)
 
 
@@ -369,43 +374,43 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IntInterval.
-    def visitIntInterval(self, ctx:SolidityParser.IntIntervalContext):
+    # Visit a parse tree produced by SolidityParser#DebugIntInterval.
+    def visitDebugIntInterval(self, ctx:SolidityParser.DebugIntIntervalContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#SymbolicAddress.
-    def visitSymbolicAddress(self, ctx:SolidityParser.SymbolicAddressContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicAddress.
+    def visitDebugSymbolicAddress(self, ctx:SolidityParser.DebugSymbolicAddressContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#SymbolicBytes.
-    def visitSymbolicBytes(self, ctx:SolidityParser.SymbolicBytesContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicBytes.
+    def visitDebugSymbolicBytes(self, ctx:SolidityParser.DebugSymbolicBytesContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#SymbolicString.
-    def visitSymbolicString(self, ctx:SolidityParser.SymbolicStringContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicString.
+    def visitDebugSymbolicString(self, ctx:SolidityParser.DebugSymbolicStringContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#BoolToken.
-    def visitBoolToken(self, ctx:SolidityParser.BoolTokenContext):
+    # Visit a parse tree produced by SolidityParser#DebugBoolToken.
+    def visitDebugBoolToken(self, ctx:SolidityParser.DebugBoolTokenContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#EnumLiteral.
-    def visitEnumLiteral(self, ctx:SolidityParser.EnumLiteralContext):
+    # Visit a parse tree produced by SolidityParser#DebugEnumLiteral.
+    def visitDebugEnumLiteral(self, ctx:SolidityParser.DebugEnumLiteralContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IntArray.
-    def visitIntArray(self, ctx:SolidityParser.IntArrayContext):
+    # Visit a parse tree produced by SolidityParser#DebugIntArray.
+    def visitDebugIntArray(self, ctx:SolidityParser.DebugIntArrayContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#AddressArray.
-    def visitAddressArray(self, ctx:SolidityParser.AddressArrayContext):
+    # Visit a parse tree produced by SolidityParser#DebugAddressArray.
+    def visitDebugAddressArray(self, ctx:SolidityParser.DebugAddressArrayContext):
         return self.visitChildren(ctx)
 
 

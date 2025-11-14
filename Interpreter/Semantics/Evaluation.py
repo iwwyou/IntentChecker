@@ -8,12 +8,15 @@ if TYPE_CHECKING:                                         # 타입 검사 전용
 from Domain.Variable import Variables, ArrayVariable, StructVariable, MappingVariable, EnumVariable, EnumDefinition
 from Domain.Type import SolType
 from Domain.Interval import Interval, IntegerInterval, BoolInterval, UnsignedIntegerInterval
+from Domain.AddressSet import AddressSet
+from Domain.BytesSet import BytesSet
 from Domain.IR import Expression
 
 from Utils.Helper import VariableEnv
 
 from decimal import Decimal, InvalidOperation
 import re
+import copy
 
 class Evaluation :
 
@@ -28,8 +31,137 @@ class Evaluation :
         return self.an.updater          # Update 싱글톤
 
     @property
-    def runtime(self):
-        return self.an.runtime          # Runtime 싱글톤
+    def engine(self):
+        return self.an.engine          # Engine 싱글톤
+
+    # ──────────────────── Helper functions ───────────────────────────
+    def _join_struct_fields(self, struct_list):
+        """
+        구조체 리스트의 각 필드를 join하여 하나의 구조체 반환
+        """
+        if not struct_list:
+            return None
+
+        # DEBUG: Struct joining
+        try:
+            if struct_list and hasattr(struct_list[0], 'identifier'):
+                print(f"[STRUCT DEBUG] Joining {len(struct_list)} structs")
+            else:
+                print(f"[STRUCT DEBUG] Joining {len(struct_list)} structs")
+        except:
+            pass
+
+        # 첫 구조체를 복사하여 결과 구조체 생성
+        result = copy.deepcopy(struct_list[0])
+
+        # 각 필드별로 모든 구조체의 값을 join
+        for field_name in result.members:
+            values = []
+            for i, s in enumerate(struct_list):
+                if field_name in s.members:
+                    field_var = s.members[field_name]
+                    if isinstance(field_var, (StructVariable, ArrayVariable, MappingVariable)):
+                        # 복합 타입은 join 불가 - 첫 번째 것 사용
+                        values.append(field_var)
+                        break
+                    else:
+                        val = field_var.value
+                        try:
+                            print(f"[STRUCT DEBUG]   struct[{i}].{field_name} = {repr(val)[:80]}")
+                        except:
+                            pass
+                        values.append(val)
+
+            # join 수행
+            if values:
+                joined_val = values[0]
+                for v in values[1:]:
+                    if hasattr(joined_val, 'join') and hasattr(v, 'join'):
+                        joined_val = joined_val.join(v)
+                try:
+                    print(f"[STRUCT DEBUG]   {field_name} joined = {repr(joined_val)[:80]}")
+                except:
+                    pass
+
+                # 결과 저장
+                if isinstance(result.members[field_name], Variables):
+                    result.members[field_name].value = joined_val
+
+        return result
+
+    def _join_array_elements_virtually(self, array, index_range):
+        """
+        배열을 수정하지 않고 가상으로 요소 생성하여 join
+        """
+        l, r = index_range
+        span = r - l
+
+        # 샘플링할 인덱스 결정 (최대 20개)
+        if span > 20:
+            sample_indices = [l + i * span // 20 for i in range(21)]
+        else:
+            sample_indices = list(range(l, r + 1))
+
+        joined = None
+        for idx in sample_indices:
+            # 기존 요소가 있으면 사용, 없으면 가상으로 생성
+            if idx < len(array.elements):
+                elem = array.elements[idx]
+            else:
+                elem = array._create_element_virtual(idx)
+
+            # join 로직
+            if isinstance(elem, StructVariable):
+                # 구조체는 각 필드별로 join
+                if joined is None:
+                    joined = copy.deepcopy(elem)
+                else:
+                    # 구조체의 각 필드 join
+                    for field in elem.members:
+                        if field in joined.members:
+                            elem_val = elem.members[field].value if hasattr(elem.members[field], 'value') else elem.members[field]
+                            joined_val = joined.members[field].value if hasattr(joined.members[field], 'value') else joined.members[field]
+                            if hasattr(elem_val, 'join') and hasattr(joined_val, 'join'):
+                                joined.members[field].value = joined_val.join(elem_val)
+            else:
+                val = elem.value if hasattr(elem, 'value') else elem
+                joined = val if joined is None else joined.join(val)
+
+        return joined
+
+    def _join_mapping_values_virtually(self, mapping, sample_keys):
+        """
+        매핑의 여러 키에 대해 가상으로 value 생성하여 join
+        """
+        joined = None
+        for k in sample_keys:
+            k_str = str(k)
+            if k_str in mapping.mapping:
+                val_obj = mapping.mapping[k_str]
+            else:
+                val_obj = mapping._create_value_virtual(k_str)
+
+            # 구조체: 필드별 join
+            if isinstance(val_obj, StructVariable):
+                if joined is None:
+                    joined = copy.deepcopy(val_obj)
+                else:
+                    for field in val_obj.members:
+                        if field in joined.members:
+                            val = val_obj.members[field].value if hasattr(val_obj.members[field], 'value') else val_obj.members[field]
+                            joined_val = joined.members[field].value if hasattr(joined.members[field], 'value') else joined.members[field]
+                            if hasattr(val, 'join') and hasattr(joined_val, 'join'):
+                                joined.members[field].value = joined_val.join(val)
+            # 기본 타입: value join
+            elif isinstance(val_obj, (ArrayVariable, MappingVariable)):
+                # 복합 타입은 첫 것만 사용
+                if joined is None:
+                    joined = val_obj
+            else:
+                val = val_obj.value if hasattr(val_obj, "value") else val_obj
+                joined = val if joined is None else joined.join(val)
+
+        return joined
 
     def evaluate_expression(self, expr: Expression, variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":
@@ -40,6 +172,9 @@ class Evaluation :
             return self.evaluate_member_access_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IndexAccessContext":
             return self.evaluate_index_access_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "MetaTypeContext":
+            # type(uint256), type(address) 등
+            return {"isType": True, "typeName": expr.typeName}
         elif expr.context == "TypeConversion":
             return self.evaluate_type_conversion_context(expr, variables, callerObject, callerContext)
         elif expr.context == "ConditionalExpContext":
@@ -48,6 +183,8 @@ class Evaluation :
             return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallContext":
             return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "FunctionCallOptionContext":
+            return self.evaluate_function_call_option_context(expr, variables, callerObject, callerContext)
 
         elif expr.context == "TupleExpressionContext":
             return self.evaluate_tuple_expression_context(expr, variables,
@@ -120,10 +257,24 @@ class Evaluation :
 
         # ── (A) 배열 ───────────────────────────────────────────────
         if sol_t.typeCategory == "array":
+            # 동적 배열 크기 평가: new uint256[](size) 형태
+            array_length = sol_t.arrayLength
+            if expr.arguments and len(expr.arguments) > 0:
+                # arguments[0]에 길이 표현식이 있으면 평가
+                length_result = self.evaluate_expression(expr.arguments[0], variables, callerObject, callerContext)
+                # 결과가 interval이면 상한값 사용
+                if hasattr(length_result, 'upper'):
+                    array_length = length_result.upper
+                elif isinstance(length_result, int):
+                    array_length = length_result
+                else:
+                    # 심볼릭이거나 다른 타입이면 None으로 (동적)
+                    array_length = None
+
             arr = ArrayVariable(
                 fresh_id,
                 base_type=sol_t.arrayBaseType,
-                array_length=sol_t.arrayLength,
+                array_length=array_length,
                 is_dynamic=sol_t.isDynamicArray,
                 scope="memory"
             )
@@ -156,9 +307,8 @@ class Evaluation :
 
         # ── (D) 컨트랙트 new Foo()  → 심볼릭 address ───────────────
         if sol_t.typeCategory == "userDefined" :
-            # “fresh address”를 160-bit Interval TOP 로 두고,
-            # 필요하면 AddressSymbolicManager 로 별도 관리
-            return UnsignedIntegerInterval(0, 2 ** 160 - 1, 160)
+            # "fresh address"를 set domain TOP 으로
+            return AddressSet.top()
 
         # ── (E) 기본형 new uint[](...) 처럼 size 없는 array 등
         #        또는 new bytes(...) – 메모리 상 동적 할당
@@ -266,7 +416,25 @@ class Evaluation :
             if not _literal_is_address(lit):
                 raise ValueError(f"Malformed address literal '{lit}'")
             val_int = int(lit, 16)
-            return UnsignedIntegerInterval(val_int, val_int, 160)  # 160-bit 고정
+            # ★ Set domain 사용: 구체적 address ID로 singleton set 생성
+            return AddressSet(ids={val_int})
+
+        # bytes32, bytes16 등 고정 크기 바이트 배열
+        if ety and ety.startswith("bytes") and len(ety) > 5:  # "bytes32", "bytes16" 등
+            byte_size = int(ety[5:])  # "bytes32" -> 32
+            maybe_int = _parse_maybe_int(lit)
+            if maybe_int is not None:
+                # 숫자로 파싱 가능하면 BytesSet으로 처리
+                return BytesSet(values={maybe_int}, byte_size=byte_size)
+            # 16진수 문자열 시도
+            if lit.startswith("0x"):
+                try:
+                    val_int = int(lit, 16)
+                    return BytesSet(values={val_int}, byte_size=byte_size)
+                except ValueError:
+                    pass
+            # 파싱 불가능하면 심볼릭 (TOP)
+            return BytesSet.top(byte_size)
 
         if ety in ("string", "bytes"):
             maybe_int = _parse_maybe_int(lit)
@@ -297,31 +465,81 @@ class Evaluation :
                         raise IndexError(f"Negative index {idx} for array '{callerObject.identifier}'")
 
                     if idx >= len(callerObject.elements):
-                        # ❗ 요소가 아직 없음 → base-type 의 bottom 값만 돌려준다
+                        # ❗ 요소가 아직 없음 → base-type 의 TOP 값 (알 수 없는 값)
+                        print(f"[ARRAY OOB] Array {callerObject.identifier} accessed at index {idx}, but length is {len(callerObject.elements)} - returning TOP")
                         base_t = callerObject.typeInfo.arrayBaseType
-                        return VariableEnv.bottom_from_soltype(base_t)
-                    return callerObject.elements[idx]
+                        if base_t.elementaryTypeName and base_t.elementaryTypeName.startswith("uint"):
+                            bits = base_t.intTypeLength or 256
+                            return UnsignedIntegerInterval.top(bits)
+                        elif base_t.elementaryTypeName and base_t.elementaryTypeName.startswith("int"):
+                            bits = base_t.intTypeLength or 256
+                            return IntegerInterval.top(bits)
+                        elif base_t.elementaryTypeName and base_t.elementaryTypeName == "bool":
+                            return BoolInterval.top()
+                        else:
+                            # 주소/bytes/string 등은 symbol
+                            return f"symbolic_{callerObject.identifier}[{idx}]"
+
+                    elem = callerObject.elements[idx]
+                    # 구조체나 배열 등 복합 타입이면 객체 자체 반환, 기본 타입이면 .value 반환
+                    if isinstance(elem, (StructVariable, ArrayVariable, MappingVariable)):
+                        return elem
+                    return elem.value if hasattr(elem, "value") else elem
 
                 # ── (B) 불확정(bottom 또는 [l,r] 범위) ─────────────────
-                #      ⇒  배열 모든 요소의 join 을 반환
+                #      ⇒  배열 모든 요소의 join 을 반환 (구조체 포함)
                 if callerObject.elements:
-                    joined = None
-                    for elem in callerObject.elements:
-                        val = getattr(elem, "value", elem)  # 스칼라 / 복합 둘 다 지원
-                        joined = val if joined is None else joined.join(val)
-                    return joined
+                    first_elem = callerObject.elements[0]
 
-                # 배열이 비어 있으면 base-type 에 맞는 ⊥ 반환
+                    # 구조체 배열: 각 필드를 join하여 필드마다 TOP으로 만든 구조체 반환
+                    if isinstance(first_elem, StructVariable):
+                        return self._join_struct_fields(callerObject.elements)
+
+                    # 기본 타입: 모든 값 join
+                    elif not isinstance(first_elem, (ArrayVariable, MappingVariable)):
+                        # # DEBUG: Check array access with interval index
+                        # print(f"[ARRAY DEBUG] Accessing {callerObject.identifier} with interval index {ident_str}={iv}, elements count={len(callerObject.elements)}")
+                        joined = None
+                        for i, elem in enumerate(callerObject.elements):
+                            val = getattr(elem, "value", elem)
+                            # print(f"[ARRAY DEBUG]   element[{i}] = {val}")
+                            joined = val if joined is None else joined.join(val)
+                        # print(f"[ARRAY DEBUG]   joined result = {joined}")
+                        return joined
+
+                    # 배열/매핑 중첩: 첫 요소 그대로 반환 (복잡도 제한)
+                    else:
+                        return first_elem
+
+                # 배열이 비어 있으면 base-type 에 맞는 TOP 반환
                 base_t = callerObject.typeInfo.arrayBaseType
-                if base_t.elementaryTypeName.startswith("uint"):
+
+                # 구조체: 빈 구조체 생성 후 초기화
+                if isinstance(base_t, SolType) and base_t.typeCategory == "struct":
+                    empty_struct = StructVariable(
+                        f"{callerObject.identifier}[virtual]",
+                        base_t.structTypeName,
+                        scope=callerObject.scope
+                    )
+                    # struct_defs가 필요하면 ContractAnalyzer에서 가져오기
+                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
+                    if base_t.structTypeName in ccf.structDefs:
+                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                    return empty_struct
+
+                # 기본형: TOP interval
+                if base_t.elementaryTypeName and base_t.elementaryTypeName.startswith("uint"):
                     bits = base_t.intTypeLength or 256
-                    return UnsignedIntegerInterval.bottom(bits)
-                if base_t.elementaryTypeName.startswith("int"):
+                    return UnsignedIntegerInterval.top(bits)
+                if base_t.elementaryTypeName and base_t.elementaryTypeName.startswith("int"):
                     bits = base_t.intTypeLength or 256
-                    return IntegerInterval.bottom(bits)
-                if base_t.elementaryTypeName == "bool":
-                    return BoolInterval.bottom()
-                # 주소/bytes/string 등은 symbol 로
+                    return IntegerInterval.top(bits)
+                if base_t.elementaryTypeName and base_t.elementaryTypeName == "bool":
+                    return BoolInterval.top()
+                if base_t.elementaryTypeName and base_t.elementaryTypeName == "address":
+                    return AddressSet.top()
+
+                # 기타
                 return f"symbolic_{callerObject.identifier}[<unk>]"
 
             elif isinstance(callerObject, StructVariable):
@@ -493,9 +711,11 @@ class Evaluation :
                     # ---- address ------------------------------------------------------
                 if inner == "address":
                     if m == "max":
-                        return UnsignedIntegerInterval(2 ** 160 - 1, 2 ** 160 - 1, 160)
+                        # ★ address의 max는 모든 주소 가능 → TOP
+                        return AddressSet.top()
                     if m == "min":
-                        return UnsignedIntegerInterval(0, 0, 160)
+                        # ★ address의 min은 0 주소
+                        return AddressSet(ids={0})
 
                     # ---- bytes<M>  (고정 길이) ----------------------------------------
                 if inner.startswith("bytes") and inner != "bytes":
@@ -531,10 +751,28 @@ class Evaluation :
         # ──────────────────────────────────────────────────────────────
         if isinstance(baseVal, ArrayVariable):
             if member == "length":
-                if baseVal.typeInfo.isDynamicArray and len(baseVal.elements) == 0:
-                    # 아직 push 된 적이 없는 완전 “빈” 동적 배열
-                    # ⇒ 0‥2²⁵⁶-1  (UInt256 TOP) 로 보수적으로 가정
+                # ★ widening으로 TOP으로 표시된 경우 (-1)
+                if baseVal.typeInfo.arrayLength == -1:
+                    print(f"[LENGTH DEBUG] Array {baseVal.identifier} has widened arrayLength=-1, returning TOP")
                     return UnsignedIntegerInterval(0, 2 ** 256 - 1, 256)
+
+                # 동적 배열의 경우: 실제 elements 길이를 우선 사용
+                # (typeInfo.arrayLength는 초기 선언 시의 값이고, 실제 길이는 elements로 결정)
+                if baseVal.typeInfo.isDynamicArray:
+                    if len(baseVal.elements) > 0:
+                        # elements가 있으면 그 길이 반환
+                        ln = len(baseVal.elements)
+                        print(f"[LENGTH DEBUG] Dynamic array {baseVal.identifier} has {ln} elements")
+                        return UnsignedIntegerInterval(ln, ln, 256)
+                    else:
+                        # 빈 동적 배열: TOP 반환 (알 수 없는 길이)
+                        return UnsignedIntegerInterval(0, 2 ** 256 - 1, 256)
+
+                # 정적 배열의 경우: typeInfo.arrayLength 사용
+                elif baseVal.typeInfo.arrayLength is not None:
+                    return UnsignedIntegerInterval(baseVal.typeInfo.arrayLength, baseVal.typeInfo.arrayLength, 256)
+
+                # 기타: elements 길이 반환
                 else:
                     ln = len(baseVal.elements)
                     return UnsignedIntegerInterval(ln, ln, 256)
@@ -546,15 +784,27 @@ class Evaluation :
                 elemType = baseVal.typeInfo.arrayBaseType
 
                 if expr.member == "push":
-                    if not expr.arguments:  # push()  – 값 없이
-                        elem = baseVal._create_new_array_element(len(baseVal.elements))
-                        baseVal.elements.append(elem)
-                    else:  # push(v)
-                        val = self.evaluate_expression(expr.arguments[0], variables)
-                        elem = baseVal._create_new_array_element(len(baseVal.elements))
-                        elem.value = val
-                        baseVal.elements.append(elem)
-                    return None  # Solidity push 는 값 반환 X
+                    # ★ widening 모드에서는 실제 push를 수행하지 않고 length를 TOP으로 추상화
+                    engine = getattr(self.an, 'engine', None)
+                    in_widening = engine and getattr(engine, '_in_widening_mode', False)
+
+                    if in_widening:
+                        # widening 중: 배열 길이를 TOP으로 추상화
+                        # arrayLength를 특수값(-1)으로 설정하여 TOP임을 표시
+                        # (elements는 유지하되, length 평가 시 TOP 반환하도록)
+                        baseVal.typeInfo.arrayLength = -1  # -1 = TOP을 의미하는 특수값
+                        return None
+                    else:
+                        # 정상 실행 또는 widening 전: 실제로 push 수행
+                        if not expr.arguments:  # push()  – 값 없이
+                            elem = baseVal._create_new_array_element(len(baseVal.elements))
+                            baseVal.elements.append(elem)
+                        else:  # push(v)
+                            val = self.evaluate_expression(expr.arguments[0], variables)
+                            elem = baseVal._create_new_array_element(len(baseVal.elements))
+                            elem.value = val
+                            baseVal.elements.append(elem)
+                        return None  # Solidity push 는 값 반환 X
 
                     # pop()
                 if expr.member == "pop":
@@ -749,12 +999,45 @@ class Evaluation :
             return self.convert_to_bool(sub_val)
 
         elif type_name == "address":
-            # sub_val이 Interval이면 "address( interval )" → symbolic?
-            # sub_val이 string "0x..." -> parse or symbolic
-            return sub_val
+            # ★ address 타입 변환
+            if isinstance(sub_val, AddressSet):
+                return sub_val  # 이미 AddressSet이면 그대로
+            if isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                # uint → address: singleton이면 구체적 ID, 아니면 TOP
+                if sub_val.is_bottom():
+                    return AddressSet.bot()
+                if sub_val.min_value == sub_val.max_value:
+                    return AddressSet(ids={sub_val.min_value})
+                return AddressSet.top()
+            if isinstance(sub_val, str) and sub_val.startswith("0x"):
+                addr_int = int(sub_val, 16)
+                return AddressSet(ids={addr_int})
+            return AddressSet.top()  # 기타 → symbolic TOP
+
+        # bytes32, bytes16 등 고정 크기 바이트 배열 타입 변환
+        elif type_name.startswith("bytes") and len(type_name) > 5:
+            byte_size = int(type_name[5:])  # "bytes32" -> 32
+            # 이미 BytesSet이면 그대로
+            if isinstance(sub_val, BytesSet):
+                return sub_val
+            # uint/int → bytes: singleton이면 구체적 값, 아니면 TOP
+            if isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                if sub_val.is_bottom():
+                    return BytesSet.bot(byte_size)
+                if sub_val.min_value == sub_val.max_value:
+                    return BytesSet(values={sub_val.min_value}, byte_size=byte_size)
+                return BytesSet.top(byte_size)
+            # 16진수 문자열 → bytes
+            if isinstance(sub_val, str) and sub_val.startswith("0x"):
+                try:
+                    val_int = int(sub_val, 16)
+                    return BytesSet(values={val_int}, byte_size=byte_size)
+                except ValueError:
+                    pass
+            return BytesSet.top(byte_size)  # 기타 → symbolic TOP
 
         else:
-            # 그 외( bytesNN, string, etc. ) => 필요 시 구현
+            # 그 외( string, etc. ) => 필요 시 구현
             return f"symbolicTypeConversion({type_name}, {sub_val})"
 
     def evaluate_conditional_expression_context(self, expr, variables, callerObject=None, callerContext=None):
@@ -933,14 +1216,32 @@ class Evaluation :
                 )
         # 비교 연산자 처리
         elif operator in ['==', '!=', '<', '>', '<=', '>=']:
+            # ★ AddressSet 비교
+            if isinstance(leftInterval, AddressSet) and isinstance(rightInterval, AddressSet):
+                if operator == '==':
+                    result = leftInterval.equals(rightInterval)
+                elif operator == '!=':
+                    result = leftInterval.not_equals(rightInterval)
+                else:
+                    # <, >, <=, >= 는 address에 대해 정의되지 않음
+                    result = BoolInterval.top()
+            # ★ BytesSet 비교
+            elif isinstance(leftInterval, BytesSet) and isinstance(rightInterval, BytesSet):
+                if operator == '==':
+                    result = leftInterval.equals(rightInterval)
+                elif operator == '!=':
+                    result = leftInterval.not_equals(rightInterval)
+                else:
+                    # <, >, <=, >= 는 bytes에 대해 정의되지 않음 (Solidity에서)
+                    result = BoolInterval.top()
             # 두 피연산자가 모두 Interval 계열인지 검사
-            if not (isinstance(leftInterval, (IntegerInterval,
+            elif not (isinstance(leftInterval, (IntegerInterval,
                                               UnsignedIntegerInterval,
                                               BoolInterval))
                     and isinstance(rightInterval, (IntegerInterval,
                                                    UnsignedIntegerInterval,
                                                    BoolInterval))):
-                # Interval 아니면 “결과 불확정” 으로 취급
+                # Interval 아니면 "결과 불확정" 으로 취급
                 result = BoolInterval.top()  # [0,1]
             else:
                 result = Evaluation.compare_intervals(
@@ -986,6 +1287,28 @@ class Evaluation :
         contract_cfg = self.an.contract_cfgs.get(self.an.current_target_contract)
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.an.current_target_contract}")
+
+        # 2-A) 구조체 생성자인지 확인
+        if function_name in contract_cfg.structDefs:
+            # 구조체 생성자: StructName({ field1: val1, ... })
+            struct_def = contract_cfg.structDefs[function_name]
+            new_struct = StructVariable(
+                identifier=f"temp_{function_name}_{id(expr)}",
+                struct_type=function_name,
+                scope="memory"
+            )
+            new_struct.initialize_struct(struct_def)
+
+            # named_arguments로 필드 초기화
+            named_args = expr.named_arguments if expr.named_arguments else {}
+            for field_name, field_expr in named_args.items():
+                if field_name in new_struct.members:
+                    field_value = self.evaluate_expression(field_expr, variables, None, None)
+                    field_var = new_struct.members[field_name]
+                    if isinstance(field_var, Variables):
+                        field_var.value = field_value
+
+            return new_struct
 
         # 3) 함수 CFG 가져오기
         function_cfg = contract_cfg.get_function_cfg(function_name)
@@ -1044,7 +1367,7 @@ class Evaluation :
             function_cfg.related_variables.setdefault(k, v)
 
         # 6) 실제 함수 CFG 해석
-        return_value = self.runtime.interpret_function_cfg(function_cfg, variables)  # ← caller env 전달
+        return_value = self.engine.interpret_function_cfg(function_cfg, variables)  # ← caller env 전달
 
         # 7) 함수 컨텍스트 복원
         self.an.current_target_function = saved_function
@@ -1119,8 +1442,8 @@ class Evaluation :
                         caller_env[var_name] = var_obj
             
             # 라이브러리 함수 CFG 실행
-            return_value = self.runtime.interpret_function_cfg(library_function_cfg, caller_env)
-            
+            return_value = self.engine.interpret_function_cfg(library_function_cfg, caller_env)
+
             # 함수 컨텍스트 복원
             self.an.current_target_function = saved_function
             self.an.current_target_function_cfg = saved_function_cfg
@@ -1284,13 +1607,28 @@ class Evaluation :
             return et == "address"
 
         if isinstance(callerObject, ArrayVariable):
-            # 숫자/인터벌이 아니면 그대로 symbolic
+            # 숫자/인터벌이 아니면 그대로 symbolic (fallback)
             if not hasattr(result, "min_value"):
-                return f"symbolicIndex({callerObject.identifier}[{result}])"
+                # 가상 생성 시도
+                return self._join_array_elements_virtually(callerObject, (0, 0))
 
-            # bottom → symbolic
+            # bottom → 빈 구조체 또는 TOP interval
             if result.is_bottom():
-                return f"symbolicIndex({callerObject.identifier}[BOTTOM])"
+                base_t = callerObject.typeInfo.arrayBaseType
+                if isinstance(base_t, SolType) and base_t.typeCategory == "struct":
+                    empty_struct = StructVariable(
+                        f"{callerObject.identifier}[bottom]",
+                        base_t.structTypeName,
+                        scope=callerObject.scope
+                    )
+                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
+                    if base_t.structTypeName in ccf.structDefs:
+                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                    return empty_struct
+                elif array_base_is_address(callerObject):
+                    return AddressSet.top()
+                else:
+                    return f"symbolicIndex({callerObject.identifier}[BOTTOM])"
 
             l, r = result.min_value, result.max_value
 
@@ -1299,76 +1637,59 @@ class Evaluation :
                 try:
                     elem = callerObject.get_or_create_element(l)
                 except IndexError:
-                    return f"symbolicIndex({callerObject.identifier}[{l}])"
+                    # 범위 밖: 가상 생성
+                    elem = callerObject._create_element_virtual(l)
+                if isinstance(elem, (StructVariable, ArrayVariable, MappingVariable)):
+                    return elem
                 return elem.value if hasattr(elem, "value") else elem
 
-            # ─── (B) 범위 [l..r]  → join  ─────────────────────
-            span = r - l
-            # ① 범위가 너무 넓거나(≳1024) + 동적 배열이 비어 있으면 ⇒ TOP
-            if span > 1024 or (callerObject.typeInfo.isDynamicArray and len(callerObject.elements) == 0):
-                if array_base_is_address(callerObject):  # ← ② baseVal → callerObject 로 수정
-                    return UnsignedIntegerInterval(0, 2 ** 160 - 1, 160)
-                return f"symbolicIndexRange({callerObject.identifier}[{result}])"
+            # ─── (B) 범위 [l..r]  → 가상 생성 + join  ─────────────────────
+            return self._join_array_elements_virtually(callerObject, (l, r))
 
-            joined = None
-            for idx in range(l, r + 1):
-                try:
-                    elem = callerObject.get_or_create_element(idx)
-                except IndexError:
-                    return f"symbolicIndexRange({callerObject.identifier}[{result}])"
-
-                val = elem.value if hasattr(elem, "value") else elem
-                if hasattr(val, "join"):
-                    joined = val if joined is None else joined.join(val)
-                else:
-                    return f"symbolicMixedType({callerObject.identifier}[{result}])"
-
-            return joined
-
-        # 3) callerObject가 MappingVariable인 경우 (비슷한 로직 확장 가능)
+        # 3) callerObject가 MappingVariable인 경우
         if isinstance(callerObject, MappingVariable):
-            # result => 단일 키 or 범위 => map lookup
-            if not hasattr(result, 'min_value') or not hasattr(result, 'max_value'):
-                # symbolic
-                return f"symbolicMappingIndex({callerObject.identifier}[{result}])"
-
-            if result.is_bottom():
-                return f"symbolicMappingIndex({callerObject.identifier}[BOTTOM])"
-
             if not callerObject.struct_defs or not callerObject.enum_defs:
                 ccf = self.an.contract_cfgs[self.an.current_target_contract]
                 callerObject.struct_defs = ccf.structDefs
                 callerObject.enum_defs = ccf.enumDefs
 
+            # result => 단일 키 or 범위 => map lookup
+            if not hasattr(result, 'min_value') or not hasattr(result, 'max_value'):
+                # 가상 키로 value 생성
+                sample_keys = [0, 1, 2, 3, 4]
+                return self._join_mapping_values_virtually(callerObject, sample_keys)
+
+            if result.is_bottom():
+                # bottom: 빈 value 생성
+                return callerObject._create_value_virtual("bottom")
+
             min_idx = result.min_value
             max_idx = result.max_value
+
+            # 단일 키
             if min_idx == max_idx:
                 key_str = str(min_idx)
                 if key_str in callerObject.mapping:
-                    return callerObject.mapping[key_str].value
+                    val_obj = callerObject.mapping[key_str]
                 else:
-                    # 새로 추가 or symbolic
-                    new_var_obj = callerObject.get_or_create(key_str)
-                    self.update_mapping_in_cfg(callerObject.identifier, key_str, new_var_obj)
-                    return new_var_obj.value
+                    val_obj = callerObject.get_or_create(key_str)
+                    self.update_mapping_in_cfg(callerObject.identifier, key_str, val_obj)
+
+                # 복합 타입이면 객체 반환, 기본 타입이면 value 반환
+                if isinstance(val_obj, (StructVariable, ArrayVariable, MappingVariable)):
+                    return val_obj
+                return val_obj.value if hasattr(val_obj, "value") else val_obj
+
+            # 범위 키: 가상 생성 + join
             else:
-                # 범위 [min_idx .. max_idx]  ─ MappingVariable -----------------------------
-                joined = None
-                for k in range(min_idx, max_idx + 1):
-                    k_str = str(k)
-                    if k_str not in callerObject.mapping:
-                        new_obj = callerObject.get_or_create(k_str)
-                        self.update_mapping_in_cfg(callerObject.identifier, k_str, new_obj)
-                        val = new_obj.value
-                    else:
-                        val = callerObject.mapping[k_str].value
+                span = max_idx - min_idx
+                if span > 20:
+                    # 샘플링
+                    sample_keys = [min_idx + i * span // 20 for i in range(21)]
+                else:
+                    sample_keys = list(range(min_idx, max_idx + 1))
 
-                    if hasattr(val, "join"):
-                        joined = val if joined is None else joined.join(val)
-                    else:
-                        return f"symbolicMixedType({callerObject.identifier}[{result}])"
-
-                return joined
+                return self._join_mapping_values_virtually(callerObject, sample_keys)
         return
 
     def evaluate_return_elem_ref_context(self, expr: Expression,
@@ -1436,23 +1757,86 @@ class Evaluation :
         val = int(expr.literal, 0)
         return UnsignedIntegerInterval(val, val, 160)
 
+    def evaluate_function_call_option_context(self, expr, variables, callerObject=None, callerContext=None):
+        """
+        FunctionCallOptions: expr.function { option1: val1, option2: val2, ... }
+
+        두 가지 경우:
+        1) 구조체 생성자: StructName({ field1: val1, field2: val2 })
+        2) 함수 호출 옵션: contract.func{value: 1 ether, gas: 5000}(args)
+        """
+        # Check if it's a MemberAccess with call/delegatecall/staticcall
+        if expr.function and hasattr(expr.function, 'context') and expr.function.context == "MemberAccessContext":
+            member = getattr(expr.function, 'member', None)
+            if member in ['call', 'delegatecall', 'staticcall']:
+                # This is the case: address.call{value: ...}
+                # Return marker that will be handled by outer FunctionCallContext
+                return f"symbolicFunctionCallOptions({member})"
+
+        # expr.function이 구조체 타입 이름인지 확인
+        if expr.function and expr.function.context == "IdentifierExpContext":
+            struct_name = expr.function.identifier
+
+            # 현재 컨트랙트 CFG에서 구조체 정의 가져오기
+            ccf = self.an.contract_cfgs[self.an.current_target_contract]
+
+            # 구조체인지 확인
+            if struct_name in ccf.structDefs:
+                # 구조체 생성자: 새 StructVariable 생성
+                struct_def = ccf.structDefs[struct_name]
+
+                new_struct = StructVariable(
+                    identifier=f"temp_{struct_name}_{id(expr)}",
+                    struct_type=struct_name,
+                    scope="memory"
+                )
+                new_struct.typeInfo = SolType(typeCategory="struct", structTypeName=struct_name)
+
+                # 구조체 초기화
+                new_struct.initialize_struct(struct_def)
+
+                # options에서 필드 값 설정
+                if expr.options:
+                    for field_name, field_expr in expr.options.items():
+                        if field_name in new_struct.members:
+                            field_value = self.evaluate_expression(field_expr, variables, None, None)
+                            field_var = new_struct.members[field_name]
+                            if isinstance(field_var, Variables):
+                                field_var.value = field_value
+                            # 중첩 구조체/배열의 경우 추가 처리 필요할 수 있음
+
+                return new_struct
+
+        # 함수 호출 옵션 (예: {value: 1 ether, gas: 5000})
+        # 현재는 symbolic으로 처리
+        return f"symbolicFunctionCallOptions({expr.function})"
+
     @staticmethod
     def calculate_default_interval(var_type):
-        # 1. int 타입 처리
+        # 1. int 타입 처리 - 상태변수 기본값은 0
         if var_type.startswith("int"):
             length = int(var_type[3:]) if var_type != "int" else 256  # int 타입의 길이 (기본값은 256)
-            return IntegerInterval.bottom(length)  # int의 기본 범위 반환
+            return IntegerInterval(0, 0, length)  # int의 기본값 0
 
-        # 2. uint 타입 처리
+        # 2. uint 타입 처리 - 상태변수 기본값은 0
         elif var_type.startswith("uint"):
             length = int(var_type[4:]) if var_type != "uint" else 256  # uint 타입의 길이 (기본값은 256)
-            return UnsignedIntegerInterval.bottom(length)  # uint의 기본 범위 반환
+            return UnsignedIntegerInterval(0, 0, length)  # uint의 기본값 0
 
-        # 3. bool 타입 처리
+        # 3. bool 타입 처리 - 상태변수 기본값은 false (0)
         elif var_type == "bool":
-            return BoolInterval()  # bool은 항상 0 또는 1
+            return BoolInterval(0, 0)  # bool의 기본값 false (0)
 
-        # 4. 기타 처리 (필요시 확장 가능)
+        # 4. address 타입 처리 - 기본값은 address(0)
+        elif var_type == "address":
+            return AddressSet(ids={0})  # address의 기본값 0 (singleton set)
+
+        # 5. bytes32, bytes16 등 고정 크기 바이트 배열 - 기본값은 bytes32(0)
+        elif var_type.startswith("bytes") and len(var_type) > 5:
+            byte_size = int(var_type[5:])  # "bytes32" -> 32
+            return BytesSet(values={0}, byte_size=byte_size)  # bytes32의 기본값 0
+
+        # 6. 기타 처리 (필요시 확장 가능)
         else:
             raise ValueError(f"Unsupported type for default interval: {var_type}")
 

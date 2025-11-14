@@ -63,7 +63,6 @@ class ContractAnalyzer:
         self.evaluator = Evaluation(self)
         self.updater = Update(self)
         self.refiner = Refine(self)
-        self.runtime = Runtime(self)
         self.engine = Engine(self)
         self.builder = DynamicCFGBuilder(self)
         self.guardian_verifier = GuardianVerificationEngine(self)
@@ -2166,7 +2165,7 @@ class ContractAnalyzer:
         if not self._batch_targets:
             return
         fcfg = self._batch_targets.pop()
-        self.runtime.interpret_function_cfg(fcfg, None)
+        self.engine.interpret_function_cfg(fcfg, None)
 
         ln_set = {st.src_line
                   for blk in fcfg.graph.nodes

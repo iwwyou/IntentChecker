@@ -123,30 +123,8 @@
 \section{Introduction}
 % 여기서 왜 하필 Numeric에 집중했는지 써야됨 - AI 때문에, 값분석이 중요한 부분에서는 AI보다는... 그리고 디버깅 관점에서도
 
-\begin{comment}
-스마트 컨트랙트는 토큰 잔액, 수수료, 비율처럼 정수형 숫자를 직접 다루며 자산을 이동시킨다. 본 연구가 DappSCAN-Source에서 무작위 추출한 1 023개 실계약 함수를 분석한 결과, 82 %가 uint 기반 산술 연산을 포함하고 있었다. Solidity 0.8 이후 컴파일러가 오버플로를 자동으로 막아 주면서 전통적인 overflow 취약점은 크게 줄었지만, 연산 순서 착오·정수 나눗셈 내림·스케일 불일치 등으로 개발자가 기대한 수치 관계가 깨지는 숫자 논리 오류는 여전히 쉽사리 드러나지 않는다. 최근에는 대규모 언어 모델(LLM)이 코드 자동완성·리팩터링·버그 설명 등을 지원하지만, 자연어 생성에 특화된 LLM은 구체적인 값 추론이나 경계 조건 분석에는 상대적으로 약하다. 무엇보다 AI 도구가 작성한 코드에서 발생한 손실의 책임은 최종적으로 인간 개발자에게 귀속되므로, 수치 불변식을 기계적으로 검증하고 버그를 조기 차단하는 작업은 여전히 사람의 몫으로 남는다. 2023년 발생한 Sperax DAO 사고가 이를 방증한다. 단 한 줄의 실수로 _balanceOf 함수가 잔액을 여러 배로 부풀려 반환했고, 트랜잭션은 정상 처리로 기록되어 모니터링 시스템은 문제를 감지하지 못했다. 결국 약 30만 달러 상당의 토큰이 유출되고서야 취약점이 발견되었다.
-
-기존 도구들은 이런 오류를 놓친다. 정적 분석기는 미리 정의된 코드 패턴에 강하지만 개발자의 “10 % 분배” 같은 구체적 수치 의도를 추론하지 못한다. 퍼징과 심볼릭 실행은 경계값 입력을 우연히 찾아야 하는데 상태 공간이 폭발하면 현실적으로 어렵다. 주석-코드 불일치 검출 기법은 자연어와 코드를 느슨하게 매칭해 확률만 제시할 뿐, 참·거짓을 결정적으로 증명하지 않는다. 형식 검증은 정확하지만 완전한 불변식 명세 작성이 부담스러워 실제 프로젝트에 널리 쓰이지 못한다. 결국 “의도를 코드 옆에 재빨리 적고, 그 의도가 지켜졌는지 즉각 확인”할 수 있는 경량 메커니즘이 필요한 상황이다.
-
-우리는 이러한 공백을 메우기 위해 Solidity Guardian을 제안한다. 개발자는 코드 줄마다 한 줄로 의도를 선언한다. 주석 형태의 도메인 특화 언어는 @Pre, @During, @Post 세 구간으로 나뉘어 초기 상태, 실행 중 관계, 실행 후 불변식을 표현한다. 예컨대 @During devReward (Assign == Current * 10 / 100)처럼 “이 변수는 10 %가 되어야 한다”는 식으로 작성하면 된다. Guardian의 백엔드는 SolQDebug가 제공하는 인터벌 기반 추상 해석기를 활용해 편집기 내부에서 변수 값의 범위를 계산하고, 선언된 의도와 실제 범위를 비교해 ‘충족’, ‘위배’, ‘불확실’ 중 하나로 판정한다. 변경된 코드 조각만 부분 재해석하기 때문에 500줄 규모 함수도 평균 30 밀리초 이내에 결과를 돌려준다. 즉, 키를 누르는 동안에도 의도 위배 여부가 색상 아이콘으로 실시간 표시되어 개발 흐름을 끊지 않는다.
-
-Guardian은 두 가지 측면에서 기여한다. 첫째, “의도 주석 + 결정적 검사”라는 단순한 작업만으로 기존 정·동적 도구가 놓쳤던 숫자 논리 오류를 조기에 차단할 수 있음을 보인다. DappSCAN 실계약 1 023개 함수와 NumScout가 보고한 120건의 실제 결함을 대상으로 평가한 결과, Guardian은 추가로 92.5 %의 오류를 검출하면서도 거짓 양성률은 3.1 %에 머물렀다. 둘째, 인터랙티브 IDE 환경에 적합한 초경량 분석 파이프라인을 설계해 개발자 경험을 해치지 않고도 밀리초 단위 피드백을 제공함을 실증했다.
-
-본 연구의 기여점은 다음과 같다.
-Intent DSL 및 의미론 — 세 시점(@Pre/@During/@Post) 기반의 경량 주석 언어를 정의하고, 인터벌 상태 변화에 대한 형식적 의미를 정식화하였다.
-
-밀리초-응답 검증 엔진 — SolQDebug의 동적 CFG·인터벌 분석을 재사용하면서, 의도 비교 연산을 부분 재계산 방식으로 통합해 평균 30 ms의 피드백을 실현하였다.
-
-실계약 대규모 평가 — DappSCAN 1,023개 함수와 NumScout가 보고한 120건 실제 결함 중 92.5 %를 추가 탐지하고, 거짓 양성률 3.1 %를 유지함을 보였다.
-
-실무 적용 시나리오 제시 — 토큰 로직(수수료 10 %, 보상 배분, 소각 제한)·스테이킹·AMM 교환 비율 등 다양한 케이스에서 Guardian이 어떻게 즉각적 경고를 제공하는지 사례 분석을 수행하였다.
-
-이 논문은 먼저 Solidity 숫자 타입과 숫자 논리 오류의 사례를 정리한 뒤, 기존 도구가 실패하는 근본 원인을 분석한다. 이어서 Intent DSL의 문법과 의미를 자세히 설명하고, Guardian의 부분 재해석 기반 검증 엔진을 소개한다. 이후 대규모 실험으로 응답 시간과 오류 탐지 효과를 평가하고, 실무 적용 시나리오와 한계·확장 방향을 논의한 뒤 관련 연구와 비교하여 결론을 맺는다.
-\end{comment}
-
 Smart contracts handle assets directly by performing arithmetic operations on integer values such as token balances, fees, and percentages.  
-Our analysis of 1,023 randomly sampled smart contract functions from the DappSCAN-Source dataset revealed that approximately 82\% involved arithmetic operations on \texttt{uint} variables.  
-While Solidity 0.8 and later versions enforce automatic overflow checks, logical numeric errors—such as incorrect operation order, integer division truncation, and scaling mismatches—remain elusive and are not easily detected by conventional means.  
+While Solidity 0.8 and later versions enforce automatic overflow checks, logical numeric errors—such as incorrect operation order, integer division truncation, and scaling mismatches—remain elusive and are not easily detected by conventional means.
 
 Although large language models (LLMs) have recently been introduced to support tasks such as code completion, refactoring, and bug explanation, they often struggle with precise value inference and boundary condition analysis due to their generative nature.  
 Crucially, any financial loss resulting from LLM-generated code ultimately becomes the developer’s responsibility, underscoring the need for rigorous validation of numeric invariants during development.  

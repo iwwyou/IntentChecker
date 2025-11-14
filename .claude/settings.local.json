@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(pdflatex:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(antlr4:*)"
     ],
     "deny": [],
     "ask": []

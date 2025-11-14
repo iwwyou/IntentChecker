@@ -642,7 +642,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
-    def visitPreGlobal(self, ctx: SolidityParser.PreGlobalContext):
+    def visitDebugGlobalVar(self, ctx: SolidityParser.DebugGlobalVarContext):
         # 1) 식별자
         left = ctx.identifier(0).getText()
         right = ctx.identifier(1).getText() if ctx.identifier(1) else None
@@ -656,7 +656,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         if gname not in valid:
             raise ValueError(f"invalid global '{gname}'")
 
-        value = self._parse_seed_value(ctx.seedValue())
+        value = self._parse_debug_value(ctx.debugValue())
 
         # elementary 타입 정보
         is_addr = gname in {"block.coinbase", "msg.sender", "tx.origin"}
@@ -670,20 +670,20 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         self.contract_analyzer.process_global_var_for_debug(gv)
         return None
 
-    def visitPreState(self, ctx: SolidityParser.PreStateContext):
+    def visitDebugStateVar(self, ctx: SolidityParser.DebugStateVarContext):
         lhs = self.visitVarRef(ctx.varRef())
-        rhs = self._parse_seed_value(ctx.seedValue())
+        rhs = self._parse_debug_value(ctx.debugValue())
         self.contract_analyzer.process_state_var_for_debug(lhs, rhs)
         return None
 
-    def visitPreLocal(self, ctx: SolidityParser.PreLocalContext):
+    def visitDebugLocalVar(self, ctx: SolidityParser.DebugLocalVarContext):
         lhs = self.visitVarRef(ctx.varRef())
-        rhs = self._parse_seed_value(ctx.seedValue())
+        rhs = self._parse_debug_value(ctx.debugValue())
         self.contract_analyzer.process_local_var_for_debug(lhs, rhs)
         return None
 
-    # Visit a parse tree produced by SolidityParser#duringExecution.
-    def visitDuringDirective(self, ctx: SolidityParser.DuringDirectiveContext):
+    # Visit a parse tree produced by SolidityParser#duringIntent.
+    def visitDuringIntent(self, ctx: SolidityParser.DuringIntentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#duringFormula.
@@ -847,45 +847,45 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 payload["lhs"], payload["op"], payload["rhs"])
         return None
 
-    # Visit a parse tree produced by SolidityParser#IntInterval.
-    def visitSeedValue(self, ctx: SolidityParser.SeedValueContext):
-        # seedValue can be: IntInterval, SymbolicAddress, IntArray, AddressArray, etc.
-        if isinstance(ctx, SolidityParser.IntIntervalContext):
-            return self.visitIntInterval(ctx)
-        elif isinstance(ctx, SolidityParser.SymbolicAddressContext):
-            return self.visitSymbolicAddress(ctx)
-        elif isinstance(ctx, SolidityParser.IntArrayContext):
-            return self.visitIntArray(ctx)
-        elif isinstance(ctx, SolidityParser.AddressArrayContext):
-            return self.visitAddressArray(ctx)
+    # Visit a parse tree produced by SolidityParser#debugValue.
+    def visitDebugValue(self, ctx: SolidityParser.DebugValueContext):
+        # debugValue can be: DebugIntInterval, DebugSymbolicAddress, DebugIntArray, DebugAddressArray, etc.
+        if isinstance(ctx, SolidityParser.DebugIntIntervalContext):
+            return self.visitDebugIntInterval(ctx)
+        elif isinstance(ctx, SolidityParser.DebugSymbolicAddressContext):
+            return self.visitDebugSymbolicAddress(ctx)
+        elif isinstance(ctx, SolidityParser.DebugIntArrayContext):
+            return self.visitDebugIntArray(ctx)
+        elif isinstance(ctx, SolidityParser.DebugAddressArrayContext):
+            return self.visitDebugAddressArray(ctx)
         else:
             # Fallback
             return self.visitChildren(ctx)
 
-    def visitIntInterval(self, ctx: SolidityParser.IntIntervalContext):
+    def visitDebugIntInterval(self, ctx: SolidityParser.DebugIntIntervalContext):
         # '[' signedNumberLiteral ',' signedNumberLiteral ']'
         start_val = ctx.signedNumberLiteral(0).getText()
         end_val = ctx.signedNumberLiteral(1).getText()
-        
-        start_expr = Expression(literal=start_val, expr_type='int', context='IntIntervalStart')
-        end_expr = Expression(literal=end_val, expr_type='int', context='IntIntervalEnd')
-        
+
+        start_expr = Expression(literal=start_val, expr_type='int', context='DebugIntIntervalStart')
+        end_expr = Expression(literal=end_val, expr_type='int', context='DebugIntIntervalEnd')
+
         return Expression(
             elements=[start_expr, end_expr],
             expr_type='interval',
-            context='IntIntervalContext'
+            context='DebugIntIntervalContext'
         )
 
-    # Visit a parse tree produced by SolidityParser#IntArray.
-    def visitIntArray(self, ctx: SolidityParser.IntArrayContext):
+    # Visit a parse tree produced by SolidityParser#DebugIntArray.
+    def visitDebugIntArray(self, ctx: SolidityParser.DebugIntArrayContext):
         # 'array' '[' ( signedNumberLiteral (',' signedNumberLiteral)* )? ']'
         if ctx.signedNumberLiteral():
             return [int(n.getText(), 0) for n in ctx.signedNumberLiteral()]
         else:
             return []  # array[] → empty list
 
-    # Visit a parse tree produced by SolidityParser#AddressArray.
-    def visitAddressArray(self, ctx: SolidityParser.AddressArrayContext):
+    # Visit a parse tree produced by SolidityParser#DebugAddressArray.
+    def visitDebugAddressArray(self, ctx: SolidityParser.DebugAddressArrayContext):
         # 'arrayAddress' '[' ( numberLiteral (',' numberLiteral)* )? ']'
         addr_mgr = self.contract_analyzer.addr_mgr
         if ctx.numberLiteral():
@@ -894,30 +894,30 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         else:
             return []  # arrayAddress[] → empty list
 
-    # Visit a parse tree produced by SolidityParser#SymbolicAddress.
-    def visitSymbolicAddress(self, ctx: SolidityParser.SymbolicAddressContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicAddress.
+    def visitDebugSymbolicAddress(self, ctx: SolidityParser.DebugSymbolicAddressContext):
         # 'symbolicAddress' numberLiteral
         address_value = ctx.numberLiteral().getText()
         return Expression(
             literal=address_value,
             expr_type='symbolic_address',
-            context='SymbolicAddressContext'
+            context='DebugSymbolicAddressContext'
         )
 
-    # Visit a parse tree produced by SolidityParser#SymbolicBytes.
-    def visitSymbolicBytes(self, ctx: SolidityParser.SymbolicBytesContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicBytes.
+    def visitDebugSymbolicBytes(self, ctx: SolidityParser.DebugSymbolicBytesContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#SymbolicString.
-    def visitSymbolicString(self, ctx: SolidityParser.SymbolicStringContext):
+    # Visit a parse tree produced by SolidityParser#DebugSymbolicString.
+    def visitDebugSymbolicString(self, ctx: SolidityParser.DebugSymbolicStringContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#BoolToken.
-    def visitBoolToken(self, ctx: SolidityParser.BoolTokenContext):
+    # Visit a parse tree produced by SolidityParser#DebugBoolToken.
+    def visitDebugBoolToken(self, ctx: SolidityParser.DebugBoolTokenContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#EnumLiteral.
-    def visitEnumLiteral(self, ctx: SolidityParser.EnumLiteralContext):
+    # Visit a parse tree produced by SolidityParser#DebugEnumLiteral.
+    def visitDebugEnumLiteral(self, ctx: SolidityParser.DebugEnumLiteralContext):
         return self.visitChildren(ctx)
 
     # commonPredicate #ReturnExprCmp
@@ -2521,9 +2521,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # ──────────────────────────────────────────────────────────────
     # 0.  intentValue 파서  ─  Pre/ During/ Post 모두 재사용
     # ──────────────────────────────────────────────────────────────
-    def _parse_seed_value(self, iv_ctx):
+    def _parse_debug_value(self, iv_ctx):
         """
-        seedValue
+        debugValue
             → [lo,hi]                → IntegerInterval / UnsignedIntegerInterval
             → symbolicAddress N      → AddressSet (symbolic ID)
             → symbolicBytes …        → str 그대로
@@ -2543,18 +2543,18 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             return cls(lo, hi, 256)
 
         # ② symbolicAddress N
-        if isinstance(iv_ctx, SolidityParser.SymbolicAddressContext):
+        if isinstance(iv_ctx, SolidityParser.DebugSymbolicAddressContext):
             nid = int(iv_ctx.numberLiteral().getText(), 0)
             addr_mgr = self.contract_analyzer.addr_mgr
             return addr_mgr.make_symbolic_address(nid)
 
         # ③ symbolicBytes / symbolicString
-        if isinstance(iv_ctx, (SolidityParser.SymbolicBytesContext,
-                               SolidityParser.SymbolicStringContext)):
+        if isinstance(iv_ctx, (SolidityParser.DebugSymbolicBytesContext,
+                               SolidityParser.DebugSymbolicStringContext)):
             return iv_ctx.getText()  # 토큰 그대로
 
         # ④ bool
-        if isinstance(iv_ctx, SolidityParser.BoolTokenContext):
+        if isinstance(iv_ctx, SolidityParser.DebugBoolTokenContext):
             tok = first  # true / false / any
             return {
                 'true': BoolInterval(1, 1),
@@ -2563,21 +2563,21 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             }[tok]
 
         # ⑤ enum
-        if isinstance(iv_ctx, SolidityParser.EnumLiteralContext):
+        if isinstance(iv_ctx, SolidityParser.DebugEnumLiteralContext):
             if iv_ctx.identifier(1):
                 return f"{iv_ctx.identifier(0).getText()}.{iv_ctx.identifier(1).getText()}"
             else:
                 return iv_ctx.identifier(0).getText()
 
         # ⑥ array[1,2,3]
-        if isinstance(iv_ctx, SolidityParser.IntArrayContext):
+        if isinstance(iv_ctx, SolidityParser.DebugIntArrayContext):
             if iv_ctx.signedNumberLiteral():
                 return [int(n.getText(), 0) for n in iv_ctx.signedNumberLiteral()]
             else:
                 return []  # array[] → empty list
 
         # ⑦ arrayAddress[1,2,3]
-        if isinstance(iv_ctx, SolidityParser.AddressArrayContext):
+        if isinstance(iv_ctx, SolidityParser.DebugAddressArrayContext):
             addr_mgr = self.contract_analyzer.addr_mgr
             if iv_ctx.numberLiteral():
                 ids = [int(n.getText(), 0) for n in iv_ctx.numberLiteral()]
@@ -2585,7 +2585,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             else:
                 return []  # arrayAddress[] → empty list
 
-        raise ValueError("unsupported seedValue")
+        raise ValueError("unsupported debugValue")
 
     def _parse_value(self, ctx: SolidityParser.ValueContext):
         return self.visit(ctx)

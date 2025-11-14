@@ -22,29 +22,41 @@ class Update :
         return self.an.evaluator
 
     def update_left_var(self, expr, rVal, operator, variables, callerObject=None, callerContext=None,
-                        log:bool=False):
+                        log:bool=False, line_no:int=None, top_expr=None):
+        """
+        log: True이면 recording 활성화
+        line_no: recording할 라인 번호 (None이면 self.an.current_start_line 사용)
+        top_expr: recording할 때 사용할 최상위 LHS expression (None이면 expr 사용)
+        """
+        # 최상위 호출에서는 top_expr이 None이므로 expr을 사용
+        if top_expr is None:
+            top_expr = expr
+
+        if log:
+            actual_line = line_no if line_no is not None else self.an.current_start_line
+
         # ── ① 글로벌이면 갱신 금지 ─────────────────────────
         if callerObject is None and callerContext is None and VariableEnv.is_global_expr(expr):
             return None
 
         if expr.context == "IndexAccessContext":
             return self.update_left_var_of_index_access_context(expr, rVal, operator, variables,
-                                                                callerObject, callerContext, log)
+                                                                callerObject, callerContext, log, line_no, top_expr)
         elif expr.context == "MemberAccessContext":
             return self.update_left_var_of_member_access_context(expr, rVal, operator, variables,
-                                                                 callerObject, callerContext, log)
+                                                                 callerObject, callerContext, log, line_no, top_expr)
 
         elif expr.context == "IdentifierExpContext":
             return self.update_left_var_of_identifier_context(expr, rVal, operator, variables,
-                                                              callerObject, callerContext, log)
+                                                              callerObject, callerContext, log, line_no, top_expr)
         elif expr.context == "LiteralExpContext":
             return self.update_left_var_of_literal_context(expr, rVal, operator, variables,
-                                                           callerObject, callerContext. log)
-        elif expr.context == "TestingIndexAccess":
-            return self.update_left_var_of_testing_index_access_context(expr, rVal, operator, variables,
+                                                           callerObject, callerContext, log, line_no, top_expr)
+        elif expr.context == "IntentIndexAccess":
+            return self.update_left_var_of_intent_index_access_context(expr, rVal, operator, variables,
                                                                                  callerObject, callerContext, log)
-        elif expr.context == "TestingMemberAccess":
-            return self.update_left_var_of_testing_member_access_context(expr, rVal, operator, variables,
+        elif expr.context == "IntentMemberAccess":
+            return self.update_left_var_of_intent_member_access_context(expr, rVal, operator, variables,
                                                                                   callerObject, callerContext, log)
 
         elif expr.left is not None and expr.right is not None:
@@ -90,9 +102,11 @@ class Update :
             self._patch_var_with_new_value(target, new_val)
 
             if log :
+                # Note: line_no는 함수 파라미터가 아니라 로컬 변수로 사용
+                actual_line = self.an.current_start_line
                 # 🔸 즉시 기록
                 self.an.recorder.record_assignment(
-                    line_no=self.an.current_start_line,
+                    line_no=actual_line,
                     expr=expr,
                     var_obj=target,
                     base_obj=caller_object,
@@ -142,6 +156,18 @@ class Update :
 
             # ---- 매핑(MappingVariable) ------------------------------
             if isinstance(caller_object, MappingVariable):
+                # Top interval인 경우: symbolic key로 entry 반환
+                if l == 0 and r >= 2**255:  # Top interval
+                    # 단일 entry가 있으면 반환
+                    if len(caller_object.mapping) == 1:
+                        entry = list(caller_object.mapping.values())[0]
+                        return entry
+                    # 없으면 symbolic key로 생성
+                    symbolic_key = f"symbolic_index_{id(expr)}"
+                    if symbolic_key not in caller_object.mapping:
+                        caller_object.mapping[symbolic_key] = caller_object.get_or_create(symbolic_key)
+                    return caller_object.mapping[symbolic_key]
+
                 if r_val is None:
                     return caller_object
 
@@ -166,23 +192,23 @@ class Update :
 
     def update_left_var_of_index_access_context(self, expr, rVal, operator, variables,
                                                 callerObject=None, callerContext=None,
-                                                log:bool=False):
+                                                log:bool=False, line_no:int=None, top_expr=None):
         # base expression에 대한 재귀
         base_obj = self.update_left_var(expr.base, rVal, operator, variables,
-                                        None, "IndexAccessContext",log)
+                                        None, "IndexAccessContext", log, line_no, top_expr)
 
         # index expression에 대한 재귀
         return self.update_left_var(expr.index, rVal, operator, variables,
-                                    base_obj, "IndexAccessContext", log)
+                                    base_obj, "IndexAccessContext", log, line_no, top_expr)
 
     def update_left_var_of_member_access_context(
             self, expr, rVal, operator, variables,
             callerObject=None, callerContext=None,
-            log:bool=False):
+            log:bool=False, line_no:int=None, top_expr=None):
 
         # ① 먼저 base 부분을 재귀-업데이트
         base_obj = self.update_left_var(expr.base, rVal, operator,
-                                        variables, None, "MemberAccessContext", log)
+                                        variables, None, "MemberAccessContext", log, line_no, top_expr)
         member = expr.member
 
         # ────────────────────────────────────────────────
@@ -209,9 +235,10 @@ class Update :
                 entry.value = self.compound_assignment(entry.value, rVal, operator)
 
             if log :
+                actual_line = line_no if line_no is not None else self.an.current_start_line
                 self.an.recorder.record_assignment(
-                    line_no=self.an.current_start_line,
-                    expr=expr,
+                    line_no=actual_line,
+                    expr=top_expr if top_expr else expr,
                     var_obj=entry,
                     base_obj=callerObject,
                 )
@@ -229,10 +256,26 @@ class Update :
                 # 숫자 / 주소 literal 인덱스
                 elif getattr(idx_exp, "context", "") == "LiteralExpContext":
                     key = str(idx_exp.literal)
+                # MemberAccess 인덱스 (newLockedStake.prevID → evaluate해서 값 추출)
+                elif getattr(idx_exp, "context", "") == "MemberAccessContext":
+                    eval_result = self.ev.evaluate_expression(idx_exp, variables, None, None)
+                    if isinstance(eval_result, (IntegerInterval, UnsignedIntegerInterval)):
+                        if eval_result.min_value == eval_result.max_value:
+                            key = str(eval_result.min_value)
+                        else:
+                            # Top interval: symbolic key 사용
+                            key = f"{idx_exp.base.identifier}.{idx_exp.member}"
+                    # Fallback: identifier로 사용
+                    if key is None:
+                        key = f"{idx_exp.base.identifier}.{idx_exp.member}"
 
             # ② ①에서 못 뽑았고, 매핑에 엔트리 하나뿐이면 그걸 그대로 사용
             if key is None and len(base_obj.mapping) == 1:
                 key, _ = next(iter(base_obj.mapping.items()))
+
+            # ③ key를 여전히 못 찾았으면 에러
+            if key is None:
+                raise ValueError(f"Cannot resolve mapping key from expression")
 
             # ── 엔트리 가져오거나 생성
             if key not in base_obj.mapping:
@@ -266,15 +309,41 @@ class Update :
 
         # ── elementary / enum ──────────────────────────────
         if isinstance(nested, (Variables, EnumVariable)):
+            # IndexAccessContext에서 호출되었으면 mapping key로 사용
+            if callerContext == "IndexAccessContext" and isinstance(callerObject, MappingVariable):
+                idx_val = nested.value
+                # Interval → key 변환
+                if isinstance(idx_val, (IntegerInterval, UnsignedIntegerInterval)):
+                    if idx_val.min_value == idx_val.max_value:
+                        key = str(idx_val.min_value)
+                    else:
+                        # Top interval: 단일 entry 반환 또는 symbolic key 생성
+                        if len(callerObject.mapping) == 1:
+                            return list(callerObject.mapping.values())[0]
+                        key = f"symbolic_{nested.identifier}"
+                else:
+                    # Non-interval: symbolic key
+                    key = f"symbolic_{nested.identifier}"
+
+                # Entry 가져오거나 생성
+                if key not in callerObject.mapping:
+                    callerObject.mapping[key] = callerObject.get_or_create(key)
+                return callerObject.mapping[key]
+
+            # 일반 IndexAccessContext (Array 등)
+            if callerContext == "IndexAccessContext":
+                return nested
+
             if rVal is None:
                 return nested
 
             nested.value = self.compound_assignment(nested.value, rVal, operator)
 
             if log :
+                actual_line = line_no if line_no is not None else self.an.current_start_line
                 self.an.recorder.record_assignment(
-                    line_no=self.an.current_start_line,
-                    expr=expr,
+                    line_no=actual_line,
+                    expr=top_expr if top_expr else expr,
                     var_obj=nested,
                     base_obj=base_obj,
                 )
@@ -293,7 +362,9 @@ class Update :
             variables: dict[str, Variables],
             caller_object: Variables | ArrayVariable | MappingVariable | None = None,
             caller_context=None,
-            log: bool = False
+            log: bool = False,
+            line_no: int = None,
+            top_expr = None
     ):
         # ───────────────────────────── 준비 ─────────────────────────────
         lit = expr.literal  # 예: 123, 0x1a, true …
@@ -424,16 +495,30 @@ class Update :
             variables: dict[str, Variables],
             caller_object: Variables | ArrayVariable | StructVariable | MappingVariable | None = None,
             caller_context: str | None = None,
-            log: bool = False
+            log: bool = False,
+            line_no: int = None,
+            top_expr = None
     ):
         ident = expr.identifier
+
+        # line_no를 헬퍼 함수에서 접근하기 위해 미리 결정
+        actual_line_no = line_no if line_no is not None else self.an.current_start_line
 
         # ────────────────────────── 내부 헬퍼 ──────────────────────────
         def _apply_to_leaf(var_obj: Variables | EnumVariable, record_expr: Expression):
             """leaf 변수에 compound-assignment 적용 + Recorder 호출"""
-            # (a) r_val → Interval 변환(필요 시)
+            # ★ var_obj가 이미 Interval인 경우 (배열 원소가 직접 Interval로 저장된 경우)
+            # 이는 join된 결과로, 직접 처리할 수 없으므로 skip
+            if VariableEnv.is_interval(var_obj):
+                return
+
+            # (a) r_val → Interval/AddressSet 변환(필요 시)
             conv_val = r_val
-            if not VariableEnv.is_interval(r_val) and isinstance(var_obj, Variables):
+
+            # ★ AddressSet 직접 처리
+            if isinstance(r_val, AddressSet):
+                conv_val = r_val  # AddressSet은 그대로 사용
+            elif not VariableEnv.is_interval(r_val) and isinstance(var_obj, Variables):
                 et = var_obj.typeInfo.elementaryTypeName
                 bits = var_obj.typeInfo.intTypeLength or 256
 
@@ -455,8 +540,28 @@ class Update :
                     )
                 elif r_val in ("true", "false"):
                     conv_val = BoolInterval(1, 1) if r_val == "true" else BoolInterval(0, 0)
-            # (b) 실제 값 패치
-            var_obj.value = self.compound_assignment(var_obj.value, conv_val, operator)
+
+            # (b) 실제 값 패치 (operator가 None이 아닐 때만)
+            if operator is not None:
+                # ★ AddressSet의 경우 compound_assignment를 거치지 않고 직접 할당
+                if isinstance(conv_val, AddressSet):
+                    if operator == '=':
+                        var_obj.value = conv_val
+                    else:
+                        raise ValueError(f"AddressSet does not support compound operator: {operator}")
+                else:
+                    var_obj.value = self.compound_assignment(var_obj.value, conv_val, operator)
+
+            # (c) 기록 (log가 True이고 operator가 None이 아닐 때)
+            if log and operator is not None:
+                # top_expr을 사용하여 최상위 LHS expression 기록
+                actual_record_expr = top_expr if top_expr is not None else record_expr
+                self.an.recorder.record_assignment(
+                    line_no=actual_line_no,
+                    expr=actual_record_expr,
+                    var_obj=var_obj,
+                    base_obj=caller_object,
+                )
 
 
         # ======================================================================
@@ -467,18 +572,56 @@ class Update :
                 raise ValueError(f"Index identifier '{ident}' not found.")
 
             idx_iv = variables[ident].value  # Interval | ⊥
-            # 전체-쓰기(⊥ or 구간) → record는 Array 쪽에서 이미 수행
-            if VariableEnv.is_interval(idx_iv) and (idx_iv.is_bottom() or idx_iv.min_value != idx_iv.max_value):
-                return caller_object  # 계속 상위에서 처리
 
+            # ⊥이면 전체-쓰기 추상화
+            if VariableEnv.is_interval(idx_iv) and idx_iv.is_bottom():
+                return caller_object
+
+            # Interval 범위가 너무 크면 전체-쓰기 추상화 (widening된 경우)
+            MAX_CONCRETE_INDICES = 20
+            if VariableEnv.is_interval(idx_iv) and idx_iv.min_value != idx_iv.max_value:
+                range_size = idx_iv.max_value - idx_iv.min_value + 1
+                if range_size > MAX_CONCRETE_INDICES:
+                    return caller_object
+
+                # ★ 범위가 작으면 각 인덱스에 할당 (over-approximation)
+                for idx in range(idx_iv.min_value, idx_iv.max_value + 1):
+                    if idx < 0:
+                        continue  # 음수 인덱스는 skip
+
+                    # 배열 크기 확장 필요 시
+                    if idx >= len(caller_object.elements):
+                        if caller_object.typeInfo.isDynamicArray:
+                            # 동적 배열이 너무 크면 추상화
+                            if idx >= MAX_CONCRETE_INDICES:
+                                return caller_object
+                        else:
+                            decl_len = caller_object.typeInfo.arrayLength or 0
+                            if idx >= decl_len:
+                                continue  # out of range
+
+                        # ArrayVariable의 get_or_create_element() 사용 (TOP 값으로 초기화)
+                        elem = caller_object.get_or_create_element(idx)
+                    else:
+                        elem = caller_object.elements[idx]
+                    if isinstance(elem, (StructVariable, ArrayVariable, MappingVariable)):
+                        # composite는 처리 불가, 추상화
+                        return caller_object
+
+                    # leaf 업데이트 (join)
+                    _apply_to_leaf(elem, expr)
+
+                return None
+
+            # Singleton interval: 정확한 인덱스 하나
             if not (VariableEnv.is_interval(idx_iv) and idx_iv.min_value == idx_iv.max_value):
-                raise ValueError(f"Array index '{ident}' must resolve to single constant.")
+                raise ValueError(f"Array index '{ident}' must resolve to interval.")
 
             idx = idx_iv.min_value
             if idx < 0:
                 raise IndexError(f"Negative index {idx} for array '{caller_object.identifier}'")
 
-            # 정적/동적 패딩 로직 (동일)
+            # 정적/동적 패딩 로직
             if idx >= len(caller_object.elements):
                 if caller_object.typeInfo.isDynamicArray:
                     return caller_object  # 전체-쓰기 추상화
@@ -540,8 +683,27 @@ class Update :
                 raise ValueError (f"Key '{ident}' not found.")
 
             entry = caller_object.get_or_create(key_str)
+
+            # ── composite 타입 처리 ────────────────────────────────────
             if isinstance(entry, (StructVariable, ArrayVariable, MappingVariable)):
-                return entry  # composite
+                # r_val이 같은 타입의 composite이면 복사
+                if r_val is not None and type(r_val) == type(entry):
+                    if isinstance(entry, StructVariable) and isinstance(r_val, StructVariable):
+                        # Struct 멤버별 복사
+                        for member_name, member_val in r_val.members.items():
+                            if member_name in entry.members:
+                                entry.members[member_name] = VariableEnv.copy_single_variable(member_val)
+
+                        if log:
+                            self.an.recorder.record_assignment(
+                                line_no=actual_line_no,
+                                expr=top_expr if top_expr is not None else expr,
+                                var_obj=entry,
+                                base_obj=caller_object,
+                            )
+                        return None
+                return entry  # composite (deep access가 이어질 경우)
+
             _apply_to_leaf(entry, expr)  # leaf + 기록
             return None
 
@@ -578,7 +740,7 @@ class Update :
         _apply_to_leaf(tgt, expr)
         return None
 
-    def update_left_var_of_testing_index_access_context(self, expr: Expression,
+    def update_left_var_of_intent_index_access_context(self, expr: Expression,
                                                                  rVal,
                                                                  operator,
                                                                  variables: dict[str, Variables],
@@ -587,14 +749,14 @@ class Update :
         # base
         base_obj = self.update_left_var(
             expr.base, rVal, operator, variables,
-            None, "TestingIndexAccess", log
+            None, "IntentIndexAccess", log
         )
         # index
         return self.update_left_var(
-            expr.index, rVal, operator, variables, base_obj, "TestingIndexAccess", log
+            expr.index, rVal, operator, variables, base_obj, "IntentIndexAccess", log
         )
 
-    def update_left_var_of_testing_member_access_context(self, expr: Expression,
+    def update_left_var_of_intent_member_access_context(self, expr: Expression,
                                                                   rVal,
                                                                   operator,
                                                                   variables: dict[str, Variables],
@@ -603,7 +765,7 @@ class Update :
 
         # ① 먼저 base 부분을 재귀-업데이트
         base_obj = self.update_left_var(expr.base, rVal, operator,
-                                                 variables, None, "TestingMemberAccess", log)
+                                                 variables, None, "IntentMemberAccess", log)
         member = expr.member
 
         if member is not None:
@@ -617,10 +779,10 @@ class Update :
                 entry = callerObject.mapping[key]
 
                 # ① 더 깊은 IndexAccess 가 이어질 때는 객체 그대로 반환
-                if callerContext == "TestingIndexAccess":
+                if callerContext == "IntentIndexAccess":
                     return entry  # allowed[msg.sender] 의 결과
 
-                # ② leaf 읽기(Testing이므로 값 패치는 하지 않음)
+                # ② leaf 읽기(Intent이므로 값 패치는 하지 않음)
                 return entry  # Variables / EnumVariable / Array…
 
             if not isinstance(base_obj, StructVariable):
@@ -646,7 +808,7 @@ class Update :
     #   • *어떤 값도* 수정하지 않는다.
     #   • 찾은 객체(Variables / ArrayVariable …)를 그대로 반환하거나
     #     더 내려갈 composite 객체를 반환한다.
-    #   • 기존 _resolve_and_update_expr 의 “update 파트”를 모두 제거한 버전.
+    #   • 기존 _resolve_and_update_expr 의 "update 파트"를 모두 제거한 버전.
     # ---------------------------------------------------------------------------
     def resolve_lhs_expr(
             self,
@@ -656,7 +818,7 @@ class Update :
             caller_context: str | None = None,
             log: bool = False
     ):
-        """纯粹히 ‘변수 객체’를 찾아서 돌려준다. (값 패치는 전혀 하지 않음)"""
+        """纯粹히 '변수 객체'를 찾아서 돌려준다. (값 패치는 전혀 하지 않음)"""
 
         return self.update_left_var(expr, None, None, variables, caller_object, caller_context, log)
 
@@ -720,7 +882,7 @@ class Update :
         – 1-D · multi-D 모두 재귀로 채움
         – 숫자   → Integer / UnsignedInteger Interval( [n,n] )
         – Bool   → BoolInterval
-        – str(‘symbolicAddress …’) → 160-bit interval
+        – str('symbolicAddress …') → 160-bit interval
         – list   → nested ArrayVariable
         """
         arr.elements.clear()  # 새로 만들기
@@ -740,10 +902,9 @@ class Update :
             # symbolicAddress …
             if isinstance(raw, str) and raw.startswith("symbolicAddress"):
                 nid = int(raw.split()[1])
-                self.an.sm.register_fixed_id(nid)
-                iv = self.an.sm.get_interval(nid)
-                self.an.sm.bind_var(eid, nid)
-                return Variables(eid, iv, scope=arr.scope, typeInfo=baseT)
+                # ★ AddressSet으로 처리
+                addr_set = AddressSet(ids={nid})
+                return Variables(eid, addr_set, scope=arr.scope, typeInfo=baseT)
 
             # 숫자  /  Bool  → Interval
             if isinstance(raw, (int, bool)):
@@ -816,18 +977,24 @@ class Update :
 
         # ---- address ------------------------------------------------------
         elif etype == "address":
-            if isinstance(new_value, UnsignedIntegerInterval):
-                var_obj.value = AddressSymbolicManager.top_interval()
-
+            # ★ AddressSet 기반 처리
+            if isinstance(new_value, AddressSet):
+                var_obj.value = new_value
+            elif isinstance(new_value, UnsignedIntegerInterval):
+                # Interval → AddressSet 변환
+                if new_value.is_bottom():
+                    var_obj.value = AddressSet.bot()
+                elif new_value.min_value == new_value.max_value:
+                    var_obj.value = AddressSet(ids={new_value.min_value})
+                else:
+                    var_obj.value = AddressSet.top()
             elif isinstance(new_value, str) and new_value.startswith("symbolicAddress"):
                 nid = int(new_value.split()[1])
-                self.an.sm.register_fixed_id(nid)
-                iv = self.an.sm.get_interval(nid)
-                var_obj.value = iv
-                self.an.sm.bind_var(var_obj.identifier, nid)
-
-            else:  # 임의 문자열 → symbol 처리
-                var_obj.value = f"symbol_{new_value}"
+                var_obj.value = AddressSet(ids={nid})
+            elif isinstance(new_value, int):
+                var_obj.value = AddressSet(ids={new_value})
+            else:  # 임의 문자열 → TOP
+                var_obj.value = AddressSet.top()
 
         # ---- fallback -----------------------------------------------------
         else:
@@ -854,13 +1021,10 @@ class Update :
 
     def _bind_if_address(self, var_obj):
         """address 형이면 심볼릭-ID ↔ 변수 바인딩."""
-        if getattr(var_obj.typeInfo, "elementaryTypeName", None) == "address" and \
-           isinstance(var_obj.value, UnsignedIntegerInterval):
-            iv = var_obj.value
-            if iv.min_value == iv.max_value:
-                nid = iv.min_value
-                self.an.sm.register_fixed_id(nid, iv)
-                self.an.sm.bind_var(var_obj.identifier, nid)
+        if getattr(var_obj.typeInfo, "elementaryTypeName", None) == "address":
+            # ★ AddressSet 기반 바인딩
+            if isinstance(var_obj.value, AddressSet):
+                address_manager.bind_var(var_obj.identifier, var_obj.value)
 
     # -------------- public API ---------------------------------------------
     def apply_debug_directive(
@@ -894,11 +1058,6 @@ class Update :
         # ③ 주소-ID 바인딩 ---------------------------------------------------
         self._bind_if_address(target)
 
-        # ④ Recorder 기록 ---------------------------------------------------
-        #   – ‘주석’ 이므로 kind 를 별도로 “debugAssign” 으로
-        self.an.recorder.record_assignment(
-            line_no=self.an.current_start_line,
-            expr=lhs_expr,
-            var_obj=target,
-            base_obj=None,
-        )
+        # ④ Recorder 기록 제거 -----------------------------------------------
+        #   디버그 주석은 초기값 설정이므로 기록 불필요
+        #   실제 assignment는 재해석 시 자동으로 기록됨

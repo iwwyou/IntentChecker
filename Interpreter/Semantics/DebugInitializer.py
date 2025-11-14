@@ -51,31 +51,31 @@ class DebugInitializer:
         elif expr.context == "LiteralExpContext":
             return self._update_left_var_of_literal_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
-        elif expr.context == "TestingIndexAccess":
-            return self._update_left_var_of_testing_index_access_context_for_debug(
+        elif expr.context == "IntentIndexAccess":
+            return self._update_left_var_of_intent_index_access_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
-        elif expr.context == "TestingMemberAccess":
-            return self._update_left_var_of_testing_member_access_context_for_debug(
+        elif expr.context == "IntentMemberAccess":
+            return self._update_left_var_of_intent_member_access_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
 
         return None
 
-    def _update_left_var_of_testing_index_access_context_for_debug(
+    def _update_left_var_of_intent_index_access_context_for_debug(
             self, expr: Expression, rVal, operator, variables, callerObject=None, callerContext=None):
         """
-        TestingIndexAccess 컨텍스트 처리 (디버깅 전용)
+        IntentIndexAccess 컨텍스트 처리 (디버깅 전용)
         allowed[_from][msg.sender] 같은 중첩 매핑 접근 처리
         """
         # base 객체 찾기
         base_obj = self._update_left_var_for_debug(
-            expr.base, rVal, operator, variables, None, "TestingIndexAccess")
+            expr.base, rVal, operator, variables, None, "IntentIndexAccess")
 
         if base_obj is None:
             return None
 
-        # index 처리 - callerObject를 base_obj로, callerContext를 TestingIndexAccess로 전달
+        # index 처리 - callerObject를 base_obj로, callerContext를 IntentIndexAccess로 전달
         result = self._update_left_var_for_debug(
-            expr.index, rVal, operator, variables, base_obj, "TestingIndexAccess")
+            expr.index, rVal, operator, variables, base_obj, "IntentIndexAccess")
         return result
 
     def _update_left_var_of_identifier_context_for_debug(
@@ -86,10 +86,10 @@ class DebugInitializer:
         ident = expr.identifier
 
         # ======================================================================
-        # 0) caller_context가 TestingIndexAccess이고 ident가 글로벌 변수인 경우
+        # 0) caller_context가 IntentIndexAccess이고 ident가 글로벌 변수인 경우
         #    (예: block, tx, msg)
         # ======================================================================
-        if caller_context == "TestingIndexAccess" and ident in ("block", "tx", "msg"):
+        if caller_context == "IntentIndexAccess" and ident in ("block", "tx", "msg"):
             # 글로벌 객체는 그대로 반환 (다음 MemberAccess에서 처리)
             return ident
 
@@ -191,7 +191,7 @@ class DebugInitializer:
         # 4) 상위 객체 없음 (top-level ident) - 일반 변수 찾기
         # ======================================================================
         if caller_context in (
-                "IndexAccessContext", "MemberAccessContext", "TestingIndexAccess"):
+                "IndexAccessContext", "MemberAccessContext", "IntentIndexAccess"):
             # base에 대한 접근
             if ident in variables:
                 return variables[ident]  # MappingVariable, ArrayVariable 등을 반환
@@ -259,9 +259,9 @@ class DebugInitializer:
 
             entry = callerObject.mapping[key]
 
-            # TestingIndexAccess나 IndexAccessContext에서 호출된 경우
+            # IntentIndexAccess나 IndexAccessContext에서 호출된 경우
             # 더 깊은 접근이 이어질 수 있으므로 객체 반환
-            if callerContext in ("TestingIndexAccess", "IndexAccessContext"):
+            if callerContext in ("IntentIndexAccess", "IndexAccessContext"):
                 return entry
 
             # leaf 변수에 값 대입하는 경우
@@ -368,14 +368,14 @@ class DebugInitializer:
 
         return None
 
-    def _update_left_var_of_testing_member_access_context_for_debug(
+    def _update_left_var_of_intent_member_access_context_for_debug(
             self, expr: Expression, rVal, operator, variables, callerObject=None, callerContext=None):
         """
-        TestingMemberAccess 컨텍스트 처리 (디버깅 전용)
+        IntentMemberAccess 컨텍스트 처리 (디버깅 전용)
         디버그 주석에서 사용되는 멤버 접근: allowed[_from][msg.sender] 형태
 
         callerObject: 외부 매핑 객체 (예: allowed[_from])
-        callerContext: 호출 컨텍스트 (예: "TestingIndexAccess")
+        callerContext: 호출 컨텍스트 (예: "IntentIndexAccess")
         """
         member = expr.member
 
@@ -397,10 +397,10 @@ class DebugInitializer:
             entry = callerObject.mapping[key]
 
             # ① 더 깊은 IndexAccess 가 이어질 때는 객체 그대로 반환
-            if callerContext == "TestingIndexAccess":
+            if callerContext == "IntentIndexAccess":
                 return entry  # allowed[msg.sender] 의 결과
 
-            # ② leaf 읽기(Testing이므로 값 패치는 하지 않음)
+            # ② leaf 읽기(Intent이므로 값 패치는 하지 않음)
             return entry  # Variables / EnumVariable / Array…
 
         # ======================================================================
@@ -408,7 +408,7 @@ class DebugInitializer:
         # ======================================================================
         # ① 먼저 base 부분을 재귀-업데이트
         base_obj = self._update_left_var_for_debug(
-            expr.base, rVal, operator, variables, None, "TestingMemberAccess")
+            expr.base, rVal, operator, variables, None, "IntentMemberAccess")
 
         if base_obj is None:
             return None
@@ -452,7 +452,7 @@ class DebugInitializer:
         """
 
         # ★ 특별 케이스: 동적 배열의 .length 설정
-        if (lhs_expr.context in ("MemberAccessContext", "TestingMemberAccess") and
+        if (lhs_expr.context in ("MemberAccessContext", "IntentMemberAccess") and
             lhs_expr.member == "length"):
 
             # base 객체 찾기
