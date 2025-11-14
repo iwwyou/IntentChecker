@@ -7,7 +7,8 @@ from solcx import (
     get_installed_solc_versions
 )
 from solcx.exceptions import SolcError
-from Domain.Address import *
+from Domain.AddressSet import address_manager, AddressSet
+from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
 from Domain.Annotation import DuringAnnotation, PostAnnotation
 from Utils.Helper import *
 from Utils.Snapshot import *
@@ -17,8 +18,8 @@ from Analyzer.StaticCFGFactory import StaticCFGFactory
 from Analyzer.CFGSerializer import CFGSerializer
 from Interpreter.Semantics.Evaluation import Evaluation
 from Interpreter.Semantics.Update import Update
+from Interpreter.Semantics.DebugInitializer import DebugInitializer
 from Interpreter.Semantics.Refine import Refine
-from Interpreter.Semantics.Runtime import Runtime
 from Interpreter.Engine import Engine
 from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
 import pathlib
@@ -27,13 +28,13 @@ from typing import Dict
 class ContractAnalyzer:
 
     def __init__(self):
-        self.sm = AddressSymbolicManager()
+        self.addr_mgr = address_manager  # 싱글톤 AddressManager
         self.snapman = SnapshotManager()
         self._batch_targets: set[FunctionCFG] = set()  # 🔹추가
 
         self.full_code = None
         self.full_code_lines = {} # 라인별 코드를 저장하는 딕셔너리
-        self.brace_count = {} # 각 라인에서 `{`와 `}`의 개수를 저장하는 딕셔너리
+        self.line_info = {} # 각 라인에서 `{`와 `}`의 개수를 저장하는 딕셔너리
 
         self.current_start_line = None
         self.current_end_line = None
@@ -47,6 +48,7 @@ class ContractAnalyzer:
         self.current_edit_event = None
         self._record_enabled = False
         self._seen_stmt_ids: set[int] = set()
+        self._last_touched_lines = None
 
         # for Multiple Contract
         self.contract_cfgs = {} # name -> ContractCFG
@@ -87,7 +89,7 @@ class ContractAnalyzer:
         brace_count / analysis_per_line / Statement.src_line  를 모두 동기화
         """
         # ① brace_count · analysis_per_line
-        for d in (self.brace_count, self.analysis_per_line):
+        for d in (self.line_info, self.analysis_per_line):
             if old_ln in d:
                 d[new_ln] = d.pop(old_ln)
 
@@ -173,7 +175,7 @@ class ContractAnalyzer:
             # B-1.  메타데이터 pop
             for ln in range(start_line, end_line + 1):
                 self.full_code_lines.pop(ln, None)
-                self.brace_count.pop(ln, None)
+                self.line_info.pop(ln, None)
                 self.analysis_per_line.pop(ln, None)
             # B-2.  뒤쪽 라인을 앞으로 당김
             keys_to_shift = sorted(
@@ -227,7 +229,7 @@ class ContractAnalyzer:
         close_braces = code.count('}')
 
         # brace_count 업데이트
-        self.brace_count[line_number] = {
+        self.line_info[line_number] = {
             'open': open_braces,
             'close': close_braces,
             'cfg_node': None
@@ -307,7 +309,7 @@ class ContractAnalyzer:
 
         # 위로 거슬러 올라가면서 `{`와 `}`의 짝을 찾기
         for line in range(line_number - 1, 0, -1):
-            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             open_braces = brace_info['open']
             close_braces = brace_info['close']
 
@@ -325,7 +327,7 @@ class ContractAnalyzer:
     def find_contract_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 컨트랙트를 찾습니다.
         for line in range(line_number, 0, -1):
-            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
                 if context_type in ["contract", "library", "interface", "abstract contract"]:
@@ -335,7 +337,7 @@ class ContractAnalyzer:
     def find_function_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
         for line in range(line_number, 0, -1):
-            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
                 if context_type in ["function", "modifier"] :
@@ -350,7 +352,7 @@ class ContractAnalyzer:
     def find_struct_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
         for line in range(line_number, 0, -1):
-            brace_info = self.brace_count.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
+            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_node': None})
             if brace_info['open'] > 0 and brace_info['cfg_node']:
                 context_type = self.determine_top_level_context(self.full_code_lines[line])
                 if context_type == "struct":
@@ -435,7 +437,7 @@ class ContractAnalyzer:
         self.current_target_contract = contract_name
         cfg = StaticCFGFactory.make_contract_cfg(self, contract_name)
 
-        self.brace_count[self.current_start_line]['cfg_node'] = cfg
+        self.line_info[self.current_start_line]['cfg_node'] = cfg
 
     def make_library_cfg(self, library_name: str):
         """
@@ -451,7 +453,7 @@ class ContractAnalyzer:
         self.library_cfgs[library_name] = library_cfg
         self.contract_cfgs[library_name] = library_cfg  # 호환성을 위해 contract_cfgs에도 저장
         
-        self.brace_count[self.current_start_line]['cfg_node'] = library_cfg
+        self.line_info[self.current_start_line]['cfg_node'] = library_cfg
         
     def process_using_directive(self, library_name: str, target_type: str = None):
         """
@@ -483,7 +485,7 @@ class ContractAnalyzer:
         contract_cfg.define_enum(enum_name, enum_def)
 
         # brace_count 업데이트
-        self.brace_count[self.current_start_line]['cfg_node'] = enum_def
+        self.line_info[self.current_start_line]['cfg_node'] = enum_def
 
     def process_enum_item(self, items):
         # 현재 타겟 컨트랙트의 CFG 가져오기
@@ -495,7 +497,7 @@ class ContractAnalyzer:
         # brace_count에서 가장 최근의 enum 정의를 찾습니다.
         enum_def = None
         for line in reversed(range(self.current_start_line + 1)):
-            context = self.brace_count.get(line)
+            context = self.line_info.get(line)
             if context and 'cfg_node' in context and isinstance(context['cfg_node'], EnumDefinition):
                 enum_def = context['cfg_node']
                 break
@@ -522,7 +524,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # brace_count 업데이트
-        self.brace_count[self.current_start_line]['cfg_node'] = contract_cfg.structDefs
+        self.line_info[self.current_start_line]['cfg_node'] = contract_cfg.structDefs
 
     def process_struct_member(self, var_name, type_obj):
         # 1. 현재 타겟 컨트랙트의 CFG를 가져옴
@@ -616,7 +618,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 7. brace_count 업데이트
-        self.brace_count[self.current_start_line]['cfg_node'] = contract_cfg.state_variable_node
+        self.line_info[self.current_start_line]['cfg_node'] = contract_cfg.state_variable_node
 
     # ---------------------------------------------------------------------------
     # ② constant 변수 처리 (CFG·심볼 테이블 반영)
@@ -678,7 +680,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 6. brace_count 갱신 → IDE/커서 매핑
-        self.brace_count[self.current_start_line]["cfg_node"] = contract_cfg.state_variable_node
+        self.line_info[self.current_start_line]["cfg_node"] = contract_cfg.state_variable_node
 
     def process_modifier_definition(self,
                                     modifier_name: str,
@@ -694,7 +696,7 @@ class ContractAnalyzer:
         mod_cfg = StaticCFGFactory.make_modifier_cfg(self, contract_cfg, modifier_name, parameters)
 
         # 3) CFG 저장
-        self.brace_count[self.current_start_line]['cfg_node'] = mod_cfg.get_entry_node()
+        self.line_info[self.current_start_line]['cfg_node'] = mod_cfg.get_entry_node()
 
     # ContractAnalyzer.py  ----------------------------------------------
 
@@ -730,7 +732,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = ccf
 
         # brace_count - 디폴트 entry 등록
-        self.brace_count[self.current_start_line]["cfg_node"] = ctor_cfg.get_entry_node()
+        self.line_info[self.current_start_line]["cfg_node"] = ctor_cfg.get_entry_node()
 
     # ContractAnalyzer.py  ─ process_function_definition  (address-symb ✚ 최신 Array/Struct 초기화 반영)
 
@@ -749,7 +751,7 @@ class ContractAnalyzer:
 
         contract_cfg.functions[function_name] = fcfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
-        self.brace_count[self.current_start_line]["cfg_node"] = fcfg.get_entry_node()
+        self.line_info[self.current_start_line]["cfg_node"] = fcfg.get_entry_node()
 
     def process_variable_declaration(
             self,
@@ -899,7 +901,7 @@ class ContractAnalyzer:
             init_expr=init_expr,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,  # ← builder가 필요하다면 전달
+            brace_count=self.line_info,  # ← builder가 필요하다면 전달
         )
 
         self.recorder.record_variable_declaration(
@@ -948,7 +950,7 @@ class ContractAnalyzer:
             expr=expr,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 4. constructor 특수 처리 & 저장 -------------------------------
@@ -1005,7 +1007,7 @@ class ContractAnalyzer:
             op_token=stmt_kind,  # 기록용 토큰 – 원하면 '++' 등으로
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ④ constructor 특수 처리 + 저장 ---------------------------
@@ -1072,7 +1074,7 @@ class ContractAnalyzer:
             op_token="delete",
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         self.current_target_function_cfg.update_block(cur_blk)
@@ -1130,7 +1132,7 @@ class ContractAnalyzer:
             expr=expr,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ④ constructor 특수 처리  -------------------------------------
@@ -1187,7 +1189,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ── 4. 저장 & 마무리 ───────────────────────────────────────────
@@ -1238,7 +1240,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 저장
@@ -1279,7 +1281,7 @@ class ContractAnalyzer:
             else_env=else_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ── 5. 저장 ----------------------------------------------------------
@@ -1313,7 +1315,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 4. 저장 ----------------------------------------------------------
@@ -1440,7 +1442,7 @@ class ContractAnalyzer:
             incr_node=incr_node,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 6. 저장 ---------------------------------------------------------
@@ -1462,7 +1464,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 5) 저장
@@ -1481,7 +1483,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         ccf.functions[self.current_target_function] = self.current_target_function_cfg
@@ -1511,7 +1513,7 @@ class ContractAnalyzer:
             return_val=r_val,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ── 4. 기록 ---------------------------------------------------------
@@ -1549,7 +1551,7 @@ class ContractAnalyzer:
             call_args=call_argument_list,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ── 3. analysis record ----------------------------------------------
@@ -1601,7 +1603,7 @@ class ContractAnalyzer:
             true_env=true_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 5) 저장 ------------------------------------------------------------
@@ -1645,7 +1647,7 @@ class ContractAnalyzer:
             true_env=true_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # 5) 저장 -------------------------------------------------------------
@@ -1674,7 +1676,7 @@ class ContractAnalyzer:
                 cur_block=cur_blk,
                 fcfg=self.current_target_function_cfg,
                 line_no=self.current_start_line,
-                brace_count=self.brace_count,
+                brace_count=self.line_info,
             )
             return  # 값-해석 없음
 
@@ -1695,7 +1697,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            brace_count=self.brace_count,
+            brace_count=self.line_info,
         )
 
         # ── 3. 저장 ------------------------------------------------------
@@ -1735,13 +1737,13 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"unknown event {ev!r}")
 
-        # ↳ 주소형이면 AddressSymbolicManager 에 기록
-        if g.typeInfo.elementaryTypeName == "address" and isinstance(g.value, UnsignedIntegerInterval):
-            iv = g.value
-            if iv.min_value == iv.max_value:  # [N,N] 형식 ⇒ 고정 ID
-                nid = iv.min_value
-                self.sm.register_fixed_id(nid, iv)
-                self.sm.bind_var(g.identifier, nid)
+        # ↳ 주소형이면 AddressManager 에 기록
+        if g.typeInfo.elementaryTypeName == "address" and isinstance(g.value, AddressSet):
+            addr_set = g.value
+            if addr_set.is_singleton():  # singleton 형식
+                nid = addr_set.get_singleton_id()
+                self.addr_mgr.register_id(nid, g.identifier)
+                self.addr_mgr.bind_var(g.identifier, addr_set)
 
         self._batch_targets.add(self.current_target_function_cfg)
 
@@ -1790,27 +1792,27 @@ class ContractAnalyzer:
     
     def store_during_annotation(self, annotation_type: str, line_no: int, **params):
         """During annotation을 brace_count에 저장"""
-        if line_no not in self.brace_count:
-            self.brace_count[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
+        if line_no not in self.line_info:
+            self.line_info[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
         
-        if 'during_annotations' not in self.brace_count[line_no]:
-            self.brace_count[line_no]['during_annotations'] = []
+        if 'during_annotations' not in self.line_info[line_no]:
+            self.line_info[line_no]['during_annotations'] = []
         
         # DuringAnnotation 객체 생성
         annotation = DuringAnnotation(annotation_type, line_no, **params)
-        self.brace_count[line_no]['during_annotations'].append(annotation)
+        self.line_info[line_no]['during_annotations'].append(annotation)
 
     def store_post_annotation(self, annotation_type: str, line_no: int, **params):
         """Post annotation을 brace_count에 저장"""
-        if line_no not in self.brace_count:
-            self.brace_count[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
+        if line_no not in self.line_info:
+            self.line_info[line_no] = {'open': 0, 'close': 0, 'cfg_node': None}
         
-        if 'post_annotations' not in self.brace_count[line_no]:
-            self.brace_count[line_no]['post_annotations'] = []
+        if 'post_annotations' not in self.line_info[line_no]:
+            self.line_info[line_no]['post_annotations'] = []
         
         # PostAnnotation 객체 생성
         annotation = PostAnnotation(annotation_type, line_no, **params)
-        self.brace_count[line_no]['post_annotations'].append(annotation)
+        self.line_info[line_no]['post_annotations'].append(annotation)
 
     def get_function_lines(self, function_name: str) -> tuple[int, int] | None:
         """함수의 시작/끝 라인 번호 반환"""
@@ -1823,7 +1825,7 @@ class ContractAnalyzer:
         
         # 함수 시작 라인 찾기
         start_line = None
-        for ln, info in self.brace_count.items():
+        for ln, info in self.line_info.items():
             if info.get('cfg_node') is entry_node:
                 start_line = ln
                 break
@@ -1833,8 +1835,8 @@ class ContractAnalyzer:
             
         # 함수 끝 라인 찾기 (brace 균형으로 계산)
         balance = 0
-        for ln in range(start_line, max(self.brace_count.keys()) + 1):
-            info = self.brace_count.get(ln, {})
+        for ln in range(start_line, max(self.line_info.keys()) + 1):
+            info = self.line_info.get(ln, {})
             balance += info.get('open', 0) - info.get('close', 0)
             if balance == 0 and ln > start_line:
                 return (start_line, ln)
@@ -2174,7 +2176,7 @@ class ContractAnalyzer:
 
     # helper – 라인 ↦ CFG 노드 ↦ 변수 환경
     def _env_at_line(self, line_no: int):
-        node = self.brace_count.get(line_no, {}).get("cfg_node")
+        node = self.line_info.get(line_no, {}).get("cfg_node")
         if node is None:
             raise ValueError(f"No CFG node bound to line {line_no}")
         return node.variables, node  # (env, node object)
@@ -2196,7 +2198,7 @@ class ContractAnalyzer:
         self.snapman.register(var_obj, self.ser)
 
     def _cfg_node_at(self, line_no: int):
-        return (self.brace_count.get(line_no, {}) or {}).get("cfg_node")
+        return (self.line_info.get(line_no, {}) or {}).get("cfg_node")
 
 
     def load_library_cfg(self, library_name: str) -> 'LibraryCFG':

@@ -6,8 +6,8 @@ if TYPE_CHECKING:                                         # 타입 검사 전용
      from Analyzer.ContractAnalyzer import ContractAnalyzer
 
 from Domain.Interval import *
+from Domain.AddressSet import AddressSet, address_manager
 from Domain.Variable import Variables, ArrayVariable, MappingVariable, StructVariable, EnumVariable
-from Domain.Address import AddressSymbolicManager
 from Domain.IR import Expression
 from Utils.Helper import VariableEnv
 

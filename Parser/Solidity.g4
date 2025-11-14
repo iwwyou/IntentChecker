@@ -314,14 +314,14 @@ predicatePost
 // 4)  Seed 값
 //--------------------------------------------------
 seedValue
-    : '[' signedNumberLiteral ',' signedNumberLiteral ']'   #IntInterval
-    | 'address'         numberLiteral                       #FixedAddress
-    | 'symbolicAddress' numberLiteral                       #SymbolicAddress
-    | 'symbolicBytes'   hexStringLiteral                    #SymbolicBytes
-    | 'symbolicString'  hexStringLiteral                    #SymbolicString
-    | ('true' | 'false' | 'any')                            #BoolToken
-    | identifier ('.' identifier)?                          #EnumLiteral
-    | inlineArrayAnnotation                                 #InlineArray
+    : '[' signedNumberLiteral ',' signedNumberLiteral ']'                           #IntInterval
+    | 'symbolicAddress' numberLiteral                                               #SymbolicAddress
+    | 'symbolicBytes'   hexStringLiteral                                            #SymbolicBytes
+    | 'symbolicString'  hexStringLiteral                                            #SymbolicString
+    | ('true' | 'false' | 'any')                                                    #BoolToken
+    | identifier ('.' identifier)?                                                  #EnumLiteral
+    | 'array' '[' ( signedNumberLiteral (',' signedNumberLiteral)* )? ']'          #IntArray
+    | 'arrayAddress' '[' ( numberLiteral (',' numberLiteral)* )? ']'               #AddressArray
     ;
 
 // ─────────────────────────────────────────────
@@ -395,16 +395,6 @@ boolExpr
 signedNumberLiteral : '-'? numberLiteral ;
 logicOp : '&&' | '||' ;
 relOp   : '<' | '>' | '<=' | '>=' | '==' | '!=' | 'in' | 'not' 'in' ;
-
-inlineArrayAnnotation
-    : 'array' '[' inlineArrayElements? ']' ;
-
-inlineArrayElements : inlineElement (',' inlineElement)* ;
-inlineElement
-    : signedNumberLiteral
-    | inlineArrayAnnotation
-    | 'arrayAddress' '[' numberLiteral (',' numberLiteral)* ']'
-    ;
 
 interactiveSimpleStatement
   : ( interactiveVariableDeclarationStatement | interactiveExpressionStatement ) ;

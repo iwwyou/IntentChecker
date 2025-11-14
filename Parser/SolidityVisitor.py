@@ -374,11 +374,6 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#FixedAddress.
-    def visitFixedAddress(self, ctx:SolidityParser.FixedAddressContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SolidityParser#SymbolicAddress.
     def visitSymbolicAddress(self, ctx:SolidityParser.SymbolicAddressContext):
         return self.visitChildren(ctx)
@@ -404,8 +399,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#InlineArray.
-    def visitInlineArray(self, ctx:SolidityParser.InlineArrayContext):
+    # Visit a parse tree produced by SolidityParser#IntArray.
+    def visitIntArray(self, ctx:SolidityParser.IntArrayContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#AddressArray.
+    def visitAddressArray(self, ctx:SolidityParser.AddressArrayContext):
         return self.visitChildren(ctx)
 
 
@@ -551,21 +551,6 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#relOp.
     def visitRelOp(self, ctx:SolidityParser.RelOpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#inlineArrayAnnotation.
-    def visitInlineArrayAnnotation(self, ctx:SolidityParser.InlineArrayAnnotationContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#inlineArrayElements.
-    def visitInlineArrayElements(self, ctx:SolidityParser.InlineArrayElementsContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#inlineElement.
-    def visitInlineElement(self, ctx:SolidityParser.InlineElementContext):
         return self.visitChildren(ctx)
 
 

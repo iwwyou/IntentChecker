@@ -1,5 +1,7 @@
 from Domain.Interval import *
 from Domain.Type import SolType
+from Domain.AddressSet import AddressSet
+from Domain.BytesSet import BytesSet
 import copy
 
 class Variables:
@@ -65,7 +67,8 @@ class ArrayVariable(Variables):
     def __init__(self, identifier=None, base_type=None,
                  array_length=None,
                  value=None, isConstant=False, scope=None,
-                 is_dynamic=False):
+                 is_dynamic=False,
+                 struct_defs=None, enum_defs=None):
         super().__init__(identifier, value, isConstant, scope)
 
         self.typeInfo = SolType()
@@ -74,6 +77,8 @@ class ArrayVariable(Variables):
         self.typeInfo.arrayLength = array_length  # None → 동적
         self.typeInfo.isDynamicArray = is_dynamic
         self.elements: list[Variables | "ArrayVariable"] = []
+        self.struct_defs = struct_defs or {}
+        self.enum_defs = enum_defs or {}
 
     # models.py ― ArrayVariable  내부
     def _create_default_value(self, eid: str):
@@ -84,7 +89,7 @@ class ArrayVariable(Variables):
         # ─ address ──────────────────────────────────
         if (isinstance(bt, SolType) and bt.elementaryTypeName == "address") \
                 or bt == "address":
-            return UnsignedIntegerInterval(0, 2 ** 160 - 1, 160)
+            return AddressSet.top()
 
         # ─ bool ─────────────────────────────────────
         if (isinstance(bt, SolType) and bt.elementaryTypeName == "bool") \
@@ -92,10 +97,10 @@ class ArrayVariable(Variables):
             return BoolInterval(0, 1)  # TOP of bool
 
         # ─ int / uint ──────────────────────────────
-        if isinstance(bt, SolType) and bt.elementaryTypeName.startswith("int"):
+        if isinstance(bt, SolType) and bt.elementaryTypeName and bt.elementaryTypeName.startswith("int"):
             w = bt.intTypeLength or 256
             return IntegerInterval(-(2 ** (w - 1)), 2 ** (w - 1) - 1, w)
-        if isinstance(bt, SolType) and bt.elementaryTypeName.startswith("uint"):
+        if isinstance(bt, SolType) and bt.elementaryTypeName and bt.elementaryTypeName.startswith("uint"):
             w = bt.intTypeLength or 256
             return UnsignedIntegerInterval(0, 2 ** w - 1, w)
 
@@ -114,11 +119,8 @@ class ArrayVariable(Variables):
         # 동적 배열 → 필요하면 확장
         if self.typeInfo.isDynamicArray:
             while idx >= len(self.elements):  # auto-push
-                eid = f"{self.identifier}[{len(self.elements)}]"
-                new_elem = Variables(eid,
-                                     self._create_default_value(eid),
-                                     scope=self.scope,
-                                     typeInfo=self.typeInfo.arrayBaseType)
+                # ★ _create_new_array_element 사용 (struct, nested array 등을 올바르게 생성)
+                new_elem = self._create_new_array_element(len(self.elements))
                 self.elements.append(new_elem)
 
         # 정적 배열 → 범위 검사
@@ -144,7 +146,7 @@ class ArrayVariable(Variables):
         if isinstance(btype, SolType) and btype.typeCategory == "elementary":
             # 주소형
             if btype.elementaryTypeName == "address":
-                val = UnsignedIntegerInterval(0, 2 ** 160 - 1, 160)
+                val = AddressSet.top()
                 return Variables(eid, val, scope=self.scope, typeInfo=btype)
             # uint / int / bool → ⊤ interval
             if btype.elementaryTypeName.startswith("uint"):
@@ -162,7 +164,11 @@ class ArrayVariable(Variables):
 
         # ─ struct ───────────────────────────────────────────────────
         if isinstance(btype, SolType) and btype.typeCategory == "struct":
-            return StructVariable(eid, btype.structTypeName, scope=self.scope)
+            sv = StructVariable(eid, btype.structTypeName, scope=self.scope)
+            # ★ struct 정의가 있으면 초기화
+            if btype.structTypeName in self.struct_defs:
+                sv.initialize_struct(self.struct_defs[btype.structTypeName], struct_defs=self.struct_defs)
+            return sv
 
         # ─ enum ─────────────────────────────────────────────────────
         if isinstance(btype, SolType) and btype.typeCategory == "enum":
@@ -186,11 +192,19 @@ class ArrayVariable(Variables):
         # fallback
         raise ValueError(f"Unhandled array base-type for {eid!r}")
 
+    def _create_element_virtual(self, idx: int):
+        """
+        배열에 실제로 추가하지 않고 가상으로 요소를 생성한다.
+        범위 인덱스 join 시 사용.
+        """
+        return self._create_new_array_element(idx)
+
 
     # ────────────────────────── public API ──────────────────────────
     def initialize_elements(self, init_iv: Interval):
         """int / uint / bool 전용 (추상화 도메인 사용)"""
-        if self.typeInfo.isDynamicArray:
+        # 동적 배열이지만 arrayLength가 설정된 경우(new uint256[](size))는 초기화 필요
+        if self.typeInfo.isDynamicArray and self.typeInfo.arrayLength is None:
             return
         self._init_recursive(
             baseT=self.typeInfo.arrayBaseType,
@@ -202,13 +216,14 @@ class ArrayVariable(Variables):
 
     def initialize_not_abstracted_type(self):
         """address / bytes / string 등 — address 는 fresh interval, 나머진 심볼"""
-        if self.typeInfo.isDynamicArray:
+        # 동적 배열이지만 arrayLength가 설정된 경우(new address[](size))는 초기화 필요
+        if self.typeInfo.isDynamicArray and self.typeInfo.arrayLength is None:
             return
 
         def builder(eid, et):
             # address
             if (isinstance(et, SolType) and et.elementaryTypeName == "address") or et == "address":
-                top = UnsignedIntegerInterval(0, 2 ** 160 - 1, 160)
+                top = AddressSet.top()
                 return Variables(eid, top, scope=self.scope, typeInfo=et)
             # 그 외 string/bytes … → 심볼
             return Variables(eid, f"symbol_{eid}", scope=self.scope, typeInfo=et)
@@ -239,9 +254,11 @@ class ArrayVariable(Variables):
                 )
                 # recursion – baseT.arrayBaseType 에 따라 분기
                 if self._is_abstractable(baseT.arrayBaseType):
-                    dummy = IntegerInterval.bottom() \
-                        if str(baseT.arrayBaseType.elementaryTypeName).startswith("int") \
-                        else UnsignedIntegerInterval.bottom()
+                    base_elem = baseT.arrayBaseType
+                    bits = getattr(base_elem, 'intTypeLength', 256) or 256
+                    dummy = IntegerInterval.top(bits) \
+                        if str(base_elem.elementaryTypeName).startswith("int") \
+                        else UnsignedIntegerInterval.top(bits)
                     sub_arr.initialize_elements(dummy)
                 else:
                     sub_arr.initialize_not_abstracted_type()
@@ -297,6 +314,8 @@ class MappingVariable(Variables):
                 array_length = sol_t.arrayLength,
                 is_dynamic   = sol_t.isDynamicArray,
                 scope        = self.scope,
+                struct_defs  = self.struct_defs,  # ★ struct 정의 전달
+                enum_defs    = self.enum_defs,    # ★ enum 정의 전달
             )
             arr.initialize_not_abstracted_type()   # 내부까지 재귀 초기화
             return arr
@@ -344,14 +363,17 @@ class MappingVariable(Variables):
 
         if et.startswith("int"):
             bits = sol_t.intTypeLength or 256
-            v.value = IntegerInterval.bottom(bits)           # ⊥ interval
+            v.value = IntegerInterval.top(bits)           # ⊤ interval
         elif et.startswith("uint"):
             bits = sol_t.intTypeLength or 256
-            v.value = UnsignedIntegerInterval.bottom(bits)   # 0 ~ 2ᵇⁱᵗˢ-1
+            v.value = UnsignedIntegerInterval.top(bits)   # 0 ~ 2ᵇⁱᵗˢ-1
         elif et == "bool":
-            v.value = BoolInterval.bottom()
+            v.value = BoolInterval.top()
         elif et == "address":
-            v.value = UnsignedIntegerInterval(0, 2**160 - 1, 160)   # TOP 주소
+            v.value = AddressSet.top()   # TOP 주소
+        elif et.startswith("bytes") and len(et) > 5:  # bytes32, bytes16 등
+            byte_size = int(et[5:])  # "bytes32" -> 32
+            v.value = BytesSet.top(byte_size)  # TOP bytes
         else:                               # string / bytes 등
             v.value = f"symbol_{sub_id}"
         return v
@@ -369,6 +391,14 @@ class MappingVariable(Variables):
             new_var = self._make_value(sub_id, self.typeInfo.mappingValueType)
             self.mapping[key_val] = new_var
         return self.mapping[key_val]
+
+    def _create_value_virtual(self, key_val):
+        """
+        매핑에 실제로 추가하지 않고 가상으로 value를 생성한다.
+        범위 키 join 시 사용.
+        """
+        sub_id = f"{self.identifier}[{key_val}]"
+        return self._make_value(sub_id, self.typeInfo.mappingValueType)
 
     def get_default_interval_for_type(self, sol_type):
         # 예시 구현: elementary int/uint/bool만 처리
@@ -447,12 +477,12 @@ class StructVariable(Variables):
                     # 주소 / string / bytes / bool / int 등 판단
                     if bt.elementaryTypeName in ("int",) or bt.elementaryTypeName.startswith("int"):
                         bits = bt.intTypeLength or 256
-                        arr.initialize_elements(IntegerInterval.bottom(bits))
+                        arr.initialize_elements(IntegerInterval.top(bits))
                     elif bt.elementaryTypeName in ("uint",) or bt.elementaryTypeName.startswith("uint"):
                         bits = bt.intTypeLength or 256
-                        arr.initialize_elements(UnsignedIntegerInterval.bottom(bits))
+                        arr.initialize_elements(UnsignedIntegerInterval.top(bits))
                     elif bt.elementaryTypeName == "bool":
-                        arr.initialize_elements(BoolInterval.bottom())
+                        arr.initialize_elements(BoolInterval.top())
                     else:          # address / bytes / string 등
                         arr.initialize_not_abstracted_type()
                 else:
@@ -489,14 +519,17 @@ class StructVariable(Variables):
             et = sol_t.elementaryTypeName
             if et.startswith("int"):
                 bits = sol_t.intTypeLength or 256
-                v.value = IntegerInterval.bottom(bits)
+                v.value = IntegerInterval.top(bits)
             elif et.startswith("uint"):
                 bits = sol_t.intTypeLength or 256
-                v.value = UnsignedIntegerInterval.bottom(bits)
+                v.value = UnsignedIntegerInterval.top(bits)
             elif et == "bool":
-                v.value = BoolInterval.bottom()
+                v.value = BoolInterval.top()
             elif et == "address":
-                v.value = UnsignedIntegerInterval(0, 2**160 - 1, 160)
+                v.value = AddressSet.top()
+            elif et.startswith("bytes") and len(et) > 5:  # bytes32, bytes16 등
+                byte_size = int(et[5:])  # "bytes32" -> 32
+                v.value = BytesSet.top(byte_size)  # TOP bytes
             else:
                 # string / bytes / 기타
                 v.value = f"symbol_{var_id}"

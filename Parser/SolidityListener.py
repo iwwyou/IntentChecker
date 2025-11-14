@@ -665,15 +665,6 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#FixedAddress.
-    def enterFixedAddress(self, ctx:SolidityParser.FixedAddressContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#FixedAddress.
-    def exitFixedAddress(self, ctx:SolidityParser.FixedAddressContext):
-        pass
-
-
     # Enter a parse tree produced by SolidityParser#SymbolicAddress.
     def enterSymbolicAddress(self, ctx:SolidityParser.SymbolicAddressContext):
         pass
@@ -719,12 +710,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#InlineArray.
-    def enterInlineArray(self, ctx:SolidityParser.InlineArrayContext):
+    # Enter a parse tree produced by SolidityParser#IntArray.
+    def enterIntArray(self, ctx:SolidityParser.IntArrayContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#InlineArray.
-    def exitInlineArray(self, ctx:SolidityParser.InlineArrayContext):
+    # Exit a parse tree produced by SolidityParser#IntArray.
+    def exitIntArray(self, ctx:SolidityParser.IntArrayContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#AddressArray.
+    def enterAddressArray(self, ctx:SolidityParser.AddressArrayContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#AddressArray.
+    def exitAddressArray(self, ctx:SolidityParser.AddressArrayContext):
         pass
 
 
@@ -986,33 +986,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#relOp.
     def exitRelOp(self, ctx:SolidityParser.RelOpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#inlineArrayAnnotation.
-    def enterInlineArrayAnnotation(self, ctx:SolidityParser.InlineArrayAnnotationContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#inlineArrayAnnotation.
-    def exitInlineArrayAnnotation(self, ctx:SolidityParser.InlineArrayAnnotationContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#inlineArrayElements.
-    def enterInlineArrayElements(self, ctx:SolidityParser.InlineArrayElementsContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#inlineArrayElements.
-    def exitInlineArrayElements(self, ctx:SolidityParser.InlineArrayElementsContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#inlineElement.
-    def enterInlineElement(self, ctx:SolidityParser.InlineElementContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#inlineElement.
-    def exitInlineElement(self, ctx:SolidityParser.InlineElementContext):
         pass
 
 
