@@ -1,0 +1,1071 @@
+{
+  "total_contracts": 95,
+  "version_08_plus": 35,
+  "version_below_08": 60,
+  "version_distribution": {
+    "0.4": 35,
+    "0.5": 2,
+    "0.6": 16,
+    "0.7": 7,
+    "0.8": 35
+  },
+  "contracts_08_plus": [
+    {
+      "file": "084dd52ae071e0de931d6323289ca555597a3e09_UnfoldedByBrunoCerasi.sol",
+      "contract": "UnfoldedByBrunoCerasi",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "206c5c55087ac1f38f50ee151e547f9e42ae7cb8_GOdHatesNFTsTooWTF.sol",
+      "contract": "GOdHatesNFTsTooWTF",
+      "version": "0.8.14",
+      "parsed_version": [
+        0,
+        8,
+        14
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "b98850497a59d8ed5c1b9d228969775de050409a_JungleMisfits.sol",
+      "contract": "JungleMisfits",
+      "version": "0.8.13",
+      "parsed_version": [
+        0,
+        8,
+        13
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "9950f678fbc0152c7b325091f3c6693ee524a32d_Bullrunners10000.sol",
+      "contract": "Bullrunners10000",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "6eb4848979be3159ebd55f2d0626b95ff9e7a555_AlphaUndergroundNFT.sol",
+      "contract": "AlphaUndergroundNFT",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "37784637e421ea5abc9f3917d65d0257a1ea2d0a_MoonDoodleApeBabyBukakiTownwtf.sol",
+      "contract": "MoonDoodleApeBabyBukakiTownwtf",
+      "version": "0.8.9",
+      "parsed_version": [
+        0,
+        8,
+        9
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "af83df4264395f7082639db543cdbca3cc9a477c_TheVerdyctResurgence.sol",
+      "contract": "TheVerdyctResurgence",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "04e5e1a11f92be3560bf58a76723e6fe4dc09abd_DODO.sol",
+      "contract": "DODO",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "bbc27ea7906a44207c175f81b8ae26e66bb1cec7_FivePenguins.sol",
+      "contract": "FivePenguins",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "6Fb259f21359E740e6a96Be095f81212A80e831e_DICKEY.sol",
+      "contract": "DICKEY",
+      "version": "0.8.16",
+      "parsed_version": [
+        0,
+        8,
+        16
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "0eDB29ef467C364F173bc0F6dA8237386303b107_OxBLACK.sol",
+      "contract": "OxBLACK",
+      "version": "0.8.13",
+      "parsed_version": [
+        0,
+        8,
+        13
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "bc40fad0b36faeb1595aa90d4136d01c08c99092_AINU.sol",
+      "contract": "AINU",
+      "version": "0.8.17",
+      "parsed_version": [
+        0,
+        8,
+        17
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "3d3097cd94fec5dc823e5025a59438e63757dc79_PLASMA.sol",
+      "contract": "PLASMA",
+      "version": "0.8.0",
+      "parsed_version": [
+        0,
+        8,
+        0
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "e77e59e5d9db886b54ec609d0e0add13fe358fba_x00ts.sol",
+      "contract": "x00ts",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "0cfdcefa52aa2c0d11be4f9287243e2838470004_morgoblinz.sol",
+      "contract": "morgoblinz",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "122ad2495b1af2a14c5c4b4ca59adfcd79c2dcb3_GameTime.sol",
+      "contract": "GameTime",
+      "version": "0.8.17",
+      "parsed_version": [
+        0,
+        8,
+        17
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "38195c86c5a32af913f05ba2c82e4c07fdeb2427_eKISHU.sol",
+      "contract": "eKISHU",
+      "version": "0.8.4",
+      "parsed_version": [
+        0,
+        8,
+        4
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "dcdb83e64147f613496e7e30acd47a2312437405_IllMND.sol",
+      "contract": "IllMND",
+      "version": "0.8.9",
+      "parsed_version": [
+        0,
+        8,
+        9
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "b14e960fe339588fe431dfd51859ed24f1b1c9e4_MOE.sol",
+      "contract": "MOE",
+      "version": "0.8.12",
+      "parsed_version": [
+        0,
+        8,
+        12
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "63278489e04Cd2224DAa4e425E57282135db7Af3_Konnichiwa.sol",
+      "contract": "Konnichiwa",
+      "version": "0.8.9",
+      "parsed_version": [
+        0,
+        8,
+        9
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "05fc938cc60fb71381514877d66478bab7e2e1ce_SUPERCATS.sol",
+      "contract": "SUPERCATS",
+      "version": "0.8.13",
+      "parsed_version": [
+        0,
+        8,
+        13
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "d792fe17cf634aeea2ef1d8c4eb076aaa34494aa_OKUNFTs.sol",
+      "contract": "OKUNFTs",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "1de00bf682620fe9c026dfc0cba9116b2d73cc27_RETNIRP.sol",
+      "contract": "RETNIRP",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "9BAcb4E17328d11b334dA6d48BEC3EC55CEC0858_dAvInci.sol",
+      "contract": "dAvInci",
+      "version": "0.8.12",
+      "parsed_version": [
+        0,
+        8,
+        12
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "563b7591e1312638ba664a1358c93be8d0363318_WCI2.sol",
+      "contract": "WCI2",
+      "version": "0.8.17",
+      "parsed_version": [
+        0,
+        8,
+        17
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "47e661f80a5fecb42137c97ecd910e2436f3ccad_Shibbit.sol",
+      "contract": "Shibbit",
+      "version": "0.8.4",
+      "parsed_version": [
+        0,
+        8,
+        4
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "6c0a168a96a454f8fb589327960c5ab745cca9e0_MMB.sol",
+      "contract": "MMB",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "43d3cc4439d2ac6fb93032004f6c094a5c21b185_PRESALE.sol",
+      "contract": "PRESALE",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "d0a3b550b766c32b47cca3c332741f884f1599e4_GoblinBbys.sol",
+      "contract": "GoblinBbys",
+      "version": "0.8.14",
+      "parsed_version": [
+        0,
+        8,
+        14
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "34aF60BD2447Aa7F49920200F072667A5FEb29cf_SONIC.sol",
+      "contract": "SONIC",
+      "version": "0.8.17",
+      "parsed_version": [
+        0,
+        8,
+        17
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "60c817c0489681d67206a7b82593adb7ef6c63ff_VBHC.sol",
+      "contract": "VBHC",
+      "version": "0.8.13",
+      "parsed_version": [
+        0,
+        8,
+        13
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "c31d5006c23bf21d3e9b007C542eFB6485BF081b_WorkandWork.sol",
+      "contract": "WorkandWork",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "804b3d28e02e8820a8aaa8b23fc01b87028674eb_HirakiGenesis.sol",
+      "contract": "HirakiGenesis",
+      "version": "0.8.7",
+      "parsed_version": [
+        0,
+        8,
+        7
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "638a3d66e4a6a6db13fae6050b36f7067ccaacf9_FusionSSJ2.sol",
+      "contract": "FusionSSJ2",
+      "version": "0.8.13",
+      "parsed_version": [
+        0,
+        8,
+        13
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    },
+    {
+      "file": "5f561f52a49eb243910bf0471d692d6908def385_UndeadApeYachtClub.sol",
+      "contract": "UndeadApeYachtClub",
+      "version": "0.8.17",
+      "parsed_version": [
+        0,
+        8,
+        17
+      ],
+      "defects": {},
+      "target_functions": [],
+      "pub_fun_count": 0
+    }
+  ],
+  "contracts_below_08": [
+    {
+      "file": "1505c95a707348C2bCc75698BE258891387f008B_CROOGEToken.sol",
+      "contract": "CROOGEToken",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "cfc49b91cc35f6ff7c209f7c070bf6e1b66fb151_DOODL.sol",
+      "contract": "DOODL",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "926476bfc3550ccb424202004b9aab9ac40e32de_VeChainX.sol",
+      "contract": "VeChainX",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "3c1634291868ddffa037222991babfccd8400921_ParsecCrowdsale.sol",
+      "contract": "ParsecCrowdsale",
+      "version": "v0.4.23",
+      "parsed_version": [
+        0,
+        4,
+        23
+      ]
+    },
+    {
+      "file": "1543d0F83489e82A1344DF6827B23d541F235A50_AIgathaToken.sol",
+      "contract": "AIgathaToken",
+      "version": "v0.4.21",
+      "parsed_version": [
+        0,
+        4,
+        21
+      ]
+    },
+    {
+      "file": "5eee354e36ac51e9d3f7283005cab0c55f423b23_ArbitrageETHStaking.sol",
+      "contract": "ArbitrageETHStaking",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "a74642aeae3e2fd79150c910eb5368b64f864b1e_Mobius2D.sol",
+      "contract": "Mobius2D",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "a068345a625542fe49c299c8df309a920a184200_CryptonToken.sol",
+      "contract": "CryptonToken",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "f441b73b0a196aa67d32aee230aab5e54eef4765_RegionsToken.sol",
+      "contract": "RegionsToken",
+      "version": "v0.4.20",
+      "parsed_version": [
+        0,
+        4,
+        20
+      ]
+    },
+    {
+      "file": "6bd50f3589916783b5366262d51700ee81d31b7e_Marijuana.sol",
+      "contract": "Marijuana",
+      "version": "v0.4.23",
+      "parsed_version": [
+        0,
+        4,
+        23
+      ]
+    },
+    {
+      "file": "acf999bfa9347e8ebe6816ed30bf44b127233177_AXNETDEX.sol",
+      "contract": "AXNETDEX",
+      "version": "v0.4.23",
+      "parsed_version": [
+        0,
+        4,
+        23
+      ]
+    },
+    {
+      "file": "4bdde1e9fbaef2579dd63e2abbf0be445ab93f10_CityMayor.sol",
+      "contract": "CityMayor",
+      "version": "v0.4.20",
+      "parsed_version": [
+        0,
+        4,
+        20
+      ]
+    },
+    {
+      "file": "9e86f530866bf7b3e8b23e613495c696f713c3c9_PapaFloki.sol",
+      "contract": "PapaFloki",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "cc37c96cd50b4ceaecc9fcea880d545f093ad3ef_EthernautsPreSale.sol",
+      "contract": "EthernautsPreSale",
+      "version": "v0.4.19",
+      "parsed_version": [
+        0,
+        4,
+        19
+      ]
+    },
+    {
+      "file": "278cdd6847ef830c23cac61c17eab837fea1c29a_Bridge.sol",
+      "contract": "Bridge",
+      "version": "0.6.4",
+      "parsed_version": [
+        0,
+        6,
+        4
+      ]
+    },
+    {
+      "file": "ed2f35867a1afc19eeff7f0fbd7cd30c0c8c288a_Etheropoly.sol",
+      "contract": "Etheropoly",
+      "version": "v0.4.21",
+      "parsed_version": [
+        0,
+        4,
+        21
+      ]
+    },
+    {
+      "file": "2f0b287275Fc50a1Cb854797927A12a98d3b9460_EthereumGod.sol",
+      "contract": "EthereumGod",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "80169091AAF83C82bb36469db6dAB14c013a0Ef4_GE.sol",
+      "contract": "GE",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "6a40f8b2c7e6eb5bacbd52bc055e230d00168669_CharlieCoin.sol",
+      "contract": "CharlieCoin",
+      "version": "v0.4.19",
+      "parsed_version": [
+        0,
+        4,
+        19
+      ]
+    },
+    {
+      "file": "259562c54c07aca61e12ee12c62016eaf3fd7852_Nokon.sol",
+      "contract": "Nokon",
+      "version": "0.7.4",
+      "parsed_version": [
+        0,
+        7,
+        4
+      ]
+    },
+    {
+      "file": "b3af8d08975e5c6bc98cb2f8646e54539e2d8f0d_MultiSigWalletWithDailyLimit.sol",
+      "contract": "MultiSigWalletWithDailyLimit",
+      "version": "v0.4.19",
+      "parsed_version": [
+        0,
+        4,
+        19
+      ]
+    },
+    {
+      "file": "6db943251e4126f913e9733821031791e75df713_ReadyPlayerONE.sol",
+      "contract": "ReadyPlayerONE",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "Dd257067581Bb12d9D37C24bC7ad87Ee41db74B9_LOKLandSaleSecond.sol",
+      "contract": "LOKLandSaleSecond",
+      "version": "0.5.16",
+      "parsed_version": [
+        0,
+        5,
+        16
+      ]
+    },
+    {
+      "file": "d91a26a93c10797b9d02c5595741b83704c874f4_BitcoinSapphire.sol",
+      "contract": "BitcoinSapphire",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "20c3811a83fad33dc7a0c8ee2d1e773ddf3b7d44_Damo.sol",
+      "contract": "Damo",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "e50b077ecaf6105a70f992fa83b0fdc6a062a349_BabyDogeDoo.sol",
+      "contract": "BabyDogeDoo",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "9ddf4d7f5afa1bf0270b2719811324c2ac97480c_FOMOQuick.sol",
+      "contract": "FOMOQuick",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "08892eebfad12c909c0cb15ebea385ec997ce1ef_MegaBull.sol",
+      "contract": "MegaBull",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "b1951924c2225527d712ed41bb6a9d9c0f543ea7_OUD.sol",
+      "contract": "OUD",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "39da420ac0d9a6d8e05c5d9acac75377decfbb42_WANGMI.sol",
+      "contract": "WANGMI",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "6c8dce6d842e0d9d109dc4c69f35cf8904fc4cbf_EtheremonEnergy.sol",
+      "contract": "EtheremonEnergy",
+      "version": "v0.4.19",
+      "parsed_version": [
+        0,
+        4,
+        19
+      ]
+    },
+    {
+      "file": "c1ad0c738a9cd8d2fbaba66885493fe7961996e8_Goldensnitch.sol",
+      "contract": "Goldensnitch",
+      "version": "0.7.4",
+      "parsed_version": [
+        0,
+        7,
+        4
+      ]
+    },
+    {
+      "file": "86c423d5f9396a9d6268d47203b3806028778f51_BLUECHIPBONDS.sol",
+      "contract": "BLUECHIPBONDS",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "4E0fCa55a6C3A94720ded91153A27F60E26B9AA8_BoostToken.sol",
+      "contract": "BoostToken",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "2bd29df7a7fe49faf49cc96f75582297c9ac1edd_MultiVaultCapital.sol",
+      "contract": "MultiVaultCapital",
+      "version": "0.7.6",
+      "parsed_version": [
+        0,
+        7,
+        6
+      ]
+    },
+    {
+      "file": "dd9f24efc84d93deef3c8745c837ab63e80abd27_GovernanceLeftoverExchanger.sol",
+      "contract": "GovernanceLeftoverExchanger",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "aaf740FD71093520C457642eb9219A4F6dA22190_ANON.sol",
+      "contract": "ANON",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "85a3248fd8d750a80d5df3abb0c933bdd9a8396a_POWHF.sol",
+      "contract": "POWHF",
+      "version": "v0.4.20",
+      "parsed_version": [
+        0,
+        4,
+        20
+      ]
+    },
+    {
+      "file": "0c6173feb70e6db560bc89ac014cb5d97583b111_KingOfTheHill.sol",
+      "contract": "KingOfTheHill",
+      "version": "0.7.4",
+      "parsed_version": [
+        0,
+        7,
+        4
+      ]
+    },
+    {
+      "file": "20e2bf0fc47e65a3caa5e8e17c5cd730cc556db9_AirDrop.sol",
+      "contract": "AirDrop",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "7b8741bd212b4f2d0a1b53008670d2b0174a1cd9_HYPERLOOP.sol",
+      "contract": "HYPERLOOP",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "cf8c23cf17bb5815d5705a15486fa83805415625_Polkadoge.sol",
+      "contract": "Polkadoge",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "df56130421afc85431af6b3451a9336377e5fb0c_BountyClaim.sol",
+      "contract": "BountyClaim",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "819Bb9964B6eBF52361F1ae42CF4831B921510f9_V00_Marketplace.sol",
+      "contract": "V00_Marketplace",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "bfBa224810655e7B5D94190700768fa8aBDB9eAa_HippoHotel.sol",
+      "contract": "HippoHotel",
+      "version": "0.7.6",
+      "parsed_version": [
+        0,
+        7,
+        6
+      ]
+    },
+    {
+      "file": "7Ed850d831dd56b3224647eDF5622835d48c54A4_ElonRogan.sol",
+      "contract": "ElonRogan",
+      "version": "0.6.12",
+      "parsed_version": [
+        0,
+        6,
+        12
+      ]
+    },
+    {
+      "file": "6a57883b5748bf3631ac2e0d43bf0d6f6cbcd16b_LescoinPreSale.sol",
+      "contract": "LescoinPreSale",
+      "version": "v0.4.16",
+      "parsed_version": [
+        0,
+        4,
+        16
+      ]
+    },
+    {
+      "file": "d4cd9a92a2cc1a864d67f1fd6279f73f5ec3a5f7_OwnershipClaimer.sol",
+      "contract": "OwnershipClaimer",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "fed8dfb896ff7081851c56a2652240568d2c513f_PreICO.sol",
+      "contract": "PreICO",
+      "version": "v0.4.15",
+      "parsed_version": [
+        0,
+        4,
+        15
+      ]
+    },
+    {
+      "file": "d546551924a883b604d4127b0af309c95ba9ba6d_UberDelta.sol",
+      "contract": "UberDelta",
+      "version": "v0.4.20",
+      "parsed_version": [
+        0,
+        4,
+        20
+      ]
+    },
+    {
+      "file": "482cf6a9d6b23452c81d4d0f0f139c1414963f89_EpicPackFour.sol",
+      "contract": "EpicPackFour",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "44bB2a074C58e160fc86eFC395B6dFD3592E7620_The401kProtocol.sol",
+      "contract": "The401kProtocol",
+      "version": "0.7.4",
+      "parsed_version": [
+        0,
+        7,
+        4
+      ]
+    },
+    {
+      "file": "2af6139c39c05e0597c0ac12c60b303c38aa69e7_HIT.sol",
+      "contract": "HIT",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "84b7d95165328d790a34cc5d7ecf528be55c65ed_DiceGame.sol",
+      "contract": "DiceGame",
+      "version": "v0.4.25",
+      "parsed_version": [
+        0,
+        4,
+        25
+      ]
+    },
+    {
+      "file": "7e2adafce6033c1272708b58aeab1164017417d2_CryptoflipCar.sol",
+      "contract": "CryptoflipCar",
+      "version": "v0.4.21",
+      "parsed_version": [
+        0,
+        4,
+        21
+      ]
+    },
+    {
+      "file": "30f938fed5de6e06a9a7cd2ac3517131c317b1e7_GivethBridge.sol",
+      "contract": "GivethBridge",
+      "version": "v0.4.21",
+      "parsed_version": [
+        0,
+        4,
+        21
+      ]
+    },
+    {
+      "file": "a44e464b13280340904ffef0a65b8a0033460430_MyCryptoChampCore.sol",
+      "contract": "MyCryptoChampCore",
+      "version": "v0.4.23",
+      "parsed_version": [
+        0,
+        4,
+        23
+      ]
+    },
+    {
+      "file": "768864b2c8e9e15ec91be1db124469f861cfd2c2_RatScam.sol",
+      "contract": "RatScam",
+      "version": "v0.4.24",
+      "parsed_version": [
+        0,
+        4,
+        24
+      ]
+    },
+    {
+      "file": "0e90b59e6b1f28d89a647f3224e24af44e824baf_UshiOni.sol",
+      "contract": "UshiOni",
+      "version": "0.7.6",
+      "parsed_version": [
+        0,
+        7,
+        6
+      ]
+    },
+    {
+      "file": "a8e7366031d493A0dF88A583196d092f80152029_Ribbits.sol",
+      "contract": "Ribbits",
+      "version": "0.5.17",
+      "parsed_version": [
+        0,
+        5,
+        17
+      ]
+    }
+  ]
+}
