@@ -8,7 +8,7 @@ from solcx import (
 )
 from solcx.exceptions import SolcError
 from Domain.AddressSet import address_manager, AddressSet
-from Domain.Annotation import DuringAnnotation, PostAnnotation
+from Domain.Annotation import DuringAnnotation, PostAnnotation, CompoundDuringAnnotation, CompoundPostAnnotation
 from Utils.Helper import *
 from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
@@ -2377,270 +2377,313 @@ class ContractAnalyzer:
         return None
 
     # -----------------------------------------------------------
-    # DURING-INTENT PROCESSORS
+    # DURING-INTENT PROCESSOR (논리 연산자 지원)
     # -----------------------------------------------------------
 
-    def process_during_before_after(self, var_ref: Expression, comp_op: str):
+    def process_during(self, clauses: list, logic_ops: list):
         """
-        @During  x(Before < After)   형태
-        var_ref  : Expression 객체 (visitVarRef 결과)
-        comp_op  : '<' '>' … 등
+        논리 연산자로 연결된 during clause들을 처리
+        1. 복합 annotation으로 저장
+        2. 정적 분석 수행 (interval 기반)
+        3. 결과 기록
+
+        Args:
+            clauses: List[dict] - 각 clause 정보
+            logic_ops: List[str] - 논리 연산자 ('&&' or '||')
         """
         line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_during_annotation(
-            "beforeAfter",
-            line_no,
-            var_ref=var_ref,
-            comp_op=comp_op
-        )
-        
-        result = self.guardian_verifier.verify_during_before_after(
-            var_ref=var_ref,
-            comp_op=comp_op,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringBeforeAfter", result)
+
+        # 1. 복합 annotation 생성 및 저장
+        compound = CompoundDuringAnnotation(line_no, clauses, logic_ops)
+
+        if line_no not in self.line_info:
+            self.line_info[line_no] = {}
+        if 'during_annotations' not in self.line_info[line_no]:
+            self.line_info[line_no]['during_annotations'] = []
+
+        self.line_info[line_no]['during_annotations'].append(compound)
+
+        # 2. 정적 분석 수행 (interval 기반)
+        result = self._verify_compound_during_static(clauses, logic_ops, line_no)
+
+        # 3. 결과 기록
+        self.recorder.record_verification_result(line_no, "during", result)
+
         return result
 
-    def process_during_assign_current(self, var_ref: Expression, comp_op: str):
+    def _verify_compound_during_static(self, clauses: list, logic_ops: list, line_no: int) -> dict:
         """
-        @During  x(Assign <= Current)
-        현재 statement 가 "할당" 문장인지 여부까지 Guardian 쪽에서 검사
+        정적 분석: 각 clause를 검증하고 논리 연산자로 조합
         """
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_during_annotation(
-            "assignCurrent",
-            line_no,
-            var_ref=var_ref,
-            comp_op=comp_op
-        )
-        
-        result = self.guardian_verifier.verify_during_assign_current(
-            var_ref=var_ref,
-            comp_op=comp_op,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringAssignCurrent", result)
-        return result
+        results = []
 
-    def process_during_return_expression(self, comp_op: str, value_expr: Expression):
-        """
-        @During  returnExpression  op  valueExpr
-        """
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_during_annotation(
-            "returnExpression",
-            line_no,
-            comp_op=comp_op,
-            value_expr=value_expr
-        )
-        
-        result = self.guardian_verifier.verify_during_return_expression(
-            comp_op=comp_op,
-            value_expr=value_expr,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringRetExpr", result)
-        return result
+        # 각 clause 검증
+        for clause in clauses:
+            result = self._verify_during_clause_static(clause, line_no)
+            results.append(result)
 
-    def process_during_return_variable(self, var_ref: Expression, comp_op: str, value_expr: Expression):
-        """
-        @During  return x  op  valueExpr     (tuple 원소 가능)
-        """
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_during_annotation(
-            "returnVariable",
-            line_no,
-            var_ref=var_ref,
-            comp_op=comp_op,
-            value_expr=value_expr
-        )
-        
-        result = self.guardian_verifier.verify_during_return_variable(
-            var_ref=var_ref,
-            comp_op=comp_op,
-            value_expr=value_expr,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringRetVar", result)
-        return result
+        # 논리 연산자로 조합
+        if len(results) == 0:
+            return {"status": "error", "message": "No clauses to verify"}
+        elif len(results) == 1:
+            return results[0]
+        else:
+            return self._combine_logic_results(results, logic_ops)
 
-    def process_during_direct_comparison(self, lhs_expr: Expression, comp_op: str, rhs_expr: Expression):
-        """
-        @During  valueExpr  op  valueExpr
-        """
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_during_annotation(
-            "directComparison",
-            line_no,
-            lhs_expr=lhs_expr,
-            comp_op=comp_op,
-            rhs_expr=rhs_expr
-        )
-        
-        result = self.guardian_verifier.verify_during_direct_comparison(
-            lhs_expr=lhs_expr,
-            comp_op=comp_op,
-            rhs_expr=rhs_expr,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringDirectCmp", result)
-        return result
+    def _verify_during_clause_static(self, clause: dict, line_no: int) -> dict:
+        """개별 during clause 정적 검증"""
+        kind = clause["kind"]
 
-    def process_during_implication(self, antecedent: dict, consequent: dict):
-        line_no = self.current_start_line
-        self.store_during_annotation(
-            "implication",
-            line_no,
-            antecedent=antecedent,
-            consequent=consequent
-        )
-        result = self.guardian_verifier.verify_during_implication(
-            antecedent=antecedent,
-            consequent=consequent,
-            line_no=line_no,
-            cfg_node=self._cfg_node_at(line_no),
-        )
-        self.recorder.record_verification_result(line_no, "duringImplication", result)
-        return result
+        if kind == "beforeAfter":
+            return self.guardian_verifier.verify_during_before_after(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "assignCurrent":
+            return self.guardian_verifier.verify_during_assign_current(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "retExpr":
+            return self.guardian_verifier.verify_during_return_expression(
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "retIndex":
+            return self.guardian_verifier.verify_during_return_index(
+                index=clause["index"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "retVar":
+            return self.guardian_verifier.verify_during_return_variable(
+                var_ref=clause["lhs"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "direct":
+            return self.guardian_verifier.verify_during_direct_comparison(
+                lhs_expr=clause["lhs"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        elif kind == "implication":
+            return self.guardian_verifier.verify_during_implication(
+                antecedent=clause["antecedent"],
+                consequent=clause["consequent"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
+        # percentOf, ceil, floor 등 추가 가능
+        else:
+            return {"status": "error", "message": f"Unknown clause kind: {kind}"}
 
     # -----------------------------------------------------------
-    # POST-INTENT PROCESSORS
+    # POST-INTENT PROCESSOR (논리 연산자 지원)
     # -----------------------------------------------------------
 
-    def process_post_entry_exit(self, var_ref: Expression, comp_op: str):
+    def process_post(self, clauses: list, logic_ops: list):
+        """
+        논리 연산자로 연결된 post clause들을 처리
+        1. 복합 annotation으로 저장
+        2. 정적 분석 수행 (interval 기반)
+        3. 결과 기록
+
+        Args:
+            clauses: List[dict] - 각 clause 정보
+            logic_ops: List[str] - 논리 연산자 ('&&' or '||')
+        """
         line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_post_annotation(
-            "entryExit",
-            line_no,
-            var_ref=var_ref,
-            comp_op=comp_op
-        )
-        
-        result = self.guardian_verifier.verify_post_entry_exit(
-            var_ref=var_ref,
-            comp_op=comp_op,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postEntryExit", result)
+
+        # 1. 복합 annotation 생성 및 저장
+        compound = CompoundPostAnnotation(line_no, clauses, logic_ops)
+
+        if line_no not in self.line_info:
+            self.line_info[line_no] = {}
+        if 'post_annotations' not in self.line_info[line_no]:
+            self.line_info[line_no]['post_annotations'] = []
+
+        self.line_info[line_no]['post_annotations'].append(compound)
+
+        # 2. 정적 분석 수행 (interval 기반)
+        result = self._verify_compound_post_static(clauses, logic_ops, line_no)
+
+        # 3. 결과 기록
+        self.recorder.record_verification_result(line_no, "post", result)
+
         return result
 
-    def process_post_return_expression(self, comp_op: str, value_expr: Expression):
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_post_annotation(
-            "returnExpression",
-            line_no,
-            comp_op=comp_op,
-            value_expr=value_expr
-        )
-        
-        result = self.guardian_verifier.verify_post_return_expression(
-            comp_op=comp_op,
-            value_expr=value_expr,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postRetExpr", result)
-        return result
+    def _verify_compound_post_static(self, clauses: list, logic_ops: list, line_no: int) -> dict:
+        """
+        정적 분석: 각 clause를 검증하고 논리 연산자로 조합
+        """
+        results = []
 
-    def process_post_return_variable(self, var_ref: Expression, comp_op: str, value_expr: Expression):
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_post_annotation(
-            "returnVariable",
-            line_no,
-            var_ref=var_ref,
-            comp_op=comp_op,
-            value_expr=value_expr
-        )
-        
-        result = self.guardian_verifier.verify_post_return_variable(
-            var_ref=var_ref,
-            comp_op=comp_op,
-            value_expr=value_expr,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postRetVar", result)
-        return result
+        # 각 clause 검증
+        for clause in clauses:
+            result = self._verify_post_clause_static(clause, line_no)
+            results.append(result)
 
-    def process_post_direct_comparison(self, lhs_expr: Expression, comp_op: str, rhs_expr: Expression):
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_post_annotation(
-            "directComparison",
-            line_no,
-            lhs_expr=lhs_expr,
-            comp_op=comp_op,
-            rhs_expr=rhs_expr
-        )
-        
-        result = self.guardian_verifier.verify_post_direct_comparison(
-            lhs_expr=lhs_expr,
-            comp_op=comp_op,
-            rhs_expr=rhs_expr,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postDirectCmp", result)
-        return result
+        # 논리 연산자로 조합
+        if len(results) == 0:
+            return {"status": "error", "message": "No clauses to verify"}
+        elif len(results) == 1:
+            return results[0]
+        else:
+            return self._combine_logic_results(results, logic_ops)
 
-    def process_post_unchanged(self, var_ref: Expression):
-        line_no = self.current_start_line
-        
-        # annotation 저장
-        self.store_post_annotation(
-            "unchanged",
-            line_no,
-            var_ref=var_ref
-        )
-        
-        result = self.guardian_verifier.verify_post_unchanged(
-            var_ref=var_ref,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postUnchanged", result)
-        return result
+    def _verify_post_clause_static(self, clause: dict, line_no: int) -> dict:
+        """개별 post clause 정적 검증"""
+        kind = clause["kind"]
 
-    def process_post_implication(self, antecedent: dict, consequent: dict):
-        line_no = self.current_start_line
-        self.store_post_annotation(
-            "implication",
-            line_no,
-            antecedent=antecedent,
-            consequent=consequent
-        )
-        result = self.guardian_verifier.verify_post_implication(
-            antecedent=antecedent,
-            consequent=consequent,
-            line_no=line_no,
-            fn_cfg=self.current_target_function_cfg,
-        )
-        self.recorder.record_verification_result(line_no, "postImplication", result)
-        return result
+        if kind == "entryExit":
+            return self.guardian_verifier.verify_post_entry_exit(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "unchanged":
+            return self.guardian_verifier.verify_post_unchanged(
+                var_ref=clause["var"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "retExpr":
+            return self.guardian_verifier.verify_post_return_expression(
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "retIndex":
+            return self.guardian_verifier.verify_post_return_index(
+                index=clause["index"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "retVar":
+            return self.guardian_verifier.verify_post_return_variable(
+                var_ref=clause["lhs"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "direct":
+            return self.guardian_verifier.verify_post_direct_comparison(
+                lhs_expr=clause["lhs"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        elif kind == "implication":
+            return self.guardian_verifier.verify_post_implication(
+                antecedent=clause["antecedent"],
+                consequent=clause["consequent"],
+                line_no=line_no,
+                fn_cfg=self.current_target_function_cfg
+            )
+        # percentOf, ceil, floor 등 추가 가능
+        else:
+            return {"status": "error", "message": f"Unknown clause kind: {kind}"}
+
+    # -----------------------------------------------------------
+    # 논리 연산 결과 조합
+    # -----------------------------------------------------------
+
+    def _combine_logic_results(self, results: list, logic_ops: list) -> dict:
+        """
+        논리 연산자에 따라 검증 결과 조합
+
+        Args:
+            results: List[dict] - 각 clause의 검증 결과
+            logic_ops: List[str] - '&&' or '||'
+
+        Returns:
+            최종 조합된 검증 결과
+        """
+        if not results:
+            return {"status": "error", "message": "No results"}
+
+        if len(results) == 1:
+            return results[0]
+
+        final = results[0]
+
+        for i, op in enumerate(logic_ops):
+            next_result = results[i + 1]
+
+            if op == '&&':
+                # AND: 둘 다 success여야 success
+                if final.get("status") == "success" and next_result.get("status") == "success":
+                    final = {
+                        "status": "success",
+                        "message": f"({final.get('message', 'ok')}) && ({next_result.get('message', 'ok')})",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "&&"
+                    }
+                elif final.get("status") == "violation" or next_result.get("status") == "violation":
+                    final = {
+                        "status": "violation",
+                        "message": f"AND violated",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "&&"
+                    }
+                else:
+                    final = {
+                        "status": "unknown",
+                        "message": f"AND uncertain",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "&&"
+                    }
+
+            else:  # '||'
+                # OR: 하나라도 success면 success
+                if final.get("status") == "success" or next_result.get("status") == "success":
+                    final = {
+                        "status": "success",
+                        "message": f"OR satisfied",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "||"
+                    }
+                elif final.get("status") == "violation" and next_result.get("status") == "violation":
+                    final = {
+                        "status": "violation",
+                        "message": f"OR violated",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "||"
+                    }
+                else:
+                    final = {
+                        "status": "unknown",
+                        "message": f"OR uncertain",
+                        "left": final,
+                        "right": next_result,
+                        "operator": "||"
+                    }
+
+        return final
 
     def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:
         """

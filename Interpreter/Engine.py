@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 from Domain.Variable import Variables, MappingVariable, ArrayVariable, StructVariable
 from Domain.IR import Expression
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
+from Domain.Annotation import CompoundDuringAnnotation, CompoundPostAnnotation
 from Utils.CFG import CFGNode, FunctionCFG
 from Utils.Helper import VariableEnv
 from collections import deque
@@ -690,8 +691,6 @@ class Engine:
                     self.ref.update_variables_with_condition(true_variables, condition_expr, True)
                     can_true = self._branch_feasible(true_variables, condition_expr, True)
 
-                    # ✂ require/assert 기록 제거
-
                     if can_true:
                         t.variables = true_variables; work.append(t)
                     else:
@@ -1160,16 +1159,21 @@ class Engine:
 
     def _verify_during_annotation(self, annot, node, cur_vars):
         """
-        개별 During annotation 검증
+        During annotation 검증 (CompoundDuringAnnotation 지원)
 
         Args:
-            annot: DuringAnnotation 객체
+            annot: DuringAnnotation 또는 CompoundDuringAnnotation 객체
             node: CFGNode
             cur_vars: 변수 환경
 
         Returns:
             검증 결과 딕셔너리
         """
+        # CompoundDuringAnnotation 처리
+        if isinstance(annot, CompoundDuringAnnotation):
+            return self._verify_compound_during(annot, node, cur_vars)
+
+        # 기존 DuringAnnotation 처리 (하위 호환성)
         guardian = self.an.guardian_verifier
         atype = annot.annotation_type
 
@@ -1220,6 +1224,82 @@ class Engine:
                 'status': 'error',
                 'message': f'Unknown during annotation type: {atype}'
             }
+
+    def _verify_compound_during(self, compound: CompoundDuringAnnotation, node, cur_vars):
+        """
+        동적 분석: CompoundDuringAnnotation 검증
+        debug annotation이 주어진 경우 더 정확한 검증
+        """
+        guardian = self.an.guardian_verifier
+        results = []
+
+        # 각 clause 검증
+        for clause in compound.clauses:
+            result = self._verify_during_clause_dynamic(clause, node, cur_vars, guardian)
+            results.append(result)
+
+        # 논리 연산자로 조합
+        return self.an._combine_logic_results(results, compound.logic_ops)
+
+    def _verify_during_clause_dynamic(self, clause: dict, node, cur_vars, guardian):
+        """개별 during clause 동적 검증"""
+        kind = clause["kind"]
+        line_no = node.start_line
+
+        if kind == "beforeAfter":
+            return guardian.verify_during_before_after(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "assignCurrent":
+            return guardian.verify_during_assign_current(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "retExpr":
+            return guardian.verify_during_return_expression(
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "retIndex":
+            return guardian.verify_during_return_index(
+                index=clause["index"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "retVar":
+            return guardian.verify_during_return_variable(
+                var_ref=clause["lhs"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "direct":
+            return guardian.verify_during_direct_comparison(
+                lhs_expr=clause["lhs"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        elif kind == "implication":
+            return guardian.verify_during_implication(
+                antecedent=clause["antecedent"],
+                consequent=clause["consequent"],
+                line_no=line_no,
+                cfg_node=node
+            )
+        else:
+            return {"status": "error", "message": f"Unknown clause kind: {kind}"}
 
     def _process_post_annotations(self, fcfg):
         """
@@ -1273,15 +1353,20 @@ class Engine:
 
     def _verify_post_annotation(self, annot, fcfg):
         """
-        개별 Post annotation 검증
+        Post annotation 검증 (CompoundPostAnnotation 지원)
 
         Args:
-            annot: PostAnnotation 객체
+            annot: PostAnnotation 또는 CompoundPostAnnotation 객체
             fcfg: FunctionCFG
 
         Returns:
             검증 결과 딕셔너리
         """
+        # CompoundPostAnnotation 처리
+        if isinstance(annot, CompoundPostAnnotation):
+            return self._verify_compound_post(annot, fcfg)
+
+        # 기존 PostAnnotation 처리 (하위 호환성)
         guardian = self.an.guardian_verifier
         atype = annot.annotation_type
 
@@ -1331,3 +1416,77 @@ class Engine:
                 'status': 'error',
                 'message': f'Unknown post annotation type: {atype}'
             }
+
+    def _verify_compound_post(self, compound: CompoundPostAnnotation, fcfg):
+        """
+        동적 분석: CompoundPostAnnotation 검증
+        debug annotation이 주어진 경우 더 정확한 검증
+        """
+        guardian = self.an.guardian_verifier
+        results = []
+
+        # 각 clause 검증
+        for clause in compound.clauses:
+            result = self._verify_post_clause_dynamic(clause, compound.line_no, fcfg, guardian)
+            results.append(result)
+
+        # 논리 연산자로 조합
+        return self.an._combine_logic_results(results, compound.logic_ops)
+
+    def _verify_post_clause_dynamic(self, clause: dict, line_no: int, fcfg, guardian):
+        """개별 post clause 동적 검증"""
+        kind = clause["kind"]
+
+        if kind == "entryExit":
+            return guardian.verify_post_entry_exit(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "unchanged":
+            return guardian.verify_post_unchanged(
+                var_ref=clause["var"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retExpr":
+            return guardian.verify_post_return_expression(
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retIndex":
+            return guardian.verify_post_return_index(
+                index=clause["index"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retVar":
+            return guardian.verify_post_return_variable(
+                var_ref=clause["lhs"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "direct":
+            return guardian.verify_post_direct_comparison(
+                lhs_expr=clause["lhs"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "implication":
+            return guardian.verify_post_implication(
+                antecedent=clause["antecedent"],
+                consequent=clause["consequent"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        else:
+            return {"status": "error", "message": f"Unknown clause kind: {kind}"}

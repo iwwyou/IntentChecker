@@ -250,18 +250,12 @@ interactiveCatchClauseUnit
     interactiveCatchClause
   )* EOF;
 
-//--------------------------------------------------
-// 0. Entry point
-//--------------------------------------------------
 intentUnit
     : ( debugInput
       | duringIntent
       | postIntent
       ) EOF
     ;
-
-// ─────────────────────────────────────────────
-// 1) Test Input (Debugging block content)
 debugInput
     : debugGlobalVar
     | debugStateVar
@@ -280,48 +274,37 @@ debugLocalVar
     : '//' '@LocalVar' varRef '=' debugValue
     ;
 
-// ─────────────────────────────────────────────
-// 2) DURING Intent
 duringIntent
     : '//' '@During' duringClause (logicOp duringClause)*
     ;
 
-// Top-level verification logic for During context
-// Each rule corresponds to a specific verification pattern for publication
 duringClause
     : intentValue '(' BEFORE  relOp AFTER   ')'                             # DuringBeforeAfter
     | intentValue '(' ASSIGN  relOp CURRENT ')'                             # DuringAssignCurrent
-    | 'returnExpression' relOp intentValue                                  # DuringReturnExprCmp
-    | 'return' intentValue relOp intentValue                                # DuringReturnVarCmp
-    | intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')'   # DuringPercentOf
-    | intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'        # DuringCeil
-    | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'       # DuringFloor
-    | intentValue relOp intentValue                                         # DuringRelationalCmp
-    | intentValue '=>' intentValue                                          # DuringImplication
+    | commonClause                                                          # DuringCommon
     ;
 
-// ─────────────────────────────────────────────
-// 3) POST Intent
 postIntent
     : '//' '@Post' postClause (logicOp postClause)*
     ;
 
-// Top-level verification logic for Post context
-// Each rule corresponds to a specific verification pattern for publication
 postClause
     : intentValue '(' ENTRY relOp EXIT ')'                                # PostEntryExit
     | UNCHANGED '(' intentValue ')'                                       # UnchangedVar
-    | 'returnExpression' relOp intentValue                                # PostReturnExprCmp
-    | 'return' intentValue relOp intentValue                              # PostReturnVarCmp
-    | intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')' # PostPercentOf
-    | intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'      # PostCeil
-    | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'     # PostFloor
-    | intentValue relOp intentValue                                       # PostRelationalCmp
-    | intentValue '=>' intentValue                                        # PostImplication
+    | commonClause                                                        # PostCommon
     ;
 
-// ─────────────────────────────────────────────
-// 4) Debug Value
+commonClause
+    : 'returnExpression' relOp intentValue                                  # ReturnExprCmp
+    | 'return' '[' numberLiteral ']' relOp intentValue                      # ReturnIndexCmp
+    | 'return' intentValue relOp intentValue                                # ReturnVarCmp
+    | intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')'   # PercentOf
+    | intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'        # Ceil
+    | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'       # Floor
+    | intentValue relOp intentValue                                         # RelationalCmp
+    | intentValue '=>' intentValue                                          # Implication
+    ;
+
 debugValue
     : '[' signedNumberLiteral ',' signedNumberLiteral ']'                          # DebugIntInterval
     | 'symbolicAddress' numberLiteral                                              # DebugSymbolicAddress
@@ -333,18 +316,6 @@ debugValue
     | 'arrayAddress' '[' ( numberLiteral (',' numberLiteral)* )? ']'              # DebugAddressArray
     ;
 
-// ─────────────────────────────────────────────
-// Note: commonPredicate was split into duringSimpleComparison and postSimpleComparison
-// to prevent temporal keywords (Before/After/Entry/Exit) from being used in cross-variable
-// comparisons like x(Before) < y(After), which was not intended.
-// Each context now has its own value rules (duringValue, postValue) that use arithExpr,
-// addressExpr, and boolExpr directly without allowing temporal keywords.
-// ─────────────────────────────────────────────
-
-//==================================================
-// 5)  intentValue ― Intent verification에서 사용되는 numeric 값
-//     NumScout 취약점 탐지를 위한 numeric expression만 포함
-//--------------------------------------------------
 intentValue
     : arithExpr
     ;
@@ -369,8 +340,7 @@ arithFactor
 
 //────────── 변수·멤버·인덱스 참조 (arithFactor에서 사용) ──────────
 varRef
-    : 'return' '[' numberLiteral ']'              #ReturnElemRef   // tuple 원소
-    | identifier subAccess*                       #NormalVarRef
+    : identifier subAccess*                       #NormalVarRef
     ;
 
 subAccess

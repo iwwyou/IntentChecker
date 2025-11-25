@@ -63,10 +63,10 @@ class GuardianVerificationEngine:
             return self._evaluate_address_literal(expr)
 
         # ─── VarRef contexts → evaluator에 위임 ───────────────────
-        # VarRefBase, VarRefMemberAccess, VarRefIndexAccess는
+        # NormalVarRef, IntentMemberAccess, IntentIndexAccess는
         # 일반 IdentifierExpContext, MemberAccessContext, IndexAccessExpContext와
         # 동일하게 처리되므로 evaluator에 위임
-        elif ctx in {"VarRefBase", "VarRefMemberAccess", "VarRefIndexAccess"}:
+        elif ctx in {"NormalVarRef", "IntentMemberAccess", "IntentIndexAccess"}:
             return self.analyzer.evaluator.evaluate_expression(
                 expr, variables, callerObject, callerContext
             )
@@ -316,6 +316,76 @@ class GuardianVerificationEngine:
             return self._err("duringRetExpr", f"internal error: {e}", line_no)
 
     # ────────────────────────────────────────────────────────────────
+    #  DURING : return[idx] 비교
+    # ----------------------------------------------------------------
+    def verify_during_return_index(
+        self, *, index: int, comp_op: str, value_expr: Expression,
+        line_no: int, cfg_node: CFGNode
+    ) -> dict[str, Any]:
+        """
+        @During return[idx] op value 검증
+        tuple 반환값의 특정 인덱스 원소를 value와 비교
+        """
+        try:
+            # ── 1) "현재 함수" CFG -------------------------------
+            fcfg = self.analyzer.current_target_function_cfg
+            if fcfg is None:
+                return self._err("duringRetIndex",
+                                  "no active FunctionCFG", line_no)
+
+            # ── 2) return 값 확보 -------------------------------
+            ret_vals = fcfg.get_exit_node().return_vals
+            if line_no not in ret_vals:
+                return self._err("duringRetIndex",
+                                  f"no return at line {line_no}", line_no)
+            ret_val = ret_vals[line_no]
+
+            # ── 3) tuple 인덱스 접근 ----------------------------
+            if isinstance(ret_val, tuple):
+                if index < 0 or index >= len(ret_val):
+                    return self._err("duringRetIndex",
+                                      f"index {index} out of range for tuple of length {len(ret_val)}", line_no)
+                indexed_val = ret_val[index]
+            else:
+                # 단일 반환값인 경우 인덱스 0만 허용
+                if index != 0:
+                    return self._err("duringRetIndex",
+                                      f"return value is not a tuple, index {index} invalid", line_no)
+                indexed_val = ret_val
+
+            # ── 4) valueExpr 평가 -------------------------------
+            rhs_val = self.evaluate_guardian_expression(
+                value_expr, cfg_node.variables, None, None)
+
+            # ── 5) 비교 ----------------------------------------
+            cmp = self._compare_values(indexed_val, comp_op, rhs_val)
+            status = self._status_from_cmp(cmp)
+
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
+
+            return {
+                "status":  status,
+                "kind":    "duringRetIndex",
+                "line":    line_no,
+                "details": {
+                    "return_index": index,
+                    "indexed_value": str(indexed_val),
+                    "expected":     str(rhs_val),
+                    "operator":     comp_op,
+                    **cmp
+                },
+                "message": (f"return[{index}] {comp_op} {self._pretty_expr(value_expr)} "
+                            f"→ {cmp['message']}{msg_tail}")
+            }
+
+        except Exception as e:
+            return self._err("duringRetIndex", f"internal error: {e}", line_no)
+
+    # ────────────────────────────────────────────────────────────────
     #  DURING : return var  비교
     # ----------------------------------------------------------------
     def verify_during_return_variable(
@@ -509,7 +579,7 @@ class GuardianVerificationEngine:
 
     def verify_post_return_expression(self, *, comp_op: str, value_expr, line_no: int, fn_cfg):
         try:
-            exit_node = fn_cfg.get_exit_node()
+            exit_node = self._get_post_exit_node(fn_cfg)
             ret_vals = list(exit_node.return_vals.values())
 
             if not ret_vals:
@@ -545,9 +615,67 @@ class GuardianVerificationEngine:
         except Exception as e:
             return self._err("postRetExpr", f"internal error: {e}", line_no)
 
+    def verify_post_return_index(self, *, index: int, comp_op: str, value_expr, line_no: int, fn_cfg):
+        """
+        @Post return[idx] op value 검증
+        함수 종료 시 tuple 반환값의 특정 인덱스 원소를 value와 비교
+        """
+        try:
+            exit_node = self._get_post_exit_node(fn_cfg)
+            ret_vals = list(exit_node.return_vals.values())
+
+            if not ret_vals:
+                return self._err("postRetIndex", "no return values", line_no)
+
+            # 모든 return 값에서 인덱스 접근 후 조인
+            indexed_vals = []
+            for rv in ret_vals:
+                if isinstance(rv, tuple):
+                    if index < 0 or index >= len(rv):
+                        return self._err("postRetIndex",
+                                          f"index {index} out of range for tuple of length {len(rv)}", line_no)
+                    indexed_vals.append(rv[index])
+                else:
+                    # 단일 반환값인 경우 인덱스 0만 허용
+                    if index != 0:
+                        return self._err("postRetIndex",
+                                          f"return value is not a tuple, index {index} invalid", line_no)
+                    indexed_vals.append(rv)
+
+            # 값 조인
+            acc = indexed_vals[0]
+            for v in indexed_vals[1:]:
+                acc = self._join_values(acc, v)
+            indexed_val = self._materialize(acc)
+
+            rhs_val = self._eval_on_exit_value(value_expr, fn_cfg, normal_only=True)
+
+            cmp = self._compare_values(indexed_val, comp_op, rhs_val)
+            status = self._status_from_cmp(cmp)
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
+            return {
+                "status": status,
+                "kind": "postRetIndex",
+                "line": line_no,
+                "details": {
+                    "return_index": index,
+                    "indexed_join": str(indexed_val),
+                    "rhs_value": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f'return[{index}] {comp_op} {self._pretty_expr(value_expr)} → {cmp["message"]}{msg_tail}',
+            }
+        except Exception as e:
+            return self._err("postRetIndex", f"internal error: {e}", line_no)
+
     def verify_post_return_variable(self, *, var_ref, comp_op: str, value_expr, line_no: int, fn_cfg):
         try:
-            exit_node = fn_cfg.get_exit_node()
+            exit_node = self._get_post_exit_node(fn_cfg)
             comp_vals = []
             for rv in exit_node.return_vals.values():
                 comp_vals.append(self._pick_from_return(rv, var_ref))
@@ -920,6 +1048,18 @@ class GuardianVerificationEngine:
         return v
 
     # GuardianVerificationEngine.py  ─ GuardianVerificationEngine 클래스 내부
+
+    def _get_post_exit_node(self, fn_cfg):
+        """
+        Post 검증용 exit 노드 선택:
+        - return이 있는 함수 → return_exit_node
+        - return이 없는 함수 → exit_node
+        """
+        return_exit = fn_cfg.get_return_exit_node()
+        if return_exit.return_vals:
+            return return_exit
+        else:
+            return fn_cfg.get_exit_node()
 
     def _preds(self, fn_cfg, *, normal_only: bool = True):
         """

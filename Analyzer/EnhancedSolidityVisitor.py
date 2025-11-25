@@ -684,168 +684,172 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#duringIntent.
     def visitDuringIntent(self, ctx: SolidityParser.DuringIntentContext):
-        return self.visitChildren(ctx)
+        """
+        새 문법: duringIntent : '//' '@During' duringClause (logicOp duringClause)*
+        모든 clause와 논리 연산자를 수집해서 한꺼번에 처리
+        """
+        clauses = []
+        logic_ops = []
 
-    # Visit a parse tree produced by SolidityParser#duringFormula.
-    def visitDuringFormula(self, ctx: SolidityParser.DuringFormulaContext):
-        return self.visitChildren(ctx)
+        # 모든 duringClause 수집
+        num_clauses = len(ctx.duringClause()) if ctx.duringClause() else 0
 
-    # Visit a parse tree produced by SolidityParser#duringClause.
-    def visitDuringClause(self, ctx: SolidityParser.DuringClauseContext):
-        return self.visitChildren(ctx)
+        for i in range(num_clauses):
+            clause_ctx = ctx.duringClause(i)
+            clause_dict = self._build_during_clause_dict(clause_ctx)
+            clauses.append(clause_dict)
 
-    # Visit a parse tree produced by SolidityParser#DuringClauseSingle.
-    def visitDuringClauseSingle(self, ctx: SolidityParser.DuringClauseSingleContext):
-        return self.visitChildren(ctx)
+            # 논리 연산자 수집 (마지막 제외)
+            if i < num_clauses - 1 and ctx.logicOp(i):
+                logic_ops.append(ctx.logicOp(i).getText())  # '&&' or '||'
 
-    # Visit a parse tree produced by SolidityParser#DuringImplication.
-    def visitDuringImplication(self, ctx: SolidityParser.DuringImplicationContext):
-        ante = self._build_during_predicate(ctx.predicateDuring(0))
-        cons = self._build_during_predicate(ctx.predicateDuring(1))
-        self.contract_analyzer.process_during_implication(ante, cons)
+        # ContractAnalyzer에 한꺼번에 전달
+        if clauses:
+            self.contract_analyzer.process_during(clauses, logic_ops)
+
         return None
 
-    def _build_during_predicate(self, pctx) -> dict:
+    def _build_common_clause_dict(self, clause_ctx) -> dict:
+        """
+        commonClause를 dict로 변환 (During/Post 공통)
+        """
         P = SolidityParser
-        if isinstance(pctx, P.DuringBeforeAfterContext):
+
+        if isinstance(clause_ctx, P.ReturnExprCmpContext):
             return {
-                "phase": "during",
+                "kind": "retExpr",
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue())
+            }
+        elif isinstance(clause_ctx, P.ReturnIndexCmpContext):
+            return {
+                "kind": "retIndex",
+                "index": int(clause_ctx.numberLiteral().getText()),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue())
+            }
+        elif isinstance(clause_ctx, P.ReturnVarCmpContext):
+            return {
+                "kind": "retVar",
+                "lhs": self.visit(clause_ctx.intentValue(0)),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue(1))
+            }
+        elif isinstance(clause_ctx, P.RelationalCmpContext):
+            return {
+                "kind": "direct",
+                "lhs": self.visit(clause_ctx.intentValue(0)),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue(1))
+            }
+        elif isinstance(clause_ctx, P.PercentOfContext):
+            return {
+                "kind": "percentOf",
+                "lhs": self.visit(clause_ctx.intentValue(0)),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue(1)),
+                "percentage": int(clause_ctx.numberLiteral().getText())
+            }
+        elif isinstance(clause_ctx, P.CeilContext):
+            return {
+                "kind": "ceil",
+                "lhs": self.visit(clause_ctx.intentValue(0)),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue(1)),
+                "unit": int(clause_ctx.numberLiteral().getText())
+            }
+        elif isinstance(clause_ctx, P.FloorContext):
+            return {
+                "kind": "floor",
+                "lhs": self.visit(clause_ctx.intentValue(0)),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue(1)),
+                "unit": int(clause_ctx.numberLiteral().getText())
+            }
+        elif isinstance(clause_ctx, P.ImplicationContext):
+            # Implication은 재귀적으로 처리
+            return {
+                "kind": "implication",
+                "antecedent": self._build_common_clause_dict(clause_ctx.commonClause(0)),
+                "consequent": self._build_common_clause_dict(clause_ctx.commonClause(1))
+            }
+        else:
+            raise ValueError(f"Unknown common clause type: {type(clause_ctx)}")
+
+    def _build_during_clause_dict(self, clause_ctx) -> dict:
+        """
+        duringClause를 dict로 변환 (새 문법 기반)
+        """
+        P = SolidityParser
+
+        if isinstance(clause_ctx, P.DuringBeforeAfterContext):
+            return {
                 "kind": "beforeAfter",
-                "var": self.visitVarRef(pctx.varRef()),
-                "op": self._relop_from_ctx(pctx),
+                "var": self.visit(clause_ctx.intentValue()),
+                "op": self._relop_from_ctx(clause_ctx)
             }
-        if isinstance(pctx, P.DuringAssignCurrentContext):
+        elif isinstance(clause_ctx, P.DuringAssignCurrentContext):
             return {
-                "phase": "during",
                 "kind": "assignCurrent",
-                "var": self.visitVarRef(pctx.varRef()),
-                "op": self._relop_from_ctx(pctx),
+                "var": self.visit(clause_ctx.intentValue()),
+                "op": self._relop_from_ctx(clause_ctx)
             }
-        if isinstance(pctx, P.DuringCommonPredicateContext):
-            payload = self.visit(pctx.commonPredicate())  # dict 반환(아래 3개 visit)
-            t = payload["type"]
-            if t == "ReturnExprCmp":
-                return {"phase": "during", "kind": "retExpr", "op": payload["op"], "rhs": payload["rhs"]}
-            if t == "ReturnVarCmp":
-                return {"phase": "during", "kind": "retVar", "op": payload["op"], "lhs": payload["lhs"],
-                        "rhs": payload["rhs"]}
-            if t == "RelationalCmp":
-                return {"phase": "during", "kind": "direct", "op": payload["op"], "lhs": payload["lhs"],
-                        "rhs": payload["rhs"]}
-        raise ValueError("unknown DURING predicate type")
-
-    # ───────────────── DURING ───────────────────────────────────────
-    def visitDuringBeforeAfter(self, ctx: SolidityParser.DuringBeforeAfterContext, **kw):
-        # y ( Before > After )
-        lhs_expr = self.visitVarRef(ctx.varRef())
-        op = self._relop_from_ctx(ctx)
-        self.contract_analyzer.process_during_before_after(lhs_expr, op)  # ← rhs 없음
-        return None
-
-    def visitDuringAssignCurrent(self, ctx: SolidityParser.DuringAssignCurrentContext, **kw):
-        # x ( Assign <= Current )
-        lhs_expr = self.visitVarRef(ctx.varRef())
-        op = self._relop_from_ctx(ctx)
-        self.contract_analyzer.process_during_assign_current(lhs_expr, op)
-        return None
-
-    def visitDuringCommonPredicate(self, ctx: SolidityParser.DuringCommonPredicateContext):
-        """
-        DURING 전용 분기 래퍼.
-        내부의 commonPredicate를 직접 파싱해서 DURING 전용 process_*로 보낸다.
-        """
-        cp = ctx.commonPredicate()  # 이게 ReturnExprCmpContext/ReturnVarCmpContext/RelationalCmpContext 중 하나
-        payload = self.visit(cp)  # 아래 visitReturnExprCmp/visitReturnVarCmp/visitRelationalCmp가 dict 반환
-
-        kind = payload["type"]
-        if kind == "ReturnExprCmp":
-            self.contract_analyzer.process_during_return_expression(
-                payload["op"], payload["rhs"])
-        elif kind == "ReturnVarCmp":
-            self.contract_analyzer.process_during_return_variable(
-                payload["lhs"], payload["op"], payload["rhs"])
-        elif kind == "RelationalCmp":
-            self.contract_analyzer.process_during_direct_comparison(
-                payload["lhs"], payload["op"], payload["rhs"])
-        return None
+        elif isinstance(clause_ctx, P.DuringCommonContext):
+            # commonClause로 위임
+            return self._build_common_clause_dict(clause_ctx.commonClause())
+        else:
+            raise ValueError(f"Unknown during clause type: {type(clause_ctx)}")
 
     # ───────────────── POST ────────────────────────────────────────
     # Visit a parse tree produced by SolidityParser#postIntent.
     def visitPostIntent(self, ctx: SolidityParser.PostIntentContext):
-        return self.visitChildren(ctx)
+        """
+        새 문법: postIntent : '//' '@Post' postClause (logicOp postClause)*
+        모든 clause와 논리 연산자를 수집해서 한꺼번에 처리
+        """
+        clauses = []
+        logic_ops = []
 
-    # Visit a parse tree produced by SolidityParser#postFormula.
-    def visitPostFormula(self, ctx: SolidityParser.PostFormulaContext):
-        return self.visitChildren(ctx)
+        # 모든 postClause 수집
+        num_clauses = len(ctx.postClause()) if ctx.postClause() else 0
 
-    # Visit a parse tree produced by SolidityParser#postClause.
-    def visitPostClause(self, ctx: SolidityParser.PostClauseContext):
-        return self.visitChildren(ctx)
+        for i in range(num_clauses):
+            clause_ctx = ctx.postClause(i)
+            clause_dict = self._build_post_clause_dict(clause_ctx)
+            clauses.append(clause_dict)
 
-    # Visit a parse tree produced by SolidityParser#PostClauseSingle.
-    def visitPostClauseSingle(self, ctx: SolidityParser.PostClauseSingleContext):
-        return self.visitChildren(ctx)
+            # 논리 연산자 수집 (마지막 제외)
+            if i < num_clauses - 1 and ctx.logicOp(i):
+                logic_ops.append(ctx.logicOp(i).getText())  # '&&' or '||'
 
-    def visitPostImplication(self, ctx: SolidityParser.PostImplicationContext):
-        ante = self._build_post_predicate(ctx.predicatePost(0))
-        cons = self._build_post_predicate(ctx.predicatePost(1))
-        self.contract_analyzer.process_post_implication(ante, cons)
+        # ContractAnalyzer에 한꺼번에 전달
+        if clauses:
+            self.contract_analyzer.process_post(clauses, logic_ops)
+
         return None
 
-    # — POST predicate → dict(IR)
-    def _build_post_predicate(self, pctx) -> dict:
+    def _build_post_clause_dict(self, clause_ctx) -> dict:
+        """
+        postClause를 dict로 변환 (새 문법 기반)
+        """
         P = SolidityParser
-        if isinstance(pctx, P.PostEntryExitContext):
+
+        if isinstance(clause_ctx, P.PostEntryExitContext):
             return {
-                "phase": "post",
                 "kind": "entryExit",
-                "var": self.visitVarRef(pctx.varRef()),
-                "op": self._relop_from_ctx(pctx),
+                "var": self.visit(clause_ctx.intentValue()),
+                "op": self._relop_from_ctx(clause_ctx)
             }
-        if isinstance(pctx, P.UnchangedVarContext):
-            return {"phase": "post", "kind": "unchanged", "var": self.visitVarRef(pctx.varRef())}
-        if isinstance(pctx, P.PostCommonPredicateContext):
-            payload = self.visit(pctx.commonPredicate())
-            t = payload["type"]
-            if t == "ReturnExprCmp":
-                return {"phase": "post", "kind": "retExpr", "op": payload["op"], "rhs": payload["rhs"]}
-            if t == "ReturnVarCmp":
-                return {"phase": "post", "kind": "retVar", "op": payload["op"], "lhs": payload["lhs"],
-                        "rhs": payload["rhs"]}
-            if t == "RelationalCmp":
-                return {"phase": "post", "kind": "direct", "op": payload["op"], "lhs": payload["lhs"],
-                        "rhs": payload["rhs"]}
-        raise ValueError("unknown POST predicate type")
-
-    def visitPostEntryExit(self, ctx: SolidityParser.PostEntryExitContext):
-        var_ref_expr = self.visitVarRef(ctx.varRef())
-        op = self._relop_from_ctx(ctx)
-        self.contract_analyzer.process_post_entry_exit(var_ref_expr, op)
-        return None
-
-    def visitUnchangedVar(self, ctx: SolidityParser.UnchangedVarContext):
-        var_ref_expr = self.visitVarRef(ctx.varRef())
-        self.contract_analyzer.process_post_unchanged(var_ref_expr)
-        return None
-
-    def visitPostCommonPredicate(self, ctx: SolidityParser.PostCommonPredicateContext):
-        """
-        POST 전용 분기 래퍼.
-        """
-        cp = ctx.commonPredicate()
-        payload = self.visit(cp)
-
-        kind = payload["type"]
-        if kind == "ReturnExprCmp":
-            self.contract_analyzer.process_post_return_expression(
-                payload["op"], payload["rhs"])
-        elif kind == "ReturnVarCmp":
-            self.contract_analyzer.process_post_return_variable(
-                payload["lhs"], payload["op"], payload["rhs"])
-        elif kind == "RelationalCmp":
-            self.contract_analyzer.process_post_direct_comparison(
-                payload["lhs"], payload["op"], payload["rhs"])
-        return None
+        elif isinstance(clause_ctx, P.UnchangedVarContext):
+            return {
+                "kind": "unchanged",
+                "var": self.visit(clause_ctx.intentValue())
+            }
+        elif isinstance(clause_ctx, P.PostCommonContext):
+            # commonClause로 위임
+            return self._build_common_clause_dict(clause_ctx.commonClause())
+        else:
+            raise ValueError(f"Unknown post clause type: {type(clause_ctx)}")
 
     # Visit a parse tree produced by SolidityParser#debugValue.
     def visitDebugValue(self, ctx: SolidityParser.DebugValueContext):
@@ -919,47 +923,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#DebugEnumLiteral.
     def visitDebugEnumLiteral(self, ctx: SolidityParser.DebugEnumLiteralContext):
         return self.visitChildren(ctx)
-
-    # commonPredicate #ReturnExprCmp
-    def visitReturnExprCmp(self, ctx: SolidityParser.ReturnExprCmpContext):
-        # returnExpression <op> value
-        op = self._relop_from_ctx(ctx)
-        rhs = self._parse_value(ctx.value())
-        return {"type": "ReturnExprCmp", "op": op, "rhs": rhs}
-
-    # commonPredicate #ReturnVarCmp
-    def visitReturnVarCmp(self, ctx: SolidityParser.ReturnVarCmpContext):
-        # return varRef <op> value
-        lhs = self.visitVarRef(ctx.varRef())
-        op = self._relop_from_ctx(ctx)
-        rhs = self._parse_value(ctx.value())
-        return {"type": "ReturnVarCmp", "lhs": lhs, "op": op, "rhs": rhs}
-
-    # commonPredicate #RelationalCmp
-    def visitRelationalCmp(self, ctx: SolidityParser.RelationalCmpContext):
-        # value <op> value
-        lhs = self._parse_value(ctx.value(0))
-        op = self._relop_from_ctx(ctx)
-        rhs = self._parse_value(ctx.value(1))
-        return {"type": "RelationalCmp", "lhs": lhs, "op": op, "rhs": rhs}
-
     def visitVarRef(self, ctx: SolidityParser.VarRefContext):
         # 그냥 children 으로 위임
         return self.visitChildren(ctx)
-
-    def visitReturnElemRef(self, ctx: SolidityParser.ReturnElemRefContext):
-        idx_tok = ctx.numberLiteral()  # TerminalNode
-        idx_expr = Expression(
-            literal=idx_tok.getText(),
-            expr_type="int",
-            context="ReturnTupleIndex",
-        )
-        return Expression(
-            base=Expression(identifier="return", context="ReturnTupleBase"),
-            index=idx_expr,
-            access="index_access",
-            context="ReturnElemRef",
-        )
 
     def visitNormalVarRef(self, ctx: SolidityParser.NormalVarRefContext):
         # 첫 식별자
@@ -2586,9 +2552,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 return []  # arrayAddress[] → empty list
 
         raise ValueError("unsupported debugValue")
-
-    def _parse_value(self, ctx: SolidityParser.ValueContext):
-        return self.visit(ctx)
 
     def _relop_from_ctx(self, ctx) -> str:
         """

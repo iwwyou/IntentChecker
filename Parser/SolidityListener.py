@@ -566,66 +566,12 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#DuringReturnExprCmp.
-    def enterDuringReturnExprCmp(self, ctx:SolidityParser.DuringReturnExprCmpContext):
+    # Enter a parse tree produced by SolidityParser#DuringCommon.
+    def enterDuringCommon(self, ctx:SolidityParser.DuringCommonContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#DuringReturnExprCmp.
-    def exitDuringReturnExprCmp(self, ctx:SolidityParser.DuringReturnExprCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringReturnVarCmp.
-    def enterDuringReturnVarCmp(self, ctx:SolidityParser.DuringReturnVarCmpContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringReturnVarCmp.
-    def exitDuringReturnVarCmp(self, ctx:SolidityParser.DuringReturnVarCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringPercentOf.
-    def enterDuringPercentOf(self, ctx:SolidityParser.DuringPercentOfContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringPercentOf.
-    def exitDuringPercentOf(self, ctx:SolidityParser.DuringPercentOfContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringCeil.
-    def enterDuringCeil(self, ctx:SolidityParser.DuringCeilContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringCeil.
-    def exitDuringCeil(self, ctx:SolidityParser.DuringCeilContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringFloor.
-    def enterDuringFloor(self, ctx:SolidityParser.DuringFloorContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringFloor.
-    def exitDuringFloor(self, ctx:SolidityParser.DuringFloorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringRelationalCmp.
-    def enterDuringRelationalCmp(self, ctx:SolidityParser.DuringRelationalCmpContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringRelationalCmp.
-    def exitDuringRelationalCmp(self, ctx:SolidityParser.DuringRelationalCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#DuringImplication.
-    def enterDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#DuringImplication.
-    def exitDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
+    # Exit a parse tree produced by SolidityParser#DuringCommon.
+    def exitDuringCommon(self, ctx:SolidityParser.DuringCommonContext):
         pass
 
 
@@ -656,66 +602,84 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostReturnExprCmp.
-    def enterPostReturnExprCmp(self, ctx:SolidityParser.PostReturnExprCmpContext):
+    # Enter a parse tree produced by SolidityParser#PostCommon.
+    def enterPostCommon(self, ctx:SolidityParser.PostCommonContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostReturnExprCmp.
-    def exitPostReturnExprCmp(self, ctx:SolidityParser.PostReturnExprCmpContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PostReturnVarCmp.
-    def enterPostReturnVarCmp(self, ctx:SolidityParser.PostReturnVarCmpContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostReturnVarCmp.
-    def exitPostReturnVarCmp(self, ctx:SolidityParser.PostReturnVarCmpContext):
+    # Exit a parse tree produced by SolidityParser#PostCommon.
+    def exitPostCommon(self, ctx:SolidityParser.PostCommonContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostPercentOf.
-    def enterPostPercentOf(self, ctx:SolidityParser.PostPercentOfContext):
+    # Enter a parse tree produced by SolidityParser#ReturnExprCmp.
+    def enterReturnExprCmp(self, ctx:SolidityParser.ReturnExprCmpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostPercentOf.
-    def exitPostPercentOf(self, ctx:SolidityParser.PostPercentOfContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PostCeil.
-    def enterPostCeil(self, ctx:SolidityParser.PostCeilContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostCeil.
-    def exitPostCeil(self, ctx:SolidityParser.PostCeilContext):
+    # Exit a parse tree produced by SolidityParser#ReturnExprCmp.
+    def exitReturnExprCmp(self, ctx:SolidityParser.ReturnExprCmpContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostFloor.
-    def enterPostFloor(self, ctx:SolidityParser.PostFloorContext):
+    # Enter a parse tree produced by SolidityParser#ReturnIndexCmp.
+    def enterReturnIndexCmp(self, ctx:SolidityParser.ReturnIndexCmpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostFloor.
-    def exitPostFloor(self, ctx:SolidityParser.PostFloorContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#PostRelationalCmp.
-    def enterPostRelationalCmp(self, ctx:SolidityParser.PostRelationalCmpContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#PostRelationalCmp.
-    def exitPostRelationalCmp(self, ctx:SolidityParser.PostRelationalCmpContext):
+    # Exit a parse tree produced by SolidityParser#ReturnIndexCmp.
+    def exitReturnIndexCmp(self, ctx:SolidityParser.ReturnIndexCmpContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#PostImplication.
-    def enterPostImplication(self, ctx:SolidityParser.PostImplicationContext):
+    # Enter a parse tree produced by SolidityParser#ReturnVarCmp.
+    def enterReturnVarCmp(self, ctx:SolidityParser.ReturnVarCmpContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#PostImplication.
-    def exitPostImplication(self, ctx:SolidityParser.PostImplicationContext):
+    # Exit a parse tree produced by SolidityParser#ReturnVarCmp.
+    def exitReturnVarCmp(self, ctx:SolidityParser.ReturnVarCmpContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#PercentOf.
+    def enterPercentOf(self, ctx:SolidityParser.PercentOfContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#PercentOf.
+    def exitPercentOf(self, ctx:SolidityParser.PercentOfContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#Ceil.
+    def enterCeil(self, ctx:SolidityParser.CeilContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#Ceil.
+    def exitCeil(self, ctx:SolidityParser.CeilContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#Floor.
+    def enterFloor(self, ctx:SolidityParser.FloorContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#Floor.
+    def exitFloor(self, ctx:SolidityParser.FloorContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#RelationalCmp.
+    def enterRelationalCmp(self, ctx:SolidityParser.RelationalCmpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#RelationalCmp.
+    def exitRelationalCmp(self, ctx:SolidityParser.RelationalCmpContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#Implication.
+    def enterImplication(self, ctx:SolidityParser.ImplicationContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#Implication.
+    def exitImplication(self, ctx:SolidityParser.ImplicationContext):
         pass
 
 
@@ -869,15 +833,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#Parenthesized.
     def exitParenthesized(self, ctx:SolidityParser.ParenthesizedContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#ReturnElemRef.
-    def enterReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#ReturnElemRef.
-    def exitReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
         pass
 
 

@@ -5,7 +5,7 @@ During 및 Post annotation을 표현하는 클래스들
 """
 
 from __future__ import annotations
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from Domain.IR import Expression
 
 
@@ -153,19 +153,97 @@ class PostAnnotation:
         """딕셔너리에서 Expression 객체 복원 (DuringAnnotation과 동일)"""
         if data is None:
             return None
-            
+
         expr = Expression()
         expr.context = data.get('context')
         expr.identifier = data.get('identifier')
         expr.operator = data.get('operator')
         expr.literal = data.get('literal')
         expr.member = data.get('member')
-        
+
         if data.get('left'):
             expr.left = cls._deserialize_expression(data['left'])
         if data.get('right'):
             expr.right = cls._deserialize_expression(data['right'])
         if data.get('index'):
             expr.index = cls._deserialize_expression(data['index'])
-            
+
         return expr
+
+
+class CompoundDuringAnnotation:
+    """
+    논리 연산자(&&, ||)로 연결된 여러 during clause를 표현하는 클래스
+
+    예: // @During x > 10 && y < 20 || z == 30
+    """
+
+    def __init__(self, line_no: int, clauses: List[Dict[str, Any]], logic_ops: List[str]):
+        """
+        Args:
+            line_no: 소스 코드 라인 번호
+            clauses: 각 clause의 정보를 담은 dict 리스트
+                     예: [{"kind": "beforeAfter", "var": expr, "op": ">"}, ...]
+            logic_ops: 논리 연산자 리스트 ('&&' or '||')
+                      clauses가 N개면 logic_ops는 N-1개
+        """
+        self.line_no = line_no
+        self.clauses = clauses
+        self.logic_ops = logic_ops
+
+    def to_dict(self) -> Dict[str, Any]:
+        """직렬화를 위한 딕셔너리 변환"""
+        return {
+            'type': 'compound_during',
+            'line_no': self.line_no,
+            'clauses': self.clauses,
+            'logic_ops': self.logic_ops
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CompoundDuringAnnotation':
+        """딕셔너리에서 CompoundDuringAnnotation 객체 복원"""
+        return cls(
+            line_no=data['line_no'],
+            clauses=data['clauses'],
+            logic_ops=data['logic_ops']
+        )
+
+
+class CompoundPostAnnotation:
+    """
+    논리 연산자(&&, ||)로 연결된 여러 post clause를 표현하는 클래스
+
+    예: // @Post x(Entry < Exit) && Unchanged(y)
+    """
+
+    def __init__(self, line_no: int, clauses: List[Dict[str, Any]], logic_ops: List[str]):
+        """
+        Args:
+            line_no: 소스 코드 라인 번호
+            clauses: 각 clause의 정보를 담은 dict 리스트
+                     예: [{"kind": "entryExit", "var": expr, "op": "<"}, ...]
+            logic_ops: 논리 연산자 리스트 ('&&' or '||')
+                      clauses가 N개면 logic_ops는 N-1개
+        """
+        self.line_no = line_no
+        self.clauses = clauses
+        self.logic_ops = logic_ops
+
+    def to_dict(self) -> Dict[str, Any]:
+        """직렬화를 위한 딕셔너리 변환"""
+        return {
+            'type': 'compound_post',
+            'line_no': self.line_no,
+            'clauses': self.clauses,
+            'logic_ops': self.logic_ops
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CompoundPostAnnotation':
+        """딕셔너리에서 CompoundPostAnnotation 객체 복원"""
+        return cls(
+            line_no=data['line_no'],
+            clauses=data['clauses'],
+            logic_ops=data['logic_ops']
+        )
