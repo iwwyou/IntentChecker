@@ -771,7 +771,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # ───────────────── POST ────────────────────────────────────────
     # Visit a parse tree produced by SolidityParser#postIntent.
-    def visitPostDirective(self, ctx: SolidityParser.PostDirectiveContext):
+    def visitPostIntent(self, ctx: SolidityParser.PostIntentContext):
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#postFormula.

@@ -10,7 +10,9 @@
       "Bash(del \"C:\\Users\\isjeon\\PycharmProjects\\pythonProject\\SolidityGuardian\\paper\\remove_korean_comments.py\")",
       "Bash(solc-select versions:*)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(timeout 30 python:*)",
+      "Bash(where:*)"
     ],
     "deny": [],
     "ask": []

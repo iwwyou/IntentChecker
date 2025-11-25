@@ -309,21 +309,6 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#duringFormula.
-    def visitDuringFormula(self, ctx:SolidityParser.DuringFormulaContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#DuringClauseSingle.
-    def visitDuringClauseSingle(self, ctx:SolidityParser.DuringClauseSingleContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#DuringImplication.
-    def visitDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SolidityParser#DuringBeforeAfter.
     def visitDuringBeforeAfter(self, ctx:SolidityParser.DuringBeforeAfterContext):
         return self.visitChildren(ctx)
@@ -334,28 +319,43 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#DuringCommonPredicate.
-    def visitDuringCommonPredicate(self, ctx:SolidityParser.DuringCommonPredicateContext):
+    # Visit a parse tree produced by SolidityParser#DuringReturnExprCmp.
+    def visitDuringReturnExprCmp(self, ctx:SolidityParser.DuringReturnExprCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringReturnVarCmp.
+    def visitDuringReturnVarCmp(self, ctx:SolidityParser.DuringReturnVarCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringPercentOf.
+    def visitDuringPercentOf(self, ctx:SolidityParser.DuringPercentOfContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringCeil.
+    def visitDuringCeil(self, ctx:SolidityParser.DuringCeilContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringFloor.
+    def visitDuringFloor(self, ctx:SolidityParser.DuringFloorContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringRelationalCmp.
+    def visitDuringRelationalCmp(self, ctx:SolidityParser.DuringRelationalCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#DuringImplication.
+    def visitDuringImplication(self, ctx:SolidityParser.DuringImplicationContext):
         return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by SolidityParser#postIntent.
     def visitPostIntent(self, ctx:SolidityParser.PostIntentContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#postFormula.
-    def visitPostFormula(self, ctx:SolidityParser.PostFormulaContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#PostClauseSingle.
-    def visitPostClauseSingle(self, ctx:SolidityParser.PostClauseSingleContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#PostImplication.
-    def visitPostImplication(self, ctx:SolidityParser.PostImplicationContext):
         return self.visitChildren(ctx)
 
 
@@ -369,8 +369,38 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PostCommonPredicate.
-    def visitPostCommonPredicate(self, ctx:SolidityParser.PostCommonPredicateContext):
+    # Visit a parse tree produced by SolidityParser#PostReturnExprCmp.
+    def visitPostReturnExprCmp(self, ctx:SolidityParser.PostReturnExprCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostReturnVarCmp.
+    def visitPostReturnVarCmp(self, ctx:SolidityParser.PostReturnVarCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostPercentOf.
+    def visitPostPercentOf(self, ctx:SolidityParser.PostPercentOfContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostCeil.
+    def visitPostCeil(self, ctx:SolidityParser.PostCeilContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostFloor.
+    def visitPostFloor(self, ctx:SolidityParser.PostFloorContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostRelationalCmp.
+    def visitPostRelationalCmp(self, ctx:SolidityParser.PostRelationalCmpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#PostImplication.
+    def visitPostImplication(self, ctx:SolidityParser.PostImplicationContext):
         return self.visitChildren(ctx)
 
 
@@ -414,53 +444,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#ReturnExprCmp.
-    def visitReturnExprCmp(self, ctx:SolidityParser.ReturnExprCmpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#ReturnVarCmp.
-    def visitReturnVarCmp(self, ctx:SolidityParser.ReturnVarCmpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#RelationalCmp.
-    def visitRelationalCmp(self, ctx:SolidityParser.RelationalCmpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#ReturnElemRef.
-    def visitReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#NormalVarRef.
-    def visitNormalVarRef(self, ctx:SolidityParser.NormalVarRefContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
-    def visitIntentMemberAccess(self, ctx:SolidityParser.IntentMemberAccessContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#IntentIndexAccess.
-    def visitIntentIndexAccess(self, ctx:SolidityParser.IntentIndexAccessContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#NExpr.
-    def visitNExpr(self, ctx:SolidityParser.NExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#AExpr.
-    def visitAExpr(self, ctx:SolidityParser.AExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BExpr.
-    def visitBExpr(self, ctx:SolidityParser.BExprContext):
+    # Visit a parse tree produced by SolidityParser#intentValue.
+    def visitIntentValue(self, ctx:SolidityParser.IntentValueContext):
         return self.visitChildren(ctx)
 
 
@@ -499,48 +484,28 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#PercentOfFunc.
-    def visitPercentOfFunc(self, ctx:SolidityParser.PercentOfFuncContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#CeilFunc.
-    def visitCeilFunc(self, ctx:SolidityParser.CeilFuncContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#FloorFunc.
-    def visitFloorFunc(self, ctx:SolidityParser.FloorFuncContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by SolidityParser#Parenthesized.
     def visitParenthesized(self, ctx:SolidityParser.ParenthesizedContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#AddrLiteralExpr.
-    def visitAddrLiteralExpr(self, ctx:SolidityParser.AddrLiteralExprContext):
+    # Visit a parse tree produced by SolidityParser#ReturnElemRef.
+    def visitReturnElemRef(self, ctx:SolidityParser.ReturnElemRefContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#SymAddrLiteralExpr.
-    def visitSymAddrLiteralExpr(self, ctx:SolidityParser.SymAddrLiteralExprContext):
+    # Visit a parse tree produced by SolidityParser#NormalVarRef.
+    def visitNormalVarRef(self, ctx:SolidityParser.NormalVarRefContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#AddrVarExpr.
-    def visitAddrVarExpr(self, ctx:SolidityParser.AddrVarExprContext):
+    # Visit a parse tree produced by SolidityParser#IntentMemberAccess.
+    def visitIntentMemberAccess(self, ctx:SolidityParser.IntentMemberAccessContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#BoolLiteralExpr.
-    def visitBoolLiteralExpr(self, ctx:SolidityParser.BoolLiteralExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#BoolVarExpr.
-    def visitBoolVarExpr(self, ctx:SolidityParser.BoolVarExprContext):
+    # Visit a parse tree produced by SolidityParser#IntentIndexAccess.
+    def visitIntentIndexAccess(self, ctx:SolidityParser.IntentIndexAccessContext):
         return self.visitChildren(ctx)
 
 

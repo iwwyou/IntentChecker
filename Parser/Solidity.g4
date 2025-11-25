@@ -283,43 +283,41 @@ debugLocalVar
 // ─────────────────────────────────────────────
 // 2) DURING Intent
 duringIntent
-    : '//' '@During' duringFormula (',' duringFormula)*
+    : '//' '@During' duringClause (logicOp duringClause)*
     ;
 
-duringFormula
-    : duringClause (logicOp duringClause)*
-    ;
-
+// Top-level verification logic for During context
+// Each rule corresponds to a specific verification pattern for publication
 duringClause
-    : predicateDuring                      # DuringClauseSingle
-    | predicateDuring '=>' predicateDuring # DuringImplication
-    ;
-
-predicateDuring
-    : varRef '(' 'Before'  relOp 'After'   ')' # DuringBeforeAfter
-    | varRef '(' 'Assign'  relOp 'Current' ')' # DuringAssignCurrent
-    | commonPredicate                          # DuringCommonPredicate
+    : intentValue '(' BEFORE  relOp AFTER   ')'                             # DuringBeforeAfter
+    | intentValue '(' ASSIGN  relOp CURRENT ')'                             # DuringAssignCurrent
+    | 'returnExpression' relOp intentValue                                  # DuringReturnExprCmp
+    | 'return' intentValue relOp intentValue                                # DuringReturnVarCmp
+    | intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')'   # DuringPercentOf
+    | intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'        # DuringCeil
+    | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'       # DuringFloor
+    | intentValue relOp intentValue                                         # DuringRelationalCmp
+    | intentValue '=>' intentValue                                          # DuringImplication
     ;
 
 // ─────────────────────────────────────────────
 // 3) POST Intent
 postIntent
-    : '//' '@Post' postFormula (',' postFormula)*
+    : '//' '@Post' postClause (logicOp postClause)*
     ;
 
-postFormula
-    : postClause (logicOp postClause)*
-    ;
-
+// Top-level verification logic for Post context
+// Each rule corresponds to a specific verification pattern for publication
 postClause
-    : predicatePost                      # PostClauseSingle
-    | predicatePost '=>' predicatePost   # PostImplication
-    ;
-
-predicatePost
-    : varRef '(' 'Entry' relOp 'Exit' ')' # PostEntryExit
-    | 'Unchanged' '(' varRef ')'          # UnchangedVar
-    | commonPredicate                     # PostCommonPredicate
+    : intentValue '(' ENTRY relOp EXIT ')'                                # PostEntryExit
+    | UNCHANGED '(' intentValue ')'                                       # UnchangedVar
+    | 'returnExpression' relOp intentValue                                # PostReturnExprCmp
+    | 'return' intentValue relOp intentValue                              # PostReturnVarCmp
+    | intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')' # PostPercentOf
+    | intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'      # PostCeil
+    | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'     # PostFloor
+    | intentValue relOp intentValue                                       # PostRelationalCmp
+    | intentValue '=>' intentValue                                        # PostImplication
     ;
 
 // ─────────────────────────────────────────────
@@ -336,34 +334,19 @@ debugValue
     ;
 
 // ─────────────────────────────────────────────
-// 공통 프레디킷 (alt-label은 여기 "한 곳"에만 둔다)
+// Note: commonPredicate was split into duringSimpleComparison and postSimpleComparison
+// to prevent temporal keywords (Before/After/Entry/Exit) from being used in cross-variable
+// comparisons like x(Before) < y(After), which was not intended.
+// Each context now has its own value rules (duringValue, postValue) that use arithExpr,
+// addressExpr, and boolExpr directly without allowing temporal keywords.
 // ─────────────────────────────────────────────
-commonPredicate
-  : 'returnExpression' relOp value   #ReturnExprCmp
-  | 'return' varRef      relOp value #ReturnVarCmp
-  | value                relOp value #RelationalCmp
-  ;
 
 //==================================================
-// 5)  변수·멤버·인덱스 참조
+// 5)  intentValue ― Intent verification에서 사용되는 numeric 값
+//     NumScout 취약점 탐지를 위한 numeric expression만 포함
 //--------------------------------------------------
-varRef
-    : 'return' '[' numberLiteral ']'              #ReturnElemRef   // tuple 원소
-    | identifier subAccess*                       #NormalVarRef
-    ;
-
-subAccess
-    : '.' identifier            #IntentMemberAccess
-    | '[' expression ']'        #IntentIndexAccess
-    ;
-
-//==================================================
-// 6)  valueExpr ― “하나의 값” 을 만드는 식
-//--------------------------------------------------
-value
-    : arithExpr    #NExpr
-    | addressExpr  #AExpr
-    | boolExpr     #BExpr
+intentValue
+    : arithExpr
     ;
 
 //────────── 6-1)  숫자 / 비율 / 모듈러 ──────────
@@ -378,26 +361,21 @@ arithTerm
     ;
 
 arithFactor
-    : signedNumberLiteral                               #NumLiteral
-    | '[' signedNumberLiteral ',' signedNumberLiteral ']'   #InlineInterval
-    | varRef                                            #NumVarRef
-    | 'PercentOf' '(' arithExpr ',' numberLiteral ')'   #PercentOfFunc
-    | 'ceil'  '(' arithExpr ',' numberLiteral ')'       #CeilFunc
-    | 'floor' '(' arithExpr ',' numberLiteral ')'       #FloorFunc
-    | '(' arithExpr ')'                                 #Parenthesized
+    : signedNumberLiteral                                       #NumLiteral
+    | '[' signedNumberLiteral ',' signedNumberLiteral ']'       #InlineInterval
+    | varRef                                                    #NumVarRef
+    | '(' arithExpr ')'                                         #Parenthesized
     ;
 
-//────────── 6-2)  주소 식 ──────────────────────
-addressExpr
-    : 'address'         numberLiteral      #AddrLiteralExpr
-    | 'symbolicAddress' numberLiteral      #SymAddrLiteralExpr
-    | varRef                               #AddrVarExpr
+//────────── 변수·멤버·인덱스 참조 (arithFactor에서 사용) ──────────
+varRef
+    : 'return' '[' numberLiteral ']'              #ReturnElemRef   // tuple 원소
+    | identifier subAccess*                       #NormalVarRef
     ;
 
-//────────── 6-3)  불리언 식 ────────────────────
-boolExpr
-    : booleanLiteral                       #BoolLiteralExpr
-    | varRef                               #BoolVarExpr
+subAccess
+    : '.' identifier            #IntentMemberAccess
+    | '[' expression ']'        #IntentIndexAccess
     ;
 
 //==================================================
@@ -712,6 +690,16 @@ numberLiteral
 
 identifier
   : Identifier ;
+
+// Temporal keywords for intent verification
+// These are reserved to prevent ambiguity in temporal predicates
+BEFORE    : 'Before' ;
+AFTER     : 'After' ;
+ENTRY     : 'Entry' ;
+EXIT      : 'Exit' ;
+CURRENT   : 'Current' ;
+ASSIGN    : 'Assign' ;
+UNCHANGED : 'Unchanged' ;
 
 userDefinedValueTypeDefinition
   : 'type' identifier 'is' elementaryTypeName ';' ;

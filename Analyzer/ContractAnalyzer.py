@@ -14,7 +14,7 @@ from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
 from Analyzer.RecordManager import RecordManager
 from Analyzer.StaticCFGFactory import StaticCFGFactory
-from Analyzer.CFGSerializer import CFGSerializer
+from Analyzer.CFGSerializerPickle import CFGSerializerPickle as CFGSerializer
 from Interpreter.Semantics.Evaluation import Evaluation
 from Interpreter.Semantics.Update import Update
 from Interpreter.Semantics.DebugInitializer import DebugInitializer
