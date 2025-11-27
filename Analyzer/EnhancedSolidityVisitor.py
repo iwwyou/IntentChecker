@@ -642,6 +642,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentUnit(self, ctx: SolidityParser.IntentUnitContext):
         return self.visitChildren(ctx)
 
+    # Visit a parse tree produced by SolidityParser#debugInput.
+    def visitDebugInput(self, ctx: SolidityParser.DebugInputContext):
+        return self.visitChildren(ctx)
+
     def visitDebugGlobalVar(self, ctx: SolidityParser.DebugGlobalVarContext):
         # 1) 식별자
         left = ctx.identifier(0).getText()
@@ -961,20 +965,10 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitIntentIndexAccess(self, ctx: SolidityParser.IntentIndexAccessContext):
         return self.visitChildren(ctx)
 
-    # Visit a parse tree produced by SolidityParser#NExpr.
-    def visitNExpr(self, ctx: SolidityParser.NExprContext):
-        # NExpr wraps arithExpr - return the result of visiting the arithExpr
+    # Visit a parse tree produced by SolidityParser#intentValue.
+    def visitIntentValue(self, ctx: SolidityParser.IntentValueContext):
+        # intentValue : arithExpr ;
         return self.visit(ctx.arithExpr())
-
-    # Visit a parse tree produced by SolidityParser#AExpr.
-    def visitAExpr(self, ctx: SolidityParser.AExprContext):
-        # AExpr wraps addressExpr - return the result of visiting the addressExpr
-        return self.visit(ctx.addressExpr())
-
-    # Visit a parse tree produced by SolidityParser#BExpr.
-    def visitBExpr(self, ctx: SolidityParser.BExprContext):
-        # BExpr wraps boolExpr - return the result of visiting the boolExpr
-        return self.visit(ctx.boolExpr())
 
     # Visit a parse tree produced by SolidityParser#AddSub.
     def visitAddSub(self, ctx: SolidityParser.AddSubContext):
@@ -1044,53 +1038,56 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # varRef
         return self.visitVarRef(ctx.varRef())
 
-    # Visit a parse tree produced by SolidityParser#PercentOfFunc.
-    def visitPercentOfFunc(self, ctx: SolidityParser.PercentOfFuncContext):
-        # percentOf '(' arithExpr ',' numberLiteral ')'
-        value_expr = self.visit(ctx.arithExpr())
+    # Visit a parse tree produced by SolidityParser#PercentOf.
+    def visitPercentOf(self, ctx: SolidityParser.PercentOfContext):
+        # intentValue relOp 'PercentOf' '(' intentValue ',' numberLiteral ')'
+        lhs_expr = self.visit(ctx.intentValue(0))
+        rhs_expr = self.visit(ctx.intentValue(1))
         percentage_val = ctx.numberLiteral().getText()
-        
-        # Create function call expression
-        func_name = Expression(identifier='percentOf', context='PercentOfFuncContext')
+
+        func_name = Expression(identifier='PercentOf', context='PercentOfFuncContext')
         percentage_expr = Expression(literal=percentage_val, expr_type='int', context='PercentOfFuncContext')
-        
+
         return Expression(
             function=func_name,
-            arguments=[value_expr, percentage_expr],
+            arguments=[rhs_expr, percentage_expr],
+            lhs=lhs_expr,
             operator='()',
             context='PercentOfFuncContext'
         )
 
-    # Visit a parse tree produced by SolidityParser#CeilFunc.
-    def visitCeilFunc(self, ctx: SolidityParser.CeilFuncContext):
-        # ceil '(' arithExpr ',' numberLiteral ')'
-        value_expr = self.visit(ctx.arithExpr())
+    # Visit a parse tree produced by SolidityParser#Ceil.
+    def visitCeil(self, ctx: SolidityParser.CeilContext):
+        # intentValue relOp 'ceil' '(' intentValue ',' numberLiteral ')'
+        lhs_expr = self.visit(ctx.intentValue(0))
+        rhs_expr = self.visit(ctx.intentValue(1))
         precision_val = ctx.numberLiteral().getText()
-        
-        # Create function call expression
+
         func_name = Expression(identifier='ceil', context='CeilFuncContext')
         precision_expr = Expression(literal=precision_val, expr_type='int', context='CeilFuncContext')
-        
+
         return Expression(
             function=func_name,
-            arguments=[value_expr, precision_expr],
+            arguments=[rhs_expr, precision_expr],
+            lhs=lhs_expr,
             operator='()',
             context='CeilFuncContext'
         )
 
-    # Visit a parse tree produced by SolidityParser#FloorFunc.
-    def visitFloorFunc(self, ctx: SolidityParser.FloorFuncContext):
-        # floor '(' arithExpr ',' numberLiteral ')'
-        value_expr = self.visit(ctx.arithExpr())
+    # Visit a parse tree produced by SolidityParser#Floor.
+    def visitFloor(self, ctx: SolidityParser.FloorContext):
+        # intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'
+        lhs_expr = self.visit(ctx.intentValue(0))
+        rhs_expr = self.visit(ctx.intentValue(1))
         precision_val = ctx.numberLiteral().getText()
-        
-        # Create function call expression
+
         func_name = Expression(identifier='floor', context='FloorFuncContext')
         precision_expr = Expression(literal=precision_val, expr_type='int', context='FloorFuncContext')
-        
+
         return Expression(
             function=func_name,
-            arguments=[value_expr, precision_expr],
+            arguments=[rhs_expr, precision_expr],
+            lhs=lhs_expr,
             operator='()',
             context='FloorFuncContext'
         )

@@ -415,6 +415,62 @@ class IntegerInterval(Interval):
         self.max_value -= 1
         return old
 
+    # ---------- Guardian 연산 (percent_of, ceil, floor) ----------
+    def percent_of(self, pct: int) -> "IntegerInterval":
+        """
+        self의 pct% 를 계산.
+        보수적 추정: lo는 floor, hi는 ceil로 범위를 넓게 유지.
+        signed의 경우 음수도 고려.
+        """
+        if self.is_bottom():
+            return self
+
+        candidates = [
+            (self.min_value * pct) // 100,
+            (self.min_value * pct + 99) // 100,
+            (self.max_value * pct) // 100,
+            (self.max_value * pct + 99) // 100,
+        ]
+        return IntegerInterval(min(candidates), max(candidates), self.type_length)
+
+    def ceil_to_unit(self, unit: int) -> "IntegerInterval":
+        """
+        self를 unit 단위로 올림.
+        """
+        if self.is_bottom():
+            return self
+        if unit <= 0:
+            return self
+
+        def _ceil(v):
+            if v >= 0:
+                return ((v + unit - 1) // unit) * unit
+            else:
+                return (v // unit) * unit
+
+        lo = _ceil(self.min_value)
+        hi = _ceil(self.max_value)
+        return IntegerInterval(lo, hi, self.type_length)
+
+    def floor_to_unit(self, unit: int) -> "IntegerInterval":
+        """
+        self를 unit 단위로 내림.
+        """
+        if self.is_bottom():
+            return self
+        if unit <= 0:
+            return self
+
+        def _floor(v):
+            if v >= 0:
+                return (v // unit) * unit
+            else:
+                return ((v - unit + 1) // unit) * unit
+
+        lo = _floor(self.min_value)
+        hi = _floor(self.max_value)
+        return IntegerInterval(lo, hi, self.type_length)
+
 
 # ----------------------------------------------------------------------------
 # UnsignedIntegerInterval
@@ -695,6 +751,52 @@ class UnsignedIntegerInterval(Interval):
             mask - self.min_value,
             self.type_length
         )
+
+    # ---------- Guardian 연산 (percent_of, ceil, floor) ----------
+    def percent_of(self, pct: int) -> "UnsignedIntegerInterval":
+        """
+        self의 pct% 를 계산.
+        보수적 추정: lo는 floor, hi는 ceil로 범위를 넓게 유지.
+        """
+        if self.is_bottom():
+            return self
+        lo = (self.min_value * pct) // 100
+        hi = (self.max_value * pct + 99) // 100
+        return UnsignedIntegerInterval(lo, hi, self.type_length)
+
+    def ceil_to_unit(self, unit: int) -> "UnsignedIntegerInterval":
+        """
+        self를 unit 단위로 올림.
+        보수적 추정: lo는 그대로 ceil, hi도 ceil.
+        """
+        if self.is_bottom():
+            return self
+        if unit <= 0:
+            return self
+
+        def _ceil(v):
+            return ((v + unit - 1) // unit) * unit
+
+        lo = _ceil(self.min_value)
+        hi = _ceil(self.max_value)
+        return UnsignedIntegerInterval(lo, hi, self.type_length)
+
+    def floor_to_unit(self, unit: int) -> "UnsignedIntegerInterval":
+        """
+        self를 unit 단위로 내림.
+        보수적 추정: lo는 floor, hi도 floor.
+        """
+        if self.is_bottom():
+            return self
+        if unit <= 0:
+            return self
+
+        def _floor(v):
+            return (v // unit) * unit
+
+        lo = _floor(self.min_value)
+        hi = _floor(self.max_value)
+        return UnsignedIntegerInterval(lo, hi, self.type_length)
 
     # ------------------------------------------------------------------------
 

@@ -122,16 +122,11 @@ class GuardianVerificationEngine:
         expr.arguments[0] = valueExpr (기준 값)
         expr.arguments[1] = numberLiteral (퍼센트)
         """
-        # 기준 값 평가
         base_iv = self.evaluate_guardian_expression(
             expr.arguments[0], variables, callerObject, callerContext
         )
         pct = int(expr.arguments[1].literal, 0)
-
-        # interval 스케일링 (보수적: 전방향 ceiling/floor)
-        lo = (base_iv.min_value * pct + 99) // 100
-        hi = (base_iv.max_value * pct) // 100
-        return base_iv.__class__(lo, hi, base_iv.type_length)
+        return base_iv.percent_of(pct)
 
     def _evaluate_ceil(self, expr: Expression, variables: dict,
                       callerObject=None, callerContext=None):
@@ -145,13 +140,7 @@ class GuardianVerificationEngine:
             expr.arguments[0], variables, callerObject, callerContext
         )
         unit = int(expr.arguments[1].literal, 0)
-
-        def _ceil(v):
-            return ((v + unit - 1) // unit) * unit
-
-        lo = _ceil(base_iv.min_value)
-        hi = _ceil(base_iv.max_value)
-        return base_iv.__class__(lo, hi, base_iv.type_length)
+        return base_iv.ceil_to_unit(unit)
 
     def _evaluate_floor(self, expr: Expression, variables: dict,
                        callerObject=None, callerContext=None):
@@ -165,13 +154,7 @@ class GuardianVerificationEngine:
             expr.arguments[0], variables, callerObject, callerContext
         )
         unit = int(expr.arguments[1].literal, 0)
-
-        def _floor(v):
-            return (v // unit) * unit
-
-        lo = _floor(base_iv.min_value)
-        hi = _floor(base_iv.max_value)
-        return base_iv.__class__(lo, hi, base_iv.type_length)
+        return base_iv.floor_to_unit(unit)
 
     def _evaluate_address_literal(self, expr: Expression):
         """

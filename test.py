@@ -19,32 +19,36 @@ def simulate_inputs(records):
         stripped = code.lstrip()
 
         # ① BEGIN / END ---------------------------------------------------
-        if stripped.startswith("// @TestCase BEGIN"):
+        if stripped.startswith("// @Debugging BEGIN"):
             batch_mgr.reset()  # ★ 새 TC 시작
             in_testcase = True
             continue
 
-        if stripped.startswith("// @TestCase END"):
+        if stripped.startswith("// @Debugging END"):
             batch_mgr.flush()  # TC 완성 → 1 회 해석
             in_testcase = False
             continue
 
         # ② 디버그 주석 (@StateVar, @GlobalVar …) --------------------------
-        if stripped.startswith("// @GlobalVar", "// @StateVar", "// @LocalVar"):
+        if stripped.startswith("// @GlobalVar") or stripped.startswith("// @StateVar") or stripped.startswith("// @LocalVar"):
             if ev == "add": batch_mgr.add_line(code, s, e)
             elif ev == "modify": batch_mgr.modify_line(code, s, e)
             elif ev == "delete": batch_mgr.delete_line(s)
 
             if not in_testcase: batch_mgr.flush()
+            continue
 
-        else :
-            tree = ParserHelpers.generate_parse_tree(code, "IntentUnit")
+        # ③ annotation 파싱 (@During, @Post 등) ----------------------------
+        # update_code에서 분리한 annotation_part 사용
+        if contract_analyzer.last_annotation_part:
+            tree = ParserHelpers.generate_parse_tree(contract_analyzer.last_annotation_part, "IntentUnit")
             EnhancedSolidityVisitor(contract_analyzer).visit(tree)
 
-        # ③ 일반 Solidity 코드 --------------------------------------------
-        if code.strip():
+        # ④ 일반 Solidity 코드 파싱 --------------------------------------------
+        # update_code에서 분리한 statement_part 사용
+        if contract_analyzer.last_statement_part and contract_analyzer.last_statement_part.strip():
             ctx = contract_analyzer.get_current_context_type()
-            tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+            tree = ParserHelpers.generate_parse_tree(contract_analyzer.last_statement_part, ctx, True)
             EnhancedSolidityVisitor(contract_analyzer).visit(tree)
 
         # ✨ ★ 여기서 바로 찍어 보기 ★ ✨

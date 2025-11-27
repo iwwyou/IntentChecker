@@ -49,6 +49,10 @@ class ContractAnalyzer:
         self._seen_stmt_ids: set[int] = set()
         self._last_touched_lines = None
 
+        # ★ statement + annotation 분리 정보 저장 (test.py에서 사용)
+        self.last_statement_part = None
+        self.last_annotation_part = None
+
         # for Multiple Contract
         self.contract_cfgs = {} # name -> ContractCFG
         self.library_cfgs = {}  # name -> LibraryCFG
@@ -173,8 +177,20 @@ class ContractAnalyzer:
             raise ValueError(f"unknown event '{event}'")
 
         if event == "add":
-            lines = new_code.split("\n")
-            self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
+            # ★ 같은 라인에 annotation 추가하는 경우 (append, shift 없음)
+            # 예: 라인 10에 "uint256 x = 10;"이 있고, "// @During x == 10"을 추가
+            if (start_line in self.full_code_lines and
+                new_code.strip().startswith("// @")):
+                # 기존 라인 끝에 annotation 추가
+                existing = self.full_code_lines[start_line]
+                self.full_code_lines[start_line] = existing.rstrip() + "  " + new_code.strip()
+                self.update_brace_count(start_line, self.full_code_lines[start_line])
+                if self._should_trigger_analysis(new_code):
+                    self.analyze_context(start_line, self.full_code_lines[start_line])
+            else:
+                # 기존 로직 (새 라인 삽입, shift 발생)
+                lines = new_code.split("\n")
+                self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
 
 
         elif event == "modify":
@@ -301,17 +317,50 @@ class ContractAnalyzer:
         if stripped_code == "}":
             return
 
-        if stripped_code.startswith('// @'):
+        # ★ statement + annotation이 같은 줄에 있는지 확인
+        # 예: uint256 x = 10;  // @During x == 10
+        statement_part = None
+        annotation_part = None
+
+        if '// @' in stripped_code:
+            if stripped_code.startswith('// @'):
+                # annotation만 있음
+                annotation_part = stripped_code
+            else:
+                # statement + annotation 분리
+                idx = stripped_code.index('// @')
+                statement_part = stripped_code[:idx].strip()
+                annotation_part = stripped_code[idx:].strip()
+        else:
+            # statement만 있음
+            statement_part = stripped_code
+
+        # ★ 분리 정보 저장 (test.py에서 사용)
+        self.last_statement_part = statement_part
+        self.last_annotation_part = annotation_part
+
+        # ★ Annotation이 있으면 intentUnit context 설정
+        if annotation_part:
             self.current_context_type = "intentUnit"
             self.current_target_contract = self.find_contract_context(start_line)
             self.current_target_function = self.find_function_context(start_line)
-            return  # 이 함수 종료
+            # annotation만 있는 경우 여기서 종료
+            if not statement_part:
+                return
 
-        # 매 분석마다 초기화
-        self.current_context_type = None
-        self.current_target_contract = None
-        self.current_target_function = None
-        self.current_target_struct = None
+        # ★ Statement가 있으면 기존 로직으로 처리
+        if not statement_part:
+            return
+
+        # 매 분석마다 초기화 (annotation이 없는 경우에만)
+        if not annotation_part:
+            self.current_context_type = None
+            self.current_target_contract = None
+            self.current_target_function = None
+            self.current_target_struct = None
+
+        # ★ statement_part를 기준으로 컨텍스트 분석
+        stripped_code = statement_part
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
         if stripped_code.endswith(';'):

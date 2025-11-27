@@ -12,7 +12,11 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:api.github.com)",
       "Bash(timeout 30 python:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(mkdir:*)",
+      "Bash(cd \"C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/Dataset/v0.6\" for f in *.json)",
+      "Bash(do echo \"=== $f ===\" cat \"$f\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []
