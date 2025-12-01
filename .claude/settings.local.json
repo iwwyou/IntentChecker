@@ -16,7 +16,8 @@
       "Bash(mkdir:*)",
       "Bash(cd \"C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/Dataset/v0.6\" for f in *.json)",
       "Bash(do echo \"=== $f ===\" cat \"$f\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

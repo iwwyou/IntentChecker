@@ -281,6 +281,7 @@ duringIntent
 duringClause
     : intentValue '(' BEFORE  relOp AFTER   ')'                             # DuringBeforeAfter
     | intentValue '(' ASSIGN  relOp CURRENT ')'                             # DuringAssignCurrent
+    | identifier '.' 'arg' '[' numberLiteral ']' relOp intentValue          # DuringFunctionArg
     | commonClause                                                          # DuringCommon
     ;
 
