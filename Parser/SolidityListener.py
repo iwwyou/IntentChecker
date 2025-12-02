@@ -566,6 +566,15 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#DuringFunctionArg.
+    def enterDuringFunctionArg(self, ctx:SolidityParser.DuringFunctionArgContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DuringFunctionArg.
+    def exitDuringFunctionArg(self, ctx:SolidityParser.DuringFunctionArgContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#DuringCommon.
     def enterDuringCommon(self, ctx:SolidityParser.DuringCommonContext):
         pass

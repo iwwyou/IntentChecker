@@ -2535,6 +2535,15 @@ class ContractAnalyzer:
                 line_no=line_no,
                 cfg_node=self._cfg_node_at(line_no)
             )
+        elif kind == "functionArg":
+            return self.guardian_verifier.verify_during_function_arg(
+                func_name=clause["func_name"],
+                arg_index=clause["arg_index"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=self._cfg_node_at(line_no)
+            )
         # percentOf, ceil, floor 등 추가 가능
         else:
             return {"status": "error", "message": f"Unknown clause kind: {kind}"}

@@ -319,6 +319,11 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#DuringFunctionArg.
+    def visitDuringFunctionArg(self, ctx:SolidityParser.DuringFunctionArgContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#DuringCommon.
     def visitDuringCommon(self, ctx:SolidityParser.DuringCommonContext):
         return self.visitChildren(ctx)

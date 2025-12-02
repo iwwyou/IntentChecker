@@ -798,6 +798,15 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 "var": self.visit(clause_ctx.intentValue()),
                 "op": self._relop_from_ctx(clause_ctx)
             }
+        elif isinstance(clause_ctx, P.DuringFunctionArgContext):
+            # @During transfer.arg[0] > 0
+            return {
+                "kind": "functionArg",
+                "func_name": clause_ctx.identifier().getText(),
+                "arg_index": int(clause_ctx.numberLiteral().getText()),
+                "op": self._relop_from_ctx(clause_ctx),
+                "rhs": self.visit(clause_ctx.intentValue())
+            }
         elif isinstance(clause_ctx, P.DuringCommonContext):
             # commonClause로 위임
             return self._build_common_clause_dict(clause_ctx.commonClause())

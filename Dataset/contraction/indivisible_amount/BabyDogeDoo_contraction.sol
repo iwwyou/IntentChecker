@@ -69,7 +69,12 @@ contract BabyDogeDoo {
     function balanceOf(address account) public view override returns (uint256) {
         if (_isExcluded[account]) return _tOwned[account];
         return tokenFromReflection(_rOwned[account]);
-    }      
+    } 
+
+    function sendETHToFee(uint256 amount) private {
+        _FeeAddress.transfer(amount.div(2));
+        _marketingWalletAddress.transfer(amount.div(2));
+    }     
 
     function _transfer(address from, address to, uint256 amount) private {
         require(from != address(0), "ERC20: transfer from the zero address");
@@ -127,10 +132,4 @@ contract BabyDogeDoo {
             block.timestamp
         );
     }
-
-    function sendETHToFee(uint256 amount) private {
-        _FeeAddress.transfer(amount.div(2));
-        _marketingWalletAddress.transfer(amount.div(2));
-    }   
-
 }

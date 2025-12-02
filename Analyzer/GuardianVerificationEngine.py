@@ -521,6 +521,119 @@ class GuardianVerificationEngine:
         except Exception as e:
             return self._err("duringImplication", f"internal error: {e}", line_no)
 
+    # ────────────────────────────────────────────────────────────────
+    #  DURING : funcName.arg[index] op value
+    # ----------------------------------------------------------------
+    def verify_during_function_arg(
+            self, *, func_name: str, arg_index: int, comp_op: str,
+            rhs_expr, line_no: int, cfg_node
+    ) -> dict[str, Any]:
+        """
+        @During transfer.arg[0] > 0 검증
+        해당 라인의 함수 호출에서 arg_index번째 인자의 값을 rhs와 비교
+        """
+        try:
+            # ① statements에서 함수 호출 찾기
+            target_call_expr = None
+            for stmt in cfg_node.statements:
+                if stmt.statement_type == 'functionCall':
+                    found = self._find_function_call_in_expr(stmt.function_expr, func_name)
+                    if found:
+                        target_call_expr = found
+                        break
+
+            if target_call_expr is None:
+                return self._err("duringFunctionArg",
+                    f"함수 '{func_name}' 호출을 찾을 수 없음", line_no)
+
+            # ② 인자 추출
+            arguments = target_call_expr.arguments or []
+            if arg_index >= len(arguments):
+                return self._err("duringFunctionArg",
+                    f"arg[{arg_index}] 범위 초과 (인자 개수: {len(arguments)})", line_no)
+
+            arg_expr = arguments[arg_index]
+
+            # ③ 인자 값 evaluate
+            vars_env = cfg_node.variables
+            arg_val = self.evaluator.evaluate_expression(arg_expr, vars_env, None, None)
+
+            # ④ RHS evaluate 및 비교
+            rhs_val = self.evaluate_guardian_expression(rhs_expr, vars_env, None, None)
+            cmp = self._compare_values(arg_val, comp_op, rhs_val)
+            status = self._status_from_cmp(cmp)
+
+            if status == "unknown" and "false_regions" in cmp:
+                fr = cmp["false_regions"]
+                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+            else:
+                msg_tail = ""
+
+            return {
+                "status": status,
+                "kind": "duringFunctionArg",
+                "line": line_no,
+                "details": {
+                    "func_name": func_name,
+                    "arg_index": arg_index,
+                    "arg_value": str(arg_val),
+                    "rhs_value": str(rhs_val),
+                    "operator": comp_op,
+                    **cmp
+                },
+                "message": f"{func_name}.arg[{arg_index}] {comp_op} {self._pretty_expr(rhs_expr)} → {cmp['message']}{msg_tail}"
+            }
+
+        except Exception as e:
+            return self._err("duringFunctionArg", f"internal error: {e}", line_no)
+
+    def _find_function_call_in_expr(self, expr, target_name: str):
+        """
+        Expression 트리에서 target_name 함수 호출을 재귀적으로 찾음
+        반환: 해당 함수 호출 Expression (arguments 포함) 또는 None
+        """
+        if expr is None:
+            return None
+
+        # Case 1: FunctionCallContext - 함수 호출
+        if getattr(expr, 'context', None) == 'FunctionCallContext':
+            func = expr.function
+            if func:
+                # MemberAccess: base.transfer()
+                if getattr(func, 'context', None) == 'MemberAccessContext' and func.member == target_name:
+                    return expr
+                # Direct call: transfer()
+                if getattr(func, 'context', None) == 'IdentifierExpContext' and func.identifier == target_name:
+                    return expr
+
+            # 인자들에서 재귀 검색 (체인 호출: a.mul(x).div(y)에서 mul 찾기)
+            if expr.arguments:
+                for arg in expr.arguments:
+                    found = self._find_function_call_in_expr(arg, target_name)
+                    if found:
+                        return found
+
+            # function 표현식에서도 재귀 (base에서 검색)
+            if func:
+                found = self._find_function_call_in_expr(func, target_name)
+                if found:
+                    return found
+
+        # Case 2: MemberAccessContext - base에서 검색
+        if getattr(expr, 'context', None) == 'MemberAccessContext' and expr.base:
+            return self._find_function_call_in_expr(expr.base, target_name)
+
+        # Case 3: 이항 연산자
+        if getattr(expr, 'left', None):
+            found = self._find_function_call_in_expr(expr.left, target_name)
+            if found:
+                return found
+        if getattr(expr, 'right', None):
+            found = self._find_function_call_in_expr(expr.right, target_name)
+            if found:
+                return found
+
+        return None
 
 
     # === POST =======================================================
