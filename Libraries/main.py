@@ -123,77 +123,68 @@ class LibraryManager:
     def analyze_and_save_library(self, library_source: str, library_name: str = None) -> str:
         """
         라이브러리 소스 코드를 분석하여 CFG를 생성하고 저장한다.
-        ContractParser를 활용하여 청크 단위로 분석하고, 
-        test.py의 simulate_inputs와 동일한 파싱 파이프라인을 사용
-        
+        전체 소스를 한 번에 파싱하여 완전한 CFG를 생성한다.
+
         Args:
             library_source: 라이브러리 Solidity 소스 코드
             library_name: 라이브러리 이름 (None이면 소스에서 자동 추출)
-            
+
         Returns:
             저장된 라이브러리 이름
         """
-        # 1. 소스를 청크로 분할
-        try:
-            parser = ContractParser()
-            chunks = parser.parse_contract(library_source)
-        except Exception as e:
-            raise ValueError(f"Failed to parse library source: {e}")
-        
-        # 2. 각 청크를 순차적으로 처리 (test.py의 simulate_inputs 로직과 동일)
+        from antlr4 import InputStream, CommonTokenStream
+        from Parser.SolidityLexer import SolidityLexer
+        from Parser.SolidityParser import SolidityParser
+
+        # 1. 라이브러리 이름 자동 추출
         current_library_name = library_name
-        visitor = EnhancedSolidityVisitor(self.analyzer)
+        if current_library_name is None:
+            import re
+            match = re.search(r'library\s+(\w+)\s*\{', library_source)
+            if match:
+                current_library_name = match.group(1)
 
-        offset = 0  # ← ① 누적 오프셋
-        for chunk in chunks:
-            code = chunk.code
-            s = chunk.start_line
-            e = chunk.end_line
-            event = chunk.event
-
-            # 코드 업데이트 (solidity 소스 갱신)
-            self.analyzer.update_code(s, e, chunk.code, chunk.event)
-
-            # 2) **줄 수만큼 offset 갱신**  ── comment·empty 도 포함!
-            if event == "add":
-                offset += len(code.splitlines())  # ← 실제로 들어간 줄 수
-
-            if chunk.chunk_type in ("empty", "comment"):
-                continue
-
-            stripped = code.lstrip()
-            
-            # 라이브러리 이름 자동 추출
-            if current_library_name is None and chunk.chunk_type == "library":
-                if chunk.context_info and "name" in chunk.context_info:
-                    current_library_name = chunk.context_info["name"]
-                elif stripped.startswith("library"):
-                    parts = stripped.split()
-                    if len(parts) >= 2:
-                        current_library_name = parts[1].rstrip("{")
-            
-            # 디버그 주석 처리 (만약 있다면)
-            if stripped.startswith("// @"):
-                # 디버그 주석은 라이브러리 분석에서는 일반적으로 사용하지 않지만 
-                # 일관성을 위해 처리 로직 유지
-                continue
-            
-            # 일반 Solidity 코드 - test.py와 동일한 파싱 파이프라인
-            if code.strip():
-                try:
-                    # 현재 컨텍스트 타입 가져오기
-                    ctx = self.analyzer.get_current_context_type()
-                    # 파스 트리 생성
-                    tree = ParserHelpers.generate_parse_tree(code, ctx, True)
-                    # EnhancedSolidityVisitor로 방문
-                    visitor.visit(tree)
-                except Exception as e:
-                    print(f"Warning: Failed to parse chunk at line {s}: {e}")
-                    continue
-        
         if current_library_name is None:
             raise ValueError("Could not determine library name from source")
-        
+
+        # 2. 전체 소스를 한 번에 파싱 (sourceUnit 규칙 사용)
+        try:
+            # 전체 파싱 모드를 위해 기본값 설정
+            self.analyzer.current_start_line = 1
+            self.analyzer.current_end_line = len(library_source.splitlines())
+            # line_info 초기화
+            for i in range(1, self.analyzer.current_end_line + 1):
+                if i not in self.analyzer.line_info:
+                    self.analyzer.line_info[i] = {'open': 0, 'close': 0, 'cfg_nodes': []}
+
+            input_stream = InputStream(library_source)
+            lexer = SolidityLexer(input_stream)
+            token_stream = CommonTokenStream(lexer)
+            parser = SolidityParser(token_stream)
+
+            # 에러 리스너 설정
+            from antlr4.error.ErrorListener import ErrorListener
+            parser.removeErrorListeners()
+            parser.addErrorListener(
+                type(
+                    "LibraryParseErrorListener", (ErrorListener,), {
+                        "syntaxError": lambda self, recognizer, offendingSymbol,
+                                              line, column, msg, e:
+                        print(f"[ANTLR Parse Error] {line}:{column} {msg}")
+                    }
+                )()
+            )
+
+            # sourceUnit 규칙으로 전체 파싱
+            tree = parser.sourceUnit()
+
+            # EnhancedSolidityVisitor로 방문
+            visitor = EnhancedSolidityVisitor(self.analyzer)
+            visitor.visit(tree)
+
+        except Exception as e:
+            raise ValueError(f"Failed to parse library source: {e}")
+
         # 3. 라이브러리 CFG 저장
         self.save_library_cfg(current_library_name)
         

@@ -6,6 +6,7 @@ if TYPE_CHECKING:                                         # 타입 검사 전용
      from Analyzer.ContractAnalyzer import ContractAnalyzer
 
 from Utils.CFG import ContractCFG, FunctionCFG
+from Utils.Helper import VariableEnv
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
 from Domain.Variable import GlobalVariable, Variables, ArrayVariable, StructVariable, EnumVariable
 from Domain.AddressSet import AddressSet
@@ -14,13 +15,11 @@ from Domain.Type import SolType
 class StaticCFGFactory:
 
     @staticmethod
-    def make_contract_cfg(an:ContractAnalyzer, contract_name: str) -> ContractCFG:
-        if contract_name in an.contract_cfgs:
-            return an.contract_cfgs[contract_name]
-
-        cfg = ContractCFG(contract_name)
-
-        # ────────── 1. local helpers ──────────
+    def _create_global_variables(an: ContractAnalyzer) -> dict[str, GlobalVariable]:
+        """
+        글로벌 변수 테이블 생성 (block, msg, tx 등)
+        ContractCFG와 AbstractContractCFG 모두에서 사용
+        """
         def _u256(val: int = 0) -> UnsignedIntegerInterval:
             """[val,val] 256-bit uint Interval"""
             return UnsignedIntegerInterval(val, val, 256)
@@ -37,8 +36,7 @@ class StaticCFGFactory:
                 T.intTypeLength = bits
             return T
 
-        # ────────── 2. 글로벌 변수 테이블 ──────────
-        cfg.globals = {
+        return {
             # --- block ---
             "block.basefee": GlobalVariable(
                 identifier="block.basefee",
@@ -97,6 +95,16 @@ class StaticCFGFactory:
                 value=_addr_fixed(100),
                 typeInfo=_sol_elem("address")),
         }
+
+    @staticmethod
+    def make_contract_cfg(an:ContractAnalyzer, contract_name: str) -> ContractCFG:
+        if contract_name in an.contract_cfgs:
+            return an.contract_cfgs[contract_name]
+
+        cfg = ContractCFG(contract_name)
+
+        # 글로벌 변수 설정
+        cfg.globals = StaticCFGFactory._create_global_variables(an)
 
         for gv in cfg.globals.values():
             an.register_var(gv)
@@ -313,7 +321,7 @@ class StaticCFGFactory:
             elif et == "bool":
                 v.value = BoolInterval.bottom()
             elif et == "address":
-                v.value = AddressSymbolicManager.top_interval()
+                v.value = AddressSet.top()
             else:  # bytes / string …
                 v.value = f"symbol_{ident}"
 

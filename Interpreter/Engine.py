@@ -8,6 +8,8 @@ if TYPE_CHECKING:
 from Domain.Variable import Variables, MappingVariable, ArrayVariable, StructVariable
 from Domain.IR import Expression
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
+from Domain.AddressSet import AddressSet
+from Domain.BytesSet import BytesSet
 from Domain.Annotation import CompoundDuringAnnotation, CompoundPostAnnotation
 from Utils.CFG import CFGNode, FunctionCFG
 from Utils.Helper import VariableEnv
@@ -58,6 +60,8 @@ class Engine:
             return self._interpret_break(stmt, current_variables)
         elif typ == 'continue':
             return self._interpret_continue(stmt, current_variables)
+        elif typ == 'assembly':
+            return self._interpret_assembly(stmt, current_variables)
         else:
             raise ValueError(f"Statement '{typ}' is not implemented.")
 
@@ -214,6 +218,40 @@ class Engine:
     def _interpret_break(self, stmt, variables):
         return variables
     def _interpret_continue(self, stmt, variables):
+        return variables
+
+    def _interpret_assembly(self, stmt, variables):
+        """
+        Assembly 블록 내 변수 할당 처리:
+        - 해당 변수를 Top으로 설정 (assembly에서 정확한 값 추적 불가)
+        """
+        var_name = getattr(stmt, 'variable_name', None)
+        if var_name and var_name in variables:
+            var_obj = variables[var_name]
+            # 변수 타입에 따라 적절한 Top 값 설정
+            if hasattr(var_obj, 'typeInfo') and var_obj.typeInfo:
+                et = getattr(var_obj.typeInfo, 'elementaryTypeName', None)
+                if et:
+                    if et.startswith("uint"):
+                        bits = var_obj.typeInfo.intTypeLength or 256
+                        var_obj.value = UnsignedIntegerInterval.top(bits)
+                    elif et.startswith("int"):
+                        bits = var_obj.typeInfo.intTypeLength or 256
+                        var_obj.value = IntegerInterval.top(bits)
+                    elif et == "bool":
+                        var_obj.value = BoolInterval.top()
+                    elif et == "address":
+                        var_obj.value = AddressSet.top()
+                    elif et.startswith("bytes") and len(et) > 5:
+                        byte_size = int(et[5:])
+                        var_obj.value = BytesSet.top(byte_size)
+                    else:
+                        var_obj.value = f"assembly_top_{var_name}"
+                else:
+                    var_obj.value = f"assembly_top_{var_name}"
+            else:
+                # 타입 정보 없으면 기본적으로 uint256 Top
+                var_obj.value = UnsignedIntegerInterval.top()
         return variables
 
     # =================================================================

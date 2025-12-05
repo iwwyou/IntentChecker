@@ -1,3 +1,5 @@
+pragma solidity 0.7.4;
+
 contract Nokon {
     using SafeMath for uint256;
 

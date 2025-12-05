@@ -50,15 +50,32 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#pragmaDirective.
     def visitPragmaDirective(self, ctx:SolidityParser.PragmaDirectiveContext):
-        return self.visitChildren(ctx)
+        """
+        pragma solidity ^0.8.0; 형태의 pragma directive 처리
+        ContractAnalyzer에 pragma 정보 등록
+        """
+        pragma_name = None
+        pragma_value = None
+
+        # pragmaName과 pragmaValue 추출
+        if ctx.pragmaName():
+            pragma_name = ctx.pragmaName().getText()
+        if ctx.pragmaValue():
+            pragma_value = ctx.pragmaValue().getText()
+
+        # ContractAnalyzer에 등록
+        if pragma_name:
+            self.contract_analyzer.process_pragma_directive(pragma_name, pragma_value or "")
+
+        return None
 
     # Visit a parse tree produced by SolidityParser#pragmaName.
     def visitPragmaName(self, ctx:SolidityParser.PragmaNameContext):
-        return self.visitChildren(ctx)
+        return ctx.getText()
 
     # Visit a parse tree produced by SolidityParser#pragmaValue.
     def visitPragmaValue(self, ctx:SolidityParser.PragmaValueContext):
-        return self.visitChildren(ctx)
+        return ctx.getText()
 
     # Visit a parse tree produced by SolidityParser#version.
     def visitVersion(self, ctx:SolidityParser.VersionContext):
@@ -92,13 +109,42 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitContractDefinition(self, ctx:SolidityParser.ContractDefinitionContext):
         contract_name = ctx.identifier().getText()
 
+        # abstract 키워드 확인
+        is_abstract = False
+        if ctx.getChildCount() > 0:
+            first_token = ctx.getChild(0).getText()
+            if first_token == 'abstract':
+                is_abstract = True
+
+        # 상속 관계 추출 (is A, B, C)
+        parent_contracts = []
+        if ctx.inheritanceSpecifier():
+            for inherit_ctx in ctx.inheritanceSpecifier():
+                # identifierPath에서 부모 컨트랙트 이름 추출
+                parent_name = inherit_ctx.identifierPath().getText()
+                parent_contracts.append(parent_name)
+
         # ContractAnalyzer에서 해당 컨트랙트의 CFG 생성
-        self.contract_analyzer.make_contract_cfg(contract_name)
+        if is_abstract:
+            self.contract_analyzer.make_abstract_contract_cfg(contract_name, parent_contracts)
+        else:
+            self.contract_analyzer.make_contract_cfg(contract_name, parent_contracts)
         return
 
     # Visit a parse tree produced by SolidityParser#interfaceDefinition.
     def visitInterfaceDefinition(self, ctx:SolidityParser.InterfaceDefinitionContext):
-        return self.visitChildren(ctx)
+        interface_name = ctx.identifier().getText()
+
+        # 상속 관계 추출 (interface도 다른 interface 상속 가능)
+        parent_interfaces = []
+        if ctx.inheritanceSpecifier():
+            for inherit_ctx in ctx.inheritanceSpecifier():
+                parent_name = inherit_ctx.identifierPath().getText()
+                parent_interfaces.append(parent_name)
+
+        # ContractAnalyzer에서 Interface CFG 생성
+        self.contract_analyzer.make_interface_cfg(interface_name, parent_interfaces)
+        return
 
     # Visit a parse tree produced by SolidityParser#libraryDefinition.
     def visitLibraryDefinition(self, ctx:SolidityParser.LibraryDefinitionContext):
@@ -322,9 +368,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         modifier_name = ctx.identifier().getText()
 
         # 2. 파라미터가 존재하는지 확인
+        # visitParameterList returns list[tuple[SolType, str | None]]
+        # process_modifier_definition expects dict[str, SolType]
         parameters = None
         if ctx.parameterList():
-            parameters = self.visitParameterList(ctx.parameterList())
+            param_list = self.visitParameterList(ctx.parameterList())
+            # list[tuple[SolType, name]] → dict[name, SolType]
+            parameters = {}
+            for sol_type, param_name in param_list:
+                if param_name:
+                    parameters[param_name] = sol_type
 
         self.contract_analyzer.process_modifier_definition(modifier_name, parameters)
 
@@ -405,7 +458,25 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#eventDefinition.
     def visitEventDefinition(self, ctx:SolidityParser.EventDefinitionContext):
-        return self.visitChildren(ctx)
+        """
+        event Transfer(address indexed from, address indexed to, uint256 value);
+        형태의 event 정의 처리
+        """
+        # 1. event 이름 추출
+        event_name = ctx.identifier().getText()
+
+        # 2. event 파라미터 추출
+        parameters = []
+        if ctx.eventParameter():
+            for param_ctx in ctx.eventParameter():
+                param_info = self.visitEventParameter(param_ctx)
+                if param_info:
+                    parameters.append(param_info)
+
+        # 3. ContractAnalyzer에 등록
+        self.contract_analyzer.process_event_definition(event_name, parameters)
+
+        return None
 
     # Visit a parse tree produced by SolidityParser#enumDefinition.
     def visitEnumDefinition(self, ctx:SolidityParser.EnumDefinitionContext):
@@ -449,7 +520,26 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#eventParameter.
     def visitEventParameter(self, ctx:SolidityParser.EventParameterContext):
-        return self.visitChildren(ctx)
+        """
+        event 파라미터 처리
+        반환: (SolType, param_name, is_indexed)
+        """
+        # 1. 타입 정보 추출
+        type_obj = SolType()
+        if ctx.typeName():
+            type_obj = self.visitTypeName(ctx.typeName(), type_obj)
+
+        # 2. indexed 여부 확인
+        is_indexed = False
+        if ctx.Indexed():
+            is_indexed = True
+
+        # 3. 파라미터 이름 추출 (선택적)
+        param_name = None
+        if ctx.identifier():
+            param_name = ctx.identifier().getText()
+
+        return (type_obj, param_name, is_indexed)
 
     # Visit a parse tree produced by SolidityParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx:SolidityParser.VariableDeclarationContext):
@@ -1107,7 +1197,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return self.visit(ctx.arithExpr())
 
     # Visit a parse tree produced by SolidityParser#AddrLiteralExpr.
-    def visitAddrLiteralExpr(self, ctx: SolidityParser.AddrLiteralExprContext):
+    def visitAddrLiteralExpr(self, ctx):
         # 'address' numberLiteral
         address_val = ctx.numberLiteral().getText()
         return Expression(
@@ -1117,7 +1207,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         )
 
     # Visit a parse tree produced by SolidityParser#SymAddrLiteralExpr.
-    def visitSymAddrLiteralExpr(self, ctx: SolidityParser.SymAddrLiteralExprContext):
+    def visitSymAddrLiteralExpr(self, ctx):
         # 'symbolicAddress' numberLiteral
         address_val = ctx.numberLiteral().getText()
         return Expression(
@@ -1127,12 +1217,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         )
 
     # Visit a parse tree produced by SolidityParser#AddrVarExpr.
-    def visitAddrVarExpr(self, ctx: SolidityParser.AddrVarExprContext):
+    def visitAddrVarExpr(self, ctx):
         # varRef
         return self.visitVarRef(ctx.varRef())
 
     # Visit a parse tree produced by SolidityParser#BoolLiteralExpr.
-    def visitBoolLiteralExpr(self, ctx: SolidityParser.BoolLiteralExprContext):
+    def visitBoolLiteralExpr(self, ctx):
         # booleanLiteral
         bool_val = ctx.booleanLiteral().getText()
         return Expression(
@@ -1142,7 +1232,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         )
 
     # Visit a parse tree produced by SolidityParser#BoolVarExpr.
-    def visitBoolVarExpr(self, ctx: SolidityParser.BoolVarExprContext):
+    def visitBoolVarExpr(self, ctx):
         # varRef
         return self.visitVarRef(ctx.varRef())
 
@@ -1316,7 +1406,55 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#assemblyStatement.
     def visitAssemblyStatement(self, ctx:SolidityParser.AssemblyStatementContext):
-        return self.visitChildren(ctx)
+        """
+        Assembly 블록 처리:
+        - Assembly 내 yulAssignment를 찾아 해당 변수들을 Top으로 설정
+        - Yul 변수 선언(let)은 assembly 스코프 로컬이므로 무시
+        """
+        # assembly 내 모든 yulAssignment를 재귀적으로 찾기
+        assigned_vars = self._extract_yul_assignments(ctx)
+
+        # 각 할당된 변수에 대해 Top 할당 statement 생성
+        for var_name in assigned_vars:
+            self.contract_analyzer.process_assembly_assignment(var_name)
+
+        return None
+
+    def _extract_yul_assignments(self, ctx) -> list[str]:
+        """
+        Assembly 블록에서 yulAssignment의 변수명들을 추출
+        (Solidity 스코프의 변수만 해당 - let으로 선언된 Yul 로컬 변수 제외)
+        """
+        assigned_vars = []
+
+        # 재귀적으로 모든 자식 노드 탐색
+        def visit(node):
+            if hasattr(node, 'getRuleIndex'):
+                from Parser.SolidityParser import SolidityParser
+
+                # yulAssignment: yulPath ':=' yulExpression
+                if isinstance(node, SolidityParser.YulAssignmentContext):
+                    # yulPath에서 변수명 추출
+                    yul_paths = node.yulPath() if hasattr(node, 'yulPath') else []
+                    if not isinstance(yul_paths, list):
+                        yul_paths = [yul_paths] if yul_paths else []
+
+                    for yul_path in yul_paths:
+                        if yul_path:
+                            # yulPath의 첫 번째 identifier가 변수명
+                            var_name = yul_path.getText().split('.')[0]
+                            if var_name and not var_name.startswith('_'):  # 유효한 변수명
+                                assigned_vars.append(var_name)
+
+            # 자식 노드들 재귀 방문
+            if hasattr(node, 'getChildCount'):
+                for i in range(node.getChildCount()):
+                    child = node.getChild(i)
+                    if child:
+                        visit(child)
+
+        visit(ctx)
+        return list(set(assigned_vars))  # 중복 제거
 
     # Visit a parse tree produced by SolidityParser#assemblyFlags.
     def visitAssemblyFlags(self, ctx:SolidityParser.AssemblyFlagsContext):
@@ -1403,7 +1541,31 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#emitStatement.
     def visitEmitStatement(self, ctx:SolidityParser.EmitStatementContext):
-        return self.visitChildren(ctx)
+        """
+        emit Transfer(msg.sender, recipient, amount); 형태의 emit 문 처리
+        """
+        # 1. event 이름 추출 (functionCall의 identifier 부분)
+        event_name = None
+        arguments = []
+
+        # functionCall context에서 event 이름과 인자 추출
+        if ctx.functionCall():
+            func_call = ctx.functionCall()
+            # identifier 또는 identifierPath에서 event 이름 추출
+            if func_call.identifier():
+                event_name = func_call.identifier().getText()
+            elif func_call.identifierPath():
+                event_name = func_call.identifierPath().getText()
+
+            # callArgumentList에서 인자 추출
+            if func_call.callArgumentList():
+                arguments = self.visitCallArgumentList(func_call.callArgumentList())
+
+        # 2. ContractAnalyzer에 emit 문 등록
+        if event_name:
+            self.contract_analyzer.process_emit_statement(event_name, arguments)
+
+        return None
 
     # Visit a parse tree produced by SolidityParser#revertStatement.
     def visitRevertStatement(self, ctx:SolidityParser.RevertStatementContext):
@@ -1487,8 +1649,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         elif ctx.revertStatement():
             return self.visitRevertStatement(ctx.revertStatement())
         elif ctx.assemblyStatement():
-            # assembly에 대한 처리 (나중에 구현 예정)
-            pass
+            # assembly 블록 처리 - 변수들을 Top으로 설정
+            return self.visitAssemblyStatement(ctx.assemblyStatement())
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#interactiveIfStatement.

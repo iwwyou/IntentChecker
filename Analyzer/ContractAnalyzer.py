@@ -53,9 +53,14 @@ class ContractAnalyzer:
         self.last_statement_part = None
         self.last_annotation_part = None
 
+        # Pragma 정보
+        self.pragma_version = None  # pragma solidity 버전
+        self.pragma_directives = []  # 모든 pragma directive 저장
+
         # for Multiple Contract
         self.contract_cfgs = {} # name -> ContractCFG
         self.library_cfgs = {}  # name -> LibraryCFG
+        self.interface_cfgs = {}  # name -> InterfaceCFG
         
         # 라이브러리 파일 저장 경로 (기본값: Libraries 디렉토리)
         self.libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
@@ -315,6 +320,16 @@ class ContractAnalyzer:
 
         # 단독 '}'는 컨텍스트 분석 불필요 (괄호 정보만으로 충분)
         if stripped_code == "}":
+            return
+
+        # pragma는 contract 외부에 있으므로 특별 처리
+        if stripped_code.startswith("pragma"):
+            self.current_context_type = "pragma"
+            return
+
+        # import도 contract 외부
+        if stripped_code.startswith("import"):
+            self.current_context_type = "import"
             return
 
         # ★ statement + annotation이 같은 줄에 있는지 확인
@@ -658,16 +673,136 @@ class ContractAnalyzer:
 
     # ContractAnalyzer.py  (일부)
 
-    def make_contract_cfg(self, contract_name: str):
+    def make_contract_cfg(self, contract_name: str, parent_contracts: list[str] = None):
         """
         contract-level CFG를 처음 만들 때 한 번 호출.
         address 계열 글로벌은 UnsignedIntegerInterval(160bit) 로,
         uint  계열은 [0,0] 256-bit Interval 로 초기화한다.
+
+        Args:
+            contract_name: 컨트랙트 이름
+            parent_contracts: 상속받는 부모 컨트랙트 이름 리스트 (MRO 순서)
         """
         self.current_target_contract = contract_name
         cfg = StaticCFGFactory.make_contract_cfg(self, contract_name)
 
+        # 상속 관계 설정
+        if parent_contracts:
+            self._setup_inheritance(cfg, parent_contracts)
+
         self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+
+    def make_abstract_contract_cfg(self, contract_name: str, parent_contracts: list[str] = None):
+        """
+        abstract contract-level CFG를 처음 만들 때 한 번 호출.
+        ContractCFG와 동일하지만 AbstractContractCFG 클래스 사용.
+
+        Args:
+            contract_name: 컨트랙트 이름
+            parent_contracts: 상속받는 부모 컨트랙트 이름 리스트 (MRO 순서)
+        """
+        from Utils.CFG import AbstractContractCFG
+
+        self.current_target_contract = contract_name
+
+        # 이미 존재하면 재사용
+        if contract_name in self.contract_cfgs:
+            cfg = self.contract_cfgs[contract_name]
+            self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+            return
+
+        # AbstractContractCFG 생성
+        cfg = AbstractContractCFG(contract_name)
+
+        # 글로벌 변수 설정 (StaticCFGFactory의 로직 재사용)
+        cfg.globals = StaticCFGFactory._create_global_variables(self)
+
+        # 글로벌 변수 등록
+        for gv in cfg.globals.values():
+            self.register_var(gv)
+
+        # contract_cfgs에 저장
+        self.contract_cfgs[contract_name] = cfg
+
+        # 상속 관계 설정
+        if parent_contracts:
+            self._setup_inheritance(cfg, parent_contracts)
+
+        self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+
+    def _setup_inheritance(self, cfg, parent_contracts: list[str]):
+        """
+        상속 관계를 설정한다.
+        - parent_contracts 리스트 저장
+        - parent_cfgs에 부모 CFG 참조 연결
+        - 부모의 state variables 복사
+        - 부모의 struct/enum 정의 복사
+
+        Args:
+            cfg: 현재 컨트랙트/abstract 컨트랙트 CFG
+            parent_contracts: 부모 컨트랙트 이름 리스트
+        """
+        cfg.parent_contracts = parent_contracts
+
+        for parent_name in parent_contracts:
+            # 부모 CFG 찾기 (이미 분석되어 있어야 함)
+            parent_cfg = self.contract_cfgs.get(parent_name)
+            if parent_cfg:
+                cfg.parent_cfgs[parent_name] = parent_cfg
+
+                # 부모의 state variables 복사
+                if parent_cfg.state_variable_node:
+                    if not cfg.state_variable_node:
+                        cfg.initialize_state_variable_node()
+                    for var_name, var_obj in parent_cfg.state_variable_node.variables.items():
+                        # 이미 존재하지 않는 경우에만 복사
+                        if var_name not in cfg.state_variable_node.variables:
+                            # 변수 복사 (얕은 복사로 참조 공유)
+                            cfg.state_variable_node.variables[var_name] = var_obj
+
+                # 부모의 struct 정의 복사
+                for struct_name, struct_def in parent_cfg.structDefs.items():
+                    if struct_name not in cfg.structDefs:
+                        cfg.structDefs[struct_name] = struct_def
+
+                # 부모의 enum 정의 복사
+                for enum_name, enum_def in parent_cfg.enumDefs.items():
+                    if enum_name not in cfg.enumDefs:
+                        cfg.enumDefs[enum_name] = enum_def
+
+    def make_interface_cfg(self, interface_name: str, parent_interfaces: list[str] = None):
+        """
+        Interface CFG를 생성한다.
+        Interface는 함수 body가 없으므로 시그니처만 저장.
+
+        Args:
+            interface_name: Interface 이름
+            parent_interfaces: 상속받는 부모 interface 이름 리스트
+        """
+        from Utils.CFG import InterfaceCFG
+
+        # 이미 존재하면 재사용
+        if interface_name in self.interface_cfgs:
+            return
+
+        # InterfaceCFG 생성
+        interface_cfg = InterfaceCFG(interface_name)
+
+        # 부모 interface 연결
+        if parent_interfaces:
+            interface_cfg.parent_interfaces = parent_interfaces
+            for parent_name in parent_interfaces:
+                parent_cfg = self.interface_cfgs.get(parent_name)
+                if parent_cfg:
+                    interface_cfg.parent_cfgs[parent_name] = parent_cfg
+
+        # interface_cfgs에 저장
+        self.interface_cfgs[interface_name] = interface_cfg
+
+        # contract_cfgs에도 저장 (타입 검색 호환성)
+        self.contract_cfgs[interface_name] = interface_cfg
+
+        self.line_info[self.current_start_line]['cfg_nodes'] = [interface_cfg]
 
     def make_library_cfg(self, library_name: str):
         """
@@ -683,7 +818,11 @@ class ContractAnalyzer:
         self.library_cfgs[library_name] = library_cfg
         self.contract_cfgs[library_name] = library_cfg  # 호환성을 위해 contract_cfgs에도 저장
 
-        self.line_info[self.current_start_line]['cfg_nodes'] = [library_cfg]
+        # line_info 업데이트 (전체 파싱 모드에서는 current_start_line이 None일 수 있음)
+        if self.current_start_line is not None:
+            if self.current_start_line not in self.line_info:
+                self.line_info[self.current_start_line] = {'open': 0, 'close': 0, 'cfg_nodes': []}
+            self.line_info[self.current_start_line]['cfg_nodes'] = [library_cfg]
         
     def process_using_directive(self, library_name: str, target_type: str = None):
         """
@@ -1571,8 +1710,31 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_payable_function_call(self, expr):
-        # Handle payable function calls
-        pass
+        """
+        payable(addr) 함수 호출 처리
+        - address를 payable address로 변환
+        - 추상 해석에서는 address와 동일하게 AddressSet 반환
+        """
+        # 1. CFG 컨텍스트
+        ccf = self.contract_cfgs[self.current_target_contract]
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        if self.current_target_function_cfg is None:
+            return
+
+        cur_blk = self.builder.get_current_block()
+        if cur_blk is None:
+            return
+
+        # 2. 인자 평가 (payable(addr)의 addr)
+        if expr.arguments:
+            arg_val = self.evaluator.evaluate_expression(
+                expr.arguments[0], cur_blk.variables, None, None
+            )
+            # payable 변환 결과는 AddressSet
+            # (실제 평가는 Evaluation.py의 type conversion에서 처리됨)
+
+        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_function_call_options(self, expr):
         # Handle function calls with options
@@ -1931,6 +2093,35 @@ class ContractAnalyzer:
 
         # ★ reinterpret seed = loop-exit
         self.engine.reinterpret_from(self.current_target_function_cfg, exit_node)
+
+        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        self.contract_cfgs[self.current_target_contract] = ccf
+
+    def process_assembly_assignment(self, var_name: str) -> None:
+        """
+        Assembly 블록 내 변수 할당 처리:
+        - 해당 변수가 Solidity 스코프에 존재하면 Top으로 설정
+        - Assembly에서 값을 직접 조작하므로 정확한 값 추적 불가
+        """
+        # 1. CFG 컨텍스트
+        ccf = self.contract_cfgs[self.current_target_contract]
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        if self.current_target_function_cfg is None:
+            return  # 함수 컨텍스트 없으면 무시
+
+        cur_blk = self.builder.get_current_block()
+        if cur_blk is None:
+            return
+
+        # 2. 변수가 현재 스코프에 존재하는지 확인
+        if var_name not in cur_blk.variables:
+            return  # Yul 로컬 변수거나 존재하지 않는 변수
+
+        var_obj = cur_blk.variables[var_name]
+
+        # 3. Statement 생성 (assembly 타입)
+        stmt = Statement(statement_type='assembly', variable_name=var_name)
+        cur_blk.statements.append(stmt)
 
         ccf.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = ccf
@@ -2855,3 +3046,58 @@ class ContractAnalyzer:
 
         # 3. 찾을 수 없음
         return None
+
+    # ─────────────────────────────────────────────────────────────
+    #  pragma / event / emit 처리
+    # ─────────────────────────────────────────────────────────────
+    def process_pragma_directive(self, pragma_name: str, pragma_value: str):
+        """
+        pragma directive 처리
+        예: pragma solidity ^0.8.0; → pragma_name="solidity", pragma_value="^0.8.0"
+        """
+        directive = {"name": pragma_name, "value": pragma_value}
+        self.pragma_directives.append(directive)
+
+        # solidity 버전 pragma면 버전 정보 저장
+        if pragma_name == "solidity":
+            self.pragma_version = pragma_value
+
+    def process_event_definition(self, event_name: str, parameters: list):
+        """
+        event 정의 처리
+        parameters: list of (SolType, param_name, is_indexed)
+        """
+        if not self.current_target_contract:
+            return
+
+        if self.current_target_contract not in self.contract_cfgs:
+            return
+
+        ccf = self.contract_cfgs[self.current_target_contract]
+        ccf.events[event_name] = {
+            "name": event_name,
+            "parameters": parameters  # [(SolType, name, indexed), ...]
+        }
+
+    def process_emit_statement(self, event_name: str, arguments: list):
+        """
+        emit 문 처리 - FunctionCFG의 현재 블록에 emit statement 추가
+        """
+        if not self.current_target_contract or not self.current_target_function:
+            return
+
+        ccf = self.contract_cfgs.get(self.current_target_contract)
+        if not ccf:
+            return
+
+        fcfg = ccf.functions.get(self.current_target_function)
+        if not fcfg:
+            return
+
+        # 현재 블록에 emit statement 추가
+        cur_block = self.builder.get_current_block()
+        if cur_block:
+            stmt = Statement(statement_type='emit', variable_name=event_name)
+            stmt.emit_arguments = arguments
+            stmt.src_line = self.current_start_line
+            cur_block.statements.append(stmt)

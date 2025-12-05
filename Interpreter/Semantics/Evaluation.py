@@ -35,6 +35,62 @@ class Evaluation :
         return self.an.engine          # Engine 싱글톤
 
     # ──────────────────── Helper functions ───────────────────────────
+
+    def find_function_in_hierarchy(self, contract_cfg, function_name: str):
+        """
+        현재 컨트랙트와 부모 체인에서 함수를 검색한다 (상속 지원).
+        Solidity의 C3 linearization 순서를 따른다.
+
+        Args:
+            contract_cfg: 현재 컨트랙트 CFG
+            function_name: 찾을 함수 이름
+
+        Returns:
+            FunctionCFG 또는 None (못 찾은 경우)
+        """
+        # 1. 현재 컨트랙트에서 검색
+        if function_name in contract_cfg.functions:
+            return contract_cfg.functions[function_name]
+
+        # 2. 부모 컨트랙트 체인 검색 (MRO 순서)
+        parent_contracts = getattr(contract_cfg, 'parent_contracts', [])
+        parent_cfgs = getattr(contract_cfg, 'parent_cfgs', {})
+
+        for parent_name in parent_contracts:
+            parent_cfg = parent_cfgs.get(parent_name)
+            if parent_cfg:
+                # 재귀적으로 부모 체인 검색
+                result = self.find_function_in_hierarchy(parent_cfg, function_name)
+                if result:
+                    return result
+
+        # 3. 못 찾음
+        return None
+
+    def find_function_in_parent_only(self, contract_cfg, function_name: str):
+        """
+        super 키워드용: 현재 컨트랙트는 건너뛰고 부모 체인에서만 검색한다.
+
+        Args:
+            contract_cfg: 현재 컨트랙트 CFG
+            function_name: 찾을 함수 이름
+
+        Returns:
+            FunctionCFG 또는 None (못 찾은 경우)
+        """
+        parent_contracts = getattr(contract_cfg, 'parent_contracts', [])
+        parent_cfgs = getattr(contract_cfg, 'parent_cfgs', {})
+
+        for parent_name in parent_contracts:
+            parent_cfg = parent_cfgs.get(parent_name)
+            if parent_cfg:
+                # 부모에서는 전체 계층 검색
+                result = self.find_function_in_hierarchy(parent_cfg, function_name)
+                if result:
+                    return result
+
+        return None
+
     def _join_struct_fields(self, struct_list):
         """
         구조체 리스트의 각 필드를 join하여 하나의 구조체 반환
@@ -185,6 +241,9 @@ class Evaluation :
             return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallOptionContext":
             return self.evaluate_function_call_option_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "PayableFunctionCallContext":
+            # payable(addr) - address를 payable address로 변환
+            return self.evaluate_payable_function_call_context(expr, variables, callerObject, callerContext)
 
         elif expr.context == "TupleExpressionContext":
             return self.evaluate_tuple_expression_context(expr, variables,
@@ -573,6 +632,9 @@ class Evaluation :
             if callerContext == "MemberAccessContext":  # base에 대한 접근
                 if ident_str in variables:
                     return variables[ident_str]  # MappingVariable, StructVariable 자체를 리턴
+                elif ident_str == "this":
+                    # this 키워드: 현재 컨트랙트 자체를 반환
+                    return "this"
                 elif ident_str in ["block", "tx", "msg", "address", "code"]:
                     return ident_str  # block, tx, msg를 리턴
                 elif ident_str in self.an.contract_cfgs[self.an.current_target_contract].enumDefs:  # EnumDef 리턴
@@ -630,6 +692,60 @@ class Evaluation :
                         result_expr._implicit_first_arg = baseVal
                         return result_expr
         
+        # ──────────────────────────────────────────────────────────────
+        # 0-1. super 키워드 처리 (super.foo() → 부모 컨트랙트 함수 호출)
+        # ──────────────────────────────────────────────────────────────
+        if isinstance(baseVal, str) and baseVal == "super":
+            if callerContext == "functionCallContext":
+                # super.foo() 형태의 함수 호출
+                current_contract = self.an.current_target_contract
+                if current_contract and current_contract in self.an.contract_cfgs:
+                    contract_cfg = self.an.contract_cfgs[current_contract]
+
+                    # 부모 컨트랙트에서만 함수 검색
+                    parent_function = self.find_function_in_parent_only(contract_cfg, member)
+                    if parent_function:
+                        # super 함수 호출 Expression 반환
+                        result_expr = Expression(
+                            function=Expression(identifier=member),
+                            operator='super_call',
+                            context='SuperFunctionCallContext'
+                        )
+                        result_expr._super_function_cfg = parent_function
+                        return result_expr
+
+            # super를 함수 호출 외의 컨텍스트에서 사용한 경우
+            return f"super.{member}"
+
+        # ──────────────────────────────────────────────────────────────
+        # 0-2. this 키워드 처리 (this.foo(), this.balance, address(this).balance 등)
+        # ──────────────────────────────────────────────────────────────
+        if isinstance(baseVal, str) and baseVal == "this":
+            if callerContext == "functionCallContext":
+                # this.foo() 형태의 함수 호출 → 현재 컨트랙트의 함수 호출
+                current_contract = self.an.current_target_contract
+                if current_contract and current_contract in self.an.contract_cfgs:
+                    contract_cfg = self.an.contract_cfgs[current_contract]
+                    this_function = self.find_function_in_hierarchy(contract_cfg, member)
+                    if this_function:
+                        # this 함수 호출 Expression 반환
+                        result_expr = Expression(
+                            function=Expression(identifier=member),
+                            operator='this_call',
+                            context='ThisFunctionCallContext'
+                        )
+                        result_expr._this_function_cfg = this_function
+                        return result_expr
+                # 함수를 찾지 못함 → Top 반환
+                return UnsignedIntegerInterval.top()
+
+            # this.balance → 컨트랙트 잔액 (uint256 Top)
+            if member == "balance":
+                return UnsignedIntegerInterval.top()
+
+            # 기타 this 멤버 접근은 심볼릭으로 처리
+            return f"this.{member}"
+
         # ──────────────────────────────────────────────────────────────
         # 1. Global-var (block / msg / tx)
         # ──────────────────────────────────────────────────────────────
@@ -812,6 +928,48 @@ class Evaluation :
             return nested  # 객체 그대로 넘김
 
         # ──────────────────────────────────────────────────────────────
+        # 3-A. AddressSet  (address.balance, address.transfer(), address.send())
+        # ──────────────────────────────────────────────────────────────
+        if isinstance(baseVal, AddressSet):
+            # address.balance → uint256 Top (balance can be any value)
+            if member == "balance":
+                return UnsignedIntegerInterval.top()
+
+            # address.code → bytes Top
+            if member == "code":
+                return "code"  # 상위 계층에서 .length 접근 처리
+
+            # address.codehash → bytes32 Top
+            if member == "codehash":
+                return BytesSet.top(32)
+
+            # 함수 호출 컨텍스트에서의 처리
+            if callerContext == "functionCallContext":
+                # address.transfer(amount) → void (reverts on failure)
+                if member == "transfer":
+                    # transfer는 실패 시 revert하므로 리턴값 없음
+                    # 단순히 None 반환 (상태 변경 없음으로 가정)
+                    return None
+
+                # address.send(amount) → bool (true=success, false=failure)
+                if member == "send":
+                    # send는 성공/실패를 bool로 반환
+                    return BoolInterval.top()  # [0,1] 둘 다 가능
+
+                # address.call{value:...}() 등
+                if member == "call":
+                    # call은 (bool success, bytes memory data) 반환
+                    # 단순화: Top 반환
+                    return BoolInterval.top()
+
+                # address.delegatecall(), staticcall()
+                if member in ("delegatecall", "staticcall"):
+                    return BoolInterval.top()
+
+            # 기타 address 멤버는 심볼릭 처리
+            return f"address.{member}"
+
+        # ──────────────────────────────────────────────────────────────
         # 4. EnumDefinition  (EnumType.RED)
         # ──────────────────────────────────────────────────────────────
         if isinstance(baseVal, EnumDefinition):
@@ -976,7 +1134,29 @@ class Evaluation :
             if isinstance(sub_val, str) and sub_val.startswith("0x"):
                 addr_int = int(sub_val, 16)
                 return AddressSet(ids={addr_int})
+            # ★ address(this) 처리: "this" → 현재 컨트랙트 주소 (symbolic ID 1)
+            if isinstance(sub_val, str) and sub_val == "this":
+                # 현재 컨트랙트의 주소는 symbolic ID 1로 고정
+                return self.an.addr_mgr.make_symbolic_address(1, "this")
             return AddressSet.top()  # 기타 → symbolic TOP
+
+        # ★ payable(addr) 타입 변환 - address와 동일하게 처리
+        elif type_name == "payable" or type_name == "address payable":
+            # payable은 Ether를 받을 수 있는 address - 추상 해석에서는 address와 동일
+            if isinstance(sub_val, AddressSet):
+                return sub_val  # 이미 AddressSet이면 그대로
+            if isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                if sub_val.is_bottom():
+                    return AddressSet.bot()
+                if sub_val.min_value == sub_val.max_value:
+                    return AddressSet(ids={sub_val.min_value})
+                return AddressSet.top()
+            if isinstance(sub_val, str) and sub_val.startswith("0x"):
+                addr_int = int(sub_val, 16)
+                return AddressSet(ids={addr_int})
+            if isinstance(sub_val, str) and sub_val == "this":
+                return self.an.addr_mgr.make_symbolic_address(1, "this")
+            return AddressSet.top()
 
         # bytes32, bytes16 등 고정 크기 바이트 배열 타입 변환
         elif type_name.startswith("bytes") and len(type_name) > 5:
@@ -1229,16 +1409,36 @@ class Evaluation :
             function_result = self.evaluate_expression(expr.function, variables, None, "functionCallContext")
             
             # 라이브러리 함수 호출인 경우
-            if (isinstance(function_result, Expression) and 
-                hasattr(function_result, 'context') and 
+            if (isinstance(function_result, Expression) and
+                hasattr(function_result, 'context') and
                 function_result.context == 'LibraryFunctionCallContext'):
-                
+
                 # 라이브러리 함수 호출로 처리
                 return self.evaluate_library_function_call_context(
-                    expr, variables, function_result._implicit_first_arg, 
+                    expr, variables, function_result._implicit_first_arg,
                     function_result._library_function_cfg
                 )
-            
+
+            # super 함수 호출인 경우 (super.foo())
+            if (isinstance(function_result, Expression) and
+                hasattr(function_result, 'context') and
+                function_result.context == 'SuperFunctionCallContext'):
+
+                # super 함수 호출로 처리
+                return self.evaluate_super_function_call_context(
+                    expr, variables, function_result._super_function_cfg
+                )
+
+            # this 함수 호출인 경우 (this.foo())
+            if (isinstance(function_result, Expression) and
+                hasattr(function_result, 'context') and
+                function_result.context == 'ThisFunctionCallContext'):
+
+                # this 함수 호출로 처리 (일반 함수 호출과 동일)
+                return self.evaluate_this_function_call_context(
+                    expr, variables, function_result._this_function_cfg
+                )
+
             # 일반적인 member access 결과 반환 (dynamic array push/pop 등)
             return function_result
             
@@ -1274,10 +1474,12 @@ class Evaluation :
 
             return new_struct
 
-        # 3) 함수 CFG 가져오기
-        function_cfg = contract_cfg.get_function_cfg(function_name)
+        # 3) 함수 CFG 가져오기 (상속 계층 포함 검색)
+        function_cfg = self.find_function_in_hierarchy(contract_cfg, function_name)
         if not function_cfg:
-            return f"symbolicFunctionCall({function_name})"  # 또는 에러
+            # 함수를 찾을 수 없음 → Top 반환 (외부 함수, interface 메서드, 미정의 함수)
+            # 반환 타입을 알 수 없으므로 uint256 Top으로 처리
+            return UnsignedIntegerInterval.top()
 
         # 4) 함수 파라미터와 인자 매핑
         #    expr.arguments -> 위치 기반 인자
@@ -1417,6 +1619,147 @@ class Evaluation :
         except Exception as e:
             # 오류 발생 시 symbolic 값 반환
             return f"symbolic_library_error({expr.function.identifier}: {str(e)})"
+
+    def evaluate_super_function_call_context(self, expr, variables, super_function_cfg):
+        """
+        super 함수 호출 처리 (super.foo())
+        부모 컨트랙트의 함수를 호출한다.
+
+        Args:
+            expr: 원래 FunctionCallContext Expression 객체 (arguments 포함)
+            variables: 현재 변수 환경
+            super_function_cfg: 부모 컨트랙트의 함수 FunctionCFG
+        """
+        if not super_function_cfg:
+            return f"symbolic_super_error(function not found)"
+
+        # 1) 함수 파라미터 정보
+        param_names = getattr(super_function_cfg, 'parameters', [])
+
+        # 2) 인자 준비
+        arguments = expr.arguments if expr.arguments else []
+        named_arguments = expr.named_arguments if expr.named_arguments else {}
+
+        total_params = len(param_names)
+        total_args = len(arguments) + len(named_arguments)
+
+        if total_params != total_args:
+            return f"symbolic_super_error(arg count mismatch: expected {total_params}, got {total_args})"
+
+        # 3) 인자 값 설정
+        caller_env = variables.copy()
+
+        for i, arg_expr in enumerate(arguments):
+            param_name = param_names[i]
+            arg_val = self.evaluate_expression(arg_expr, variables, None, None)
+
+            if param_name in super_function_cfg.related_variables:
+                super_function_cfg.related_variables[param_name].value = arg_val
+            else:
+                from Domain.Variable import Variables as Var
+                param_var = Var(identifier=param_name, scope="local")
+                param_var.value = arg_val
+                super_function_cfg.related_variables[param_name] = param_var
+
+        # named arguments 처리
+        for key, expr_val in named_arguments.items():
+            if key in param_names:
+                arg_val = self.evaluate_expression(expr_val, variables, None, None)
+                if key in super_function_cfg.related_variables:
+                    super_function_cfg.related_variables[key].value = arg_val
+
+        # 4) caller env를 callee에 병합
+        for k, v in variables.items():
+            super_function_cfg.related_variables.setdefault(k, v)
+
+        # 5) 부모 함수 CFG 실행
+        try:
+            saved_function = self.an.current_target_function
+            saved_function_cfg = self.an.current_target_function_cfg
+
+            self.an.current_target_function = super_function_cfg.function_name
+            self.an.current_target_function_cfg = super_function_cfg
+
+            return_value = self.engine.interpret_function_cfg(super_function_cfg, caller_env)
+
+            self.an.current_target_function = saved_function
+            self.an.current_target_function_cfg = saved_function_cfg
+
+            return return_value
+
+        except Exception as e:
+            return f"symbolic_super_error({super_function_cfg.function_name}: {str(e)})"
+
+    def evaluate_this_function_call_context(self, expr, variables, this_function_cfg):
+        """
+        this 함수 호출 처리 (this.foo())
+        현재 컨트랙트의 함수를 external call로 호출한다.
+        Solidity에서 this.foo()는 external call이지만, 추상 해석에서는 일반 함수 호출과 동일하게 처리.
+
+        Args:
+            expr: 원래 FunctionCallContext Expression 객체 (arguments 포함)
+            variables: 현재 변수 환경
+            this_function_cfg: 현재 컨트랙트의 함수 FunctionCFG
+        """
+        if not this_function_cfg:
+            return UnsignedIntegerInterval.top()  # 함수를 찾지 못하면 Top 반환
+
+        # 1) 함수 파라미터 정보
+        param_names = getattr(this_function_cfg, 'parameters', [])
+
+        # 2) 인자 준비
+        arguments = expr.arguments if expr.arguments else []
+        named_arguments = expr.named_arguments if expr.named_arguments else {}
+
+        total_params = len(param_names)
+        total_args = len(arguments) + len(named_arguments)
+
+        if total_params != total_args:
+            return f"symbolic_this_error(arg count mismatch: expected {total_params}, got {total_args})"
+
+        # 3) 인자 값 설정
+        caller_env = variables.copy()
+
+        for i, arg_expr in enumerate(arguments):
+            param_name = param_names[i]
+            arg_val = self.evaluate_expression(arg_expr, variables, None, None)
+
+            if param_name in this_function_cfg.related_variables:
+                this_function_cfg.related_variables[param_name].value = arg_val
+            else:
+                from Domain.Variable import Variables as Var
+                param_var = Var(identifier=param_name, scope="local")
+                param_var.value = arg_val
+                this_function_cfg.related_variables[param_name] = param_var
+
+        # named arguments 처리
+        for key, expr_val in named_arguments.items():
+            if key in param_names:
+                arg_val = self.evaluate_expression(expr_val, variables, None, None)
+                if key in this_function_cfg.related_variables:
+                    this_function_cfg.related_variables[key].value = arg_val
+
+        # 4) caller env를 callee에 병합
+        for k, v in variables.items():
+            this_function_cfg.related_variables.setdefault(k, v)
+
+        # 5) 함수 CFG 실행
+        try:
+            saved_function = self.an.current_target_function
+            saved_function_cfg = self.an.current_target_function_cfg
+
+            self.an.current_target_function = this_function_cfg.function_name
+            self.an.current_target_function_cfg = this_function_cfg
+
+            return_value = self.engine.interpret_function_cfg(this_function_cfg, caller_env)
+
+            self.an.current_target_function = saved_function
+            self.an.current_target_function_cfg = saved_function_cfg
+
+            return return_value
+
+        except Exception as e:
+            return f"symbolic_this_error({this_function_cfg.function_name}: {str(e)})"
 
     def update_mapping_in_cfg(self, mapVarName: str, key_str: str, new_var_obj: Variables):
         """
@@ -1656,6 +1999,40 @@ class Evaluation :
                 return self._join_mapping_values_virtually(callerObject, sample_keys)
         return
 
+    def evaluate_payable_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
+        """
+        payable(addr) 함수 호출 처리
+        - address를 payable address로 변환
+        - 추상 해석에서는 address와 동일하게 AddressSet 반환
+        """
+        # 인자가 있으면 평가
+        if expr.arguments:
+            sub_val = self.evaluate_expression(expr.arguments[0], variables, None, None)
+
+            # 이미 AddressSet이면 그대로 반환
+            if isinstance(sub_val, AddressSet):
+                return sub_val
+
+            # uint/int → address 변환
+            if isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                if sub_val.is_bottom():
+                    return AddressSet.bot()
+                if sub_val.min_value == sub_val.max_value:
+                    return AddressSet(ids={sub_val.min_value})
+                return AddressSet.top()
+
+            # 0x로 시작하는 문자열 → address
+            if isinstance(sub_val, str) and sub_val.startswith("0x"):
+                addr_int = int(sub_val, 16)
+                return AddressSet(ids={addr_int})
+
+            # "this" → 현재 컨트랙트 주소
+            if isinstance(sub_val, str) and sub_val == "this":
+                return self.an.addr_mgr.make_symbolic_address(1, "this")
+
+        # 기타 경우 → Top
+        return AddressSet.top()
+
     def evaluate_function_call_option_context(self, expr, variables, callerObject=None, callerContext=None):
         """
         FunctionCallOptions: expr.function { option1: val1, option2: val2, ... }
@@ -1669,8 +2046,8 @@ class Evaluation :
             member = getattr(expr.function, 'member', None)
             if member in ['call', 'delegatecall', 'staticcall']:
                 # This is the case: address.call{value: ...}
-                # Return marker that will be handled by outer FunctionCallContext
-                return f"symbolicFunctionCallOptions({member})"
+                # 외부 호출은 결과를 알 수 없으므로 Top 반환
+                return UnsignedIntegerInterval.top()
 
         # expr.function이 구조체 타입 이름인지 확인
         if expr.function and expr.function.context == "IdentifierExpContext":
@@ -1707,8 +2084,8 @@ class Evaluation :
                 return new_struct
 
         # 함수 호출 옵션 (예: {value: 1 ether, gas: 5000})
-        # 현재는 symbolic으로 처리
-        return f"symbolicFunctionCallOptions({expr.function})"
+        # 결과를 알 수 없으므로 Top 반환
+        return UnsignedIntegerInterval.top()
 
     @staticmethod
     def calculate_default_interval(var_type):
