@@ -251,11 +251,18 @@ class ContractCFG(CFG):
         #self.modifiers = {}  # name -> FunctionCFG
         self.functions = {}  # name -> FunctionCFG
 
+        # Event 정의 저장
+        self.events = {}  # name -> EventDefinition (parameters list)
+
         self.globals: dict[str, GlobalVariable] = {}
-        
+
         # Using directive 지원: type -> LibraryCFG
         self.using_libraries: dict[str, 'LibraryCFG'] = {}  # "uint256" -> SafeMathLibrary
         self.using_all_libraries: list['LibraryCFG'] = []   # using Library for *;
+
+        # 상속 지원: parent contracts
+        self.parent_contracts: list[str] = []  # ['Context', 'Ownable'] - MRO 순서
+        self.parent_cfgs: dict[str, 'ContractCFG'] = {}  # name -> ContractCFG 참조
 
     def initialize_state_variable_node(self):
         self.state_variable_node = CFGNode('State_Variable')
@@ -439,6 +446,26 @@ class ContractCFG(CFG):
         }
 
 
+class AbstractContractCFG(ContractCFG):
+    """
+    Abstract Contract를 위한 CFG 클래스
+    - ContractCFG를 상속받아 동일한 구조를 가짐
+    - is_abstract 플래그로 구분
+    - abstract 함수 (body 없음)도 FunctionCFG로 생성 (entry→exit만)
+    """
+    def __init__(self, contract_name):
+        super().__init__(contract_name)
+        self.cfg_type = 'abstract_contract'
+        self.is_abstract = True
+
+    def serialize_for_storage(self) -> dict:
+        """AbstractContractCFG를 저장을 위해 직렬화"""
+        base_serialized = super().serialize_for_storage()
+        base_serialized['cfg_type'] = 'abstract_contract'
+        base_serialized['is_abstract'] = True
+        return base_serialized
+
+
 class FunctionCFG(CFG):
     def __init__(self, function_type, function_name=None):
         super().__init__('function')
@@ -551,6 +578,62 @@ class FunctionCFG(CFG):
             'assign_env': serialized_assign_env,
             'modifiers': self.modifiers,
             'graph_structure': self.serialize_graph_structure()
+        }
+
+
+class InterfaceCFG:
+    """
+    Solidity Interface를 위한 CFG 클래스
+    - Interface는 함수 body가 없으므로 CFG를 상속하지 않음
+    - 함수 시그니처만 저장 (파라미터, 반환 타입)
+    - Interface 타입 변수는 AddressSet으로 처리
+    - Interface 메서드 호출은 Top 반환
+    """
+    def __init__(self, interface_name: str):
+        self.interface_name = interface_name
+        self.cfg_type = 'interface'
+
+        # 함수 시그니처: name -> {'parameters': [...], 'returns': [...]}
+        self.function_signatures: dict[str, dict] = {}
+
+        # 상속 지원 (interface도 다른 interface 상속 가능)
+        self.parent_interfaces: list[str] = []
+        self.parent_cfgs: dict[str, 'InterfaceCFG'] = {}
+
+    def add_function_signature(self, func_name: str, parameters: list, returns: list):
+        """Interface 함수 시그니처 추가"""
+        self.function_signatures[func_name] = {
+            'parameters': parameters,
+            'returns': returns
+        }
+
+    def has_function(self, func_name: str) -> bool:
+        """함수 시그니처 존재 여부 확인"""
+        if func_name in self.function_signatures:
+            return True
+        # 부모 interface에서도 검색
+        for parent_cfg in self.parent_cfgs.values():
+            if parent_cfg.has_function(func_name):
+                return True
+        return False
+
+    def get_function_signature(self, func_name: str) -> dict | None:
+        """함수 시그니처 반환"""
+        if func_name in self.function_signatures:
+            return self.function_signatures[func_name]
+        for parent_cfg in self.parent_cfgs.values():
+            sig = parent_cfg.get_function_signature(func_name)
+            if sig:
+                return sig
+        return None
+
+    def serialize_for_storage(self) -> dict:
+        """InterfaceCFG를 저장을 위해 직렬화"""
+        return {
+            'cfg_type': self.cfg_type,
+            'interface_name': self.interface_name,
+            'function_signatures': self.function_signatures,
+            'parent_interfaces': self.parent_interfaces
         }
 
 
