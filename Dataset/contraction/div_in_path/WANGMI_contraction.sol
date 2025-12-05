@@ -1,7 +1,6 @@
 contract WANGMI {
     using SafeMath for uint256;
 
-    address public constant DEAD_ADDRESS = address(0xdead);
     IUniswapV2Router02 public constant uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     uint256 public buyLiquidityFee = 3;
     uint256 public sellLiquidityFee = 3;

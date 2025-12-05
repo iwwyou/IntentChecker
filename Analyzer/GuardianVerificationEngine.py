@@ -556,7 +556,7 @@ class GuardianVerificationEngine:
 
             # ③ 인자 값 evaluate
             vars_env = cfg_node.variables
-            arg_val = self.evaluator.evaluate_expression(arg_expr, vars_env, None, None)
+            arg_val = self.analyzer.evaluator.evaluate_expression(arg_expr, vars_env, None, None)
 
             # ④ RHS evaluate 및 비교
             rhs_val = self.evaluate_guardian_expression(rhs_expr, vars_env, None, None)
@@ -1284,7 +1284,7 @@ class GuardianVerificationEngine:
         """정수 구간 [lo,hi] (inclusive). lo>hi면 None."""
         if lo is None or hi is None:
             return None
-        lo = int(lo);
+        lo = int(lo)
         hi = int(hi)
         if lo > hi:
             return None

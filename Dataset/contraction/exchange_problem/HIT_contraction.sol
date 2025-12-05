@@ -1,12 +1,7 @@
 contract HIT {
     using SafeMath for uint256;
-    address owner = msg.sender;
     mapping (address => uint256) balances;
-    mapping (address => mapping (address => uint256)) allowed;
     mapping (address => bool) public blacklist;
-    string public constant name = "Hi Token";
-    string public constant symbol = "HIT";
-    uint public constant decimals = 18;
     uint256 public totalSupply = 1000000000e18;
     uint256 public totalDistributed = 200000000e18;
     uint256 public totalRemaining = totalSupply.sub(totalDistributed);

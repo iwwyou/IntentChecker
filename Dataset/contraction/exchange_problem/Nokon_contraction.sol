@@ -9,14 +9,7 @@ contract Nokon {
 
     event Transfer(address indexed from, address indexed to, uint tokens);
 
-    string public constant name = "Nokon";
-    string public constant symbol = "NKO";
-    uint8 public constant decimals = 8;
     mapping(address => uint256) balances;
-    mapping(address => mapping(address => uint256)) allowed;
-    mapping(address => bool) public authorizedAddress;
-    address authAddress = parseAddr('0x44F6827aa307F4d7FAeb64Be47543647B3a871dB');
-    uint256 totalSupply_ = 1200000000000000000;
     bool presell = true;
     uint256 ethRateFix = 10000000000;
 
@@ -29,8 +22,7 @@ contract Nokon {
         return 250000;
     }
 
-    function buy() public payable
-    {
+    function buy() public payable {
         require(presell, "presell is closed");
         uint256 minBuy = 50000000000000000;
         uint256 amountToBuy = msg.value / ethRateFix * calculateRate();
@@ -44,5 +36,4 @@ contract Nokon {
         emit Transfer(address(this), msg.sender, amountToBuy);
         emit Bought(amountToBuy);
     }
-
 }

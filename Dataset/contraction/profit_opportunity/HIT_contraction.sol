@@ -1,28 +1,18 @@
-contract HIT is ERC20 {
+contract HIT {
     using SafeMath for uint256;
-
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
-
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
-
-    event Distr(address indexed to, uint256 amount);
-
-    event DistrFinished();
-
-    event Burn(address indexed burner, uint256 value);
-
-    address owner = msg.sender;
     mapping (address => uint256) balances;
-    mapping (address => mapping (address => uint256)) allowed;
     mapping (address => bool) public blacklist;
-    string public constant name = "Hi Token";
-    string public constant symbol = "HIT";
-    uint public constant decimals = 18;
     uint256 public totalSupply = 1000000000e18;
     uint256 public totalDistributed = 200000000e18;
     uint256 public totalRemaining = totalSupply.sub(totalDistributed);
     uint256 public value = 5000e18;
     bool public distributionFinished = false;
+
+    event Transfer(address indexed _from, address indexed _to, uint256 _value);
+    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+    
+    event Distr(address indexed to, uint256 amount);
+    event DistrFinished();
 
     modifier canDistr() {
         require(!distributionFinished);
@@ -46,10 +36,6 @@ contract HIT is ERC20 {
             distributionFinished = true;
         }
     }
-
-    function () external payable {
-        getTokens();
-     }
 
     function getTokens() payable canDistr onlyWhitelist public {
         if (value > totalRemaining) {
