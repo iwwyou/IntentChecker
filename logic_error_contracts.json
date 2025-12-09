@@ -1,0 +1,473 @@
+{
+  "Absence_of_code_logic_or_sanity_check": [
+    {
+      "incident": "20210629_MerlinLab_RS",
+      "chain": "bsc",
+      "address": "0x9059f2f644402db18155b7917762823a58962397",
+      "name": "MerlinStrategyAlpacaBNB",
+      "description": "Via the smart contract, a hacker deposited 0.1WBNB into the vault and then manually transferred 1000BNB into the contract to trick the contract into thinking it has received 1000BNB in rewards, which "
+    },
+    {
+      "incident": "20211003_Compound_SR",
+      "chain": "eth",
+      "address": "0x2775b1c75658be0f640272ccb8c72ac986009e38",
+      "name": "Reservoir",
+      "description": "Now another ~$68.8M has been sent to the vulnerable vault, and even more COMP is being given away. Any user could call drip() on Compound\u2019s Reservoir vault, which would refill the Comptroller and allo"
+    },
+    {
+      "incident": "20200913_bzx_CS",
+      "chain": "eth",
+      "address": "0xde744d544a9d768e96c21b5f087fc54b776e9b25",
+      "name": "LoanTokenLogicWeth",
+      "description": "DeFi lending protocol bZx was attacked again. This time hackers drained a little more over $8 million worth of cryptocurrencies leveraging a duplication bug that enabled them to make away with 219,199"
+    },
+    {
+      "incident": "20210622_ElevenFinance_CSR",
+      "chain": "bsc",
+      "address": "0x27dd6e51bf715cfc0e2fe96af26fc9ded89e4be8",
+      "name": "ElevenNeverSellVault",
+      "description": "Eleven Finance was exploited to drain a number of vaults at the loss about $4.6 million. The incident was due to a bug that allows the attacker to withdraw funds without burning any shares. While it a"
+    },
+    {
+      "incident": "20210810_PunkProtocol_CSR",
+      "chain": "eth",
+      "address": "0x929cb86046e421abf7e1e02de7836742654d49d6",
+      "name": "CompoundModel",
+      "description": "On Aug 10th, Punk Protocol was hacked for $8.95M, ~$5M of which was later returned. \"The Punk post-mortem details the vulnerability that led to the attack, and describes the root cause as a missing Mo"
+    },
+    {
+      "incident": "20210730_Levyathan_CSR",
+      "chain": "bsc",
+      "address": "0x304c62b5b030176f8d328d3a01feab632fc929ba",
+      "name": "LEVToken",
+      "description": "leyvathan.finance was subject to an attack on July 30th 2021, resulting in the minting of 100,000,000,000,000,000,000,000,000 $LEV tokens and price drop to near 0. [1] The Levyathan developers left th"
+    },
+    {
+      "incident": "20201117_88mph_S",
+      "chain": "eth",
+      "address": "0x25a5feb5ac6533fe3c4e8e8e2a55f9e1f1f8e5f0",
+      "name": "DInterest",
+      "description": "88mph has a flaw in the deposit, funding, early withdrawal process which ****fails to burn**** the MPH tokens minted to the funder.(Since the hacker put all the tokens back to the MPH-ETH pool and the"
+    },
+    {
+      "incident": "20201117_88mph_S",
+      "chain": "eth",
+      "address": "0x2165b3800b17224de39303c240a41064179db0a6",
+      "name": "MPHMinter",
+      "description": "88mph has a flaw in the deposit, funding, early withdrawal process which ****fails to burn**** the MPH tokens minted to the funder.(Since the hacker put all the tokens back to the MPH-ETH pool and the"
+    },
+    {
+      "incident": "20210621_ImpossibleFinance_CS",
+      "chain": "bsc",
+      "address": "0x8ae4dffbf44c1c6c4c18489914401ef830ee146d",
+      "name": "ImpossiblePair",
+      "description": "Using a vulnerability in the LP contract, the hacker managed to swap IF into BUSD at about the price 2 times in a row, which is usually \u201cImpossible\u201d because of the slippage. No check on x*y=k."
+    },
+    {
+      "incident": "20211126_Lever_S",
+      "chain": "bsc",
+      "address": "0x62cd2e277de84521bdf7f0cc94c5e002b495590f",
+      "name": "MarginPool",
+      "description": "On Nov-26\u20132021 06:48:42 PM +UTC, a hacker constructed an attack transaction: https://bscscan.com/tx/0xb5365a299c07c81670e52934893793ad7c225a5cf30b641e20b451b2b5815593\nFirst, the Lever attack contract "
+    },
+    {
+      "incident": "20220127_Qubit_CSR",
+      "chain": "eth",
+      "address": "0x99309d2e7265528dc7c3067004cc4a90d37b7cc3",
+      "name": "QBridge",
+      "description": "At 9:34PM UTC on January 27th, 2022, an attacker began their exploit of Qubit Finance\u2019s Ethereum-BSC bridge. This exploit ended up netting them 77,162 qXETH ($185 million), which they then used to bor"
+    },
+    {
+      "incident": "20210710_Chainswap_CSR",
+      "chain": "eth",
+      "address": "0x06c24002f43e3af904eeec581734ea3a7dbf355e",
+      "name": "MappableToken",
+      "description": "On July 11, 2021, the cross-chain bridge project Chainswap was exploited, which resulted in a total loss of 20 assets on the bridge with a combined value of $4 million."
+    },
+    {
+      "incident": "20220312_Paraluni_S",
+      "chain": "bsc",
+      "address": "0xa386f30853a7eb7e6a25ec8389337a5c6973421d",
+      "name": "MasterChef",
+      "description": "On March 13, 2022, the SlowMist intelligence zone received news that the metaverse project Paraluni was the victim of a $1.7 million hack. The depositByAddLiquidity function within the MasterChef cont"
+    },
+    {
+      "incident": "20210508_RariCapital_CSR",
+      "chain": "eth",
+      "address": "0x67b66c99d3eb37fa76aa3ed1ff33e8e39f0b9c7a",
+      "name": "BANK (ibETH)",
+      "description": "Rari Capital\u2019s Ethereum Pool contract calculates the ibETH/ETH exchange rate by using the ibETH.totalETH()/ibETH.totalSupply() calculation from the ibETH contract, which can lead to incorrect assumpti"
+    },
+    {
+      "incident": "20210208_GrowthDefi_CR",
+      "chain": "eth",
+      "address": "0x0efb384d843a191c02f5c4470d0f9ec0122a1c0b",
+      "name": "stkGRO_rAAVE",
+      "description": "By forcing the staker contract to accept a liquidity pair containing a fake token, the attacker was able to remove $1.3 million in liquidity. The attacker created a fake token called AXZ and supplied "
+    },
+    {
+      "incident": "20200215_bZx_CS",
+      "chain": "eth",
+      "address": "0x77f973fcaf871459aa58cd81881ce453759281bc",
+      "name": "LoanToken",
+      "description": "There are quite a few misunderstandings circulating around about the nature of this particular hack. We emphasize that this is not an oracle attack. Instead, it is a clever arbitrage execution, which "
+    },
+    {
+      "incident": "20201121_PickleFinance_CSR",
+      "chain": "eth",
+      "address": "0x6847259b2b3a4c17e7c43c54409810af48ba5210",
+      "name": "ControllerV4",
+      "description": "Taking advantage of multiple flaws in the system, including issues with the Jar swap and Jar convert logic, the attacker use fake contract addresses of _fromJar and _toJar when calling the swapExactJa"
+    },
+    {
+      "incident": "20220421_ZEED_S",
+      "chain": "bsc",
+      "address": "0xe7748fce1d1e2f2fd2dddb5074bd074745dda8ea",
+      "name": "YEED",
+      "description": "The exploit was linked with the security loop in the reward distribution system of the protocol"
+    },
+    {
+      "incident": "20210629_THORChain_CS",
+      "chain": "eth",
+      "address": "0x42a5ed456650a09dc10ebc6361a7480fdd61f27b",
+      "name": "THORChain_Router",
+      "description": "$140k in funds were taken by a targeted exploit on a logic error in the ETH-Bifrost.The bug was that all non-ETH assets were being initialised with common.ETHAsset (ETH), but if the symbol returned \u201cE"
+    },
+    {
+      "incident": "20210404_ForceDAO_CS",
+      "chain": "eth",
+      "address": "0xe7f445b93eb9cdabfe76541cc43ff8de930a58e6",
+      "name": "ForceProfitSharing",
+      "description": "xforce vault didn't check the return value on transferFrom().They use the years old MiniMeToken contract which doesn't revert but returns false when you transferFrom without approval or not enough fun"
+    },
+    {
+      "incident": "20210505_ValueDeFi_SR",
+      "chain": "bsc",
+      "address": "0x7a8ac384d3a9086afcc13eb58e90916f17affc89",
+      "name": "ProfitSharingRewardPool",
+      "description": "On May 5th 2021, 3:22 AM UTC, the exploiter re-initialized the pool and set the operator role to himself and _stakeToken to HACKEDMONEY."
+    },
+    {
+      "incident": "20210610_EvoDefi_S",
+      "chain": "bsc",
+      "address": "0xf1f8e3ff67e386165e05b2b795097e95aac899f0",
+      "name": "MasterChef",
+      "description": "EvoDefi, the project revenue farm on the BSC chain, was attacked, and the price of its token GEN dropped from US2.1/piecetoUS0.9/piece, a short-term drop of 57%. Loss of 455,576.85 GEN worth approxima"
+    },
+    {
+      "incident": "20210715_THORChain_CSR",
+      "chain": "eth",
+      "address": "0xc145990e84155416144c532e31f89b840ca8c2ce",
+      "name": "THORChain_Router",
+      "description": "The bug is in the ETH Bifrost, and not the router.\nThe attacker wrapped the router with their own contract, which they called with a msg.value of 200, but their own contract called into the router wit"
+    },
+    {
+      "incident": "20210803_PopsicleFinance_CSR",
+      "chain": "eth",
+      "address": "0xd63b340f6e9cccf0c997c83c8d036fa53b113546",
+      "name": "SorbettoFragola",
+      "description": "Hacker executed a transaction that managed to drain 85% of the Sorbetto Fragola (UniswapV3 Optimizer) pools. The Popsicle Finance attacker exploited this vulnerability to trick the Sorbetto Fragola li"
+    },
+    {
+      "incident": "20200804_Opyn_CS",
+      "chain": "eth",
+      "address": "0x951d51baefb72319d9fbe941e1615938d89abfe2",
+      "name": "oToken",
+      "description": "This hack was done by calling exercise() with more than two vaults with ETH as the underlying assets. Since the implementation treats the same batch of ETH received as multiple batches of ETH receptio"
+    },
+    {
+      "incident": "20210810_PolyNetwork_CSR",
+      "chain": "eth",
+      "address": "0x250e76987d838a75310c34bf422ea9f1ac4cc906",
+      "name": "LockProxy",
+      "description": "Poly Network was attacked by anonymous white hat hacker or hackers, causing over $610 million in digital crypto assets at the price of that date to be transferred to hacker-controlled addresses. Event"
+    },
+    {
+      "incident": "20200920_SodaFinance_S",
+      "chain": "eth",
+      "address": "0x74bcb8b78996f49f46497be185174b2a89191fd6",
+      "name": "WETHCalculator",
+      "description": "Soda.Finance was hacked by malicious actors, who subsequently liquidated over 400 ETH (around $160,000) from the Soda loan pool."
+    },
+    {
+      "incident": "20211130_MonoX_CSR",
+      "chain": "eth",
+      "address": "0x66e7d7839333f502df355f5bd87aea24bac2ee63",
+      "name": "Monoswap",
+      "description": "Over $31 million stolen, across two chains, via a price manipulation of the project\u2019s native token, MONO.\nTwo attacks hit the protocol in swift succession.First, ~$19.4M was stolen on Polygon and just"
+    },
+    {
+      "incident": "20220118_Crosswise_S",
+      "chain": "bsc",
+      "address": "0x70873211cb64c1d4ec027ea63a399a7d07c4085b",
+      "name": "MasterChef",
+      "description": "The main reason for this attack is that the project side used the wrong method to get \u2018msgSender\u2019 so that the contract Owner rights change could be bypassed. \nThe Crosswisefi project does not adopt op"
+    },
+    {
+      "incident": "20201008_DeFiSaver_S",
+      "chain": "eth",
+      "address": "0x606e9758a39d2d7fa7e70bc68e6e7d9b02948962",
+      "name": "SaverExchange",
+      "description": "The key to this vulnerability is that an attacker can use the takeOrder function to call any function of the target contract _addresses[0] arbitrarily, and the parameters passed into the takeOrder fun"
+    },
+    {
+      "incident": "20211014_IndexedFinance_CSR",
+      "chain": "eth",
+      "address": "0x5bd628141c62a901e0a83e630ce5fafa95bbdee4",
+      "name": "IndexPool",
+      "description": "In order to control slippage, the rate at which the resulting changes in weights are enacted within the pool is limited, creating a temporary discrepancy ripe for manipulation.The attacker was able to"
+    },
+    {
+      "incident": "20220205_Meterio_CSR",
+      "chain": "eth",
+      "address": "0xa2a22b46b8df38cd7c55e6bf32ea5a32637cf2b1",
+      "name": "Bridge",
+      "description": "The attack started at ~6am PST on February 5th, when the attacker maliciously minted a substantial amount of BNB and wETH tokens, draining the bridge reserve of its BNB and wETH before all bridge tran"
+    },
+    {
+      "incident": "20220205_Meterio_CSR",
+      "chain": "bsc",
+      "address": "0xfd55ebc7bbde603a048648c6eab8775c997c1001",
+      "name": "Bridge",
+      "description": "The attack started at ~6am PST on February 5th, when the attacker maliciously minted a substantial amount of BNB and wETH tokens, draining the bridge reserve of its BNB and wETH before all bridge tran"
+    },
+    {
+      "incident": "20210512_XToken_CSR",
+      "chain": "eth",
+      "address": "0x55dbb68f69337fcabe261f296b50b4723d333830",
+      "name": "xSNXAdmin",
+      "description": "~$4.5 million stolen from their xSNX contract.Three months ago this team lost $24 million - in the same token, to the same attack technique. An erroneous require statement allowed the function to be p"
+    },
+    {
+      "incident": "20210527_BurgerSwap_S",
+      "chain": "bsc",
+      "address": "0x7ac55ac530f2c29659573bde0700c6758d69e677",
+      "name": "DemaxPair",
+      "description": "Overall, the attacker reportedly managed to steal 4,400 BNB (worth around $1.6 million), 22,000 BUSD and 1.4 million USDT stablecoins, 2.5 Ethereum ($6,800), 432,000 BURGER ($3.2 million), and 142,000"
+    },
+    {
+      "incident": "20211230_SashimiSwap_S",
+      "chain": "eth",
+      "address": "0xe4fe6a45f354e845f954cddee6084603cedb9410",
+      "name": "UniswapV2Router02",
+      "description": "On December 30, BEOSIN\u2019s Eagle Eye alerted that the Sashimi Swap was hacked at 09:06 UTC on December 30, with a total loss of nearly USD 200,000. \nThe hacker then removed the liquidity and gets WETH, "
+    },
+    {
+      "incident": "20210720_SanshuInu_S",
+      "chain": "eth",
+      "address": "0x35c674c288577df3e9b5dafef945795b741c7810",
+      "name": "Memestake",
+      "description": "Using the mechanism of deflation token KEANU to attack the reward vulnerabilities in the Memestake contract deployed by Sanshu Inu, the attacker finally made a profit of about 56 ETH. The attacker lev"
+    }
+  ],
+  "Arithmetic_mistakes": [
+    {
+      "incident": "20210919_pNetwork_CS",
+      "chain": "bsc",
+      "address": "0xd61372d1c3e0a0925467317425359fb2959fe186",
+      "name": "AdminUpgradeabilityProxy",
+      "description": "On September 19th, 2021 at 5:20pm UTC time, the pNetwork system was attacked by a hacker who performed the offensive against multiple pTokens bridges. However, the exploit was only successful on the p"
+    },
+    {
+      "incident": "20201228_CoverProtocol_CSR",
+      "chain": "eth",
+      "address": "0xe0b94a7bb45dd905c79bb1992c9879f40f1caed5",
+      "name": " Blacksmith",
+      "description": "This incident was due to a business bug (memory/Storage misuse) in the protocol that mis-calculates the reward amount for staking users. 9.4m taken, 3.2m recovered and $6.2m lost. The bug that caused "
+    },
+    {
+      "incident": "20210507_ValueDeFi_SR",
+      "chain": "bsc",
+      "address": "0x45f24baeef268bb6d63aee5129015d69702bcdfa",
+      "name": "ValueLiquidFormula",
+      "description": "Incorrect weighted constant product invariant calculation.The incident was due to the improper use of a complex exponentiation power() function behind the calculation and enforcement of the weighted c"
+    },
+    {
+      "incident": "20210526_MerlinLab_CR",
+      "chain": "bsc",
+      "address": "0xc45433188d25493893c6f8eb1f573190f77c1f94",
+      "name": "MPriceCalculatorBSC",
+      "description": "Just 8 hours after the first exploitation, Merlin Lab suffered a second exploitation with ~200 ETH."
+    },
+    {
+      "incident": "20210213_CreamFinance_CSR",
+      "chain": "eth",
+      "address": "0x33bf0bb8e1405dc440eccb97ffd92fef438c8a27",
+      "name": "HomoraBankv2",
+      "description": "The attackers' contract made the Homora code \u201cbelieve\u201d that their malicious contract was one of their own in order to manipulate internal debt numbers in their system.An attacker exploited Alpha Homor"
+    }
+  ],
+  "Other_coding_mistakes": [
+    {
+      "incident": "20210929_Compound_CSR",
+      "chain": "eth",
+      "address": "0x374abb8ce19a73f2c4efad642bda76c797f19233",
+      "name": "Comptroller",
+      "description": "A community led (but professionally checked) proposal 62 contained a bug which allowed for the distribution of ~$80M in excess COMP rewards. Smart contracts are unforgiving of the tiniest errors...COM"
+    },
+    {
+      "incident": "20210710_Anyswap_SR",
+      "chain": "eth",
+      "address": "0x6b7a87899490ece95443e979ca9485cbe7e71522",
+      "name": "AnyswapV4Router",
+      "description": "The root of the exploit lay in the prototype V3 Router\u2019s use of ECDSA, the algorithm securing its MPC wallet by generating private keys.\n\nThe key here is that every k value calculated in the algorithm"
+    },
+    {
+      "incident": "20210710_Anyswap_SR",
+      "chain": "bsc",
+      "address": "0xd1c5966f9f5ee6881ff6b261bbeda45972b1b5f3",
+      "name": "AnyswapV4Router",
+      "description": "The root of the exploit lay in the prototype V3 Router\u2019s use of ECDSA, the algorithm securing its MPC wallet by generating private keys.\n\nThe key here is that every k value calculated in the algorithm"
+    }
+  ],
+  "Liquidity_borrow,_purchase,_mint,_deposit": [
+    {
+      "incident": "20211123_PloutozFinance_S",
+      "chain": "bsc",
+      "address": "0x8e9654f15ee934edab16350e933577e0f9566d27",
+      "name": "LoanTokenLogicStandard",
+      "description": "The hack is made possible due to the price oracle manipulation of $DOP  in  @ploutozfinance. Specifically, the hacker leverages the manipulated $DOP as collateral to borrow other assets, including $CA"
+    },
+    {
+      "incident": "20200629_Balancer_S",
+      "chain": "eth",
+      "address": "0x32e574b0400cdb93dc33a34a30986737186bde43",
+      "name": "Balancer Pool Token (BPT)",
+      "description": "Less than 24 hours later, a second attack claimed about $2,300 worth of Compound tokens (COMP)."
+    },
+    {
+      "incident": "20200629_Balancer_S",
+      "chain": "eth",
+      "address": "0xfb44d6ebd1c659ecdb199111f9dce55a8b4d5df1",
+      "name": "Balancer Pool Token (BPT)",
+      "description": "Less than 24 hours later, a second attack claimed about $2,300 worth of Compound tokens (COMP)."
+    },
+    {
+      "incident": "20200629_Balancer_S",
+      "chain": "eth",
+      "address": "0xfe670043c158adc057b5ef2f66e753847e1c3d1d",
+      "name": "Balancer Pool Token (BPT)",
+      "description": "Less than 24 hours later, a second attack claimed about $2,300 worth of Compound tokens (COMP)."
+    },
+    {
+      "incident": "20200629_Balancer_S",
+      "chain": "eth",
+      "address": "0x7ad8f9ab85107fcb60e7423930adf00141fc9b39",
+      "name": "Balancer Pool Token (BPT)",
+      "description": "Less than 24 hours later, a second attack claimed about $2,300 worth of Compound tokens (COMP)."
+    },
+    {
+      "incident": "20211020_PancakeHunny_CSR",
+      "chain": "bsc",
+      "address": "0x27d4ca4bb855e435959295ec273fa16fe8caea14",
+      "name": "VaultStrategyAlpacaRabbit",
+      "description": "The hack is made possible due to a profit inflation bug, which converts the relatively small amount of harvested $ALPACA to large amount of $TUSD for staking. These converted TUSDs are then counted as"
+    },
+    {
+      "incident": "20210714_ApeRocket_S",
+      "chain": "bsc",
+      "address": "0x274b5b7868c848ac690dc9b4011e9e7e29133700",
+      "name": "AutoCake",
+      "description": "At around 4:30 AM UTC on July 14, ApeRocket\u2019s CAKE vault was exploited and drained $260K (883 BNB) out of the SPACE token LP on ApeSwap."
+    },
+    {
+      "incident": "20210204_YearnFinance_CSR",
+      "chain": "eth",
+      "address": "0xacd43e627e64355f1861cec6d3a6688b31a6f952",
+      "name": "yDAI",
+      "description": "The vault was attacked using 9 flash loans. $11 million was lost from the vault, $2.7m of which went to the attacker, $3.5m went to Curve liquidity providers, $3.5m went to Curve stakers, and $1.4m wa"
+    },
+    {
+      "incident": "2020117_OriginDollar_CSR",
+      "chain": "eth",
+      "address": "0x328d15f6b5eba1c30cde1a5f1f5a9e35b07f5424",
+      "name": "VaultCore",
+      "description": "The origin protocol was attacked by exploiting its flawed handling of the mint logic in its VaultCore smart contract.This incident was due to a bug in the protocol  (1) without validating the transfer"
+    },
+    {
+      "incident": "20210914_KlondikeFinance_S",
+      "chain": "eth",
+      "address": "0xacbdb82f07b2653137d3a08a22637121422ae747",
+      "name": "LiquidBoardroom",
+      "description": "Klondike Finance was attacked by hackers, with a total loss of approximately 35,281.71 KXUSD (6.5629 WETH)."
+    },
+    {
+      "incident": "20210720_SanshuInu_S",
+      "chain": "eth",
+      "address": "0x35c674c288577df3e9b5dafef945795b741c7810",
+      "name": "Memestake",
+      "description": "Using the mechanism of deflation token KEANU to attack the reward vulnerabilities in the Memestake contract deployed by Sanshu Inu, the attacker finally made a profit of about 56 ETH. The attacker lev"
+    }
+  ],
+  "Unfair_slippage_protection": [
+    {
+      "incident": "20210125_SushiSwap_S",
+      "chain": "eth",
+      "address": "0xe11fc0b43ab98eb91e9836129d1ee7c3bc95df50",
+      "name": "SushiMaker",
+      "description": "The problem was that the transaction fee of the DIGG-WBTC trading pair was taken away by the attacker through special means:The **absence of a bridge** that should have sent a reward to stakers result"
+    },
+    {
+      "incident": "20210625_xWinFinance_S",
+      "chain": "bsc",
+      "address": "0x8f52e0c41164169818c1fb04b263fdc7c1e56088",
+      "name": "xWinFarm",
+      "description": "xWin Finance was exploited and the attacker gained about $270k. This incident was due to an invalid slippage control in the protocol, which is exploited in a flashloan to obtain extra xWin rewards. Th"
+    },
+    {
+      "incident": "20211014_IndexedFinance_CSR",
+      "chain": "eth",
+      "address": "0x5bd628141c62a901e0a83e630ce5fafa95bbdee4",
+      "name": "IndexPool",
+      "description": "In order to control slippage, the rate at which the resulting changes in weights are enacted within the pool is limited, creating a temporary discrepancy ripe for manipulation.The attacker was able to"
+    }
+  ],
+  "Unfair_liquidity_providing": [
+    {
+      "incident": "20210527_JulSwap_S",
+      "chain": "bsc",
+      "address": "0x41a2f9ab325577f92e8653853c12823b35fb35c4",
+      "name": "JulProtocolV2",
+      "description": "Another BSC project, JulSwap, was hacked of a similar nature to burgerswap, which caused a 95 percent price crash. (No check on x*y=k.)\nHowever, its founder has confirmed that there has been no exploi"
+    },
+    {
+      "incident": "20210204_YearnFinance_CSR",
+      "chain": "eth",
+      "address": "0xacd43e627e64355f1861cec6d3a6688b31a6f952",
+      "name": "yDAI",
+      "description": "The vault was attacked using 9 flash loans. $11 million was lost from the vault, $2.7m of which went to the attacker, $3.5m went to Curve liquidity providers, $3.5m went to Curve stakers, and $1.4m wa"
+    },
+    {
+      "incident": "20210501_Spartan_CSR",
+      "chain": "bsc",
+      "address": "0xcaf0366af95e8a03e269e52ddb3dbb8a00295f91",
+      "name": "Utils",
+      "description": "The attacker used multiple transactions to bypass slippage protections*** within the contract and was able to take advantage of a flawed liquidity share calculation in the smart contract code.  The ca"
+    }
+  ],
+  "Other_unfair_or_unsafe_DeFi_protocol_interaction": [
+    {
+      "incident": "20200215_bZx_CS",
+      "chain": "eth",
+      "address": "0x77f973fcaf871459aa58cd81881ce453759281bc",
+      "name": "LoanToken",
+      "description": "There are quite a few misunderstandings circulating around about the nature of this particular hack. We emphasize that this is not an oracle attack. Instead, it is a clever arbitrage execution, which "
+    }
+  ],
+  "Other_protocol_vulnerabilities": [
+    {
+      "incident": "20210522_BoggedFinance_S",
+      "chain": "bsc",
+      "address": "0xd7b729ef857aa773f47d37088a1181bb3fbf0099",
+      "name": "BoggedFinance",
+      "description": "Missing sanity check on ransfer address: self-transfer is allowed. This incident was due to a bug in the BOG token contract that is designed to be deflationary by charging 5% of the transferred amount"
+    },
+    {
+      "incident": "20210408_UraniumFinance_S",
+      "chain": "bsc",
+      "address": "0xd5aac41d315c1d382dcf1c39d4ed9b37c224edf2",
+      "name": "MasterUranium",
+      "description": "An exploiter was able to constantly grab the contents of the RADS pool and all of the RADS/sRADS rewards and sell them for $1.3Mil worth of BUSD and BNB. This drastically dumped the price of RADS and "
+    }
+  ]
+}
