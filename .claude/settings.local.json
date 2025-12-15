@@ -19,7 +19,8 @@
       "Bash(done)",
       "Bash(dir:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "WebFetch(domain:code4rena.com)"
     ],
     "deny": [],
     "ask": []

@@ -103,7 +103,7 @@
 
 \begin{document}
 
-\title[Solidity Intent Keeper]{SolIntentKeeper: Validating Developer Intentions in Solidity via Intent Annotations to Mitigate Numeric Logic error}
+\title[Solidity Intent Keeper]{IntentKeeper: Validating Developer Intentions in Solidity via Intent Annotations to Mitigate Numeric Logic error}
 
 \author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
 
@@ -121,32 +121,19 @@
 \abstract{
 }
 
-\keywords{Smart Contract Development, Solidity, Numeric Vulnerabilities, Intent Annotations, Abstract Interpretation, Developer Tools}
+\keywords{Smart Contract Development, Solidity, Numeric Logic Error, Intent Annotations, Abstract Interpretation, Developer Tools}
 
 \maketitle
 
-%════════════════════════════════════════════════════════════════════
 \section{Introduction}
-%════════════════════════════════════════════════════════════════════
-
-%════════════════════════════════════════════════════════════════════
 \section{Background}
-%════════════════════════════════════════════════════════════════════
-
-%────────────────────────────────────────────────────────
-\subsection{Numeric Logical Error in Smart Contracts}
-%────────────────────────────────────────────────────────
-
-%────────────────────────────────────────────────────────
+\subsection{Numeric Logical Error Classification by Execution Semantics in Smart Contracts}
 \subsection{Difficulties in resolving logic errors and their root causes}
-%────────────────────────────────────────────────────────
-
-%────────────────────────────────────────────────────────
 \subsection{Proposed Solution}
 %────────────────────────────────────────────────────────
 
 %════════════════════════════════════════════════════════════════════
-\section{The Design of SolIntentKeeper}
+\section{The Design of IntentKeeper}
 %════════════════════════════════════════════════════════════════════
 
 %────────────────────────────────────────────────────────
@@ -164,7 +151,7 @@
 %────────────────────────────────────────────────────────
 
 %────────────────────────────────────────────────────────
-\subsection{Guardian Verification Engine}
+\subsection{Validation Engine}
 \label{sec:verification-engine}
 %────────────────────────────────────────────────────────
 
@@ -210,13 +197,16 @@
 %────────────────────────────────────────────────────────
 \subsection{Solidity Logic Error ~}
 %────────────────────────────────────────────────────────
+% High guard, solvent, Smart pulse, Consolidating,
+% 각종 Price manipulation attack 해결 논문 등
 
 %────────────────────────────────────────────────────────
 \subsection{Tools for strengthening security during the development phase}
 %────────────────────────────────────────────────────────
+% SCSTUDIO, SCEDITOR, SODA
 
 %────────────────────────────────────────────────────────
-\subsection{DSL-based Verification in Traditional Languages}
+\subsection{Code-comment inconsistency}
 %────────────────────────────────────────────────────────
 
 %════════════════════════════════════════════════════════════════════
