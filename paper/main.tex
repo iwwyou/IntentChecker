@@ -103,7 +103,7 @@
 
 \begin{document}
 
-\title[Solidity Intent Keeper]{IntentKeeper: Validating Developer Intentions in Solidity via Intent Annotations to Mitigate Numeric Logic error}
+\title[Solidity Intent Keeper]{IntentChecker: Validating Developer Intentions in Solidity via Intent Annotations to Mitigate Numeric Logic error}
 
 \author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
 
@@ -122,10 +122,10 @@
 Logic errors in smart contracts---where program behavior diverges from developer intent---are among the most challenging vulnerabilities to detect.
 Unlike well-defined patterns such as reentrancy or integer overflow, logic errors require knowledge of developer intent, which is absent from the code itself.
 Existing approaches, including static analyzers, dynamic testing, and LLM-based methods, cannot reliably identify such errors without explicit intent representation.
-This paper presents \textsc{IntentKeeper}, a tool that enables developers to specify and validate their intentions for numeric operations during smart contract development.
-\textsc{IntentKeeper} introduces an intent annotation model with two annotation types: \texttt{@During} annotations specify intended relationships at specific program points within a function, while \texttt{@Post} annotations specify intended relationships after function execution.
+This paper presents \textsc{IntentChecker}, a tool that enables developers to specify and validate their intentions for numeric operations during smart contract development.
+\textsc{IntentChecker} introduces an intent annotation model with two annotation types: \texttt{@During} annotations specify intended relationships at specific program points within a function, while \texttt{@Post} annotations specify intended relationships after function execution.
 The underlying analysis uses interval-domain abstract interpretation to compute value ranges at each program point and check whether they satisfy the specified intentions.
-We evaluated \textsc{IntentKeeper} on real-world smart contracts, demonstrating its effectiveness in validating developer intentions and providing immediate feedback during development.
+We evaluated \textsc{IntentChecker} on real-world smart contracts, demonstrating its effectiveness in validating developer intentions and providing immediate feedback during development.
 }
 
 \keywords{Smart Contract Development, Solidity, Numeric Logic Error, Intent Annotations, Abstract Interpretation, Developer Tools}
@@ -133,53 +133,6 @@ We evaluated \textsc{IntentKeeper} on real-world smart contracts, demonstrating 
 \maketitle
 
 \section{Introduction}
-\begin{comment}
-  1. Web3 생태계의 확장, total value locked (여기는 좀 고민 ethereum solidity의 확장으로 갈지 web3, defi로 갈지)
-  2. 한편, 이러한 생태계에 최근 Logic Error가 많은 위협으로 다가오고 있다.
-    2.1 Logic Error의 정의
-      - 개발자의 의도와 프로그램의 동작이 일치하지 않으면서 다른 카테고리에 속하지 않는 Weakness (\citep{flyinointment})
-    2.2 스마트 컨트랙트 practitioners에게 기존의 security tool이 도움이 되는지 조사한 연구인 \citep{defisecurity}에 따르면
-      - auditor(manually)과 개발자들에게(during development) 식별하기 어려운 취약점으로 Logic error가 선정되었고
-      - auditor와 개발자들이 판단하기에 탐지하는게 crucial 하지만 security tool로 탐지하기 가장 어려운 보안 약점으로 Logic error가 선정됨
-        -> 현재 도구들은 high profile들에게 빈번하게 타겟당하지 않는 integer overflow와 같은 도구들만 기존 도구들이 해결함
-    2.3 이러한 문제를 해결하기 위해 Logic error의 세부 패턴들에 대한 다양한 연구들이 발표됨
-      - (Related Work 작성 후 이 부분 좀 보완예정)
-      - 그러나 이 도구들은 근본적으로 문제가 있음.
-        1) Logic error의 정의와 같이 Logic은 개발자가 짜는건데, 개발자의 개발 의도가 반영이 되지 않은 채로 탐지 패턴을 통한 분석을 수행
-        2) 개발 의도를 반영하려면 개발 시점에 바로바로 사용할 수 있는 도구어야 하나, 기존 도구는 모두 완성된 코드에 대한 탐지 패턴 기반 분석 수행
-        -> 이로인해 각 도구들은 정의된 탐지 패턴만 검출 가능하며, 이는 실제로 개발 의도에 부합하는지는 알 수 없음
-      - 더불어 \citep{defisecurity}에 따르면 developer는 취약점 분석기(static analysis, fuzzer, symbolic execution) 보다
-        Developers toolkit, IDE, Linter를 선호
-      - 또한 developer에게 security tool의 여러 가치 중에 제일 선호되는 가치는 Low false negatives임
-        (Low false negatives(92.3%) > documentation(88.5%) > Report quality = Ease of use(69.2%) > Low false positives (50%) <- Stronly agree + Agree 합산한게 ),
-      - 이는 개발 시점에서 안전하게 개발할 수 있는 도구가 필요함
-    2.4 (첫번째 Table, Distribution of Variable Types in Smart Contract Functions) 한편, 본 연구는 대규모 컨트랙트 데이터셋인 DappScan 중 DappScan-Source에 대해 컴파일러 버전 0.8.0이상인 3,345개의 컨트랙트 중 무작위로 선정하여 103개의 솔리디티 파일 128개의 컨트랙트, 1524개 함수를 조사하였고
-        이 중, 501개의 함수는 상태변수에 값을 할당하기만 하는 할당문, 상태변수 값을 리턴하기만 하는 리턴문, 리턴값 없이 함수 호출하고 종료하는 문장 등, 코드 로직이 없어 개발 의도를 작성하는 의미가 없는 함수로 통계에서 제외한
-        나머지 1023개의 함수 중 함수 중 Numeric 변수 타입이 사용되는 함수의 비율은 82%에 육박한다. 특히, \texttt{uint} 타입은 사용된 비율이 78%에 달할 정도로 높은 사용률을 보였다
-        이는 개발 시점에 uint, int 타입의 변수와 함께 작성된 코드에 대한 개발 의도가 필수적임을 보인다.
-  3. 이에 본 연구는 Logical Error 중 Numeric 타입의 변수와 관계된 Logical Error를 개선하는 IntentKeeper 제안한다.
-      - IntentKeeper는 개발자가 개발 시점에 editor에 작성된 statement 별로 본 연구에서 모델링한 규칙으로 개발 의도를 작성하면,
-        해당 statement 까지의 프로그램 수행 결과가 개발 의도에 부합하는지 validating 해주는 도구이다.
-      - 개발 의도는 @during @post annotation으로 작성할 수 있으며 @during은 ';'로 작성된 코드 옆에 작성하여 해당 코드라인 까지의 개발 의도를 작성할 수 있으며
-        @post는 함수의 맨 마지막에 작성하는 annotation으로 해당 함수의 수행이 모두 끝난 후의 개발 의도를 작성 한다.
-      - 값 분석의 경우 본 연구의 PREVIOUS WORK이며, 개발자의 효율적인 디버깅 지원을 위한 SolQDebug 도구를 통해 수행되며
-        @DEBUGGING annotation을 통해 변수별로 보고 싶은 값의 범위를 설정한 후 interval domain 기반 abstract interpretation을 통해
-        디버깅 타겟 함수 안의 statement 별로 변수 값의 범위를 보여주는데, 이 과정에서 statement 별 작성된 개발 의도에 부합하는지 분석한다.
-
-  4. 우리는 IntentKeeper의 성능을 다음과 같이 분석하였다
-    - (실험 후 작성 예정)
-
-  5. 우리의 contribution은 다음과 같다
-    1) 기존에 발표된 Numeric과 관련된 Logic error를 code semantics 적으로 재분류
-    2) Intent model 제안
-    3) model 세부 규칙별 validation 알고리즘 제안
-    4) 성능 분석
-
-  6. 나머지 section에 대한 내용 정리
-
-
-\end{comment}
-
 Smart contracts are immutable once deployed, making security assurance during development critical.
 Among vulnerability types, logic errors present a distinct challenge:
 they arise when program behavior diverges from developer intent,
@@ -209,37 +162,36 @@ Since numeric computations form the core of smart contract business logic
 ---handling token transfers, fee calculations, and balance updates---explicitly specifying developer intent
 for these operations becomes essential.
 
-Based on these observations, this paper presents \textsc{IntentKeeper},
+Based on these observations, this paper presents \textsc{IntentChecker},
 a tool that enables developers to specify and validate their intentions for numeric operations during the development phase.
-\textsc{IntentKeeper} introduces an intent annotation model consisting of two annotation types:
+\textsc{IntentChecker} introduces an intent annotation model consisting of two annotation types:
 \texttt{@During} annotations specify intended relationships that should hold at specific program points within a function,
 while \texttt{@Post} annotations specify intended relationships that should hold after the function completes execution.
-Developers write these annotations alongside their code, and \textsc{IntentKeeper} validates
+Developers write these annotations alongside their code, and \textsc{IntentChecker} validates
 whether the program's abstract execution satisfies these specified intentions.
 
 The underlying value analysis is performed using interval-domain abstract interpretation,
 building upon our previous work on \textsc{SolQDebug}~\citep{solqdebug}, an interactive debugger for Solidity.
 Through \texttt{@Debugging} annotations, developers specify value ranges for variables,
 and the analyzer computes abstract values at each program point.
-\textsc{IntentKeeper} extends this capability by checking whether these computed values
+\textsc{IntentChecker} extends this capability by checking whether these computed values
 satisfy the developer-specified intent annotations,
 providing immediate feedback during development rather than requiring completed code.
 
-% We evaluated \textsc{IntentKeeper} on ...
+% We evaluated \textsc{IntentChecker} on ...
 
 This paper makes the following contributions:
 
 \begin{itemize}
-    \item We propose a classification of numeric logic errors based on function execution semantics, categorizing known vulnerabilities by their occurrence points within single-transaction execution.
     \item We present an intent annotation model that enables developers to express intended numeric relationships at both statement-level (\texttt{@During}) and function-level (\texttt{@Post}) granularity.
     \item We develop validation algorithms for each annotation rule that leverage interval-domain abstract interpretation to check whether program behavior satisfies specified intentions.
-    \item We evaluate \textsc{IntentKeeper} on real-world smart contracts, demonstrating its effectiveness in validating developer intentions during the development phase.
+    \item We evaluate \textsc{IntentChecker} on real-world smart contracts, demonstrating its effectiveness in validating developer intentions during the development phase.
     % 구체적인 실험 결과 추가 예정
 \end{itemize}
 
 The remainder of this paper is organized as follows.
 Section~\ref{sec:background} provides background on numeric logic errors and their classification by execution semantics.
-Section~\ref{sec:design} describes the design of \textsc{IntentKeeper}, including its intent model and validation engine.
+Section~\ref{sec:design} describes the design of \textsc{IntentChecker}, including its intent model and validation engine.
 Section~\ref{sec:evaluation} presents our evaluation results.
 Section~\ref{sec:discussion} discusses limitations and future work.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
@@ -266,10 +218,111 @@ Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion}
     \end{table}
 
 \section{Background}\label{sec:background}
-\subsection{Numeric Logical Error Classification by Execution Semantics in Smart Contracts}
-\subsection{Difficulties in resolving logic errors and their root causes}
-\subsection{Proposed Solution}
-\section{The Design of IntentKeeper}\label{sec:design}
+\subsection{Numeric Logic Errors in Solidity}
+
+Recent research efforts have introduced various specifically-named logic errors in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
+However, existing approaches to logic error classification predominantly follow a vulnerability-pattern-based taxonomy,
+categorizing issues by their manifestation such as division-by-zero, precision-loss, integer overflow, and similar named patterns.
+While this approach enables systematic enumeration of known vulnerability types, it suffers from a fundamental limitation:
+it focuses on vulnerability phenomena rather than directly representing code behavior.
+Such classification describes what went wrong in terms of observable symptoms, but provides insufficient connection to the actual execution dynamics that produced those symptoms.
+Consequently, while these taxonomies can identify "what is incorrect," they offer limited insight into "how the code actually behaves" during execution.
+
+This limitation becomes particularly problematic when attempting to validate whether code behavior aligns with developer intentions.
+Vulnerability-pattern-based approaches can detect known manifestations of logic errors,
+but cannot systematically address the broader question of whether the implemented logic correctly reflects the developer's intended computation.
+For instance, a "precision-loss" classification indicates that numerical precision was reduced during computation,
+but provides no framework for determining whether this reduction was intentionally designed, accidentally introduced,
+or falls within acceptable bounds according to the developer's original intent.
+
+To address these limitations, we propose an execution semantics-based approach to logic error classification.
+Rather than categorizing errors by their symptomatic manifestations, this approach systematically represents code behavior according to function execution dynamics.
+By focusing on how code actually operates during execution—encompassing input processing, computation steps, side effects,
+and output generation—this classification enables direct comparison between implemented behavior and developer intentions.
+This execution-centric perspective provides a structured framework for systematically validating
+whether code behavior matches intended logic across all critical points in function execution.
+
+We define numeric logic errors within this execution semantics framework as follows:
+\textit{bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
+    but violate the developer's intended numerical or state relationships during function execution}.
+
+It is crucial to distinguish between single-transaction and multiple-transaction contexts when analyzing logic errors.
+Single-transaction errors manifest within the execution of a single function call—where input validation, computation, side effects, and output generation occur in one atomic sequence.
+In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
+Examples include Risky First Deposit and Price Manipulation by AMM vulnerabilities \citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations to manipulate contract behavior.
+Our approach focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
+This scope enables precise, actionable feedback during implementation rather than requiring complex multi-transaction scenario analysis.
+
+Figure~\ref{fig:execution_semantics} illustrates our function execution semantics classification framework.
+Each function execution progresses through four distinct stages:
+(1) \textit{INPUT} represents parameters passed to functions—both at the contract function level and internal function calls;
+(2) \textit{COMPUTATION} executes statements and evaluates expressions that transform input data through arithmetic, logical operations, and control flow;
+(3) \textit{SIDE EFFECTS} captures interactions beyond local computation, including internal and external function calls that may modify contract or external state;
+and (4) \textit{OUTPUT} represents the function's intended effects—including return values, state variable updates, and notably, missing or incorrect outputs where computed values fail to properly update state or return.
+This classification enables systematic mapping of error patterns to their manifestation points in the execution flow,
+providing a more precise understanding of where and how numeric logic errors occur within single-transaction contexts.
+
+% Function execution semantics classification
+\begin{figure}[!h]
+\centering
+\begin{tikzpicture}[
+  level 1/.style={sibling distance=4cm, level distance=1.5cm},
+  level 2/.style={sibling distance=2cm, level distance=1cm},
+  every node/.style={rectangle, draw, align=center, font=\footnotesize}
+]
+\node {Function Execution\\Semantics}
+  child {node {INPUT\\Parameters}}
+  child {node {COMPUTATION\\Statements \& Expressions}}
+  child {node {SIDE EFFECTS\\Internal/External calls\\→ State changes}}
+  child {node {OUTPUT\\Return values,\\State variable writes}};
+\end{tikzpicture}
+\caption{Function Execution Semantics Classification}
+\label{fig:execution_semantics}
+\end{figure}
+
+% Error mapping table
+\begin{table}[!h]
+\centering
+\caption{Mapping of Existing Error Patterns to Execution Semantics}
+\label{tab:error_mapping}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Execution Stage} & \textbf{Error Pattern} & \textbf{Reference} \\
+\hline
+\multirow{1}{*}{INPUT}
+& Minor Amount Retention & \citep{numscout} \\
+\hline
+\multirow{8}{*}{COMPUTATION}
+& Div In Path & \citep{numscout} \\
+& Operator Order Issue & \citep{numscout} \\
+& Exchange Problem & \citep{numscout} \\
+& Precision Loss Trend & \citep{numscout} \\
+& Wrong Interest Rate Order & \citep{gptscan} \\
+& Wrong Checkpoint Order & \citep{gptscan} \\
+& Erroneous Accounting & \citep{exploitablebugs} \\
+& Arithmetic Mistakes$^{a}$ & \citep{defiattacks} \\
+\hline
+SIDE EFFECTS & Arithmetic Mistakes$^{b}$ & \citep{defiattacks} \\
+\hline
+OUTPUT & Greedy Contract & \citep{flyinointment} \\
+\hline
+\end{tabular}
+\footnotesize{
+$^{a}$ e.g., wrong reserve ratio calculation (MerlinLab), precision loss (ValueDeFi)\\
+$^{b}$ e.g., stale pool state used after update (CoverProtocol)
+}
+\end{table}
+
+Table~\ref{tab:error_mapping} demonstrates how existing named error patterns from recent research map to our execution semantics framework.
+For instance, Minor Amount Retention occurs in the INPUT stage when function parameters fail validation checks (e.g., divisibility constraints).
+COMPUTATION errors like Wrong Interest Rate Order manifest when calculation sequences produce incorrect results due to improper ordering.
+SIDE EFFECTS errors such as stale state usage arise when internal function calls create inconsistent state updates.
+Finally, OUTPUT errors like Greedy Contract occur when computed values fail to properly update state variables as intended.
+This mapping reveals that most identified patterns concentrate in the COMPUTATION stage, highlighting where verification efforts should focus.
+
+\subsection{Existing Approaches and Limitations}
+\subsection{Proposed Solution Overview}
+\section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
 \subsection{Intent Model}
 \subsection{Validation Engine}
@@ -284,12 +337,11 @@ Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion}
 \subsection{Specification-based Smart Contract Verification}
 % iContract, Solc-verify, SmartACE, Scribble 등
 % → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
-\subsection{Tools for strengthening security during the development phase}
+\subsection{Tools for Strengthening Security During Development Phase}
 % 개발 단계 도구들 (기존)
 % SCSTUDIO, SCEDITOR, SODA, Making
+\subsection{Code-Comment Inconsistency in Solidity}
 % SmartCOCO 등 NLP 기반 불일치 탐지 (기존)
-\subsection{Code-comment inconsistency in solidity}
-% smartcoco 등
 \section{Conclusion}\label{sec:conclusion}
 \newif\ifshowack
 \showackfalse
@@ -313,8 +365,17 @@ Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in
 \bibitem[Soud et~al.(2024)]{flyinointment}
 Soud, M., Liebel, G., Hamdaqa, M.: A fly in the ointment: an empirical study on the characteristics of Ethereum smart contract code weaknesses. Empirical Software Engineering 29(1), 13 (2024). https://doi.org/10.1007/s10664-023-10398-5
 
+\bibitem[Sun et~al.(2024)]{gptscan}
+Sun, Y., et al.: Gptscan: Detecting logic vulnerabilities in smart contracts by combining gpt with program analysis. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639117
+
+\bibitem[Zhang et~al.(2023)]{exploitablebugs}
+Zhang, Z., et al.: Demystifying exploitable bugs in smart contracts. In: Proceedings of the 2023 IEEE/ACM 45th International Conference on Software Engineering (ICSE), pp. 615--627 (2023). https://doi.org/10.1109/ICSE48619.2023.00061
+
 \bibitem[Zheng et~al.(2024)]{dappscan}
 Zheng, Z., et al.: Dappscan: building large-scale datasets for smart contract weaknesses in dApp projects. IEEE Transactions on Software Engineering 50(6), 1360--1373 (2024). https://doi.org/10.1109/TSE.2024.3383422
+
+\bibitem[Zhou et~al.(2023)]{defiattacks}
+Zhou, L., et al.: Sok: Decentralized finance (defi) attacks. In: Proceedings of the 2023 IEEE Symposium on Security and Privacy (SP), pp. 2444--2461 (2023). https://doi.org/10.1109/SP46215.2023.10179435
 
 \end{thebibliography}
 
