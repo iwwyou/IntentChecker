@@ -330,18 +330,50 @@ This mapping reveals that most identified patterns concentrate in the COMPUTATIO
 \section{Discussion}\label{sec:discussion}
 % inline Assembly 안다룸
 \section{Related Works}\label{sec:related}
-\subsection{Logic Error Detection in Solidity}
+\subsection{Numeric Logic Error Detection in Solidity}
 % Logic error 탐지/해결 도구들 (기존)
-% High guard, solvent, Smart pulse, Consolidating, SMART INV, accounting error
+% accounting error
 % 각종 Price manipulation attack 해결 논문 등
+
+Logic error detection focuses on identifying discrepancies between developer intentions and actual program behavior in smart contracts.
+HighGuard~\citep{highguard} addresses business logic violations in smart contracts by using Dynamic Condition Response (DCR) graphs
+to model expected behaviors including temporal constraints, role-based access control, and inter-function dependencies.
+The system monitors runtime transactions against user-provided DCR models and their function mappings,
+generating violation reports when execution activities deviate from the specified business logic patterns.
+% Limitation: requires manual DCR model creation, needs domain expertise, scalability issues
+SmartPulse~\citep{smartpulse} verifies temporal properties of smart contracts by accepting user-specified Linear Temporal Logic (LTL) formulas
+and attack models to check both safety and liveness properties.
+The system not only detects violations but also generates concrete attack scenarios that demonstrate how the temporal properties can be violated,
+providing developers with actionable insights into potential logic errors.
+% Limitation: requires LTL specification expertise, limited to temporal properties
+ConSol~\citep{consolidating} enables developers to specify function and address behaviors using the ConSol syntax alongside their Solidity code,
+then verifies whether the implementation adheres to these behavioral specifications and generates behavior-compliant Solidity programs without annotations.
+% Limitation: requires learning ConSol syntax, limited to predefined behavior patterns
+SmartInv~\citep{smartinv} leverages multimodal learning to automatically infer invariants and detect machine unauditable bugs (MUBs)~\citep{exploitablebugs}
+by analyzing both source code and natural language artifacts including comments, function signatures, and documented transaction scenarios.
+The system employs a fine-tuned model with Tier of Thought (ToT) prompting that progressively predicts transaction contexts,
+generates and ranks invariants, and ultimately identifies vulnerabilities through three-tier reasoning.
+% Limitation: depends on quality of natural language documentation, may produce false positives
+
+Furthermore, there are also approaches that address multiple transaction logic errors such as price manipulation~\citep{defiranger,defiguard,pomabuster,secplf,defitainter}
+and flash loan attacks~\citep{defitail,midnight}.
+
 \subsection{Specification-based Smart Contract Verification}
 % iContract, Solc-verify, SmartACE, Scribble 등
 % → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
+
+Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
+Solvent~\citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
+by converting both the contract code and user-defined liquidity properties into SMT constraints.
+The system then checks whether the contract satisfies these properties using SMT solvers,
+generating counterexamples when violations are detected to help developers understand potential liquidity issues.
+% Limitation: limited to liquidity properties, requires formal specification expertise
 \subsection{Tools for Strengthening Security During Development Phase}
 % 개발 단계 도구들 (기존)
 % SCSTUDIO, SCEDITOR, SODA, Making
 \subsection{Code-Comment Inconsistency in Solidity}
 % SmartCOCO 등 NLP 기반 불일치 탐지 (기존)
+% Hyperion?
 \section{Conclusion}\label{sec:conclusion}
 \newif\ifshowack
 \showackfalse
@@ -353,20 +385,65 @@ This mapping reveals that most identified patterns concentrate in the COMPUTATIO
 
 \begin{thebibliography}{99}
 
+\bibitem[Arora et~al.(2024)]{secplf}
+Arora, S., et al.: SecPLF: Secure protocols for loanable funds against oracle manipulation attacks. In: Proceedings of the 19th ACM Asia Conference on Computer and Communications Security (ASIACCS), pp. 1394--1405 (2024). https://doi.org/10.1145/3634737.3637681
+
+\bibitem[Bartoletti et~al.(2024)]{solvent}
+Bartoletti, M., et al.: Solvent: liquidity verification of smart contracts. In: International Conference on Integrated Formal Methods (iFM), pp. 256--266 (2024). https://doi.org/10.1007/978-3-031-76554-4_14
+
 \bibitem[Chaliasos et~al.(2024)]{defisecurity}
 Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the needs of practitioners?. In: Proceedings of the 46th IEEE/ACM International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3623302
 
 \bibitem[Chen et~al.(2025)]{numscout}
 Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
 
+\bibitem[Eshghie et~al.(2024)]{highguard}
+Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
+
 \bibitem[Jeon et~al.(2025)]{solqdebug}
 Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in Smart Contract Development (2025). https://doi.org/10.21203/rs.3.rs-8077153/v1
+
+\bibitem[Kong et~al.(2023)]{defitainter}
+Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124
+
+\bibitem[Li et~al.(2025)]{defitail}
+Li, X., et al.: Penetrating the hostile: Detecting defi protocol exploits through cross-contract analysis. IEEE Transactions on Information Forensics and Security 20, 11759--11774 (2025). https://doi.org/10.1109/TIFS.2025.3626979
+
+\bibitem[Ramezany et~al.(2023)]{midnight}
+Ramezany, S., Setthawong, R., Setthawong, P.: Midnight: An Efficient Event-driven EVM Transaction Security Monitoring Approach For Flash Loan Detection. In: Proceedings of the 2023 20th International Joint Conference on Computer Science and Software Engineering (JCSSE), pp. 237--241 (2023). https://doi.org/10.1109/JCSSE58229.2023.10201970
 
 \bibitem[Soud et~al.(2024)]{flyinointment}
 Soud, M., Liebel, G., Hamdaqa, M.: A fly in the ointment: an empirical study on the characteristics of Ethereum smart contract code weaknesses. Empirical Software Engineering 29(1), 13 (2024). https://doi.org/10.1007/s10664-023-10398-5
 
+\bibitem[Stephens et~al.(2021)]{smartpulse}
+Stephens, J., et al.: SmartPulse: automated checking of temporal properties in smart contracts. In: Proceedings of the 2021 IEEE Symposium on Security and Privacy (SP), pp. 555--571 (2021). https://doi.org/10.1109/SP40001.2021.00085
+
 \bibitem[Sun et~al.(2024)]{gptscan}
 Sun, Y., et al.: Gptscan: Detecting logic vulnerabilities in smart contracts by combining gpt with program analysis. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639117
+
+\bibitem[Wang et~al.(2024a)]{defiguard}
+Wang, D., et al.: Defiguard: A price manipulation detection service in defi using graph neural networks. IEEE Transactions on Services Computing (2024). https://doi.org/10.1109/TSC.2024.3489439
+
+\bibitem[Wang et~al.(2024b)]{smartinv}
+Wang, S.J., Pei, K., Yang, J.: Smartinv: Multimodal learning for smart contract invariant inference. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 2217--2235 (2024). https://doi.org/10.1109/SP54263.2024.00126
+
+\bibitem[Wei et~al.(2024)]{consolidating}
+Wei, G., et al.: Consolidating Smart Contracts with Behavioral Contracts. Proceedings of the ACM on Programming Languages 8(PLDI), 965--989 (2024). https://doi.org/10.1145/3656416
+
+\bibitem[Wu et~al.(2023)]{defiranger}
+Wu, S., et al.: Defiranger: Detecting defi price manipulation attacks. IEEE Transactions on Dependable and Secure Computing 21(4), 4147--4161 (2023). https://doi.org/10.1109/TDSC.2023.3346888
+
+\bibitem[Xi et~al.(2024)]{pomabuster}
+Xi, R., Wang, Z., Pattabiraman, K.: POMABuster: Detecting Price Oracle Manipulation Attacks in Decentralized Finance. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 3923--3942 (2024). https://doi.org/10.1109/SP54263.2024.00257
+
+\bibitem[Zhang(2024)]{accountingerrors}
+Zhang, B.: Towards finding accounting errors in smart contracts. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639128
+
+\bibitem[Zhang et~al.(2024)]{nyx}
+Zhang, W., et al.: Nyx: Detecting exploitable front-running vulnerabilities in smart contracts. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 2198--2216 (2024). https://doi.org/10.1109/SP54263.2024.00146
+
+\bibitem[Yang et~al.(2025)]{hyperion}
+Yang, S., et al.: Hyperion: Unveiling DApp Inconsistencies Using LLM and Dataflow-Guided Symbolic Execution. In: Proceedings of the 2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE), pp. 2125--2137 (2025). https://doi.org/10.1109/ICSE55347.2025.00015
 
 \bibitem[Zhang et~al.(2023)]{exploitablebugs}
 Zhang, Z., et al.: Demystifying exploitable bugs in smart contracts. In: Proceedings of the 2023 IEEE/ACM 45th International Conference on Software Engineering (ICSE), pp. 615--627 (2023). https://doi.org/10.1109/ICSE48619.2023.00061

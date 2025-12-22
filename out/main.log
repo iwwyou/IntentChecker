@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  20 DEC 2025 16:52
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  20 DEC 2025 18:07
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1603,63 +1603,31 @@ l.218     \end{table}
 Things are pretty mixed up, but I think the worst is over.
 
 
-Package natbib Warning: Citation `gptscan' on page 3 undefined on input line 22
-3.
 
 
-Package natbib Warning: Citation `staterevert' on page 3 undefined on input lin
-e 223.
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [3]
+Overfull \hbox (32.1326pt too wide) in paragraph at lines 278--279
+ [][] 
+ []
 
 
-Package natbib Warning: Citation `exploitablebugs' on page 3 undefined on input
- line 223.
-
-
-Package natbib Warning: Citation `defiattacks' on page 3 undefined on input lin
-e 223.
+LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [3]
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 25
-2.
-
-
-LaTeX Warning: Reference `fig:execution_semantics' on page 4 undefined on input
- line 256.
-
-
-Overfull \hbox (32.1326pt too wide) in paragraph at lines 278--279
- [][] 
- []
-
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 30
-0.
-
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 30
-1.
-
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 30
-2.
-
-
-LaTeX Warning: `!h' float specifier changed to `!ht'.
-
-
-Underfull \hbox (badness 1603) in paragraph at lines 345--346
+ [4]
+Underfull \hbox (badness 1603) in paragraph at lines 357--358
 []\OT1/cmr/m/n/10 Chaliasos, S., et al.: Smart con-tract and defi secu-rity too
 ls: Do they meet
  []
 
 
-Underfull \hbox (badness 3482) in paragraph at lines 345--346
+Underfull \hbox (badness 3482) in paragraph at lines 357--358
 \OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 1
 --13 (2024).
  []
@@ -1669,21 +1637,17 @@ Underfull \hbox (badness 3482) in paragraph at lines 345--346
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [4]
-
-
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
  [5]
-
-Package natbib Warning: There were undefined citations.
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [6]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [7]
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.aux
 
 Package natbib Warning: Citation(s) may have changed.
@@ -1708,21 +1672,15 @@ LaTeX Warning: There were undefined references.
 
 LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
 
-
-Package rerunfilecheck Warning: File `main.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `main.out':
-(rerunfilecheck)             Before: F33D554ACFABA095B86564FCDCBA518B;3353
-(rerunfilecheck)             After:  F84AA6644A40EFE49CE143018AFB8CF5;2998.
+Package rerunfilecheck Info: File `main.out' has not changed.
+(rerunfilecheck)             Checksum: F84AA6644A40EFE49CE143018AFB8CF5;2998.
  ) 
 Here is how much of TeX's memory you used:
- 26480 strings out of 468081
- 482132 string characters out of 5425304
- 862922 words of memory out of 5000000
- 54648 multiletter control sequences out of 15000+600000
- 653592 words of font info for 142 fonts, out of 8000000 for 9000
+ 26484 strings out of 468081
+ 482150 string characters out of 5425304
+ 863201 words of memory out of 5000000
+ 54652 multiletter control sequences out of 15000+600000
+ 654883 words of font info for 148 fonts, out of 8000000 for 9000
  1151 hyphenation exceptions out of 8191
  90i,12n,93p,543b,906s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\isjeon\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcr
@@ -1733,20 +1691,21 @@ type1/public/amsfonts/cm/cmbx12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiK
 TeX/fonts/type1/public/amsfonts/cm/cmbx8.pfb><C:/Users/isjeon/AppData/Local/Pro
 grams/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/isjeon/AppData/
 Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users/isje
-on/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/U
-sers/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.
+on/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C:/U
+sers/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.
 pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
-cm/cmr17.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/
-amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1
-/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fon
-ts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Programs/Mi
-KTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/isjeon/AppData/Local/P
-rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/Users/isjeon/AppDa
-ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb>
+cm/cmr12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/
+amsfonts/cm/cmr17.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type
+1/public/amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fo
+nts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/M
+iKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Pr
+ograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/isjeon/AppDat
+a/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/Users/isj
+eon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb>
 Output written on C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardia
-n\out\main.pdf (6 pages, 247358 bytes).
+n\out\main.pdf (7 pages, 263204 bytes).
 PDF statistics:
- 238 PDF objects out of 1000 (max. 8388607)
+ 272 PDF objects out of 1000 (max. 8388607)
  38 named destinations out of 1000 (max. 500000)
  149 words of extra memory for PDF output out of 10000 (max. 10000000)
 
