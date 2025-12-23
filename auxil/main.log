@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  19 DEC 2025 18:25
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  23 DEC 2025 17:11
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1214,7 +1214,7 @@ ftex.def
 File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count378
 )
-(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.aux)
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
 \openout1 = `main.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 104.
@@ -1235,7 +1235,6 @@ LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 104.
 LaTeX Font Info:    ... okay on input line 104.
 LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 104.
 LaTeX Font Info:    ... okay on input line 104.
-
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -1305,8 +1304,8 @@ LaTeX Font Info:    Overwriting symbol font `AMSa' in version `bold'
 (Font)                  U/msa/m/n --> U/msa/m/n on input line 104.
 Package hyperref Info: Link coloring ON on input line 104.
 
-(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.out)
-(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.out)
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
 \@outlinefile=\write5
 \openout5 = `main.out'.
 
@@ -1319,7 +1318,6 @@ LaTeX Font Info:    Calculating math sizes for size <12.045> on input line 134.
 
 LaTeX Font Info:    Trying to load font information for U+msa on input line 134
 .
-
 (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
@@ -1362,6 +1360,227 @@ LaTeX Font Warning: Font shape `U/stmry/b/n' in size <5.52061> not available
 
 LaTeX Font Info:    Calculating math sizes for size <10.03749> on input line 13
 4.
+LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 155.
+
+LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 155.
+
+
+LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 155.
+
+main.tex:155: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:155: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:155: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:155: Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:155: Missing } inserted.
+<inserted text> 
+                }
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+main.tex:155: LaTeX Error: \begin{threeparttable} on input line 137 ended by \e
+nd{tabular}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.155     \end{tabular}}
+                        
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+main.tex:155: Missing } inserted.
+<inserted text> 
+                }
+l.155     \end{tabular}}
+                        
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+main.tex:155: Package graphics Error: Division by 0.
+
+See the graphics package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.155     \end{tabular}}
+                        
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+main.tex:156: Missing } inserted.
+<inserted text> 
+                }
+l.156 \end{table}
+                 
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:156: Extra }, or forgotten \endgroup.
+\TPT@close ...\unskip \fi \color@endgroup \egroup 
+                                                  
+l.156 \end{table}
+                 
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+main.tex:156: LaTeX Error: \begin{table} on input line 137 ended by \end{threep
+arttable}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.156 \end{table}
+                 
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+
+main.tex:156: LaTeX Error: \begin{document} ended by \end{center}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.156 \end{table}
+                 
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+main.tex:156: Extra \endgroup.
+\end  ...end#1\endcsname \@checkend {#1}\endgroup 
+                                                  \UseHook {env/#1/after}\if...
+l.156 \end{table}
+                 
+Things are pretty mixed up, but I think the worst is over.
+
+main.tex:156: Too many }'s.
+\@endfloatbox ...pagefalse \outer@nobreak \egroup 
+                                                  \color@endbox 
+l.156 \end{table}
+                 
+You've closed more groups than you opened.
+Such booboos are generally harmless, so keep going.
+
+main.tex:156: Extra \endgroup.
+\color@endgroup ->\endgraf \@endpefalse \endgroup 
+                                                  
+l.156 \end{table}
+                 
+Things are pretty mixed up, but I think the worst is over.
+
+main.tex:156: Too many }'s.
+\color@endbox ->\color@endgroup \egroup 
+                                        
+l.156 \end{table}
+                 
+You've closed more groups than you opened.
+Such booboos are generally harmless, so keep going.
+
+
+main.tex:156: LaTeX Error: \begin{document} ended by \end{tableorg}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.156 \end{table}
+                 
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+main.tex:156: Extra \endgroup.
+\end  ...end#1\endcsname \@checkend {#1}\endgroup 
+                                                  \UseHook {env/#1/after}\if...
+l.156 \end{table}
+                 
+Things are pretty mixed up, but I think the worst is over.
+
+
+main.tex:156: LaTeX Error: \begin{document} ended by \end{table}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.156 \end{table}
+                 
+Your command was ignored.
+Type  I <command> <return>  to replace it with another command,
+or  <return>  to continue without it.
+
+main.tex:156: Extra \endgroup.
+\end  ...end#1\endcsname \@checkend {#1}\endgroup 
+                                                  \UseHook {env/#1/after}\if...
+l.156 \end{table}
+                 
+Things are pretty mixed up, but I think the worst is over.
+
 
 
 
@@ -1372,7 +1591,7 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 {C:/Users/isjeon/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
 
 LaTeX Warning: Reference `tab:variable_distribution' on page 2 undefined on inp
-ut line 159.
+ut line 181.
 
 
 
@@ -1380,265 +1599,17 @@ ut line 159.
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [2]
-LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 217.
-
-
-LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 217.
-
-
-LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 217.
-
-main.tex:217: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:217: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:217: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:217: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:217: Missing } inserted.
-<inserted text> 
-                }
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-main.tex:217: LaTeX Error: \begin{threeparttable} on input line 199 ended by \e
-nd{tabular}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.217         \end{tabular}}
-                            
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:217: Missing } inserted.
-<inserted text> 
-                }
-l.217         \end{tabular}}
-                            
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-main.tex:217: Package graphics Error: Division by 0.
-
-See the graphics package documentation for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.217         \end{tabular}}
-                            
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:218: Missing } inserted.
-<inserted text> 
-                }
-l.218     \end{table}
-                     
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:218: Extra }, or forgotten \endgroup.
-\TPT@close ...\unskip \fi \color@endgroup \egroup 
-                                                  
-l.218     \end{table}
-                     
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-main.tex:218: LaTeX Error: \begin{table} on input line 199 ended by \end{threep
-arttable}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.218     \end{table}
-                     
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-
-main.tex:218: LaTeX Error: \begin{document} ended by \end{center}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.218     \end{table}
-                     
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:218: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.218     \end{table}
-                     
-Things are pretty mixed up, but I think the worst is over.
-
-main.tex:218: Too many }'s.
-\@endfloatbox ...pagefalse \outer@nobreak \egroup 
-                                                  \color@endbox 
-l.218     \end{table}
-                     
-You've closed more groups than you opened.
-Such booboos are generally harmless, so keep going.
-
-main.tex:218: Extra \endgroup.
-\color@endgroup ->\endgraf \@endpefalse \endgroup 
-                                                  
-l.218     \end{table}
-                     
-Things are pretty mixed up, but I think the worst is over.
-
-main.tex:218: Too many }'s.
-\color@endbox ->\color@endgroup \egroup 
-                                        
-l.218     \end{table}
-                     
-You've closed more groups than you opened.
-Such booboos are generally harmless, so keep going.
-
-
-main.tex:218: LaTeX Error: \begin{document} ended by \end{tableorg}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.218     \end{table}
-                     
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:218: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.218     \end{table}
-                     
-Things are pretty mixed up, but I think the worst is over.
-
-
-main.tex:218: LaTeX Error: \begin{document} ended by \end{table}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.218     \end{table}
-                     
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:218: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.218     \end{table}
-                     
-Things are pretty mixed up, but I think the worst is over.
-
-
-Package natbib Warning: Citation `gptscan' on page 3 undefined on input line 22
-3.
-
-
-Package natbib Warning: Citation `staterevert' on page 3 undefined on input lin
-e 223.
-
-
-Package natbib Warning: Citation `exploitablebugs' on page 3 undefined on input
- line 223.
-
-
-Package natbib Warning: Citation `defiattacks' on page 3 undefined on input lin
-e 223.
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [3]
-Overfull \hbox (61.4633pt too wide) in paragraph at lines 264--265
+Overfull \hbox (32.1326pt too wide) in paragraph at lines 281--282
  [][] 
  []
 
 
-Underfull \hbox (badness 1603) in paragraph at lines 321--322
-[]\OT1/cmr/m/n/10 Chaliasos, S., et al.: Smart con-tract and defi secu-rity too
-ls: Do they meet
- []
-
-
-Underfull \hbox (badness 3482) in paragraph at lines 321--322
-\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 1
---13 (2024).
- []
+LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 
 
@@ -1652,20 +1623,276 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [5]
 
-Package natbib Warning: There were undefined citations.
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [6]
+Underfull \hbox (badness 1112) in paragraph at lines 393--394
+[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
+funds against ora-cle
+ []
+
+main.tex:396: Missing $ inserted.
+<inserted text> 
+                $
+l.396 ...ttps://doi.org/10.1007/978-3-031-76554-4_
+                                                  14
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:397: Missing $ inserted.
+<inserted text> 
+                $
+l.397 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:397: Missing } inserted.
+<inserted text> 
+                }
+l.397 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:397: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.397 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
 
 
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [6]
-(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.aux)
+ [7]
+Underfull \hbox (badness 1552) in paragraph at lines 414--415
+[]\OT1/cmr/m/n/10 Kong, Q., et al.: Defi-tain-ter: Detect-ing price manip-u-la-
+tion vul-ner-a-bil-i-ties in defi
+ []
+
+
+Underfull \hbox (badness 2762) in paragraph at lines 414--415
+\OT1/cmr/m/n/10 pro-to-cols. In: Pro-ceed-ings of the 32nd ACM SIG-SOFT Inter-n
+a-tional Sym-
+ []
+
+
+Underfull \hbox (badness 3471) in paragraph at lines 414--415
+\OT1/cmr/m/n/10 po-sium on Soft-ware Test-ing and Anal-y-sis (ISSTA), pp. 1144-
+-1156 (2023).
+ []
+
+main.tex:420: Missing $ inserted.
+<inserted text> 
+                $
+l.420 ...ttps://doi.org/10.1007/978-981-99-7584-6_
+                                                  2
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:421: Missing $ inserted.
+<inserted text> 
+                $
+l.421 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:421: Missing } inserted.
+<inserted text> 
+                }
+l.421 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+Underfull \hbox (badness 1831) in paragraph at lines 420--421
+[]\OT1/cmr/m/n/10 Nguyen, T.D., et al.: An ide-al-ist's approach for smart con-
+tract cor-rect-ness. In:
+ []
+
+
+Underfull \hbox (badness 2197) in paragraph at lines 420--421
+\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on For-mal Engi-neer-ing Meth-ods,
+ pp. 11--28 (2023).
+ []
+
+main.tex:421: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.421 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+Underfull \hbox (badness 4193) in paragraph at lines 423--424
+[]\OT1/cmr/m/n/10 Ramezany, S., Set-tha-wong, R., Set-tha-wong, P.: Mid-night: 
+An Effi-cient Event-
+ []
+
+
+Underfull \hbox (badness 3735) in paragraph at lines 423--424
+\OT1/cmr/m/n/10 tion. In: Pro-ceed-ings of the 2023 20th Inter-na-tional Joint 
+Con-fer-ence on
+ []
+
+
+Underfull \hbox (badness 3590) in paragraph at lines 423--424
+\OT1/cmr/m/n/10 Com-puter Sci-ence and Soft-ware Engi-neer-ing (JCSSE), pp. 237
+--241 (2023).
+ []
+
+
+Underfull \hbox (badness 2050) in paragraph at lines 432--433
+\OT1/cmr/m/n/10 bin-ing gpt with pro-gram anal-y-sis. In: Pro-ceed-ings of the 
+IEEE/ACM 46th
+ []
+
+
+Underfull \hbox (badness 3219) in paragraph at lines 432--433
+\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE),
+ pp. 1--13 (2024).
+ []
+
+
+Underfull \hbox (badness 4467) in paragraph at lines 435--436
+\OT1/cmr/m/n/10 graph neu-ral net-works. IEEE Trans-ac-tions on Ser-vices Com-p
+ut-ing (2024).
+ []
+
+
+Underfull \hbox (badness 1888) in paragraph at lines 441--442
+[]\OT1/cmr/m/n/10 Wei, G., et al.: Con-sol-i-dat-ing Smart Con-tracts with Beha
+v-ioral Con-tracts. Pro-
+ []
+
+
+Underfull \hbox (badness 1742) in paragraph at lines 441--442
+\OT1/cmr/m/n/10 ceed-ings of the ACM on Pro-gram-ming Lan-guages 8(PLDI), 965--
+989 (2024).
+ []
+
+main.tex:444: Missing $ inserted.
+<inserted text> 
+                $
+l.444 ...ttps://doi.org/10.1007/978-3-030-94583-1_
+                                                  21
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:445: Missing $ inserted.
+<inserted text> 
+                $
+l.445 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:445: Missing } inserted.
+<inserted text> 
+                }
+l.445 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+Underfull \hbox (badness 1527) in paragraph at lines 444--445
+[]\OT1/cmr/m/n/10 Wesley, S., et al.: Ver-i-fy-ing Solid-ity smart con-tracts v
+ia com-mu-ni-ca-tion abstrac-
+ []
+
+main.tex:445: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.445 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+Underfull \hbox (badness 6016) in paragraph at lines 447--448
+[]\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
+-tion attacks. IEEE
+ []
+
+
+Underfull \hbox (badness 1603) in paragraph at lines 447--448
+\OT1/cmr/m/n/10 Trans-ac-tions on Depend-able and Secure Com-put-ing 21(4), 414
+7--4161 (2023).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [8]
+Underfull \hbox (badness 7869) in paragraph at lines 450--451
+[]\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
+g Price Ora-cle
+ []
+
+
+Underfull \hbox (badness 1817) in paragraph at lines 450--451
+\OT1/cmr/m/n/10 Manip-u-la-tion Attacks in Decen-tral-ized Finance. In: Pro-cee
+d-ings of the 2024
+ []
+
+
+Underfull \hbox (badness 6332) in paragraph at lines 450--451
+\OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
+ (2024).
+ []
+
+
+Underfull \hbox (badness 2418) in paragraph at lines 459--460
+\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 2
+125--2137 (2025).
+ []
+
+
+Underfull \hbox (badness 1043) in paragraph at lines 468--469
+\OT1/cmr/m/n/10 2023 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 2444-
+-2461 (2023).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [9]
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-09-02>
  ***********
-
 
 LaTeX Font Warning: Size substitutions with differences
 (Font)              up to 0.985pt have occurred.
@@ -1677,14 +1904,14 @@ LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 LaTeX Warning: There were undefined references.
 
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: F33D554ACFABA095B86564FCDCBA518B;3353.
+(rerunfilecheck)             Checksum: 646170CDBFE2E9F5EDDB45E400709928;2785.
  ) 
 Here is how much of TeX's memory you used:
- 26475 strings out of 468081
- 482107 string characters out of 5425304
- 857922 words of memory out of 5000000
- 54642 multiletter control sequences out of 15000+600000
- 653592 words of font info for 142 fonts, out of 8000000 for 9000
+ 26558 strings out of 468081
+ 483390 string characters out of 5425304
+ 863749 words of memory out of 5000000
+ 54706 multiletter control sequences out of 15000+600000
+ 654883 words of font info for 148 fonts, out of 8000000 for 9000
  1151 hyphenation exceptions out of 8191
  90i,12n,93p,543b,906s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\isjeon\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcr
@@ -1695,20 +1922,23 @@ type1/public/amsfonts/cm/cmbx12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiK
 TeX/fonts/type1/public/amsfonts/cm/cmbx8.pfb><C:/Users/isjeon/AppData/Local/Pro
 grams/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/isjeon/AppData/
 Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users/isje
-on/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/U
-sers/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.
+on/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C:/U
+sers/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.
 pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
-cm/cmr17.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/
-amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1
-/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fon
-ts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Programs/Mi
-KTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/isjeon/AppData/Local/P
-rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/Users/isjeon/AppDa
-ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb>
+cm/cmr12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/
+amsfonts/cm/cmr17.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type
+1/public/amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fo
+nts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/M
+iKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Pr
+ograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/isjeon/AppDat
+a/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/isj
+eon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:
+/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt
+9.pfb>
 Output written on C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardia
-n\out\main.pdf (6 pages, 236147 bytes).
+n\out\main.pdf (9 pages, 287346 bytes).
 PDF statistics:
- 226 PDF objects out of 1000 (max. 8388607)
- 38 named destinations out of 1000 (max. 500000)
- 149 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 332 PDF objects out of 1000 (max. 8388607)
+ 57 named destinations out of 1000 (max. 500000)
+ 141 words of extra memory for PDF output out of 10000 (max. 10000000)
 

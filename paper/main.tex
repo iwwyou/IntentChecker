@@ -133,6 +133,28 @@ We evaluated \textsc{IntentChecker} on real-world smart contracts, demonstrating
 \maketitle
 
 \section{Introduction}
+
+\begin{table}[!t]
+    \centering
+    \caption{Distribution of Variable Types in Smart Contract Functions}
+    \label{tab:variable_distribution}
+    \resizebox{\columnwidth}{!}{
+    \begin{tabular}{lcc}
+        \hline
+        \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
+        \hline
+        \textbf{Total Functions Analyzed} & 1524 & \\
+        Excluded Functions & 501 & \\
+        \textbf{Functions Considered for Analysis} & 1023 & \\
+        \hline
+        Functions using \textbf{uint} & 798 & 78.00587 \\
+        Functions using \textbf{int} & 5 & 0.48876 \\
+        Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\
+        Functions using other types & 178 & 17.39980 \\
+        \hline
+    \end{tabular}}
+\end{table}
+
 Smart contracts are immutable once deployed, making security assurance during development critical.
 Among vulnerability types, logic errors present a distinct challenge:
 they arise when program behavior diverges from developer intent,
@@ -196,26 +218,7 @@ Section~\ref{sec:evaluation} presents our evaluation results.
 Section~\ref{sec:discussion} discusses limitations and future work.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
 
-    \begin{table}[!t]
-        \centering
-        \caption{Distribution of Variable Types in Smart Contract Functions}
-        \label{tab:variable_distribution}
-        \resizebox{\columnwidth}{!}{
-        \begin{tabular}{lcc}
-            \hline
-            \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
-            \hline
-            \textbf{Total Functions Analyzed} & 1524 & \\
-            Excluded Functions & 501 & \\
-            \textbf{Functions Considered for Analysis} & 1023 & \\
-            \hline
-            Functions using \textbf{uint} & 798 & 78.00587 \\
-            Functions using \textbf{int} & 5 & 0.48876 \\
-            Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\
-            Functions using other types & 178 & 17.39980 \\
-            \hline
-        \end{tabular}}
-    \end{table}
+
 
 \section{Background}\label{sec:background}
 \subsection{Numeric Logic Errors in Solidity}
@@ -331,37 +334,40 @@ This mapping reveals that most identified patterns concentrate in the COMPUTATIO
 % inline Assembly 안다룸
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
-% Logic error 탐지/해결 도구들 (기존)
-% accounting error
-% 각종 Price manipulation attack 해결 논문 등
-
 Logic error detection focuses on identifying discrepancies between developer intentions and actual program behavior in smart contracts.
-HighGuard~\citep{highguard} addresses business logic violations in smart contracts by using Dynamic Condition Response (DCR) graphs
+
+\citep{highguard} addresses business logic violations in smart contracts by using Dynamic Condition Response (DCR) graphs
 to model expected behaviors including temporal constraints, role-based access control, and inter-function dependencies.
 The system monitors runtime transactions against user-provided DCR models and their function mappings,
 generating violation reports when execution activities deviate from the specified business logic patterns.
-% Limitation: requires manual DCR model creation, needs domain expertise, scalability issues
-SmartPulse~\citep{smartpulse} verifies temporal properties of smart contracts by accepting user-specified Linear Temporal Logic (LTL) formulas
+\citep{smartpulse} verifies temporal properties of smart contracts by accepting user-specified Linear Temporal Logic (LTL) formulas
 and attack models to check both safety and liveness properties.
 The system not only detects violations but also generates concrete attack scenarios that demonstrate how the temporal properties can be violated,
 providing developers with actionable insights into potential logic errors.
-% Limitation: requires LTL specification expertise, limited to temporal properties
-ConSol~\citep{consolidating} enables developers to specify function and address behaviors using the ConSol syntax alongside their Solidity code,
+\citep{consolidating} enables developers to specify function and address behaviors using the ConSol syntax alongside their Solidity code,
 then verifies whether the implementation adheres to these behavioral specifications and generates behavior-compliant Solidity programs without annotations.
-% Limitation: requires learning ConSol syntax, limited to predefined behavior patterns
-SmartInv~\citep{smartinv} leverages multimodal learning to automatically infer invariants and detect machine unauditable bugs (MUBs)~\citep{exploitablebugs}
+\citep{smartinv} leverages multimodal learning to automatically infer invariants and detect machine unauditable bugs (MUBs)~\citep{exploitablebugs}
 by analyzing both source code and natural language artifacts including comments, function signatures, and documented transaction scenarios.
 The system employs a fine-tuned model with Tier of Thought (ToT) prompting that progressively predicts transaction contexts,
 generates and ranks invariants, and ultimately identifies vulnerabilities through three-tier reasoning.
-% Limitation: depends on quality of natural language documentation, may produce false positives
+\citep{accountingerrors} proposes a novel type system for Solidity variables defined as tuples of $\langle$Financial Type, Scaling Factor, Token Unit, Address$\rangle$
+to detect accounting errors through type checking.
+The system reinterprets Solidity code based on detection patterns such as incorrectly adding balances with fees,
+enabling systematic identification of numeric logic errors that arise from mismatched financial operations.
 
 Furthermore, there are also approaches that address multiple transaction logic errors such as price manipulation~\citep{defiranger,defiguard,pomabuster,secplf,defitainter}
 and flash loan attacks~\citep{defitail,midnight}.
 
-\subsection{Specification-based Smart Contract Verification}
-% iContract, Solc-verify, SmartACE, Scribble 등
-% → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
+In contrast to existing approaches, IntentChecker operates within the debugging context to provide immediate feedback on code under development,
+fundamentally differing from tools that only verify completed code.
+Through \texttt{@During} annotations, it uniquely enables validation of intermediate execution states within functions,
+allowing developers to verify their step-by-step intentions.
+Moreover, rather than being limited to specific patterns, IntentChecker comprehensively validates all numeric operations
+using interval-domain abstract interpretation for sound verification, achieving both generality and reliability simultaneously.
 
+\subsection{Specification-based Smart Contract Verification}
+% iContract, SmartACE, Scribble 등
+% → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
 Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
 Solvent~\citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
 by converting both the contract code and user-defined liquidity properties into SMT constraints.
@@ -371,9 +377,7 @@ generating counterexamples when violations are detected to help developers under
 \subsection{Tools for Strengthening Security During Development Phase}
 % 개발 단계 도구들 (기존)
 % SCSTUDIO, SCEDITOR, SODA, Making
-\subsection{Code-Comment Inconsistency in Solidity}
-% SmartCOCO 등 NLP 기반 불일치 탐지 (기존)
-% Hyperion?
+
 \section{Conclusion}\label{sec:conclusion}
 \newif\ifshowack
 \showackfalse
@@ -397,6 +401,9 @@ Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the 
 \bibitem[Chen et~al.(2025)]{numscout}
 Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
 
+\bibitem[Consensys Diligence(2025)]{scribble}
+Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2025). Accessed January 2026
+
 \bibitem[Eshghie et~al.(2024)]{highguard}
 Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
 
@@ -408,6 +415,9 @@ Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in d
 
 \bibitem[Li et~al.(2025)]{defitail}
 Li, X., et al.: Penetrating the hostile: Detecting defi protocol exploits through cross-contract analysis. IEEE Transactions on Information Forensics and Security 20, 11759--11774 (2025). https://doi.org/10.1109/TIFS.2025.3626979
+
+\bibitem[Nguyen et~al.(2023)]{idealist}
+Nguyen, T.D., et al.: An idealist's approach for smart contract correctness. In: International Conference on Formal Engineering Methods, pp. 11--28 (2023). https://doi.org/10.1007/978-981-99-7584-6_2
 
 \bibitem[Ramezany et~al.(2023)]{midnight}
 Ramezany, S., Setthawong, R., Setthawong, P.: Midnight: An Efficient Event-driven EVM Transaction Security Monitoring Approach For Flash Loan Detection. In: Proceedings of the 2023 20th International Joint Conference on Computer Science and Software Engineering (JCSSE), pp. 237--241 (2023). https://doi.org/10.1109/JCSSE58229.2023.10201970
@@ -429,6 +439,9 @@ Wang, S.J., Pei, K., Yang, J.: Smartinv: Multimodal learning for smart contract 
 
 \bibitem[Wei et~al.(2024)]{consolidating}
 Wei, G., et al.: Consolidating Smart Contracts with Behavioral Contracts. Proceedings of the ACM on Programming Languages 8(PLDI), 965--989 (2024). https://doi.org/10.1145/3656416
+
+\bibitem[Wesley et~al.(2022)]{smartace}
+Wesley, S., et al.: Verifying Solidity smart contracts via communication abstraction in SmartACE. In: International Conference on Verification, Model Checking, and Abstract Interpretation, pp. 425--449 (2022). https://doi.org/10.1007/978-3-030-94583-1_21
 
 \bibitem[Wu et~al.(2023)]{defiranger}
 Wu, S., et al.: Defiranger: Detecting defi price manipulation attacks. IEEE Transactions on Dependable and Secure Computing 21(4), 4147--4161 (2023). https://doi.org/10.1109/TDSC.2023.3346888
