@@ -366,17 +366,45 @@ Moreover, rather than being limited to specific patterns, IntentChecker comprehe
 using interval-domain abstract interpretation for sound verification, achieving both generality and reliability simultaneously.
 
 \subsection{Specification-based Smart Contract Verification}
-% iContract, SmartACE, Scribble 등
+% iContract, Scribble 등
 % → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
 Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
-Solvent~\citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
+
+\citep{scribble} provides a framework that transforms developer annotations into Solidity assertion code,
+enabling testing with existing tools like MythX~\citep{mythx} and Mythril~\citep{mythril}.
+The framework supports multiple annotation types including if\_succeed (conditions for successful function returns),
+invariant (contract-level properties that must always hold), if\_updated (conditions checked when state variables change),
+and assert (validations at specific execution points), making formal specifications accessible through familiar testing pipelines.
+\citep{smartace} builds upon Scribble~\citep{scribble} to verify whether Solidity code satisfies specifications written in the Scribble language,
+leveraging C-based verification tools like SeaHorn~\citep{seahorn}, libFuzzer~\citep{libfuzzer}, and KLEE~\citep{klee} by transforming smart contracts into LLVM-IR based harnesses.
+The framework abstracts the $2^{160}$ possible user addresses into a small set of representative users (implicit, transient, and explicit),
+enabling verification of properties that must hold for arbitrary numbers of users, such as accounting properties like
+"the contract balance equals the sum of all user deposits."
+\citep{idealist} verifies Solidity code using two types of annotations: specification annotations (loop invariants, call invariants, and call modifies) that developers declare as assumptions,
+and verification annotations (ensures, reverts\_if, and contract invariants) that the tool checks against the implementation.
+The system assumes the truth of specification annotations and uses them to verify whether the code satisfies function post-conditions,
+correctly handles revert conditions, and maintains contract invariants throughout execution.
+\citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
 by converting both the contract code and user-defined liquidity properties into SMT constraints.
 The system then checks whether the contract satisfies these properties using SMT solvers,
 generating counterexamples when violations are detected to help developers understand potential liquidity issues.
 % Limitation: limited to liquidity properties, requires formal specification expertise
+
+While specification-based approaches focus on verifying high-level contract properties and invariants in completed code,
+IntentChecker addresses a fundamentally different problem: validating specific developer intentions about numeric values during the debugging process.
+Unlike existing tools that treat library functions as black boxes, IntentChecker performs interval-domain analysis
+that tracks actual value ranges through library function calls (e.g., SafeMath operations),
+enabling developers to verify their step-by-step numeric intentions rather than abstract contract-level properties.
+
 \subsection{Tools for Strengthening Security During Development Phase}
-% 개발 단계 도구들 (기존)
-% SCSTUDIO, SCEDITOR, SODA, Making
+Development-phase security tools integrate vulnerability detection directly into the coding workflow, enabling developers to identify and address security issues as they write code rather than in post-development analysis.
+\citep{making} presents an integrated development environment for smart contract development that combines natural language model-based code autocompletion with security validation.
+The platform integrates existing static analysis tools including Oyente~\citep{oyente}, Mythril~\citep{mythril}, and Securify~\citep{securify} to provide comprehensive security reports during development workflow.
+\citep{solhint} provides a Solidity linter that detects predefined vulnerability patterns including low-level calls, reentrancy, and deprecated function usage during development.
+The tool enforces security best practices by checking for patterns such as proper visibility declarations, send result validation, and secure compiler version usage.
+
+While these development-phase tools rely on predefined detection patterns for known vulnerabilities,
+IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches these specified intentions.
 
 \section{Conclusion}\label{sec:conclusion}
 \newif\ifshowack
@@ -395,17 +423,29 @@ Arora, S., et al.: SecPLF: Secure protocols for loanable funds against oracle ma
 \bibitem[Bartoletti et~al.(2024)]{solvent}
 Bartoletti, M., et al.: Solvent: liquidity verification of smart contracts. In: International Conference on Integrated Formal Methods (iFM), pp. 256--266 (2024). https://doi.org/10.1007/978-3-031-76554-4_14
 
+\bibitem[Cadar et~al.(2008)]{klee}
+Cadar, C., et al.: KLEE: unassisted and automatic generation of high-coverage tests for complex systems programs. In: OSDI, pp. 209--224 (2008). https://doi.org/10.5555/1855741.1855756
+
 \bibitem[Chaliasos et~al.(2024)]{defisecurity}
 Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the needs of practitioners?. In: Proceedings of the 46th IEEE/ACM International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3623302
 
 \bibitem[Chen et~al.(2025)]{numscout}
 Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
 
-\bibitem[Consensys Diligence(2025)]{scribble}
+\bibitem[Consensys Diligence(2025a)]{mythril}
+Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2025). Accessed December 2025
+
+\bibitem[Consensys Diligence(2025b)]{mythx}
+Consensys Diligence: MythX. \url{https://mythx.io/} (2025). Accessed December 2025
+
+\bibitem[Consensys Diligence(2025c)]{scribble}
 Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2025). Accessed January 2026
 
 \bibitem[Eshghie et~al.(2024)]{highguard}
 Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
+
+\bibitem[Gurfinkel et~al.(2015)]{seahorn}
+Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Conference on Computer Aided Verification, pp. 343--361 (2015). https://doi.org/10.1007/978-3-319-21690-4_20
 
 \bibitem[Jeon et~al.(2025)]{solqdebug}
 Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in Smart Contract Development (2025). https://doi.org/10.21203/rs.3.rs-8077153/v1
@@ -416,11 +456,23 @@ Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in d
 \bibitem[Li et~al.(2025)]{defitail}
 Li, X., et al.: Penetrating the hostile: Detecting defi protocol exploits through cross-contract analysis. IEEE Transactions on Information Forensics and Security 20, 11759--11774 (2025). https://doi.org/10.1109/TIFS.2025.3626979
 
+\bibitem[LLVM(2025)]{libfuzzer}
+LLVM: libFuzzer. \url{https://llvm.org/docs/LibFuzzer.html} (2025). Accessed December 2025
+
+\bibitem[Luu et~al.(2016)]{oyente}
+Luu, L., et al.: Making smart contracts smarter. In: Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 254--269 (2016). https://doi.org/10.1145/2976749.2978309
+
 \bibitem[Nguyen et~al.(2023)]{idealist}
 Nguyen, T.D., et al.: An idealist's approach for smart contract correctness. In: International Conference on Formal Engineering Methods, pp. 11--28 (2023). https://doi.org/10.1007/978-981-99-7584-6_2
 
+\bibitem[Protofire(2025)]{solhint}
+Protofire: Solhint. \url{https://github.com/protofire/solhint} (2025). Accessed Janauary 2026
+
 \bibitem[Ramezany et~al.(2023)]{midnight}
 Ramezany, S., Setthawong, R., Setthawong, P.: Midnight: An Efficient Event-driven EVM Transaction Security Monitoring Approach For Flash Loan Detection. In: Proceedings of the 2023 20th International Joint Conference on Computer Science and Software Engineering (JCSSE), pp. 237--241 (2023). https://doi.org/10.1109/JCSSE58229.2023.10201970
+
+\bibitem[Ren et~al.(2021)]{making}
+Ren, M., et al.: Making smart contract development more secure and easier. In: Proceedings of the 29th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering (ESEC/FSE), pp. 1360--1370 (2021). https://doi.org/10.1145/3468264.3473929
 
 \bibitem[Soud et~al.(2024)]{flyinointment}
 Soud, M., Liebel, G., Hamdaqa, M.: A fly in the ointment: an empirical study on the characteristics of Ethereum smart contract code weaknesses. Empirical Software Engineering 29(1), 13 (2024). https://doi.org/10.1007/s10664-023-10398-5
@@ -430,6 +482,9 @@ Stephens, J., et al.: SmartPulse: automated checking of temporal properties in s
 
 \bibitem[Sun et~al.(2024)]{gptscan}
 Sun, Y., et al.: Gptscan: Detecting logic vulnerabilities in smart contracts by combining gpt with program analysis. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639117
+
+\bibitem[Tsankov et~al.(2018)]{securify}
+Tsankov, P., et al.: Securify: Practical security analysis of smart contracts. In: Proceedings of the 2018 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 67--82 (2018). https://doi.org/10.1145/3243734.3243780
 
 \bibitem[Wang et~al.(2024a)]{defiguard}
 Wang, D., et al.: Defiguard: A price manipulation detection service in defi using graph neural networks. IEEE Transactions on Services Computing (2024). https://doi.org/10.1109/TSC.2024.3489439
