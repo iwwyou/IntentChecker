@@ -218,120 +218,143 @@ Section~\ref{sec:evaluation} presents our evaluation results.
 Section~\ref{sec:discussion} discusses limitations and future work.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
 
-
-
 \section{Background}\label{sec:background}
 \subsection{Numeric Logic Errors in Solidity}
 
-Recent research efforts have introduced various specifically-named logic errors in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
-However, existing approaches to logic error classification predominantly follow a vulnerability-pattern-based taxonomy,
-categorizing issues by their manifestation such as division-by-zero, precision-loss, integer overflow, and similar named patterns.
-While this approach enables systematic enumeration of known vulnerability types, it suffers from a fundamental limitation:
-it focuses on vulnerability phenomena rather than directly representing code behavior.
-Such classification describes what went wrong in terms of observable symptoms, but provides insufficient connection to the actual execution dynamics that produced those symptoms.
-Consequently, while these taxonomies can identify "what is incorrect," they offer limited insight into "how the code actually behaves" during execution.
+Recent research has identified various numeric-related weakness in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
+Building on these findings, numeric logic errors can be defined as follows:
 
-This limitation becomes particularly problematic when attempting to validate whether code behavior aligns with developer intentions.
-Vulnerability-pattern-based approaches can detect known manifestations of logic errors,
-but cannot systematically address the broader question of whether the implemented logic correctly reflects the developer's intended computation.
-For instance, a "precision-loss" classification indicates that numerical precision was reduced during computation,
-but provides no framework for determining whether this reduction was intentionally designed, accidentally introduced,
-or falls within acceptable bounds according to the developer's original intent.
+\begin{definition}[Numeric Logic Error]
+Bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
+but violate the developer's intended numerical or state relationships during function execution.
+\end{definition}
 
-To address these limitations, we propose an execution semantics-based approach to logic error classification.
-Rather than categorizing errors by their symptomatic manifestations, this approach systematically represents code behavior according to function execution dynamics.
-By focusing on how code actually operates during execution—encompassing input processing, computation steps, side effects,
-and output generation—this classification enables direct comparison between implemented behavior and developer intentions.
-This execution-centric perspective provides a structured framework for systematically validating
-whether code behavior matches intended logic across all critical points in function execution.
-
-We define numeric logic errors within this execution semantics framework as follows:
-\textit{bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
-    but violate the developer's intended numerical or state relationships during function execution}.
-
-It is crucial to distinguish between single-transaction and multiple-transaction contexts when analyzing logic errors.
-Single-transaction errors manifest within the execution of a single function call—where input validation, computation, side effects, and output generation occur in one atomic sequence.
+These errors can manifest in different execution contexts.
+Single-transaction errors occur within the execution of a single function call---where computation, function calls, and output generation happen in one atomic sequence.
 In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
-Examples include Risky First Deposit and Price Manipulation by AMM vulnerabilities \citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations to manipulate contract behavior.
-Our approach focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
-This scope enables precise, actionable feedback during implementation rather than requiring complex multi-transaction scenario analysis.
+Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations.
 
-Figure~\ref{fig:execution_semantics} illustrates our function execution semantics classification framework.
-Each function execution progresses through four distinct stages:
-(1) \textit{INPUT} represents parameters passed to functions—both at the contract function level and internal function calls;
-(2) \textit{COMPUTATION} executes statements and evaluates expressions that transform input data through arithmetic, logical operations, and control flow;
-(3) \textit{SIDE EFFECTS} captures interactions beyond local computation, including internal and external function calls that may modify contract or external state;
-and (4) \textit{OUTPUT} represents the function's intended effects—including return values, state variable updates, and notably, missing or incorrect outputs where computed values fail to properly update state or return.
-This classification enables systematic mapping of error patterns to their manifestation points in the execution flow,
-providing a more precise understanding of where and how numeric logic errors occur within single-transaction contexts.
+This paper focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
+The representative single-transaction numeric logic error patterns identified in prior work are summarized below:
 
-% Function execution semantics classification
-\begin{figure}[!h]
-\centering
-\begin{tikzpicture}[
-  level 1/.style={sibling distance=4cm, level distance=1.5cm},
-  level 2/.style={sibling distance=2cm, level distance=1cm},
-  every node/.style={rectangle, draw, align=center, font=\footnotesize}
-]
-\node {Function Execution\\Semantics}
-  child {node {INPUT\\Parameters}}
-  child {node {COMPUTATION\\Statements \& Expressions}}
-  child {node {SIDE EFFECTS\\Internal/External calls\\→ State changes}}
-  child {node {OUTPUT\\Return values,\\State variable writes}};
-\end{tikzpicture}
-\caption{Function Execution Semantics Classification}
-\label{fig:execution_semantics}
-\end{figure}
+\begin{itemize}
+    \item \textbf{Div In Path}~\citep{numscout}: Division results used in conditions can lead to unexpected control flow due to integer truncation.
 
-% Error mapping table
+    \item \textbf{Operator Order Issue}~\citep{numscout}: Arithmetic order matters: \texttt{a/b*c} $\neq$ \texttt{a*c/b} due to intermediate truncation.
+
+    \item \textbf{Exchange Problem}~\citep{numscout}: Rounding errors in exchange calculations may result in zero output despite valid input, or receiving tokens without payment.
+
+    \item \textbf{Precision Loss Trend}~\citep{numscout}: Integer division's inherent truncation tends to favor one side, potentially misaligning with protocol intent.
+
+    \item \textbf{Minor Amount Retention}~\citep{numscout}: Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock.
+
+    \item \textbf{Wrong Interest Rate Order}~\citep{gptscan}: Balance calculations using outdated or prematurely updated interest rates yield incorrect results.
+
+    \item \textbf{Wrong Checkpoint Order}~\citep{gptscan}: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
+
+    \item \textbf{Erroneous Accounting}~\citep{exploitablebugs}: Incorrect implementation of business model formulas introduces small errors that accumulate into substantial losses.
+
+    \item \textbf{Greedy Contract}~\citep{flyinointment}: Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock.
+
+\end{itemize}
+
+Despite their diversity, these error patterns share a common root: the actual behavior diverges from what the developer intended.
+
+\subsection{Motivation for Intent-Based Validation}
+
+Existing approaches to detecting numeric logic errors---whether pattern-based static analyzers, formal verification tools, or LLM-based methods---fundamentally analyze code without access to the developer's actual intentions.
+Since logic errors arise when program behavior diverges from developer intent, and this intent exists only in the developer's mind, these approaches cannot reliably distinguish between intended behavior and unintended bugs.
+To bridge this gap, developers must be able to \textit{explicitly specify} their intended numeric behaviors.
+The key question then becomes: how can we systematically represent numeric intentions within a single function execution?
+
+Numeric variables flow through three distinct stages during function execution, and developers may have specific intentions at each stage:
+
+\begin{itemize}
+    \item \textbf{COMPUTE}: Developers intend that expressions yield results within expected ranges, and that statements modify variables as intended (e.g., increasing, decreasing, or remaining unchanged).
+
+    \item \textbf{TRANSFER}: Developers intend that function calls receive arguments satisfying certain constraints,
+    ensuring that called functions operate on valid inputs.
+
+    \item \textbf{OUTPUT}: Developers intend that functions return expected values and update state variables correctly,
+    reflecting the intended effects of the computation.
+\end{itemize}
+
+To validate that this classification comprehensively covers numeric logic errors,
+the previously identified error patterns are mapped to these variable flow stages:
+
 \begin{table}[!h]
 \centering
-\caption{Mapping of Existing Error Patterns to Execution Semantics}
+\caption{Mapping of Error Patterns to Variable Flow Stages}
 \label{tab:error_mapping}
-\begin{tabular}{|l|l|l|}
+\begin{tabular}{|l|l|}
 \hline
-\textbf{Execution Stage} & \textbf{Error Pattern} & \textbf{Reference} \\
+\textbf{Variable Flow} & \textbf{Error Pattern} \\
 \hline
-\multirow{1}{*}{INPUT}
-& Minor Amount Retention & \citep{numscout} \\
+\multirow{6}{*}{COMPUTE}
+& Operator Order Issue \\
+& Precision Loss Trend \\
+& Div In Path \\
+& Exchange Problem \\
+& Wrong Interest Rate Order \\
+& Erroneous Accounting \\
 \hline
-\multirow{8}{*}{COMPUTATION}
-& Div In Path & \citep{numscout} \\
-& Operator Order Issue & \citep{numscout} \\
-& Exchange Problem & \citep{numscout} \\
-& Precision Loss Trend & \citep{numscout} \\
-& Wrong Interest Rate Order & \citep{gptscan} \\
-& Wrong Checkpoint Order & \citep{gptscan} \\
-& Erroneous Accounting & \citep{exploitablebugs} \\
-& Arithmetic Mistakes$^{a}$ & \citep{defiattacks} \\
+TRANSFER & Minor Amount Retention \\
 \hline
-SIDE EFFECTS & Arithmetic Mistakes$^{b}$ & \citep{defiattacks} \\
-\hline
-OUTPUT & Greedy Contract & \citep{flyinointment} \\
+\multirow{2}{*}{OUTPUT}
+& Greedy Contract \\
+& Wrong Checkpoint Order \\
 \hline
 \end{tabular}
-\footnotesize{
-$^{a}$ e.g., wrong reserve ratio calculation (MerlinLab), precision loss (ValueDeFi)\\
-$^{b}$ e.g., stale pool state used after update (CoverProtocol)
-}
 \end{table}
 
-Table~\ref{tab:error_mapping} demonstrates how existing named error patterns from recent research map to our execution semantics framework.
-For instance, Minor Amount Retention occurs in the INPUT stage when function parameters fail validation checks (e.g., divisibility constraints).
-COMPUTATION errors like Wrong Interest Rate Order manifest when calculation sequences produce incorrect results due to improper ordering.
-SIDE EFFECTS errors such as stale state usage arise when internal function calls create inconsistent state updates.
-Finally, OUTPUT errors like Greedy Contract occur when computed values fail to properly update state variables as intended.
-This mapping reveals that most identified patterns concentrate in the COMPUTATION stage, highlighting where verification efforts should focus.
+This classification provides a foundation for designing an intent specification mechanism that can address errors at each stage of variable flow.
 
-\subsection{Existing Approaches and Limitations}
-\subsection{Proposed Solution Overview}
+\subsection{IntentChecker Overview}
+
+Based on the variable flow classification, we propose IntentChecker, a framework that enables developers to declare their intended numeric behaviors and validates them through static analysis.
+IntentChecker consists of two core components: an \textit{Intent Model} for specifying developer intentions, and a \textit{Validation Engine} for checking whether code behavior conforms to those intentions.
+The intent model provides two annotation types aligned with the variable flow stages:
+\texttt{@During} annotations specify intended relationships at specific program points within a function (covering COMPUTE and TRANSFER stages),
+while \texttt{@Post} annotations specify intended relationships after function execution (covering OUTPUT stage and function-level invariants).
+Developers express their intentions using a lightweight DSL embedded in comments, allowing intent specifications to coexist with existing code without modification.
+
+The validation engine employs interval-based abstract interpretation to compute the actual value ranges of variables, then compares them against the declared intent.
+The validation result is deterministically categorized into one of three states:
+
+\[
+  \textbf{Satisfied} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \subseteq I_{\text{intent}}
+\]
+
+\[
+  \textbf{Violated} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \cap I_{\text{intent}} = \varnothing
+\]
+
+\[
+  \textbf{Uncertain} \quad \Longleftrightarrow \quad
+    I_{\text{actual}} \not\subseteq I_{\text{intent}}
+    \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
+\]
+
+If neither fully satisfied nor clearly violated, the system reports \texttt{Uncertain}, along with a confidence score representing the probability of satisfaction and the specific sub-intervals where violation may occur.
+
+To perform this interval-based validation, IntentChecker builds upon SolQDebug, a source-level Solidity debugger designed for interactive abstract interpretation during code authoring.
+SolQDebug constructs a dynamic control-flow graph from source code and executes abstract interpretation over a fixed-point lattice of interval values.
+While SolQDebug was originally designed for single-transaction, single-contract analysis, IntentChecker extends this foundation to support multiple contracts defined within the same source file.
+Additionally, commonly used libraries are pre-analyzed and their semantics are imported during validation, enabling more precise analysis without requiring repeated computation.
+
+The detailed design of the intent model and validation algorithms are presented in Section~\ref{sec:design}.
+
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
 \subsection{Intent Model}
 \subsection{Validation Engine}
+
 \section{Evaluation}\label{sec:evaluation}
 \section{Discussion}\label{sec:discussion}
 % inline Assembly 안다룸
+
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
 Logic error detection focuses on identifying discrepancies between developer intentions and actual program behavior in smart contracts.
@@ -366,8 +389,6 @@ Moreover, rather than being limited to specific patterns, IntentChecker comprehe
 using interval-domain abstract interpretation for sound verification, achieving both generality and reliability simultaneously.
 
 \subsection{Specification-based Smart Contract Verification}
-% iContract, Scribble 등
-% → "개발자가 명세 작성 + 도구가 검증"하는 접근법들
 Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
 
 \citep{scribble} provides a framework that transforms developer annotations into Solidity assertion code,
