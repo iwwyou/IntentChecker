@@ -103,7 +103,7 @@
 
 \begin{document}
 
-\title[Solidity Intent Keeper]{IntentChecker: Validating Developer Intentions in Solidity via Intent Annotation to Mitigate Numeric Logic error}
+\title[Solidity Intent Keeper]{IntentChecker: Validating Developer Intentions in Solidity via Intent Annotations to Mitigate Numeric Logic error}
 
 \author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
 
@@ -221,428 +221,115 @@ Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion}
 \section{Background}\label{sec:background}
 \subsection{Numeric Logic Errors in Solidity}
 
-Recent research has identified various numeric-related weakness in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
-Building on these findings, numeric logic errors can be defined as follows:
+Recent research efforts have introduced various specifically-named logic errors in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
+However, existing approaches to logic error classification predominantly follow a vulnerability-pattern-based taxonomy,
+categorizing issues by their manifestation such as division-by-zero, precision-loss, integer overflow, and similar named patterns.
+While this approach enables systematic enumeration of known vulnerability types, it suffers from a fundamental limitation:
+it focuses on vulnerability phenomena rather than directly representing code behavior.
+Such classification describes what went wrong in terms of observable symptoms, but provides insufficient connection to the actual execution dynamics that produced those symptoms.
+Consequently, while these taxonomies can identify "what is incorrect," they offer limited insight into "how the code actually behaves" during execution.
 
-\begin{definition}[Numeric Logic Error]
-Bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
-but violate the developer's intended numerical or state relationships during function execution.
-\end{definition}
+This limitation becomes particularly problematic when attempting to validate whether code behavior aligns with developer intentions.
+Vulnerability-pattern-based approaches can detect known manifestations of logic errors,
+but cannot systematically address the broader question of whether the implemented logic correctly reflects the developer's intended computation.
+For instance, a "precision-loss" classification indicates that numerical precision was reduced during computation,
+but provides no framework for determining whether this reduction was intentionally designed, accidentally introduced,
+or falls within acceptable bounds according to the developer's original intent.
 
-These errors can manifest in different execution contexts.
-Single-transaction errors occur within the execution of a single function call---where computation, function calls, and output generation happen in one atomic sequence.
+To address these limitations, we propose an execution semantics-based approach to logic error classification.
+Rather than categorizing errors by their symptomatic manifestations, this approach systematically represents code behavior according to function execution dynamics.
+By focusing on how code actually operates during execution---encompassing input processing, computation steps, side effects,
+and output generation---this classification enables direct comparison between implemented behavior and developer intentions.
+This execution-centric perspective provides a structured framework for systematically validating
+whether code behavior matches intended logic across all critical points in function execution.
+
+We define numeric logic errors within this execution semantics framework as follows:
+\textit{bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
+    but violate the developer's intended numerical or state relationships during function execution}.
+
+It is crucial to distinguish between single-transaction and multiple-transaction contexts when analyzing logic errors.
+Single-transaction errors manifest within the execution of a single function call---where input validation, computation, side effects, and output generation occur in one atomic sequence.
 In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
-Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations.
+Examples include Risky First Deposit and Price Manipulation by AMM vulnerabilities \citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations to manipulate contract behavior.
+Our approach focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
+This scope enables precise, actionable feedback during implementation rather than requiring complex multi-transaction scenario analysis.
 
-This paper focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
-The representative single-transaction numeric logic error patterns identified in prior work are summarized below:
+Figure~\ref{fig:execution_semantics} illustrates our function execution semantics classification framework.
+Each function execution progresses through four distinct stages:
+(1) \textit{INPUT} represents parameters passed to functions---both at the contract function level and internal function calls;
+(2) \textit{COMPUTATION} executes statements and evaluates expressions that transform input data through arithmetic, logical operations, and control flow;
+(3) \textit{SIDE EFFECTS} captures interactions beyond local computation, including internal and external function calls that may modify contract or external state;
+and (4) \textit{OUTPUT} represents the function's intended effects---including return values, state variable updates, and notably, missing or incorrect outputs where computed values fail to properly update state or return.
+This classification enables systematic mapping of error patterns to their manifestation points in the execution flow,
+providing a more precise understanding of where and how numeric logic errors occur within single-transaction contexts.
 
-\begin{itemize}
-    \item \textbf{Div In Path}~\citep{numscout}: Division results used in conditions can lead to unexpected control flow due to integer truncation.
-
-    \item \textbf{Operator Order Issue}~\citep{numscout}: Arithmetic order matters: \texttt{a/b*c} $\neq$ \texttt{a*c/b} due to intermediate truncation.
-
-    \item \textbf{Exchange Problem}~\citep{numscout}: Rounding errors in exchange calculations may result in zero output despite valid input, or receiving tokens without payment.
-
-    \item \textbf{Precision Loss Trend}~\citep{numscout}: Integer division's inherent truncation tends to favor one side, potentially misaligning with protocol intent.
-
-    \item \textbf{Minor Amount Retention}~\citep{numscout}: Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock.
-
-    \item \textbf{Wrong Interest Rate Order}~\citep{gptscan}: Balance calculations using outdated or prematurely updated interest rates yield incorrect results.
-
-    \item \textbf{Wrong Checkpoint Order}~\citep{gptscan}: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
-
-    \item \textbf{Erroneous Accounting}~\citep{exploitablebugs}: Incorrect implementation of business model formulas introduces small errors that accumulate into substantial losses.
-
-    \item \textbf{Greedy Contract}~\citep{flyinointment}: Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock.
-
-\end{itemize}
-
-Despite their diversity, these error patterns share a common root: the actual behavior diverges from what the developer intended.
-
-\subsection{Motivation for Intent-Based Validation}
-
-\begin{table}[!t]
+% Function execution semantics classification
+\begin{figure}[!h]
 \centering
-\caption{Mapping of Error Patterns to Variable Flow Stages}
+\begin{tikzpicture}[
+  level 1/.style={sibling distance=4cm, level distance=1.5cm},
+  level 2/.style={sibling distance=2cm, level distance=1cm},
+  every node/.style={rectangle, draw, align=center, font=\footnotesize}
+]
+\node {Function Execution\\Semantics}
+  child {node {INPUT\\Parameters}}
+  child {node {COMPUTATION\\Statements \& Expressions}}
+  child {node {SIDE EFFECTS\\Internal/External calls\\$\rightarrow$ State changes}}
+  child {node {OUTPUT\\Return values,\\State variable writes}};
+\end{tikzpicture}
+\caption{Function Execution Semantics Classification}
+\label{fig:execution_semantics}
+\end{figure}
+
+% Error mapping table
+\begin{table}[!h]
+\centering
+\caption{Mapping of Existing Error Patterns to Execution Semantics}
 \label{tab:error_mapping}
-\begin{tabular}{|l|l|}
+\begin{tabular}{|l|l|l|}
 \hline
-\textbf{Variable Flow} & \textbf{Error Pattern} \\
+\textbf{Execution Stage} & \textbf{Error Pattern} & \textbf{Reference} \\
 \hline
-\multirow{6}{*}{COMPUTE}
-& Operator Order Issue \\
-& Precision Loss Trend \\
-& Div In Path \\
-& Exchange Problem \\
-& Wrong Interest Rate Order \\
-& Erroneous Accounting \\
+\multirow{1}{*}{INPUT}
+& Minor Amount Retention & \citep{numscout} \\
 \hline
-TRANSFER & Minor Amount Retention \\
+\multirow{8}{*}{COMPUTATION}
+& Div In Path & \citep{numscout} \\
+& Operator Order Issue & \citep{numscout} \\
+& Exchange Problem & \citep{numscout} \\
+& Precision Loss Trend & \citep{numscout} \\
+& Wrong Interest Rate Order & \citep{gptscan} \\
+& Wrong Checkpoint Order & \citep{gptscan} \\
+& Erroneous Accounting & \citep{exploitablebugs} \\
+& Arithmetic Mistakes$^{a}$ & \citep{defiattacks} \\
 \hline
-\multirow{2}{*}{OUTPUT}
-& Greedy Contract \\
-& Wrong Checkpoint Order \\
+SIDE EFFECTS & Arithmetic Mistakes$^{b}$ & \citep{defiattacks} \\
+\hline
+OUTPUT & Greedy Contract & \citep{flyinointment} \\
 \hline
 \end{tabular}
+\footnotesize{
+$^{a}$ e.g., wrong reserve ratio calculation (MerlinLab), precision loss (ValueDeFi)\\
+$^{b}$ e.g., stale pool state used after update (CoverProtocol)
+}
 \end{table}
 
-Existing approaches to detecting numeric logic errors---whether pattern-based static analyzers, formal verification tools, or LLM-based methods---fundamentally analyze code without access to the developer's actual intentions.
-Since logic errors arise when program behavior diverges from developer intent, and this intent exists only in the developer's mind, these approaches cannot reliably distinguish between intended behavior and unintended bugs.
-To bridge this gap, developers must be able to \textit{explicitly specify} their intended numeric behaviors.
-The key question then becomes: how can we systematically represent numeric intentions within a single function execution?
+Table~\ref{tab:error_mapping} demonstrates how existing named error patterns from recent research map to our execution semantics framework.
+For instance, Minor Amount Retention occurs in the INPUT stage when function parameters fail validation checks (e.g., divisibility constraints).
+COMPUTATION errors like Wrong Interest Rate Order manifest when calculation sequences produce incorrect results due to improper ordering.
+SIDE EFFECTS errors such as stale state usage arise when internal function calls create inconsistent state updates.
+Finally, OUTPUT errors like Greedy Contract occur when computed values fail to properly update state variables as intended.
+This mapping reveals that most identified patterns concentrate in the COMPUTATION stage, highlighting where verification efforts should focus.
 
-Numeric variables flow through three distinct stages during function execution, and developers may have specific intentions at each stage:
-
-\begin{itemize}
-    \item \textbf{COMPUTE}: Developers intend that expressions yield results within expected ranges, and that statements modify variables as intended (e.g., increasing, decreasing, or remaining unchanged).
-
-    \item \textbf{TRANSFER}: Developers intend that function calls receive arguments satisfying certain constraints,
-    ensuring that called functions operate on valid inputs.
-
-    \item \textbf{OUTPUT}: Developers intend that functions return expected values and update state variables correctly,
-    reflecting the intended effects of the computation.
-\end{itemize}
-
-To validate that this classification comprehensively covers numeric logic errors,
-the previously identified error patterns are mapped to these variable flow stages, as shown in Table~\ref{tab:error_mapping}.
-This classification provides a foundation for designing an intent specification mechanism that can address errors at each stage of variable flow.
-
-\subsection{IntentChecker Overview}
-
-Based on the variable flow classification, we propose IntentChecker, a framework that enables developers to declare their intended numeric behaviors and validates them through static analysis.
-IntentChecker consists of two core components: an \textit{Intent Model} for specifying developer intentions, and a \textit{Validation Engine} for checking whether code behavior conforms to those intentions.
-The intent model provides two annotation types aligned with the variable flow stages:
-
-\begin{itemize}
-    \item \texttt{@During}: Specifies intended relationships at specific program points within a function, covering COMPUTE and TRANSFER stages.
-    \item \texttt{@Post}: Specifies intended relationships after function execution, covering OUTPUT stage and function-level invariants.
-\end{itemize}
-
-Developers express these intentions through annotations embedded in comments, allowing intent specifications to coexist with existing code without modification.
-
-The validation engine builds upon SolQDebug~\citep{solqdebug}, a line-by-line debugging module that performs abstract interpretation over the interval domain, to compute actual value ranges of variables and compare them against the declared intent.
-The validation result is deterministically categorized into one of three states:
-
-\[
-  \textbf{Satisfied} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \subseteq I_{\text{intent}}
-\]
-
-\[
-  \textbf{Violated} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \cap I_{\text{intent}} = \varnothing
-\]
-
-\[
-  \textbf{Uncertain} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \not\subseteq I_{\text{intent}}
-    \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
-\]
-
-If neither fully satisfied nor clearly violated, the system reports \texttt{Uncertain}, along with a confidence score representing the probability of satisfaction and the specific sub-intervals where violation may occur.
-
-SolQDebug was originally designed as a source-level Solidity debugger for single-transaction, single-contract analysis.
-IntentChecker extends this foundation to support multiple contracts defined within the same source file, with commonly used libraries pre-analyzed and their semantics imported during validation.
-
-The detailed design of the intent model and validation algorithms are presented in Section~\ref{sec:design}.
-
+\subsection{Existing Approaches and Limitations}
+\subsection{Proposed Solution Overview}
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
-
-Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figure/architecture.png}
-    \caption{System architecture of IntentChecker.}
-    \label{fig:architecture}
-\end{figure}
-
-\smallskip
-\noindent\textbf{Input.}
-IntentChecker receives three types of input:
-\begin{itemize}
-    \item \textbf{Statement}---individual Solidity statements provided incrementally as the developer writes code.
-    \item \textbf{Intent Annotation}---\texttt{@During} and \texttt{@Post} specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives such as \texttt{@StateVar} and \texttt{@LocalVar} that provide concrete or symbolic values for analysis.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Output.}
-For each intent annotation, IntentChecker produces:
-\begin{itemize}
-    \item \textbf{Result}---a validation state of \texttt{Satisfied}, \texttt{Violated}, or \texttt{Uncertain}.
-    \item \textbf{Probability}---when the result is \texttt{Uncertain}, a confidence score indicating the likelihood of satisfaction.
-    \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Internal Modules.}
-The system builds upon SolQDebug~\citep{solqdebug}, which provides the Parsing Module, Analysis Module, and Snapshot Manager.
-The Parsing Module uses ANTLR for syntax analysis and the Solidity compiler for semantic validation.
-The Analysis Module performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed.
-When a \texttt{using} directive imports an external library, the Analysis Module loads the corresponding Dependency CFG---a pre-analyzed representation of the library's functions---enabling accurate modeling of library calls without re-parsing the library source.
-When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterward.
-
-The Validation Engine is IntentChecker's core contribution.
-It receives the computed variable intervals from the Analysis Module along with the parsed intent annotations.
-For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, confidence score, and violated regions as described above.
-
 \subsection{Intent Model}
-
-This section defines the syntax and semantics of intent annotations.
-While Section~\ref{sec:background} introduced the conceptual foundation---\texttt{@During} for COMPUTE and TRANSFER stages, \texttt{@Post} for OUTPUT stage---here we specify the concrete grammar and meaning of each annotation construct.
-
-\begin{figure}[t]
-\centering
-\small
-\begin{tabular}{@{}r@{\quad}c@{\quad}l@{}}
-\textit{duringIntent} & $\rightarrow$ & \texttt{// @During} \textit{duringClause} (\textit{logicOp} \textit{duringClause})* \\[2pt]
-\textit{postIntent} & $\rightarrow$ & \texttt{// @Post} \textit{postClause} (\textit{logicOp} \textit{postClause})* \\[6pt]
-
-\textit{duringClause} & $\rightarrow$ & \textit{intentValue} \texttt{(before} \textit{relOp} \texttt{after)} \\
-& $|$ & \textit{intentValue} \texttt{(assign} \textit{relOp} \texttt{current)} \\
-& $|$ & \textit{identifier} \texttt{.arg[} $n$ \texttt{]} \textit{relOp} \textit{intentValue} \\
-& $|$ & \textit{commonClause} \\[6pt]
-
-\textit{postClause} & $\rightarrow$ & \textit{intentValue} \texttt{(entry} \textit{relOp} \texttt{exit)} \\
-& $|$ & \texttt{unchanged(} \textit{intentValue} \texttt{)} \\
-& $|$ & \textit{commonClause} \\[6pt]
-
-\textit{commonClause} & $\rightarrow$ & \texttt{returnExpression} \textit{relOp} \textit{intentValue} \\
-& $|$ & \texttt{return[}$n$\texttt{]} \textit{relOp} \textit{intentValue} \\
-& $|$ & \textit{intentValue} \textit{relOp} \texttt{PercentOf(} \textit{intentValue} \texttt{,} $p$ \texttt{)} \\
-& $|$ & \textit{intentValue} \textit{relOp} \texttt{ceil(} \textit{intentValue} \texttt{,} $d$ \texttt{)} \\
-& $|$ & \textit{intentValue} \textit{relOp} \texttt{floor(} \textit{intentValue} \texttt{,} $d$ \texttt{)} \\
-& $|$ & \textit{intentValue} \textit{relOp} \textit{intentValue} \\
-& $|$ & \textit{intentValue} \texttt{=>} \textit{intentValue} \\[6pt]
-
-\textit{intentValue} & $\rightarrow$ & \textit{arithExpr} \\[2pt]
-\textit{arithExpr} & $\rightarrow$ & \textit{arithExpr} (\texttt{+} $|$ \texttt{-}) \textit{arithTerm} $|$ \textit{arithTerm} \\
-\textit{arithTerm} & $\rightarrow$ & \textit{arithTerm} (\texttt{*} $|$ \texttt{/} $|$ \texttt{\%}) \textit{arithFactor} $|$ \textit{arithFactor} \\
-\textit{arithFactor} & $\rightarrow$ & \textit{number} $|$ \texttt{[} \textit{number} \texttt{,} \textit{number} \texttt{]} $|$ \textit{varRef} $|$ \texttt{(} \textit{arithExpr} \texttt{)} \\[2pt]
-\textit{varRef} & $\rightarrow$ & \textit{identifier} \textit{subAccess}* \\
-\textit{subAccess} & $\rightarrow$ & \texttt{.} \textit{identifier} $|$ \texttt{[} \textit{expr} \texttt{]} \\[6pt]
-
-\textit{logicOp} & $\rightarrow$ & \texttt{\&\&} $|$ \texttt{||} \\
-\textit{relOp} & $\rightarrow$ & \texttt{<} $|$ \texttt{>} $|$ \texttt{<=} $|$ \texttt{>=} $|$ \texttt{==} $|$ \texttt{!=} $|$ \texttt{in} $|$ \texttt{not in} \\
-\end{tabular}
-\caption{Grammar of intent annotations.}
-\label{fig:intent-grammar}
-\end{figure}
-
-\smallskip
-\noindent\textbf{Annotation Syntax Overview.}
-Figure~\ref{fig:intent-grammar} presents the grammar of intent annotations.
-Intent annotations are embedded in single-line comments, allowing them to coexist with Solidity code without affecting compilation.
-Each annotation begins with a marker (\texttt{@During} or \texttt{@Post}) followed by one or more clauses.
-Multiple clauses can be combined using logical operators: \texttt{\&\&} (conjunction) requires all clauses to hold, while \texttt{|}| (disjunction) requires at least one clause to hold.
-
-Intent values within clauses support arithmetic expressions using standard operators (\texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{\%}), variable references with member and index access (e.g., \texttt{balances[msg.sender]}), numeric literals, and inline intervals written as \texttt{[a, b]} to represent value ranges directly.
-Relational operators include \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, \texttt{!=}, as well as \texttt{in} and \texttt{not in} for interval membership tests.
-
-\smallskip
-\noindent\textbf{@During Annotation.}
-The \texttt{@During} annotation specifies intended relationships at specific program points within a function, validating developer intentions during the COMPUTE and TRANSFER stages of variable flow.
-It supports the following clause types:
-
-\begin{itemize}
-    \item \texttt{x(before relOp after)}---compares the value of variable \texttt{x} immediately before and after an assignment statement. This validates that assignments modify variables as intended (e.g., \texttt{balance(before > after)} asserts that the balance decreases).
-
-    \item \texttt{x(assign relOp current)}---compares the value being assigned to \texttt{x} against its current value. This is useful for validating incremental updates (e.g., \texttt{counter(assign == current + 1)}).
-
-    \item \texttt{func.arg[n] relOp value}---validates the $n$-th argument passed to a function call. This covers the TRANSFER stage, ensuring that function calls receive arguments satisfying specified constraints before execution proceeds.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{@Post Annotation.}
-The \texttt{@Post} annotation specifies intended relationships that should hold after function execution completes, validating the OUTPUT stage of variable flow.
-It supports the following clause types:
-
-\begin{itemize}
-    \item \texttt{x(entry relOp exit)}---compares the value of variable \texttt{x} at function entry against its value at function exit. This validates function-level effects on state variables (e.g., \texttt{totalSupply(entry == exit)} asserts that total supply remains unchanged).
-
-    \item \texttt{unchanged(x)}---a shorthand asserting that variable \texttt{x} has the same value at function exit as at function entry, equivalent to \texttt{x(entry == exit)}.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Common Clauses.}
-Both \texttt{@During} and \texttt{@Post} annotations share the following clause types:
-
-\begin{itemize}
-    \item \texttt{returnExpression relOp value}---validates the expression being returned against a specified value or range.
-
-    \item \texttt{return[n] relOp value}---for functions returning multiple values (tuples), validates the $n$-th return value.
-
-    \item \texttt{x relOp PercentOf(y, p)}---validates that \texttt{x} equals \texttt{p} percent of \texttt{y}, accounting for integer arithmetic. This is particularly useful for fee calculations and token distributions.
-
-    \item \texttt{x relOp ceil(y, d)} and \texttt{x relOp floor(y, d)}---validate rounding behavior, where \texttt{d} specifies the divisor. These clauses help developers express intended rounding directions in division operations.
-
-    \item \texttt{x relOp y}---general relational comparison between two intent values.
-
-    \item \texttt{x => y}---implication clause, asserting that if condition \texttt{x} holds, then condition \texttt{y} must also hold. This enables conditional intent specifications.
-\end{itemize}
-
 \subsection{Validation Engine}
-
-The Validation Engine validates developer-specified intent annotations against actual program behavior computed through abstract interpretation.
-Given the CFG-based interval analysis from Section~\ref{sec:architecture}, the engine evaluates each annotation clause and determines whether the intended relationship holds across all possible execution states.
-
-To perform validation, the engine captures variable environments at specific program points:
-\begin{itemize}
-    \item \textit{before\_env}: variable state immediately before a statement executes
-    \item \textit{after\_env}: variable state immediately after a statement executes (referred to as \textit{current} in assign clauses)
-    \item \textit{assign\_env}: the value being assigned in an assignment statement
-    \item \textit{entry\_env}: variable state at function entry
-    \item \textit{exit\_env}: variable state at function exit, computed by joining all normal termination paths
-\end{itemize}
-
-\smallskip
-\noindent\textbf{@During Validation.}
-The \texttt{@During} annotation is validated immediately after the associated statement executes:
-\begin{itemize}
-    \item \texttt{var(before op after)}: compares \textit{before\_env} against \textit{after\_env} for variable \texttt{var}.
-
-    \item \texttt{var(assign op current)}: compares \textit{assign\_env} against the current value of \texttt{var}.
-
-    \item \texttt{func.arg[n] op value}: validates the $n$-th argument passed to the function call.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{@Post Validation.}
-The \texttt{@Post} annotation is validated when function execution completes:
-\begin{itemize}
-    \item \texttt{var(entry op exit)}: compares \textit{entry\_env} against \textit{exit\_env} for variable \texttt{var}.
-
-    \item \texttt{unchanged(var)}: verifies that \texttt{var} has the same value in \textit{entry\_env} and \textit{exit\_env}.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Common Clauses.}
-The following clauses can be used in both \texttt{@During} and \texttt{@Post} annotations:
-\begin{itemize}
-    \item \texttt{returnExpression op value}: compares the return value against the evaluated \texttt{value}.
-
-    \item \texttt{return[n] op value}: compares the $n$-th element of a tuple return value against \texttt{value}.
-
-    \item $\mathit{exp}_1$ \texttt{op PercentOf(}$\mathit{exp}_2$\texttt{, p)}: compares $\mathit{exp}_1$ against $p$\% of $\mathit{exp}_2$.
-
-    \item $\mathit{exp}_1$ \texttt{op ceil(}$\mathit{exp}_2$\texttt{, d)} and $\mathit{exp}_1$ \texttt{op floor(}$\mathit{exp}_2$\texttt{, d)}: compares $\mathit{exp}_1$ against $\mathit{exp}_2$ rounded up or down to the nearest multiple of \texttt{d}.
-
-    \item $\mathit{exp}_1$ \texttt{op} $\mathit{exp}_2$: general comparison between two expressions.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Validation Semantics.}
-The engine compares interval-domain values and produces one of three possible outcomes: \textit{satisfied} (the condition holds for all values), \textit{violated} (the condition fails for all values), or \textit{uncertain} (the condition holds for some values but not others).
-Table~\ref{tab:interval-mapping} shows how each clause type maps to the interval comparison inputs $L$ and $R$ in Algorithm~\ref{alg:interval-compare}.
-
-\begin{table}[t]
-\centering
-\caption{Mapping of clause types to interval comparison inputs. Here, $\mathit{exp}_1$ and $\mathit{exp}_2$ denote evaluated intent expressions; \textit{return value} is the value returned by the current return statement; \textit{return value}$[n]$ is the $n$-th element when the function returns a tuple.}
-\label{tab:interval-mapping}
-\small
-\begin{tabular}{lcc}
-\toprule
-Clause Type & $L$ & $R$ \\
-\midrule
-\texttt{var(before op after)} & \textit{before\_env}[\texttt{var}] & \textit{after\_env}[\texttt{var}] \\
-\texttt{var(assign op current)} & \textit{assign\_env}[\texttt{var}] & \textit{after\_env}[\texttt{var}] \\
-\texttt{func.arg[n] op value} & \texttt{arg[n]} & \texttt{value} \\
-\midrule
-\texttt{var(entry op exit)} & \textit{entry\_env}[\texttt{var}] & \textit{exit\_env}[\texttt{var}] \\
-\texttt{unchanged(var)} & \textit{entry\_env}[\texttt{var}] & \textit{exit\_env}[\texttt{var}] \\
-\midrule
-\texttt{returnExpression op value} & \textit{return value} & \texttt{value} \\
-\texttt{return[n] op value} & \textit{return value}$[n]$ & \texttt{value} \\
-$\mathit{exp}_1$ \texttt{op} $\mathit{exp}_2$ & $\mathit{exp}_1$ & $\mathit{exp}_2$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Algorithm~\ref{alg:interval-compare} presents the interval comparison procedure.
-
-\begin{algorithm}[t]
-\caption{Interval Comparison with Three-Valued Result}
-\label{alg:interval-compare}
-\begin{algorithmic}[1]
-\State \textbf{Input:} Intervals $L = [l_{\min}, l_{\max}]$, $R = [r_{\min}, r_{\max}]$, operator $op$
-\State \textbf{Output:} (state, probability, violated\_region)
-\State $T \gets$ region where $L \mathrel{op} R$ is true
-\State $F \gets$ region where $L \mathrel{op} R$ is false
-\State $|T| \gets$ size of true region, $|F| \gets$ size of false region
-\If{$|F| = 0$}
-    \State \Return (\textit{satisfied}, 1.0, $\emptyset$)
-\ElsIf{$|T| = 0$}
-    \State \Return (\textit{violated}, 0.0, $L \cap R$)
-\Else
-    \State $p \gets |T| / (|T| + |F|)$ \Comment{probability of satisfaction}
-    \State \Return (\textit{uncertain}, $p$, $F$)
-\EndIf
-\end{algorithmic}
-\end{algorithm}
-
-For uncertain results, the engine computes a \textit{probability} estimate based on the ratio of the satisfying region to the total interval size, assuming uniform distribution.
-Additionally, the engine identifies \textit{violated regions}---the specific subranges where the condition fails---to help developers pinpoint potential issues.
-
-\smallskip
-\noindent\textbf{Compound Clauses and Implication.}
-Multiple clauses can be combined using logical operators.
-The engine evaluates each clause independently and combines the three-valued results according to Tables~\ref{tab:conjunction}--\ref{tab:implication}.
-
-\begin{table}[t]
-\centering
-\caption{Conjunction (\texttt{\&\&}) truth table for three-valued logic.}
-\label{tab:conjunction}
-\small
-\begin{tabular}{c|ccc}
-\toprule
-\texttt{\&\&} & \textit{satisfied} & \textit{violated} & \textit{uncertain} \\
-\midrule
-\textit{satisfied} & satisfied & violated & uncertain \\
-\textit{violated} & violated & violated & violated \\
-\textit{uncertain} & uncertain & violated & uncertain \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Disjunction (\texttt{||}) truth table for three-valued logic.}
-\label{tab:disjunction}
-\small
-\begin{tabular}{c|ccc}
-\toprule
-\texttt{||} & \textit{satisfied} & \textit{violated} & \textit{uncertain} \\
-\midrule
-\textit{satisfied} & satisfied & satisfied & satisfied \\
-\textit{violated} & satisfied & violated & uncertain \\
-\textit{uncertain} & satisfied & uncertain & uncertain \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Implication (\texttt{=>}) result based on antecedent state.}
-\label{tab:implication}
-\small
-\begin{tabular}{c|c}
-\toprule
-Antecedent $A$ & Result of $A \Rightarrow B$ \\
-\midrule
-\textit{satisfied} & state of $B$ \\
-\textit{violated} & \textit{satisfied} (vacuous truth) \\
-\textit{uncertain} & \textit{uncertain} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
 \section{Evaluation}\label{sec:evaluation}
 \section{Discussion}\label{sec:discussion}
 % inline Assembly 안다룸
-
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
 Logic error detection focuses on identifying discrepancies between developer intentions and actual program behavior in smart contracts.
@@ -651,20 +338,16 @@ Logic error detection focuses on identifying discrepancies between developer int
 to model expected behaviors including temporal constraints, role-based access control, and inter-function dependencies.
 The system monitors runtime transactions against user-provided DCR models and their function mappings,
 generating violation reports when execution activities deviate from the specified business logic patterns.
-
 \citep{smartpulse} verifies temporal properties of smart contracts by accepting user-specified Linear Temporal Logic (LTL) formulas
 and attack models to check both safety and liveness properties.
 The system not only detects violations but also generates concrete attack scenarios that demonstrate how the temporal properties can be violated,
 providing developers with actionable insights into potential logic errors.
-
 \citep{consolidating} enables developers to specify function and address behaviors using the ConSol syntax alongside their Solidity code,
 then verifies whether the implementation adheres to these behavioral specifications and generates behavior-compliant Solidity programs without annotations.
-
 \citep{smartinv} leverages multimodal learning to automatically infer invariants and detect machine unauditable bugs (MUBs)~\citep{exploitablebugs}
 by analyzing both source code and natural language artifacts including comments, function signatures, and documented transaction scenarios.
 The system employs a fine-tuned model with Tier of Thought (ToT) prompting that progressively predicts transaction contexts,
 generates and ranks invariants, and ultimately identifies vulnerabilities through three-tier reasoning.
-
 \citep{accountingerrors} proposes a novel type system for Solidity variables defined as tuples of $\langle$Financial Type, Scaling Factor, Token Unit, Address$\rangle$
 to detect accounting errors through type checking.
 The system reinterprets Solidity code based on detection patterns such as incorrectly adding balances with fees,
@@ -688,23 +371,20 @@ enabling testing with existing tools like MythX~\citep{mythx} and Mythril~\citep
 The framework supports multiple annotation types including if\_succeed (conditions for successful function returns),
 invariant (contract-level properties that must always hold), if\_updated (conditions checked when state variables change),
 and assert (validations at specific execution points), making formal specifications accessible through familiar testing pipelines.
-
 \citep{smartace} builds upon Scribble~\citep{scribble} to verify whether Solidity code satisfies specifications written in the Scribble language,
 leveraging C-based verification tools like SeaHorn~\citep{seahorn}, libFuzzer~\citep{libfuzzer}, and KLEE~\citep{klee} by transforming smart contracts into LLVM-IR based harnesses.
 The framework abstracts the $2^{160}$ possible user addresses into a small set of representative users (implicit, transient, and explicit),
 enabling verification of properties that must hold for arbitrary numbers of users, such as accounting properties like
 "the contract balance equals the sum of all user deposits."
-
 \citep{idealist} verifies Solidity code using two types of annotations: specification annotations (loop invariants, call invariants, and call modifies) that developers declare as assumptions,
 and verification annotations (ensures, reverts\_if, and contract invariants) that the tool checks against the implementation.
 The system assumes the truth of specification annotations and uses them to verify whether the code satisfies function post-conditions,
 correctly handles revert conditions, and maintains contract invariants throughout execution.
-
 \citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
 by converting both the contract code and user-defined liquidity properties into SMT constraints.
 The system then checks whether the contract satisfies these properties using SMT solvers,
 generating counterexamples when violations are detected to help developers understand potential liquidity issues.
-
+% Limitation: limited to liquidity properties, requires formal specification expertise
 
 While specification-based approaches focus on verifying high-level contract properties and invariants in completed code,
 IntentChecker addresses a fundamentally different problem: validating specific developer intentions about numeric values during the debugging process.
@@ -716,7 +396,6 @@ enabling developers to verify their step-by-step numeric intentions rather than 
 Development-phase security tools integrate vulnerability detection directly into the coding workflow, enabling developers to identify and address security issues as they write code rather than in post-development analysis.
 \citep{making} presents an integrated development environment for smart contract development that combines natural language model-based code autocompletion with security validation.
 The platform integrates existing static analysis tools including Oyente~\citep{oyente}, Mythril~\citep{mythril}, and Securify~\citep{securify} to provide comprehensive security reports during development workflow.
-
 \citep{solhint} provides a Solidity linter that detects predefined vulnerability patterns including low-level calls, reentrancy, and deprecated function usage during development.
 The tool enforces security best practices by checking for patterns such as proper visibility declarations, send result validation, and secure compiler version usage.
 

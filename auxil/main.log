@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  29 DEC 2025 18:10
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  31 DEC 2025 18:20
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1214,7 +1214,7 @@ ftex.def
 File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count378
 )
-No file main.aux.
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
 \openout1 = `main.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 104.
@@ -1303,6 +1303,9 @@ LaTeX Font Info:    Overwriting symbol font `AMSa' in version `normal'
 LaTeX Font Info:    Overwriting symbol font `AMSa' in version `bold'
 (Font)                  U/msa/m/n --> U/msa/m/n on input line 104.
 Package hyperref Info: Link coloring ON on input line 104.
+
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
 \@outlinefile=\write5
 \openout5 = `main.out'.
 
@@ -1315,12 +1318,13 @@ LaTeX Font Info:    Calculating math sizes for size <12.045> on input line 134.
 
 LaTeX Font Info:    Trying to load font information for U+msa on input line 134
 .
- (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
+(C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
 LaTeX Font Info:    Trying to load font information for U+msb on input line 134
 .
- (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
+
+(C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
 LaTeX Font Info:    Trying to load font information for U+rsfs on input line 13
@@ -1578,10 +1582,6 @@ l.156 \end{table}
 Things are pretty mixed up, but I think the worst is over.
 
 
-Package natbib Warning: Citation `flyinointment' on page 1 undefined on input l
-ine 161.
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1590,24 +1590,8 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 {C:/Users/isjeon/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
 
-Package natbib Warning: Citation `defisecurity' on page 2 undefined on input li
-ne 163.
-
-
-Package natbib Warning: Citation `defisecurity' on page 2 undefined on input li
-ne 173.
-
-
-Package natbib Warning: Citation `dappscan' on page 2 undefined on input line 1
-81.
-
-
 LaTeX Warning: Reference `tab:variable_distribution' on page 2 undefined on inp
 ut line 181.
-
-
-Package natbib Warning: Citation `solqdebug' on page 2 undefined on input line 
-196.
 
 
 
@@ -1616,475 +1600,44 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [2]
 
-LaTeX Warning: Reference `sec:background' on page 3 undefined on input line 215
-.
-
-
-LaTeX Warning: Reference `sec:design' on page 3 undefined on input line 216.
-
-
-LaTeX Warning: Reference `sec:evaluation' on page 3 undefined on input line 217
-.
-
-
-LaTeX Warning: Reference `sec:discussion' on page 3 undefined on input line 218
-.
-
-
-LaTeX Warning: Reference `sec:related' on page 3 undefined on input line 219.
-
-
-LaTeX Warning: Reference `sec:conclusion' on page 3 undefined on input line 219
-.
-
-
-Package natbib Warning: Citation `numscout' on page 3 undefined on input line 2
-24.
-
-
-Package natbib Warning: Citation `gptscan' on page 3 undefined on input line 22
-4.
-
-
-Package natbib Warning: Citation `flyinointment' on page 3 undefined on input l
-ine 224.
-
-
-Package natbib Warning: Citation `exploitablebugs' on page 3 undefined on input
- line 224.
-
-
-Package natbib Warning: Citation `defiattacks' on page 3 undefined on input lin
-e 224.
-
-
-Package natbib Warning: Citation `gptscan' on page 3 undefined on input line 23
-5.
-
-
-Package natbib Warning: Citation `exploitablebugs' on page 3 undefined on input
- line 235.
-
-
-Package natbib Warning: Citation `numscout' on page 3 undefined on input line 2
-41.
-
-
-Package natbib Warning: Citation `numscout' on page 3 undefined on input line 2
-43.
-
-
-Package natbib Warning: Citation `numscout' on page 3 undefined on input line 2
-45.
-
-
-Package natbib Warning: Citation `numscout' on page 3 undefined on input line 2
-47.
-
-
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [3]
 
-Package natbib Warning: Citation `numscout' on page 4 undefined on input line 2
-49.
-
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 25
-1.
-
-
-Package natbib Warning: Citation `gptscan' on page 4 undefined on input line 25
-3.
-
-
-Package natbib Warning: Citation `exploitablebugs' on page 4 undefined on input
- line 255.
-
-
-Package natbib Warning: Citation `flyinointment' on page 4 undefined on input l
-ine 257.
-
-
-main.tex:283: Package PGF Math Error: Unknown function `of' (in 'of compute').
-
-See the PGF Math package documentation for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.283 \node (transfer) [right=of compute]
-                                          {
-This error message was generated by an \errmessage
-command, so I can't give any explicit help.
-Pretend that you're Hercule Poirot: Examine all clues,
-and deduce the truth by order and method.
-
-
-main.tex:288: Package PGF Math Error: Unknown function `of' (in 'of transfer').
-
-
-See the PGF Math package documentation for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.288 \node (output) [right=of transfer]
-                                         {
-(That was another \errmessage.)
-
-
-Package pgf Warning: Returning node center instead of a point on node border. D
-id you specify a point identical to the center of node ``compute''? on input li
-ne 294.
-
-
-Package pgf Warning: Returning node center instead of a point on node border. D
-id you specify a point identical to the center of node ``output''? on input lin
-e 295.
-
-
-Package pgf Warning: Returning node center instead of a point on node border. D
-id you specify a point identical to the center of node ``transfer''? on input l
-ine 295.
-
-
-LaTeX Warning: `!h' float specifier changed to `!ht'.
-
-
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [4]
+<figure/architecture.png, id=170, 1174.278pt x 466.689pt>
+File: figure/architecture.png Graphic file (type png)
+<use figure/architecture.png>
+Package pdftex.def Info: figure/architecture.png  used on input line 357.
+(pdftex.def)             Requested size: 372.0pt x 147.84097pt.
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [5]
 
-LaTeX Warning: Reference `sec:design' on page 6 undefined on input line 377.
-
-
-Package natbib Warning: Citation `highguard' on page 6 undefined on input line 
-392.
-
-
-Package natbib Warning: Citation `smartpulse' on page 6 undefined on input line
- 396.
-
-
-Package natbib Warning: Citation `consolidating' on page 6 undefined on input l
-ine 400.
-
-
-Package natbib Warning: Citation `smartinv' on page 6 undefined on input line 4
-02.
-
-
-Package natbib Warning: Citation `exploitablebugs' on page 6 undefined on input
- line 402.
-
-
-Package natbib Warning: Citation `accountingerrors' on page 6 undefined on inpu
-t line 406.
-
-
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [6]
-
-Package natbib Warning: Citation `defiranger' on page 7 undefined on input line
- 411.
-
-
-Package natbib Warning: Citation `defiguard' on page 7 undefined on input line 
-411.
-
-
-Package natbib Warning: Citation `pomabuster' on page 7 undefined on input line
- 411.
-
-
-Package natbib Warning: Citation `secplf' on page 7 undefined on input line 411
-.
-
-
-Package natbib Warning: Citation `defitainter' on page 7 undefined on input lin
-e 411.
-
-
-Package natbib Warning: Citation `defitail' on page 7 undefined on input line 4
-12.
-
-
-Package natbib Warning: Citation `midnight' on page 7 undefined on input line 4
-12.
-
-
-Package natbib Warning: Citation `scribble' on page 7 undefined on input line 4
-24.
-
-
-Package natbib Warning: Citation `mythx' on page 7 undefined on input line 425.
-
-
-
-Package natbib Warning: Citation `mythril' on page 7 undefined on input line 42
-5.
-
-
-Package natbib Warning: Citation `smartace' on page 7 undefined on input line 4
-29.
-
-
-Package natbib Warning: Citation `scribble' on page 7 undefined on input line 4
-29.
-
-
-Package natbib Warning: Citation `seahorn' on page 7 undefined on input line 43
-0.
-
-
-Package natbib Warning: Citation `libfuzzer' on page 7 undefined on input line 
-430.
-
-
-Package natbib Warning: Citation `klee' on page 7 undefined on input line 430.
-
-
-Package natbib Warning: Citation `idealist' on page 7 undefined on input line 4
-34.
-
-
-Package natbib Warning: Citation `solvent' on page 7 undefined on input line 43
-8.
-
-
+ [6 <./figure/architecture.png>]
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [7]
 
-Package natbib Warning: Citation `making' on page 8 undefined on input line 452
-.
-
-
-Package natbib Warning: Citation `oyente' on page 8 undefined on input line 453
-.
-
-
-Package natbib Warning: Citation `mythril' on page 8 undefined on input line 45
-3.
-
-
-Package natbib Warning: Citation `securify' on page 8 undefined on input line 4
-53.
-
-
-Package natbib Warning: Citation `solhint' on page 8 undefined on input line 45
-4.
-
-
-Underfull \hbox (badness 1112) in paragraph at lines 472--473
-[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
-funds against ora-cle
- []
-
-main.tex:475: Missing $ inserted.
-<inserted text> 
-                $
-l.475 ...ttps://doi.org/10.1007/978-3-031-76554-4_
-                                                  14
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:476: Missing $ inserted.
-<inserted text> 
-                $
-l.476 
-      
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:476: Missing } inserted.
-<inserted text> 
-                }
-l.476 
-      
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:476: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.476 
-      
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 2221) in paragraph at lines 478--479
-[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
-tion of high-coverage
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 478--479
-\OT1/cmr/m/n/10 tests for com-plex sys-tems pro-grams. In: OSDI, pp. 209--224 (
-2008).
- []
-
-
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [8]
-main.tex:499: Missing $ inserted.
-<inserted text> 
-                $
-l.499 ...ttps://doi.org/10.1007/978-3-319-21690-4_
-                                                  20
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
 
-main.tex:500: Missing $ inserted.
-<inserted text> 
-                $
-l.500 
-      
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:500: Missing } inserted.
-<inserted text> 
-                }
-l.500 
-      
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:500: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.500 
-      
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 1552) in paragraph at lines 505--506
-[]\OT1/cmr/m/n/10 Kong, Q., et al.: Defi-tain-ter: Detect-ing price manip-u-la-
-tion vul-ner-a-bil-i-ties in defi
- []
-
-
-Underfull \hbox (badness 2762) in paragraph at lines 505--506
-\OT1/cmr/m/n/10 pro-to-cols. In: Pro-ceed-ings of the 32nd ACM SIG-SOFT Inter-n
-a-tional Sym-
- []
-
-
-Underfull \hbox (badness 3471) in paragraph at lines 505--506
-\OT1/cmr/m/n/10 po-sium on Soft-ware Test-ing and Anal-y-sis (ISSTA), pp. 1144-
--1156 (2023).
- []
-
-main.tex:517: Missing $ inserted.
-<inserted text> 
-                $
-l.517 ...ttps://doi.org/10.1007/978-981-99-7584-6_
-                                                  2
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:518: Missing $ inserted.
-<inserted text> 
-                $
-l.518 
-      
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:518: Missing } inserted.
-<inserted text> 
-                }
-l.518 
-      
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-Underfull \hbox (badness 1831) in paragraph at lines 517--518
-[]\OT1/cmr/m/n/10 Nguyen, T.D., et al.: An ide-al-ist's approach for smart con-
-tract cor-rect-ness. In:
- []
-
-
-Underfull \hbox (badness 2197) in paragraph at lines 517--518
-\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on For-mal Engi-neer-ing Meth-ods,
- pp. 11--28 (2023).
- []
-
-main.tex:518: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.518 
-      
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 4193) in paragraph at lines 523--524
-[]\OT1/cmr/m/n/10 Ramezany, S., Set-tha-wong, R., Set-tha-wong, P.: Mid-night: 
-An Effi-cient Event-
- []
-
-
-Underfull \hbox (badness 3735) in paragraph at lines 523--524
-\OT1/cmr/m/n/10 tion. In: Pro-ceed-ings of the 2023 20th Inter-na-tional Joint 
-Con-fer-ence on
- []
-
-
-Underfull \hbox (badness 3590) in paragraph at lines 523--524
-\OT1/cmr/m/n/10 Com-puter Sci-ence and Soft-ware Engi-neer-ing (JCSSE), pp. 237
---241 (2023).
- []
-
-
-Underfull \hbox (badness 2050) in paragraph at lines 535--536
-\OT1/cmr/m/n/10 bin-ing gpt with pro-gram anal-y-sis. In: Pro-ceed-ings of the 
-IEEE/ACM 46th
- []
-
-
-Underfull \hbox (badness 3219) in paragraph at lines 535--536
-\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE),
- pp. 1--13 (2024).
- []
+LaTeX Warning: Reference `sec:architecture' on page 9 undefined on input line 4
+90.
 
 
 
@@ -2092,43 +1645,54 @@ Underfull \hbox (badness 3219) in paragraph at lines 535--536
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [9]
-Underfull \hbox (badness 4467) in paragraph at lines 541--542
-\OT1/cmr/m/n/10 graph neu-ral net-works. IEEE Trans-ac-tions on Ser-vices Com-p
-ut-ing (2024).
+Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
+put line 567.
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [10]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [11]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [12]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [13]
+Underfull \hbox (badness 1112) in paragraph at lines 738--739
+[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
+funds against ora-cle
  []
 
-
-Underfull \hbox (badness 1888) in paragraph at lines 547--548
-[]\OT1/cmr/m/n/10 Wei, G., et al.: Con-sol-i-dat-ing Smart Con-tracts with Beha
-v-ioral Con-tracts. Pro-
- []
-
-
-Underfull \hbox (badness 1742) in paragraph at lines 547--548
-\OT1/cmr/m/n/10 ceed-ings of the ACM on Pro-gram-ming Lan-guages 8(PLDI), 965--
-989 (2024).
- []
-
-main.tex:550: Missing $ inserted.
+main.tex:741: Missing $ inserted.
 <inserted text> 
                 $
-l.550 ...ttps://doi.org/10.1007/978-3-030-94583-1_
-                                                  21
+l.741 ...ttps://doi.org/10.1007/978-3-031-76554-4_
+                                                  14
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
 
-main.tex:551: Missing $ inserted.
+main.tex:742: Missing $ inserted.
 <inserted text> 
                 $
-l.551 
+l.742 
       
 I've inserted a begin-math/end-math symbol since I think
 you left one out. Proceed, with fingers crossed.
 
-main.tex:551: Missing } inserted.
+main.tex:742: Missing } inserted.
 <inserted text> 
                 }
-l.551 
+l.742 
       
 I've inserted something that you may have forgotten.
 (See the <inserted text> above.)
@@ -2136,16 +1700,10 @@ With luck, this will get me unwedged. But if you
 really didn't forget anything, try typing `2' now; then
 my insertion and my current dilemma will both disappear.
 
-
-Underfull \hbox (badness 1527) in paragraph at lines 550--551
-[]\OT1/cmr/m/n/10 Wesley, S., et al.: Ver-i-fy-ing Solid-ity smart con-tracts v
-ia com-mu-ni-ca-tion abstrac-
- []
-
-main.tex:551: Extra }, or forgotten \endgroup.
+main.tex:742: Extra }, or forgotten \endgroup.
 \par ...m \@noitemerr {\@@par }\fi \else {\@@par }
                                                   \fi 
-l.551 
+l.742 
       
 I've deleted a group-closing symbol because it seems to be
 spurious, as in `$x}$'. But perhaps the } is legitimate and
@@ -2154,43 +1712,264 @@ the way to recover is to insert both the forgotten and the
 deleted material, e.g., by typing `I$}'.
 
 
-Underfull \hbox (badness 6016) in paragraph at lines 553--554
+Underfull \hbox (badness 2221) in paragraph at lines 744--745
+[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
+tion of high-coverage
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 744--745
+\OT1/cmr/m/n/10 tests for com-plex sys-tems pro-grams. In: OSDI, pp. 209--224 (
+2008).
+ []
+
+main.tex:765: Missing $ inserted.
+<inserted text> 
+                $
+l.765 ...ttps://doi.org/10.1007/978-3-319-21690-4_
+                                                  20
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:766: Missing $ inserted.
+<inserted text> 
+                $
+l.766 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:766: Missing } inserted.
+<inserted text> 
+                }
+l.766 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+main.tex:766: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.766 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+Underfull \hbox (badness 1552) in paragraph at lines 771--772
+[]\OT1/cmr/m/n/10 Kong, Q., et al.: Defi-tain-ter: Detect-ing price manip-u-la-
+tion vul-ner-a-bil-i-ties in defi
+ []
+
+
+Underfull \hbox (badness 2762) in paragraph at lines 771--772
+\OT1/cmr/m/n/10 pro-to-cols. In: Pro-ceed-ings of the 32nd ACM SIG-SOFT Inter-n
+a-tional Sym-
+ []
+
+
+Underfull \hbox (badness 3471) in paragraph at lines 771--772
+\OT1/cmr/m/n/10 po-sium on Soft-ware Test-ing and Anal-y-sis (ISSTA), pp. 1144-
+-1156 (2023).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [14]
+main.tex:783: Missing $ inserted.
+<inserted text> 
+                $
+l.783 ...ttps://doi.org/10.1007/978-981-99-7584-6_
+                                                  2
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:784: Missing $ inserted.
+<inserted text> 
+                $
+l.784 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:784: Missing } inserted.
+<inserted text> 
+                }
+l.784 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+Underfull \hbox (badness 1831) in paragraph at lines 783--784
+[]\OT1/cmr/m/n/10 Nguyen, T.D., et al.: An ide-al-ist's approach for smart con-
+tract cor-rect-ness. In:
+ []
+
+
+Underfull \hbox (badness 2197) in paragraph at lines 783--784
+\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on For-mal Engi-neer-ing Meth-ods,
+ pp. 11--28 (2023).
+ []
+
+main.tex:784: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.784 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+Underfull \hbox (badness 4193) in paragraph at lines 789--790
+[]\OT1/cmr/m/n/10 Ramezany, S., Set-tha-wong, R., Set-tha-wong, P.: Mid-night: 
+An Effi-cient Event-
+ []
+
+
+Underfull \hbox (badness 3735) in paragraph at lines 789--790
+\OT1/cmr/m/n/10 tion. In: Pro-ceed-ings of the 2023 20th Inter-na-tional Joint 
+Con-fer-ence on
+ []
+
+
+Underfull \hbox (badness 3590) in paragraph at lines 789--790
+\OT1/cmr/m/n/10 Com-puter Sci-ence and Soft-ware Engi-neer-ing (JCSSE), pp. 237
+--241 (2023).
+ []
+
+
+Underfull \hbox (badness 2050) in paragraph at lines 801--802
+\OT1/cmr/m/n/10 bin-ing gpt with pro-gram anal-y-sis. In: Pro-ceed-ings of the 
+IEEE/ACM 46th
+ []
+
+
+Underfull \hbox (badness 3219) in paragraph at lines 801--802
+\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE),
+ pp. 1--13 (2024).
+ []
+
+
+Underfull \hbox (badness 4467) in paragraph at lines 807--808
+\OT1/cmr/m/n/10 graph neu-ral net-works. IEEE Trans-ac-tions on Ser-vices Com-p
+ut-ing (2024).
+ []
+
+
+Underfull \hbox (badness 1888) in paragraph at lines 813--814
+[]\OT1/cmr/m/n/10 Wei, G., et al.: Con-sol-i-dat-ing Smart Con-tracts with Beha
+v-ioral Con-tracts. Pro-
+ []
+
+
+Underfull \hbox (badness 1742) in paragraph at lines 813--814
+\OT1/cmr/m/n/10 ceed-ings of the ACM on Pro-gram-ming Lan-guages 8(PLDI), 965--
+989 (2024).
+ []
+
+main.tex:816: Missing $ inserted.
+<inserted text> 
+                $
+l.816 ...ttps://doi.org/10.1007/978-3-030-94583-1_
+                                                  21
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:817: Missing $ inserted.
+<inserted text> 
+                $
+l.817 
+      
+I've inserted a begin-math/end-math symbol since I think
+you left one out. Proceed, with fingers crossed.
+
+main.tex:817: Missing } inserted.
+<inserted text> 
+                }
+l.817 
+      
+I've inserted something that you may have forgotten.
+(See the <inserted text> above.)
+With luck, this will get me unwedged. But if you
+really didn't forget anything, try typing `2' now; then
+my insertion and my current dilemma will both disappear.
+
+
+Underfull \hbox (badness 1527) in paragraph at lines 816--817
+[]\OT1/cmr/m/n/10 Wesley, S., et al.: Ver-i-fy-ing Solid-ity smart con-tracts v
+ia com-mu-ni-ca-tion abstrac-
+ []
+
+main.tex:817: Extra }, or forgotten \endgroup.
+\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
+                                                  \fi 
+l.817 
+      
+I've deleted a group-closing symbol because it seems to be
+spurious, as in `$x}$'. But perhaps the } is legitimate and
+you forgot something else, as in `\hbox{$x}'. In such cases
+the way to recover is to insert both the forgotten and the
+deleted material, e.g., by typing `I$}'.
+
+
+Underfull \hbox (badness 6016) in paragraph at lines 819--820
 []\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
 -tion attacks. IEEE
  []
 
 
-Underfull \hbox (badness 1603) in paragraph at lines 553--554
+Underfull \hbox (badness 1603) in paragraph at lines 819--820
 \OT1/cmr/m/n/10 Trans-ac-tions on Depend-able and Secure Com-put-ing 21(4), 414
 7--4161 (2023).
  []
 
 
-Underfull \hbox (badness 7869) in paragraph at lines 556--557
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [15]
+Underfull \hbox (badness 7869) in paragraph at lines 822--823
 []\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
 g Price Ora-cle
  []
 
 
-Underfull \hbox (badness 1817) in paragraph at lines 556--557
+Underfull \hbox (badness 1817) in paragraph at lines 822--823
 \OT1/cmr/m/n/10 Manip-u-la-tion Attacks in Decen-tral-ized Finance. In: Pro-cee
 d-ings of the 2024
  []
 
 
-Underfull \hbox (badness 6332) in paragraph at lines 556--557
+Underfull \hbox (badness 6332) in paragraph at lines 822--823
 \OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
  (2024).
  []
 
 
-Underfull \hbox (badness 2418) in paragraph at lines 565--566
+Underfull \hbox (badness 2418) in paragraph at lines 831--832
 \OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 2
 125--2137 (2025).
  []
 
 
-Underfull \hbox (badness 1043) in paragraph at lines 574--575
+Underfull \hbox (badness 1043) in paragraph at lines 840--841
 \OT1/cmr/m/n/10 2023 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 2444-
 -2461 (2023).
  []
@@ -2200,27 +1979,12 @@ Underfull \hbox (badness 1043) in paragraph at lines 574--575
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [10]
-
-Package natbib Warning: There were undefined citations.
-
-
-
-
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
- [11]
-(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux
-
-Package natbib Warning: Citation(s) may have changed.
-(natbib)                Rerun to get citations correct.
-
-)
+ [16]
+(C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
 L3 programming layer <2025-09-02>
  ***********
-
 
 LaTeX Font Warning: Size substitutions with differences
 (Font)              up to 0.985pt have occurred.
@@ -2231,35 +1995,26 @@ LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
 LaTeX Warning: There were undefined references.
 
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
-
-Package rerunfilecheck Warning: File `main.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `main.out':
-(rerunfilecheck)             Before: <no file>
-(rerunfilecheck)             After:  A0BB9CF8C70537208135FB5A041015A5;2777.
+Package rerunfilecheck Info: File `main.out' has not changed.
+(rerunfilecheck)             Checksum: A0BB9CF8C70537208135FB5A041015A5;2777.
  ) 
 Here is how much of TeX's memory you used:
- 26562 strings out of 468081
- 482821 string characters out of 5425304
- 860478 words of memory out of 5000000
- 54705 multiletter control sequences out of 15000+600000
- 654789 words of font info for 146 fonts, out of 8000000 for 9000
+ 26580 strings out of 468081
+ 482921 string characters out of 5425304
+ 866501 words of memory out of 5000000
+ 54697 multiletter control sequences out of 15000+600000
+ 657897 words of font info for 160 fonts, out of 8000000 for 9000
  1151 hyphenation exceptions out of 8191
- 90i,12n,93p,543b,728s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,12n,93p,543b,634s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\isjeon\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi602\tcr
 m1000.pk><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
 onts/cm/cmbx10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/p
 ublic/amsfonts/cm/cmbx12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fon
-ts/type1/public/amsfonts/cm/cmbx7.pfb><C:/Users/isjeon/AppData/Local/Programs/M
-iKTeX/fonts/type1/public/amsfonts/cm/cmbx8.pfb><C:/Users/isjeon/AppData/Local/P
-rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/isjeon/AppDat
-a/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users/is
-jeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C
+ts/type1/public/amsfonts/cm/cmbx8.pfb><C:/Users/isjeon/AppData/Local/Programs/M
+iKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/isjeon/AppData/Local/P
+rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users/isjeon/AppD
+ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/i
+sjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C
 :/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr
 10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfon
 ts/cm/cmr12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publ
@@ -2268,15 +2023,17 @@ ype1/public/amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX
 /fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Program
 s/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local
 /Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/isjeon/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/
-isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
-<C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/c
-mtt9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
-onts/symbols/msbm10.pfb>
+Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/i
+sjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><
+C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cm
+ti9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfo
+nts/cm/cmtt10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/pu
+blic/amsfonts/cm/cmtt9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts
+/type1/public/amsfonts/symbols/msbm10.pfb>
 Output written on C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardia
-n\out\main.pdf (11 pages, 287602 bytes).
+n\out\main.pdf (16 pages, 531645 bytes).
 PDF statistics:
- 227 PDF objects out of 1000 (max. 8388607)
- 69 named destinations out of 1000 (max. 500000)
- 13 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 444 PDF objects out of 1000 (max. 8388607)
+ 84 named destinations out of 1000 (max. 500000)
+ 146 words of extra memory for PDF output out of 10000 (max. 10000000)
 
