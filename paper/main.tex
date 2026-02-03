@@ -289,7 +289,7 @@ TRANSFER & Minor Amount Retention \\
 
 Existing approaches to detecting numeric logic errors---whether pattern-based static analyzers, formal verification tools, or LLM-based methods---fundamentally analyze code without access to the developer's actual intentions.
 Since logic errors arise when program behavior diverges from developer intent, and this intent exists only in the developer's mind, these approaches cannot reliably distinguish between intended behavior and unintended bugs.
-To bridge this gap, developers must be able to \textit{explicitly specify} their intended numeric behaviors.
+To bridge this gap, developers must be able to explicitly specify their intended numeric behaviors.
 The key question then becomes: how can we systematically represent numeric intentions within a single function execution?
 
 Numeric variables flow through three distinct stages during function execution, and developers may have specific intentions at each stage:
@@ -335,12 +335,13 @@ The validation result is deterministically categorized into one of three states:
 \]
 
 \[
-  \textbf{Uncertain} \quad \Longleftrightarrow \quad
+  \textbf{Warning} \quad \Longleftrightarrow \quad
     I_{\text{actual}} \not\subseteq I_{\text{intent}}
     \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
 \]
 
-If neither fully satisfied nor clearly violated, the system reports \texttt{Uncertain}, along with a confidence score representing the probability of satisfaction and the specific sub-intervals where violation may occur.
+If neither fully satisfied nor clearly violated, the system reports \texttt{Warning}, along with a probability representing the likelihood of satisfaction and the specific sub-intervals where violation may occur.
+Unlike warnings from pattern-based static analyzers that suggest likely bugs, IntentChecker's \texttt{Warning} indicates partial satisfaction---the intent holds for some input values but not others within the specified range.
 
 SolQDebug was originally designed as a source-level Solidity debugger for single-transaction, single-contract analysis.
 IntentChecker extends this foundation to support multiple contracts defined within the same source file, with commonly used libraries pre-analyzed and their semantics imported during validation.
@@ -372,8 +373,8 @@ IntentChecker receives three types of input:
 \noindent\textbf{Output.}
 For each intent annotation, IntentChecker produces:
 \begin{itemize}
-    \item \textbf{Result}---a validation state of \texttt{Satisfied}, \texttt{Violated}, or \texttt{Uncertain}.
-    \item \textbf{Probability}---when the result is \texttt{Uncertain}, a confidence score indicating the likelihood of satisfaction.
+    \item \textbf{Result}---a validation state of \texttt{Satisfied}, \texttt{Violated}, or \texttt{Warning}.
+    \item \textbf{Probability}---when the result is \texttt{Warning}, a probability indicating the likelihood of satisfaction.
     \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
 \end{itemize}
 
@@ -387,7 +388,63 @@ When a debug annotation is received, the Snapshot Manager preserves the current 
 
 The Validation Engine is IntentChecker's core contribution.
 It receives the computed variable intervals from the Analysis Module along with the parsed intent annotations.
-For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, confidence score, and violated regions as described above.
+For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, probability, and violated regions as described above.
+
+\subsection{Motivating Examples}
+
+This section illustrates how IntentChecker addresses representative numeric logic errors from each variable flow stage introduced in Section~\ref{sec:background}.
+For each example, we show the vulnerable code pattern and demonstrate how developers can express their intentions through annotations.
+
+\subsubsection{COMPUTE: Precision Loss in Arithmetic}
+
+% Representative example: Operator Order Issue or Precision Loss Trend
+% Show how @During annotation can specify intended arithmetic relationships
+
+\begin{lstlisting}[caption={Example: Precision loss in fee calculation}, label={lst:compute-example}]
+// Vulnerable: division before multiplication causes precision loss
+uint256 fee = amount / 100 * feeRate;
+
+// Developer's intent: fee should equal the mathematically correct result
+// @During fee == amount * feeRate / 100
+\end{lstlisting}
+
+% Explanation of how IntentChecker validates this intent
+
+\subsubsection{TRANSFER: Function Argument Validation}
+
+% Representative example: Minor Amount Retention
+% Show how @During func.arg[n] annotation validates transfer arguments
+
+\begin{lstlisting}[caption={Example: Ensuring non-zero transfer amounts}, label={lst:transfer-example}]
+// Vulnerable: integer division may result in zero transfer
+for (uint i = 0; i < recipients.length; i++) {
+    uint256 share = totalAmount / recipients.length;
+    // @During transfer.arg[0] > 0
+    recipients[i].transfer(share);
+}
+\end{lstlisting}
+
+% Explanation of how IntentChecker validates function arguments
+
+\subsubsection{OUTPUT: State Consistency After Execution}
+
+% Representative example: Balance invariant or state update verification
+% Show how @Post annotation verifies function-level effects
+
+\begin{lstlisting}[caption={Example: Verifying balance consistency}, label={lst:output-example}]
+function withdraw(uint256 amount) external {
+    require(balances[msg.sender] >= amount);
+    balances[msg.sender] -= amount;
+    // @Post balances[msg.sender](Entry > Exit)
+    msg.sender.transfer(amount);
+}
+\end{lstlisting}
+
+% Explanation of how IntentChecker validates post-conditions
+
+\smallskip
+These examples demonstrate how IntentChecker enables developers to explicitly specify their numerical intentions.
+The complete intent model supporting these annotations is defined in the following section.
 
 \subsection{Intent Model}
 
@@ -535,7 +592,7 @@ The following clauses can be used in both \texttt{@During} and \texttt{@Post} an
 
 \smallskip
 \noindent\textbf{Validation Semantics.}
-The engine compares interval-domain values and produces one of three possible outcomes: \textit{satisfied} (the condition holds for all values), \textit{violated} (the condition fails for all values), or \textit{uncertain} (the condition holds for some values but not others).
+The engine compares interval-domain values and produces one of three possible outcomes: \textit{satisfied} (the condition holds for all values), \textit{violated} (the condition fails for all values), or \textit{warning} (the condition holds for some values but not others).
 Table~\ref{tab:interval-mapping} shows how each clause type maps to the interval comparison inputs $L$ and $R$ in Algorithm~\ref{alg:interval-compare}.
 
 \begin{table}[t]
@@ -578,12 +635,12 @@ Algorithm~\ref{alg:interval-compare} presents the interval comparison procedure.
     \State \Return (\textit{violated}, 0.0, $L \cap R$)
 \Else
     \State $p \gets |T| / (|T| + |F|)$ \Comment{probability of satisfaction}
-    \State \Return (\textit{uncertain}, $p$, $F$)
+    \State \Return (\textit{warning}, $p$, $F$)
 \EndIf
 \end{algorithmic}
 \end{algorithm}
 
-For uncertain results, the engine computes a \textit{probability} estimate based on the ratio of the satisfying region to the total interval size, assuming uniform distribution.
+For warning results, the engine computes a \textit{probability} estimate based on the ratio of the satisfying region to the total interval size, assuming uniform distribution.
 Additionally, the engine identifies \textit{violated regions}---the specific subranges where the condition fails---to help developers pinpoint potential issues.
 
 \smallskip
@@ -598,11 +655,11 @@ The engine evaluates each clause independently and combines the three-valued res
 \small
 \begin{tabular}{c|ccc}
 \toprule
-\texttt{\&\&} & \textit{satisfied} & \textit{violated} & \textit{uncertain} \\
+\texttt{\&\&} & \textit{satisfied} & \textit{violated} & \textit{warning} \\
 \midrule
-\textit{satisfied} & satisfied & violated & uncertain \\
+\textit{satisfied} & satisfied & violated & warning \\
 \textit{violated} & violated & violated & violated \\
-\textit{uncertain} & uncertain & violated & uncertain \\
+\textit{warning} & warning & violated & warning \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -614,11 +671,11 @@ The engine evaluates each clause independently and combines the three-valued res
 \small
 \begin{tabular}{c|ccc}
 \toprule
-\texttt{||} & \textit{satisfied} & \textit{violated} & \textit{uncertain} \\
+\texttt{||} & \textit{satisfied} & \textit{violated} & \textit{warning} \\
 \midrule
 \textit{satisfied} & satisfied & satisfied & satisfied \\
-\textit{violated} & satisfied & violated & uncertain \\
-\textit{uncertain} & satisfied & uncertain & uncertain \\
+\textit{violated} & satisfied & violated & warning \\
+\textit{warning} & satisfied & warning & warning \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -634,14 +691,100 @@ Antecedent $A$ & Result of $A \Rightarrow B$ \\
 \midrule
 \textit{satisfied} & state of $B$ \\
 \textit{violated} & \textit{satisfied} (vacuous truth) \\
-\textit{uncertain} & \textit{uncertain} \\
+\textit{warning} & \textit{warning} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Evaluation}\label{sec:evaluation}
+
+\subsection{Research Questions}
+
+We evaluate IntentChecker through the following research questions:
+
+\begin{itemize}
+    \item \textbf{RQ1 (Detection)}: Can IntentChecker detect real-world numeric logic errors from the Web3Bugs and Numscout datasets (127 bugs) when annotations are provided based on bug report descriptions? We also analyze coverage across the 9 error patterns identified in Section~\ref{sec:background}.
+    \item \textbf{RQ2 (Warning Usefulness)}: When IntentChecker reports \texttt{Warning}, does the \texttt{false\_regions} information help developers identify the conditions under which bugs occur?
+    \item \textbf{RQ3 (Expressiveness)}: Can the intent model express developer intentions for general integer/unsigned integer statements? We evaluate this using Code4rena bug reports' expected behavior descriptions as ground truth for developer intent.
+    \item \textbf{RQ4 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
+\end{itemize}
+
+\subsection{Experimental Setup}
+
+% Dataset, environment, methodology
+
+\subsection{RQ1: Detection}
+
+% Dataset: Web3Bugs S6-* (86 bugs) + Numscout (41 bugs) = 127 bugs
+% For each bug:
+%   1. Analyze bug report to understand the issue
+%   2. Write intent annotation based on expected behavior
+%   3. Run IntentChecker and record result (Satisfied/Violated/Warning)
+% Results:
+%   - Overall detection rate
+%   - Detection rate per 9 error patterns (coverage analysis)
+%   - Examples of detected bugs
+
+\subsection{RQ2: Warning Usefulness}
+
+% Dataset: Cases from RQ1 where IntentChecker reported Warning
+% For each Warning case:
+%   1. Analyze the false_regions output
+%   2. Compare with actual bug conditions from bug report
+%   3. Evaluate if false_regions helps identify when the bug occurs
+% Metrics:
+%   - Accuracy: Does false_regions match actual bug conditions?
+%   - Case studies showing how false_regions aids debugging
+
+\subsection{RQ3: Expressiveness}
+
+% Dataset: Code4rena bug reports (separate from RQ1 dataset)
+% For general int/uint statements:
+%   1. Extract expected behavior from bug reports
+%   2. Attempt to express as intent annotation
+%   3. Categorize: expressible / partially expressible / not expressible
+% Analysis:
+%   - What types of intentions can be expressed?
+%   - What are the limitations of the current intent model?
+
+\subsection{RQ4: Developer Perception}
+
+% Online survey using cognition.run
+% Evaluate: understandability, intuitiveness, expressiveness, willingness to use
+% Collect open-ended feedback for missing features and improvements
+
+\subsection{Threats to Validity}
+
+% Internal validity: annotation quality depends on researcher interpretation
+% External validity: dataset may not represent all numeric logic errors
+% Construct validity: developer survey without actual tool usage
+
 \section{Discussion}\label{sec:discussion}
-% inline Assembly 안다룸
+
+\subsection{Limitations}
+
+\noindent\textbf{Soundness Bounded by Debug Annotation Scope.}
+IntentChecker performs sound analysis within the value ranges specified by debug annotations.
+When developers define variable ranges through \texttt{@StateVar} and \texttt{@LocalVar} annotations,
+the validation engine guarantees that if an intent is reported as \textit{Satisfied},
+the specified relationship holds for all values within those ranges.
+However, this soundness guarantee does not extend beyond the specified ranges.
+If a bug manifests only with input values outside the debug annotation scope,
+IntentChecker will not detect it.
+This is an inherent characteristic of debugging tools:
+just as traditional debuggers only test the specific inputs a developer provides,
+IntentChecker validates intentions only within the ranges developers specify.
+Developers are encouraged to use broad, representative ranges during debugging
+and to iteratively refine their debug annotations when \textit{Warning} results indicate potential issues.
+
+\smallskip
+\noindent\textbf{Inline Assembly Not Supported.}
+IntentChecker does not analyze Solidity inline assembly blocks (\texttt{assembly \{ ... \}}).
+When the analyzer encounters inline assembly, it conservatively treats affected variables as having unknown values (top element in the interval lattice).
+This limitation affects contracts that rely heavily on low-level optimizations or direct EVM manipulation.
+However, most standard DeFi operations---token transfers, balance updates, fee calculations---are implemented in high-level Solidity and are fully supported.
+Future work may extend the analyzer to interpret common assembly patterns,
+particularly those generated by the Solidity compiler for optimization purposes.
 
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
@@ -724,6 +867,7 @@ While these development-phase tools rely on predefined detection patterns for kn
 IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches these specified intentions.
 
 \section{Conclusion}\label{sec:conclusion}
+% future work : code patch/repair, annotation suggestion, inline Assembly
 \newif\ifshowack
 \showackfalse
 

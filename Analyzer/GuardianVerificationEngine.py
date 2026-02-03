@@ -275,7 +275,7 @@ class GuardianVerificationEngine:
             cmp = self._compare_values(ret_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
 
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -344,7 +344,7 @@ class GuardianVerificationEngine:
             cmp = self._compare_values(indexed_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
 
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -415,7 +415,7 @@ class GuardianVerificationEngine:
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
 
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -457,7 +457,7 @@ class GuardianVerificationEngine:
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
 
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -472,7 +472,7 @@ class GuardianVerificationEngine:
                     "lhs": str(lhs_val),
                     "rhs": str(rhs_val),
                     "operator": comp_op,
-                    **cmp  # satisfied / violated / uncertain / confidence
+                    **cmp  # satisfied / violated / warning / confidence
                 },
                 "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
                            f'{self._pretty_expr(rhs_expr)}  →  {cmp["message"]} {msg_tail}'
@@ -509,13 +509,13 @@ class GuardianVerificationEngine:
                     "message": f"A ⇒ B with A=true → B is {b_state}."
                 }
 
-            # A unknown
+            # A warning
             return {
-                "status": "unknown",
+                "status": "warning",
                 "kind": "duringImplication",
                 "line": line_no,
                 "details": {"antecedent": a_res, "consequent": None},
-                "message": "A ⇒ B unknown (A is uncertain)."
+                "message": "A ⇒ B warning (A is warning)."
             }
 
         except Exception as e:
@@ -563,7 +563,7 @@ class GuardianVerificationEngine:
             cmp = self._compare_values(arg_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
 
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -651,7 +651,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(entry_val, comp_op, exit_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -691,7 +691,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(return_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -748,7 +748,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(indexed_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -788,7 +788,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(ret_comp, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -816,7 +816,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(lhs_val, comp_op, rhs_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -845,7 +845,7 @@ class GuardianVerificationEngine:
 
             cmp = self._compare_values(entry_val, '==', exit_val)
             status = self._status_from_cmp(cmp)
-            if status == "unknown" and "false_regions" in cmp:
+            if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
                 msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
             else:
@@ -892,11 +892,11 @@ class GuardianVerificationEngine:
                 }
 
             return {
-                "status": "unknown",
+                "status": "warning",
                 "kind": "postImplication",
                 "line": line_no,
                 "details": {"antecedent": a_res, "consequent": None},
-                "message": "A ⇒ B unknown (A is uncertain)."
+                "message": "A ⇒ B warning (A is warning)."
             }
 
         except Exception as e:
@@ -920,8 +920,8 @@ class GuardianVerificationEngine:
         두 Interval 사이의 관계를
           - 'satisfied' : 반드시 성립
           - 'violated'  : 절대 성립 불가
-          - 'uncertain' : 일부 구간만 성립
-        로 판정하고, uncertain 인 경우에는
+          - 'warning'   : 일부 구간만 성립
+        로 판정하고, warning 인 경우에는
           confidence ∈ (0,1)  ≒  '성립할 확률' 값을 계산한다.
         """
 
@@ -933,7 +933,7 @@ class GuardianVerificationEngine:
         # ① min/max 가 None → 정보 부족 → 완전 불확정
         if (left_iv.min_value is None or left_iv.max_value is None or
                 right_iv.min_value is None or right_iv.max_value is None):
-            return {"state": "uncertain", "confidence": 0.5}
+            return {"state": "warning", "confidence": 0.5}
 
         # ② Interval 폭
         lw, rw = left_iv.max_value - left_iv.min_value, right_iv.max_value - right_iv.min_value
@@ -956,7 +956,7 @@ class GuardianVerificationEngine:
             overlap = max(0, min(left_iv.max_value, right_iv.max_value) -
                           max(left_iv.min_value, right_iv.min_value))
             conf = 1 - overlap / lw if op == "not in" else overlap / lw
-            return {"state": "uncertain", "confidence": round(conf, 3)}
+            return {"state": "warning", "confidence": round(conf, 3)}
 
         if op == '>':
             true_len = max(0, left_iv.max_value - max(left_iv.min_value, right_iv.max_value))
@@ -995,9 +995,9 @@ class GuardianVerificationEngine:
             return {"state": "violated", "confidence": 0.0}
 
         conf = true_len / total if total else 0.5
-        info = {"state": "uncertain", "confidence": round(conf, 3)}
+        info = {"state": "warning", "confidence": round(conf, 3)}
 
-        # ✨ 추가: unknown이면 false-support 구간을 계산해서 달아준다
+        # ✨ 추가: warning이면 false-support 구간을 계산해서 달아준다
         try:
             info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
         except Exception:
@@ -1012,7 +1012,7 @@ class GuardianVerificationEngine:
             out = {
                 "satisfied": info["state"] == "satisfied",
                 "violated": info["state"] == "violated",
-                "uncertain": info["state"] == "uncertain",
+                "warning": info["state"] == "warning",
                 "confidence": info["confidence"],
                 "message": f"{info['state']} (conf={info['confidence']})"
             }
@@ -1025,14 +1025,14 @@ class GuardianVerificationEngine:
             if op in {"in", "not in"}:
                 if right.min_value is None or right.max_value is None:
                     return {"satisfied": False, "violated": True,
-                            "uncertain": True, "confidence": 0.0,
+                            "warning": True, "confidence": 0.0,
                             "message": "interval unknown"}
                 inside = right.min_value <= left <= right.max_value
                 satisfied = inside if op == "in" else not inside
                 return {
                     "satisfied": satisfied,
                     "violated": not satisfied,
-                    "uncertain": False,
+                    "warning": False,
                     "confidence": 1.0,
                     "message": f"{left} {op} [{right.min_value},{right.max_value}] = {satisfied}"
                 }
@@ -1059,13 +1059,13 @@ class GuardianVerificationEngine:
             return {
                 "satisfied": satisfied,
                 "violated": not satisfied,
-                "uncertain": False,
+                "warning": False,
                 "confidence": 1.0,
                 "message": f"{left} {op} {right} = {satisfied}"
             }
         except Exception as e:
             return {"satisfied": False, "violated": True,
-                    "uncertain": True, "confidence": 0.0,
+                    "warning": True, "confidence": 0.0,
                     "message": f"comparison error: {e}"}
 
     def _expr_to_str(self, e):  # 간단 문자열 직렬화 helper
@@ -1236,7 +1236,7 @@ class GuardianVerificationEngine:
 
     def _tri_state(self, res: dict) -> str:
         """
-        result → 'satisfied' / 'violated' / 'uncertain'
+        result → 'satisfied' / 'violated' / 'warning'
         (기존 verify_*들의 details에 들어있는 cmp 필드 기반)
         """
         d = res.get("details", {})
@@ -1244,24 +1244,24 @@ class GuardianVerificationEngine:
             return "satisfied"
         if d.get("violated"):
             return "violated"
-        if d.get("uncertain"):
-            return "uncertain"
+        if d.get("warning"):
+            return "warning"
         # fallback: status
         st = res.get("status")
         if st == "success":    return "satisfied"
         if st == "violation":  return "violated"
-        return "uncertain"
+        return "warning"
 
     def _status_from_state(self, st: str) -> str:
-        return "success" if st == "satisfied" else ("violation" if st == "violated" else "unknown")
+        return "success" if st == "satisfied" else ("violation" if st == "violated" else "warning")
 
     # GuardianVerificationEngine 내부에 추가
 
     def _status_from_cmp(self, cmp: dict) -> str:
         if cmp.get("satisfied"): return "success"
         if cmp.get("violated"):  return "violation"
-        if cmp.get("uncertain"): return "unknown"
-        return "unknown"
+        if cmp.get("warning"):   return "warning"
+        return "warning"
 
     def _prob_true_from_cmp(self, cmp: dict) -> float:
         # 이 엔진에서 confidence는 "참일 확률" 의미로 일관 사용
@@ -1313,7 +1313,7 @@ class GuardianVerificationEngine:
     def _false_regions_for_op(self, L, R, op: str) -> dict:
         """
         L,R: Interval-like (min_value, max_value).
-        unknown일 때 '거짓이 될 수 있는' 후보 구간을 보수적으로 리턴.
+        warning일 때 '거짓이 될 수 있는' 후보 구간을 보수적으로 리턴.
         반환 예:
           { "left":  [[l1,l2], ...],
             "right": [[r1,r2], ...],

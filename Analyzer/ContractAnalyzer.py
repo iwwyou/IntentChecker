@@ -8,20 +8,18 @@ from solcx import (
 )
 from solcx.exceptions import SolcError
 from Domain.AddressSet import address_manager, AddressSet
-from Domain.Annotation import DuringAnnotation, PostAnnotation, CompoundDuringAnnotation, CompoundPostAnnotation
+from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
 from Utils.Helper import *
 from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
 from Analyzer.RecordManager import RecordManager
 from Analyzer.StaticCFGFactory import StaticCFGFactory
-from Analyzer.CFGSerializerPickle import CFGSerializerPickle as CFGSerializer
 from Interpreter.Semantics.Evaluation import Evaluation
 from Interpreter.Semantics.Update import Update
 from Interpreter.Semantics.DebugInitializer import DebugInitializer
 from Interpreter.Semantics.Refine import Refine
 from Interpreter.Engine import Engine
-from Analyzer.GuardianVerificationEngine import GuardianVerificationEngine
-import pathlib
+
 import re
 
 class ContractAnalyzer:
@@ -49,24 +47,8 @@ class ContractAnalyzer:
         self._seen_stmt_ids: set[int] = set()
         self._last_touched_lines = None
 
-        # ★ statement + annotation 분리 정보 저장 (test.py에서 사용)
-        self.last_statement_part = None
-        self.last_annotation_part = None
-
-        # Pragma 정보
-        self.pragma_version = None  # pragma solidity 버전
-        self.pragma_directives = []  # 모든 pragma directive 저장
-
         # for Multiple Contract
-        self.contract_cfgs = {} # name -> ContractCFG
-        self.library_cfgs = {}  # name -> LibraryCFG
-        self.interface_cfgs = {}  # name -> InterfaceCFG
-        
-        # 라이브러리 파일 저장 경로 (기본값: Libraries 디렉토리)
-        self.libraries_dir = pathlib.Path(__file__).parent.parent / "Libraries"
-        
-        # CFG 직렬화/역직렬화 담당
-        self.cfg_serializer = CFGSerializer()
+        self.contract_cfgs = {} # name -> CFG
 
         self.evaluator = Evaluation(self)
         self.updater = Update(self)
@@ -74,7 +56,6 @@ class ContractAnalyzer:
         self.refiner = Refine(self)
         self.engine = Engine(self)
         self.builder = DynamicCFGBuilder(self)
-        self.guardian_verifier = GuardianVerificationEngine(self)
         self.recorder = RecordManager()
 
         self.analysis_per_line = self.recorder.ledger
@@ -82,11 +63,6 @@ class ContractAnalyzer:
     """
     Prev analysis part
     """
-    INTENT_MARKERS = (
-        "// @GlobalVar", "// @StateVar", "// @LocalVar",
-        "// @During", "// @Post"
-    )
-
 
     # ────────────────────────────────────────────────────────────────
     #  ContractAnalyzer   (class body 안)
@@ -142,10 +118,16 @@ class ContractAnalyzer:
             # 1. if/else-if의 join + else/else-if
             # 2. do의 끝 + while
             # 3. try의 stub + catch
+            # cfg_nodes에 else_block이 이미 있는지 확인 (} else { 한 줄로 처리된 경우)
+            has_else_block = any(getattr(n, 'name', '').startswith('else_block') for n in cfg_nodes)
+
             for node in cfg_nodes:
                 # if/else-if join + else/else-if
+                # join만 있고 else_block이 없으면: 다른 if의 join이므로 skip하면 안 됨
+                # join과 else_block이 모두 있으면: 같은 if의 } else { 이므로 skip
                 if (getattr(node, 'join_point_node', False) and
-                    (first_new_line.startswith('else if') or first_new_line.startswith('else'))):
+                    (first_new_line.startswith('else if') or first_new_line.startswith('else')) and
+                    has_else_block):
                     skip_shift_at_start = True
                     break
                 # do end + while
@@ -173,6 +155,26 @@ class ContractAnalyzer:
             if self._should_trigger_analysis(line):  # ★ 트리거 라인만 분석
                 self.analyze_context(ln, line)
 
+    # ContractAnalyzer.py (클래스 내부)
+    def _should_trigger_analysis(self, code_line: str) -> bool:
+        s = (code_line or "").strip()
+        if not s:
+            return False
+        if s == "}":  # 단독 '}'는 분석 스킵(괄호 카운트만)
+            return False
+        if s.startswith("//"):
+            return s.startswith("// @")  # 디버그 주석만 분석
+        if s.endswith(";"):
+            return True  # 일반 문장
+        # 여러 줄짜리 함수/modifier/constructor 정의의 끝 부분
+        # 예: "    ) external isAllowed {"
+        if ')' in s and '{' in s and not s.startswith(('if', 'for', 'while', 'else')):
+            return True
+        # 블록 헤더 키워드
+        return bool(re.match(
+            r"^(abstract\s+contract|contract|library|interface|function|constructor|modifier|"
+            r"struct|enum|event|if|else(\s+if)?\b|for|while|do\b|try|catch|unchecked|assembly)\b", s))
+
     def update_code(self, start_line: int, end_line: int, new_code: str, event: str):
         self.current_start_line = start_line
         self.current_end_line = end_line
@@ -182,20 +184,8 @@ class ContractAnalyzer:
             raise ValueError(f"unknown event '{event}'")
 
         if event == "add":
-            # ★ 같은 라인에 annotation 추가하는 경우 (append, shift 없음)
-            # 예: 라인 10에 "uint256 x = 10;"이 있고, "// @During x == 10"을 추가
-            if (start_line in self.full_code_lines and
-                new_code.strip().startswith("// @")):
-                # 기존 라인 끝에 annotation 추가
-                existing = self.full_code_lines[start_line]
-                self.full_code_lines[start_line] = existing.rstrip() + "  " + new_code.strip()
-                self.update_brace_count(start_line, self.full_code_lines[start_line])
-                if self._should_trigger_analysis(new_code):
-                    self.analyze_context(start_line, self.full_code_lines[start_line])
-            else:
-                # 기존 로직 (새 라인 삽입, shift 발생)
-                lines = new_code.split("\n")
-                self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
+            lines = new_code.split("\n")
+            self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
 
 
         elif event == "modify":
@@ -265,26 +255,6 @@ class ContractAnalyzer:
                 rest = right
         return out
 
-    # ContractAnalyzer.py (클래스 내부)
-    def _should_trigger_analysis(self, code_line: str) -> bool:
-        s = (code_line or "").strip()
-        if not s:
-            return False
-        if s == "}":  # 단독 '}'는 분석 스킵(괄호 카운트만)
-            return False
-        if s.startswith("//"):
-            return s.startswith("// @")  # 디버그 주석만 분석
-        if s.endswith(";"):
-            return True  # 일반 문장
-        # 여러 줄짜리 함수/modifier/constructor 정의의 끝 부분
-        # 예: "    ) external isAllowed {"
-        if ')' in s and '{' in s and not s.startswith(('if', 'for', 'while', 'else')):
-            return True
-        # 블록 헤더 키워드
-        return bool(re.match(
-            r"^(abstract\s+contract|contract|library|interface|function|constructor|modifier|"
-            r"struct|enum|event|if|else(\s+if)?\b|for|while|do\b|try|catch|unchecked|assembly)\b", s))
-
     def compile_check(self) -> None:
         wanted = '0.8.0'
 
@@ -322,60 +292,17 @@ class ContractAnalyzer:
         if stripped_code == "}":
             return
 
-        # pragma는 contract 외부에 있으므로 특별 처리
-        if stripped_code.startswith("pragma"):
-            self.current_context_type = "pragma"
-            return
-
-        # import도 contract 외부
-        if stripped_code.startswith("import"):
-            self.current_context_type = "import"
-            return
-
-        # ★ statement + annotation이 같은 줄에 있는지 확인
-        # 예: uint256 x = 10;  // @During x == 10
-        statement_part = None
-        annotation_part = None
-
-        if '// @' in stripped_code:
-            if stripped_code.startswith('// @'):
-                # annotation만 있음
-                annotation_part = stripped_code
-            else:
-                # statement + annotation 분리
-                idx = stripped_code.index('// @')
-                statement_part = stripped_code[:idx].strip()
-                annotation_part = stripped_code[idx:].strip()
-        else:
-            # statement만 있음
-            statement_part = stripped_code
-
-        # ★ 분리 정보 저장 (test.py에서 사용)
-        self.last_statement_part = statement_part
-        self.last_annotation_part = annotation_part
-
-        # ★ Annotation이 있으면 intentUnit context 설정
-        if annotation_part:
-            self.current_context_type = "intentUnit"
+        if stripped_code.startswith('// @'):
+            self.current_context_type = "debugUnit"
             self.current_target_contract = self.find_contract_context(start_line)
             self.current_target_function = self.find_function_context(start_line)
-            # annotation만 있는 경우 여기서 종료
-            if not statement_part:
-                return
+            return  # 이 함수 종료
 
-        # ★ Statement가 있으면 기존 로직으로 처리
-        if not statement_part:
-            return
-
-        # 매 분석마다 초기화 (annotation이 없는 경우에만)
-        if not annotation_part:
-            self.current_context_type = None
-            self.current_target_contract = None
-            self.current_target_function = None
-            self.current_target_struct = None
-
-        # ★ statement_part를 기준으로 컨텍스트 분석
-        stripped_code = statement_part
+        # 매 분석마다 초기화
+        self.current_context_type = None
+        self.current_target_contract = None
+        self.current_target_function = None
+        self.current_target_struct = None
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
         if stripped_code.endswith(';'):
@@ -673,174 +600,16 @@ class ContractAnalyzer:
 
     # ContractAnalyzer.py  (일부)
 
-    def make_contract_cfg(self, contract_name: str, parent_contracts: list[str] = None):
+    def make_contract_cfg(self, contract_name: str):
         """
         contract-level CFG를 처음 만들 때 한 번 호출.
         address 계열 글로벌은 UnsignedIntegerInterval(160bit) 로,
         uint  계열은 [0,0] 256-bit Interval 로 초기화한다.
-
-        Args:
-            contract_name: 컨트랙트 이름
-            parent_contracts: 상속받는 부모 컨트랙트 이름 리스트 (MRO 순서)
         """
         self.current_target_contract = contract_name
         cfg = StaticCFGFactory.make_contract_cfg(self, contract_name)
 
-        # 상속 관계 설정
-        if parent_contracts:
-            self._setup_inheritance(cfg, parent_contracts)
-
         self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
-
-    def make_abstract_contract_cfg(self, contract_name: str, parent_contracts: list[str] = None):
-        """
-        abstract contract-level CFG를 처음 만들 때 한 번 호출.
-        ContractCFG와 동일하지만 AbstractContractCFG 클래스 사용.
-
-        Args:
-            contract_name: 컨트랙트 이름
-            parent_contracts: 상속받는 부모 컨트랙트 이름 리스트 (MRO 순서)
-        """
-        from Utils.CFG import AbstractContractCFG
-
-        self.current_target_contract = contract_name
-
-        # 이미 존재하면 재사용
-        if contract_name in self.contract_cfgs:
-            cfg = self.contract_cfgs[contract_name]
-            self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
-            return
-
-        # AbstractContractCFG 생성
-        cfg = AbstractContractCFG(contract_name)
-
-        # 글로벌 변수 설정 (StaticCFGFactory의 로직 재사용)
-        cfg.globals = StaticCFGFactory._create_global_variables(self)
-
-        # 글로벌 변수 등록
-        for gv in cfg.globals.values():
-            self.register_var(gv)
-
-        # contract_cfgs에 저장
-        self.contract_cfgs[contract_name] = cfg
-
-        # 상속 관계 설정
-        if parent_contracts:
-            self._setup_inheritance(cfg, parent_contracts)
-
-        self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
-
-    def _setup_inheritance(self, cfg, parent_contracts: list[str]):
-        """
-        상속 관계를 설정한다.
-        - parent_contracts 리스트 저장
-        - parent_cfgs에 부모 CFG 참조 연결
-        - 부모의 state variables 복사
-        - 부모의 struct/enum 정의 복사
-
-        Args:
-            cfg: 현재 컨트랙트/abstract 컨트랙트 CFG
-            parent_contracts: 부모 컨트랙트 이름 리스트
-        """
-        cfg.parent_contracts = parent_contracts
-
-        for parent_name in parent_contracts:
-            # 부모 CFG 찾기 (이미 분석되어 있어야 함)
-            parent_cfg = self.contract_cfgs.get(parent_name)
-            if parent_cfg:
-                cfg.parent_cfgs[parent_name] = parent_cfg
-
-                # 부모의 state variables 복사
-                if parent_cfg.state_variable_node:
-                    if not cfg.state_variable_node:
-                        cfg.initialize_state_variable_node()
-                    for var_name, var_obj in parent_cfg.state_variable_node.variables.items():
-                        # 이미 존재하지 않는 경우에만 복사
-                        if var_name not in cfg.state_variable_node.variables:
-                            # 변수 복사 (얕은 복사로 참조 공유)
-                            cfg.state_variable_node.variables[var_name] = var_obj
-
-                # 부모의 struct 정의 복사
-                for struct_name, struct_def in parent_cfg.structDefs.items():
-                    if struct_name not in cfg.structDefs:
-                        cfg.structDefs[struct_name] = struct_def
-
-                # 부모의 enum 정의 복사
-                for enum_name, enum_def in parent_cfg.enumDefs.items():
-                    if enum_name not in cfg.enumDefs:
-                        cfg.enumDefs[enum_name] = enum_def
-
-    def make_interface_cfg(self, interface_name: str, parent_interfaces: list[str] = None):
-        """
-        Interface CFG를 생성한다.
-        Interface는 함수 body가 없으므로 시그니처만 저장.
-
-        Args:
-            interface_name: Interface 이름
-            parent_interfaces: 상속받는 부모 interface 이름 리스트
-        """
-        from Utils.CFG import InterfaceCFG
-
-        # 이미 존재하면 재사용
-        if interface_name in self.interface_cfgs:
-            return
-
-        # InterfaceCFG 생성
-        interface_cfg = InterfaceCFG(interface_name)
-
-        # 부모 interface 연결
-        if parent_interfaces:
-            interface_cfg.parent_interfaces = parent_interfaces
-            for parent_name in parent_interfaces:
-                parent_cfg = self.interface_cfgs.get(parent_name)
-                if parent_cfg:
-                    interface_cfg.parent_cfgs[parent_name] = parent_cfg
-
-        # interface_cfgs에 저장
-        self.interface_cfgs[interface_name] = interface_cfg
-
-        # contract_cfgs에도 저장 (타입 검색 호환성)
-        self.contract_cfgs[interface_name] = interface_cfg
-
-        self.line_info[self.current_start_line]['cfg_nodes'] = [interface_cfg]
-
-    def make_library_cfg(self, library_name: str):
-        """
-        library-level CFG를 처음 만들 때 한 번 호출.
-        라이브러리는 state variable이 없고 함수만 포함한다.
-        """
-        from Utils.CFG import LibraryCFG
-
-        self.current_target_contract = library_name  # 라이브러리도 contract로 처리
-        library_cfg = LibraryCFG(library_name)
-
-        # 라이브러리 CFG를 저장
-        self.library_cfgs[library_name] = library_cfg
-        self.contract_cfgs[library_name] = library_cfg  # 호환성을 위해 contract_cfgs에도 저장
-
-        # line_info 업데이트 (전체 파싱 모드에서는 current_start_line이 None일 수 있음)
-        if self.current_start_line is not None:
-            if self.current_start_line not in self.line_info:
-                self.line_info[self.current_start_line] = {'open': 0, 'close': 0, 'cfg_nodes': []}
-            self.line_info[self.current_start_line]['cfg_nodes'] = [library_cfg]
-        
-    def process_using_directive(self, library_name: str, target_type: str = None):
-        """
-        using directive 처리: using LibraryName for TargetType;
-        현재 컨트랙트에 라이브러리를 연결한다.
-        """
-        # 현재 컨트랙트 CFG 가져오기
-        current_contract_cfg = self.contract_cfgs.get(self.current_target_contract)
-        if not current_contract_cfg:
-            raise ValueError(f"No contract CFG found for {self.current_target_contract}")
-            
-        # 라이브러리 CFG 찾기 또는 로드
-        library_cfg = self.load_library_cfg(library_name)
-        if not library_cfg:
-            raise ValueError(f"Library '{library_name}' not found. Please ensure it's defined or available.")
-            
-        # 컨트랙트에 라이브러리 연결
-        current_contract_cfg.add_using_library(library_cfg, target_type)
 
     # for interactiveEnumDefinition in Solidity.g4
     def process_enum_definition(self, enum_name):
@@ -1012,14 +781,15 @@ class ContractAnalyzer:
         # 3. constant로 선언 불가능한 타입 검증
         if isinstance(variable_obj, (ArrayVariable, StructVariable, MappingVariable)):
             type_name = type(variable_obj).__name__.replace('Variable', '').lower()
-            raise ValueError(f"{type_name.capitalize()} variables cannot be declared as constant: '{variable_obj.identifier}'")
+            raise ValueError(
+                f"{type_name.capitalize()} variables cannot be declared as constant: '{variable_obj.identifier}'")
 
         if not contract_cfg.state_variable_node:
             contract_cfg.initialize_state_variable_node()
 
         # 4. 평가 컨텍스트는 현재까지의 state-variable 노드 변수들
         state_vars = contract_cfg.state_variable_node.variables
-        
+
         # 5. constant 표현식 평가 (value types와 string만 지원)
         if isinstance(variable_obj, EnumVariable):
             # 열거형도 value type이므로 지원
@@ -1039,7 +809,8 @@ class ContractAnalyzer:
                 raise ValueError(f"Type '{et}' cannot be declared as constant: '{variable_obj.identifier}'")
         else:
             # 기타 지원되지 않는 타입
-            raise ValueError(f"Type category '{variable_obj.typeInfo.typeCategory}' cannot be declared as constant: '{variable_obj.identifier}'")
+            raise ValueError(
+                f"Type category '{variable_obj.typeInfo.typeCategory}' cannot be declared as constant: '{variable_obj.identifier}'")
 
         variable_obj.isConstant = True  # constant 플래그 설정
 
@@ -1537,7 +1308,7 @@ class ContractAnalyzer:
 
         cur_blk = self.builder.get_current_block()
 
-        # ① 현재 값 읽기 → 타입에 맞는 "1" Interval 준비 -------------
+        # ① 현재 값 읽기 → 타입에 맞는 “1” Interval 준비 -------------
         cur_val = self.evaluator.evaluate_expression(
             expr, cur_blk.variables, None, None)
 
@@ -1710,31 +1481,8 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_payable_function_call(self, expr):
-        """
-        payable(addr) 함수 호출 처리
-        - address를 payable address로 변환
-        - 추상 해석에서는 address와 동일하게 AddressSet 반환
-        """
-        # 1. CFG 컨텍스트
-        ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
-        if self.current_target_function_cfg is None:
-            return
-
-        cur_blk = self.builder.get_current_block()
-        if cur_blk is None:
-            return
-
-        # 2. 인자 평가 (payable(addr)의 addr)
-        if expr.arguments:
-            arg_val = self.evaluator.evaluate_expression(
-                expr.arguments[0], cur_blk.variables, None, None
-            )
-            # payable 변환 결과는 AddressSet
-            # (실제 평가는 Evaluation.py의 type conversion에서 처리됨)
-
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
-        self.contract_cfgs[self.current_target_contract] = ccf
+        # Handle payable function calls
+        pass
 
     def process_function_call_options(self, expr):
         # Handle function calls with options
@@ -2097,35 +1845,6 @@ class ContractAnalyzer:
         ccf.functions[self.current_target_function] = self.current_target_function_cfg
         self.contract_cfgs[self.current_target_contract] = ccf
 
-    def process_assembly_assignment(self, var_name: str) -> None:
-        """
-        Assembly 블록 내 변수 할당 처리:
-        - 해당 변수가 Solidity 스코프에 존재하면 Top으로 설정
-        - Assembly에서 값을 직접 조작하므로 정확한 값 추적 불가
-        """
-        # 1. CFG 컨텍스트
-        ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
-        if self.current_target_function_cfg is None:
-            return  # 함수 컨텍스트 없으면 무시
-
-        cur_blk = self.builder.get_current_block()
-        if cur_blk is None:
-            return
-
-        # 2. 변수가 현재 스코프에 존재하는지 확인
-        if var_name not in cur_blk.variables:
-            return  # Yul 로컬 변수거나 존재하지 않는 변수
-
-        var_obj = cur_blk.variables[var_name]
-
-        # 3. Statement 생성 (assembly 타입)
-        stmt = Statement(statement_type='assembly', variable_name=var_name)
-        cur_blk.statements.append(stmt)
-
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
-        self.contract_cfgs[self.current_target_contract] = ccf
-
     # Analyzer/ContractAnalyzer.py
     def process_return_statement(self, return_expr: Expression | None = None) -> None:
         # ── 1. CFG 컨텍스트 -------------------------------------------------
@@ -2143,7 +1862,7 @@ class ContractAnalyzer:
                 return_expr, cur_blk.variables, None, None
             )
 
-        # ★ 빌더가 '재배선 전' succ 들을 반환
+        # ★ 빌더가 ‘재배선 전’ succ 들을 반환
         succ_before = self.builder.build_return_statement(
             cur_block=cur_blk,
             return_expr=return_expr,
@@ -2161,7 +1880,7 @@ class ContractAnalyzer:
             fn_cfg=self.current_target_function_cfg,
         )
 
-        # ★ reinterpret seed = 연결하기 '전' succ(들)
+        # ★ reinterpret seed = 연결하기 ‘전’ succ(들)
         if succ_before:
             self.engine.reinterpret_from(self.current_target_function_cfg, succ_before)
 
@@ -2184,7 +1903,7 @@ class ContractAnalyzer:
 
         cur_blk = self.builder.get_current_block()
 
-        # ★ 빌더가 '재배선 전' succ 들을 반환
+        # ★ 빌더가 ‘재배선 전’ succ 들을 반환
         succ_before = self.builder.build_revert_statement(
             cur_block=cur_blk,
             revert_id=revert_identifier,
@@ -2195,7 +1914,7 @@ class ContractAnalyzer:
             line_info=self.line_info,
         )
 
-        # ★ reinterpret seed = 연결하기 '전' succ(들)
+        # ★ reinterpret seed = 연결하기 ‘전’ succ(들)
         if succ_before:
             self.engine.reinterpret_from(self.current_target_function_cfg, succ_before)
 
@@ -2293,7 +2012,7 @@ class ContractAnalyzer:
         ccf = self.contract_cfgs[self.current_target_contract]
         self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
 
-        # ── modifier placeholder ('_') --------------------------------------
+        # ── modifier placeholder (‘_’) --------------------------------------
         if (ident == "_" and self.current_target_function_cfg
                 and self.current_target_function_cfg.function_type == "modifier"):
             cur_blk = self.builder.get_current_block()
@@ -2307,7 +2026,7 @@ class ContractAnalyzer:
             )
             return  # 값-해석 없음
 
-        # … 이하 "일반 identifier" 처리는 기존 로직 유지 …
+        # … 이하 “일반 identifier” 처리는 기존 로직 유지 …
 
     # Analyzer/ContractAnalyzer.py
     def process_unchecked_indicator(self) -> None:
@@ -2503,13 +2222,13 @@ class ContractAnalyzer:
         else:
             raise ValueError(f"unknown event {ev!r}")
 
-        # ↳ 주소형이면 AddressManager 에 기록
-        if g.typeInfo.elementaryTypeName == "address" and isinstance(g.value, AddressSet):
-            addr_set = g.value
-            if addr_set.is_singleton():  # singleton 형식
-                nid = addr_set.get_singleton_id()
-                address_manager.register_id(nid, g.identifier)
-                address_manager.bind_var(g.identifier, addr_set)
+        # ↳ 주소형이면 AddressSymbolicManager 에 기록
+        if g.typeInfo.elementaryTypeName == "address" and isinstance(g.value, UnsignedIntegerInterval):
+            iv = g.value
+            if iv.min_value == iv.max_value:  # [N,N] 형식 ⇒ 고정 ID
+                nid = iv.min_value
+                self.sm.register_fixed_id(nid, iv)
+                self.sm.bind_var(g.identifier, nid)
 
         self._batch_targets.add(self.current_target_function_cfg)
 
@@ -2558,420 +2277,44 @@ class ContractAnalyzer:
 
         self._batch_targets.add(self.current_target_function_cfg)
 
-    # -----------------------------------------------------------
-    # ANNOTATION STORAGE HELPERS
-    # -----------------------------------------------------------
-    
-    def store_during_annotation(self, annotation_type: str, line_no: int, **params):
-        """During annotation을 brace_count에 저장"""
-        if line_no not in self.line_info:
-            self.line_info[line_no] = {'open': 0, 'close': 0, 'cfg_nodes': []}
+    # ContractAnalyzer.py (일부)
 
-        if 'during_annotations' not in self.line_info[line_no]:
-            self.line_info[line_no]['during_annotations'] = []
+    def get_line_analysis(self, start_ln: int, end_ln: int,
+                          kinds: set[str] | None = None) -> dict[int, list[dict]]:
+        kinds = kinds or {"varDeclaration", "assignment", "return", "implicitReturn", "loopDelta"}
+        # RecordManager 로 대체
+        out: dict[int, list[dict]] = {}
+        for ln in range(start_ln, end_ln + 1):
+            if ln not in self.recorder.ledger:
+                continue
+            # kind 필터
+            filtered = [rec for rec in self.recorder.ledger[ln] if rec.get("kind") in kinds]
+            if filtered:
+                out[ln] = filtered
+        return out
 
-        # DuringAnnotation 객체 생성
-        annotation = DuringAnnotation(annotation_type, line_no, **params)
-        self.line_info[line_no]['during_annotations'].append(annotation)
-
-    def store_post_annotation(self, annotation_type: str, line_no: int, **params):
-        """Post annotation을 brace_count에 저장"""
-        if line_no not in self.line_info:
-            self.line_info[line_no] = {'open': 0, 'close': 0, 'cfg_nodes': []}
-
-        if 'post_annotations' not in self.line_info[line_no]:
-            self.line_info[line_no]['post_annotations'] = []
-
-        # PostAnnotation 객체 생성
-        annotation = PostAnnotation(annotation_type, line_no, **params)
-        self.line_info[line_no]['post_annotations'].append(annotation)
-
-    def get_function_lines(self, function_name: str) -> tuple[int, int] | None:
-        """함수의 시작/끝 라인 번호 반환"""
-        ccf = self.contract_cfgs.get(self.current_target_contract)
-        if not ccf or function_name not in ccf.functions:
-            return None
-
-        fcfg = ccf.functions[function_name]
-        entry_node = fcfg.get_entry_node()
-
-        # 함수 시작 라인 찾기
-        start_line = None
-        for ln, info in self.line_info.items():
-            cfg_nodes = info.get('cfg_nodes', [])
-            if entry_node in cfg_nodes:
-                start_line = ln
-                break
-
-        if start_line is None:
-            return None
-
-        # 함수 끝 라인 찾기 (brace 균형으로 계산)
-        balance = 0
-        for ln in range(start_line, max(self.line_info.keys()) + 1):
-            info = self.line_info.get(ln, {})
-            balance += info.get('open', 0) - info.get('close', 0)
-            if balance == 0 and ln > start_line:
-                return (start_line, ln)
-
-        return None
-
-    # -----------------------------------------------------------
-    # DURING-INTENT PROCESSOR (논리 연산자 지원)
-    # -----------------------------------------------------------
-
-    def process_during(self, clauses: list, logic_ops: list):
-        """
-        논리 연산자로 연결된 during clause들을 처리
-        1. 복합 annotation으로 저장
-        2. 정적 분석 수행 (interval 기반)
-        3. 결과 기록
-
-        Args:
-            clauses: List[dict] - 각 clause 정보
-            logic_ops: List[str] - 논리 연산자 ('&&' or '||')
-        """
-        line_no = self.current_start_line
-
-        # 1. 복합 annotation 생성 및 저장
-        compound = CompoundDuringAnnotation(line_no, clauses, logic_ops)
-
-        if line_no not in self.line_info:
-            self.line_info[line_no] = {}
-        if 'during_annotations' not in self.line_info[line_no]:
-            self.line_info[line_no]['during_annotations'] = []
-
-        self.line_info[line_no]['during_annotations'].append(compound)
-
-        # 2. 정적 분석 수행 (interval 기반)
-        result = self._verify_compound_during_static(clauses, logic_ops, line_no)
-
-        # 3. 결과 기록
-        self.recorder.record_verification_result(line_no, "during", result)
-
-        return result
-
-    def _verify_compound_during_static(self, clauses: list, logic_ops: list, line_no: int) -> dict:
-        """
-        정적 분석: 각 clause를 검증하고 논리 연산자로 조합
-        """
-        results = []
-
-        # 각 clause 검증
-        for clause in clauses:
-            result = self._verify_during_clause_static(clause, line_no)
-            results.append(result)
-
-        # 논리 연산자로 조합
-        if len(results) == 0:
-            return {"status": "error", "message": "No clauses to verify"}
-        elif len(results) == 1:
-            return results[0]
-        else:
-            return self._combine_logic_results(results, logic_ops)
-
-    def _verify_during_clause_static(self, clause: dict, line_no: int) -> dict:
-        """개별 during clause 정적 검증"""
-        kind = clause["kind"]
-
-        if kind == "beforeAfter":
-            return self.guardian_verifier.verify_during_before_after(
-                var_ref=clause["var"],
-                comp_op=clause["op"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "assignCurrent":
-            return self.guardian_verifier.verify_during_assign_current(
-                var_ref=clause["var"],
-                comp_op=clause["op"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "retExpr":
-            return self.guardian_verifier.verify_during_return_expression(
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "retIndex":
-            return self.guardian_verifier.verify_during_return_index(
-                index=clause["index"],
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "retVar":
-            return self.guardian_verifier.verify_during_return_variable(
-                var_ref=clause["lhs"],
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "direct":
-            return self.guardian_verifier.verify_during_direct_comparison(
-                lhs_expr=clause["lhs"],
-                comp_op=clause["op"],
-                rhs_expr=clause["rhs"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "implication":
-            return self.guardian_verifier.verify_during_implication(
-                antecedent=clause["antecedent"],
-                consequent=clause["consequent"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        elif kind == "functionArg":
-            return self.guardian_verifier.verify_during_function_arg(
-                func_name=clause["func_name"],
-                arg_index=clause["arg_index"],
-                comp_op=clause["op"],
-                rhs_expr=clause["rhs"],
-                line_no=line_no,
-                cfg_node=self._cfg_node_at(line_no)
-            )
-        # percentOf, ceil, floor 등 추가 가능
-        else:
-            return {"status": "error", "message": f"Unknown clause kind: {kind}"}
-
-    # -----------------------------------------------------------
-    # POST-INTENT PROCESSOR (논리 연산자 지원)
-    # -----------------------------------------------------------
-
-    def process_post(self, clauses: list, logic_ops: list):
-        """
-        논리 연산자로 연결된 post clause들을 처리
-        1. 복합 annotation으로 저장
-        2. 정적 분석 수행 (interval 기반)
-        3. 결과 기록
-
-        Args:
-            clauses: List[dict] - 각 clause 정보
-            logic_ops: List[str] - 논리 연산자 ('&&' or '||')
-        """
-        line_no = self.current_start_line
-
-        # 1. 복합 annotation 생성 및 저장
-        compound = CompoundPostAnnotation(line_no, clauses, logic_ops)
-
-        if line_no not in self.line_info:
-            self.line_info[line_no] = {}
-        if 'post_annotations' not in self.line_info[line_no]:
-            self.line_info[line_no]['post_annotations'] = []
-
-        self.line_info[line_no]['post_annotations'].append(compound)
-
-        # 2. 정적 분석 수행 (interval 기반)
-        result = self._verify_compound_post_static(clauses, logic_ops, line_no)
-
-        # 3. 결과 기록
-        self.recorder.record_verification_result(line_no, "post", result)
-
-        return result
-
-    def _verify_compound_post_static(self, clauses: list, logic_ops: list, line_no: int) -> dict:
-        """
-        정적 분석: 각 clause를 검증하고 논리 연산자로 조합
-        """
-        results = []
-
-        # 각 clause 검증
-        for clause in clauses:
-            result = self._verify_post_clause_static(clause, line_no)
-            results.append(result)
-
-        # 논리 연산자로 조합
-        if len(results) == 0:
-            return {"status": "error", "message": "No clauses to verify"}
-        elif len(results) == 1:
-            return results[0]
-        else:
-            return self._combine_logic_results(results, logic_ops)
-
-    def _verify_post_clause_static(self, clause: dict, line_no: int) -> dict:
-        """개별 post clause 정적 검증"""
-        kind = clause["kind"]
-
-        if kind == "entryExit":
-            return self.guardian_verifier.verify_post_entry_exit(
-                var_ref=clause["var"],
-                comp_op=clause["op"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "unchanged":
-            return self.guardian_verifier.verify_post_unchanged(
-                var_ref=clause["var"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "retExpr":
-            return self.guardian_verifier.verify_post_return_expression(
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "retIndex":
-            return self.guardian_verifier.verify_post_return_index(
-                index=clause["index"],
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "retVar":
-            return self.guardian_verifier.verify_post_return_variable(
-                var_ref=clause["lhs"],
-                comp_op=clause["op"],
-                value_expr=clause["rhs"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "direct":
-            return self.guardian_verifier.verify_post_direct_comparison(
-                lhs_expr=clause["lhs"],
-                comp_op=clause["op"],
-                rhs_expr=clause["rhs"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        elif kind == "implication":
-            return self.guardian_verifier.verify_post_implication(
-                antecedent=clause["antecedent"],
-                consequent=clause["consequent"],
-                line_no=line_no,
-                fn_cfg=self.current_target_function_cfg
-            )
-        # percentOf, ceil, floor 등 추가 가능
-        else:
-            return {"status": "error", "message": f"Unknown clause kind: {kind}"}
-
-    # -----------------------------------------------------------
-    # 논리 연산 결과 조합
-    # -----------------------------------------------------------
-
-    def _combine_logic_results(self, results: list, logic_ops: list) -> dict:
-        """
-        논리 연산자에 따라 검증 결과 조합
-
-        Args:
-            results: List[dict] - 각 clause의 검증 결과
-            logic_ops: List[str] - '&&' or '||'
-
-        Returns:
-            최종 조합된 검증 결과
-        """
-        if not results:
-            return {"status": "error", "message": "No results"}
-
-        if len(results) == 1:
-            return results[0]
-
-        final = results[0]
-
-        for i, op in enumerate(logic_ops):
-            next_result = results[i + 1]
-
-            if op == '&&':
-                # AND: 둘 다 success여야 success
-                if final.get("status") == "success" and next_result.get("status") == "success":
-                    final = {
-                        "status": "success",
-                        "message": f"({final.get('message', 'ok')}) && ({next_result.get('message', 'ok')})",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "&&"
-                    }
-                elif final.get("status") == "violation" or next_result.get("status") == "violation":
-                    final = {
-                        "status": "violation",
-                        "message": f"AND violated",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "&&"
-                    }
-                else:
-                    final = {
-                        "status": "unknown",
-                        "message": f"AND uncertain",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "&&"
-                    }
-
-            else:  # '||'
-                # OR: 하나라도 success면 success
-                if final.get("status") == "success" or next_result.get("status") == "success":
-                    final = {
-                        "status": "success",
-                        "message": f"OR satisfied",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "||"
-                    }
-                elif final.get("status") == "violation" and next_result.get("status") == "violation":
-                    final = {
-                        "status": "violation",
-                        "message": f"OR violated",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "||"
-                    }
-                else:
-                    final = {
-                        "status": "unknown",
-                        "message": f"OR uncertain",
-                        "left": final,
-                        "right": next_result,
-                        "operator": "||"
-                    }
-
-        return final
-
-    def get_line_analysis(self, start_ln: int, end_ln: int) -> dict[int, list[dict]]:
-        """
-        [start_ln, end_ln] 구간에 대해
-        { line_no: [ {kind: ..., vars:{...}}, ... ], ... }  형태 반환
-        (구간 안에 기록이 없으면 key 자체가 없다)
-        """
-        return {
-            ln: self.analysis_per_line[ln]
-            for ln in range(start_ln, end_ln + 1)
-            if ln in self.analysis_per_line
-        }
-
-    def send_report_to_front(
-            self,
-            patched_lines: list[tuple[str, int, int]] | None = None
-    ) -> None:
-
-        # 0) ‘어떤 라인을 보여줄지’ 결정 ---------------------------
+    def send_report_to_front(self,
+                             patched_lines: list[tuple[str, int, int]] | None = None) -> None:
+        # 0) 보여줄 라인 결정
         touched: set[int] = set()
 
-        # (A) 호출 측에서 주석 라인을 넘겨준 경우
         if patched_lines:
             for _code, s, e in patched_lines:
                 touched.update(range(s, e + 1))
-
-        # (B) 주석 라인을 안 받았거나, 비어 있다면
-        #     ⇢ 방금 재-해석한 함수 전체 라인 사용
-        if not touched and getattr(self, "_last_func_lines", None):
+        elif getattr(self, "_last_func_lines", None):
             s, e = self._last_func_lines
             touched.update(range(s, e + 1))
+        elif getattr(self, "_last_touched_lines", None):
+            touched |= set(self._last_touched_lines)
 
         if not touched:
             print("※ send_report_to_front : 보여줄 라인이 없습니다.")
             return
 
-        # 1) 라인별 분석 결과 수집 -------------------------------
         lmin, lmax = min(touched), max(touched)
-        payload = self.get_line_analysis(lmin, lmax)
+        kinds = {"varDeclaration", "assignment", "return", "implicitReturn", "loopDelta"}
+        # print(f"DEBUG send_report: Searching lines {lmin}-{lmax}, ledger has keys: {list(self.recorder.ledger.keys())}")
+        payload = self.get_line_analysis(lmin, lmax, kinds=kinds)
 
         if not payload:
             print("※ 분석 결과가 없습니다.")
@@ -2982,7 +2325,7 @@ class ContractAnalyzer:
             for rec in payload[ln]:
                 kind = rec.get("kind", "?")
                 vars_ = rec.get("vars", {})
-                print(f"{ln:4} │ {kind:<12} │ {vars_}")
+                print(f"{ln:4} │ {kind:<14} │ {vars_}")
         print("==========================\n")
 
     # ContractAnalyzer.py  (클래스 내부)
@@ -2991,20 +2334,13 @@ class ContractAnalyzer:
         if not self._batch_targets:
             return
         fcfg = self._batch_targets.pop()
-        self.engine.interpret_function_cfg(fcfg, None)
+        self.engine.interpret_function_cfg_for_debug(fcfg, None)  # ★ 디버깅용 함수 사용
 
         ln_set = {st.src_line
                   for blk in fcfg.graph.nodes
                   for st in blk.statements
                   if getattr(st, "src_line", None)}
         self._last_func_lines = (min(ln_set), max(ln_set)) if ln_set else None
-
-    # helper – 라인 ↦ CFG 노드 ↦ 변수 환경
-    def _env_at_line(self, line_no: int):
-        node = self.line_info.get(line_no, {}).get("cfg_node")
-        if node is None:
-            raise ValueError(f"No CFG node bound to line {line_no}")
-        return node.variables, node  # (env, node object)
 
     # ──────────────────────────────────────────────────────────────
     # Snapshot 전용 내부 헬퍼  ―  외부에서 쓸 일 없으므로 “프라이빗” 네이밍
@@ -3021,83 +2357,3 @@ class ContractAnalyzer:
     # 공통 ‘한 줄 helper’
     def register_var(self, var_obj):
         self.snapman.register(var_obj, self.ser)
-
-    def _cfg_node_at(self, line_no: int):
-        cfg_nodes = (self.line_info.get(line_no, {}) or {}).get("cfg_nodes", [])
-        return cfg_nodes[0] if cfg_nodes else None
-
-
-    def load_library_cfg(self, library_name: str) -> 'LibraryCFG':
-        """
-        라이브러리 CFG를 로드한다.
-        1. 메모리에 이미 있으면 반환
-        2. 없으면 파일에서 로드 시도
-        3. 그래도 없으면 None 반환
-        """
-        # 1. 메모리에서 찾기
-        if library_name in self.library_cfgs:
-            return self.library_cfgs[library_name]
-
-        # 2. CFGSerializer를 통해 파일에서 로드
-        library_cfg = self.cfg_serializer.load_library_cfg(library_name)
-        if library_cfg:
-            self.library_cfgs[library_name] = library_cfg
-            return library_cfg
-
-        # 3. 찾을 수 없음
-        return None
-
-    # ─────────────────────────────────────────────────────────────
-    #  pragma / event / emit 처리
-    # ─────────────────────────────────────────────────────────────
-    def process_pragma_directive(self, pragma_name: str, pragma_value: str):
-        """
-        pragma directive 처리
-        예: pragma solidity ^0.8.0; → pragma_name="solidity", pragma_value="^0.8.0"
-        """
-        directive = {"name": pragma_name, "value": pragma_value}
-        self.pragma_directives.append(directive)
-
-        # solidity 버전 pragma면 버전 정보 저장
-        if pragma_name == "solidity":
-            self.pragma_version = pragma_value
-
-    def process_event_definition(self, event_name: str, parameters: list):
-        """
-        event 정의 처리
-        parameters: list of (SolType, param_name, is_indexed)
-        """
-        if not self.current_target_contract:
-            return
-
-        if self.current_target_contract not in self.contract_cfgs:
-            return
-
-        ccf = self.contract_cfgs[self.current_target_contract]
-        ccf.events[event_name] = {
-            "name": event_name,
-            "parameters": parameters  # [(SolType, name, indexed), ...]
-        }
-
-    def process_emit_statement(self, event_name: str, arguments: list):
-        """
-        emit 문 처리 - FunctionCFG의 현재 블록에 emit statement 추가
-        """
-        if not self.current_target_contract or not self.current_target_function:
-            return
-
-        ccf = self.contract_cfgs.get(self.current_target_contract)
-        if not ccf:
-            return
-
-        fcfg = ccf.functions.get(self.current_target_function)
-        if not fcfg:
-            return
-
-        # 현재 블록에 emit statement 추가
-        cur_block = self.builder.get_current_block()
-        if cur_block:
-            stmt = Statement(statement_type='emit', variable_name=event_name)
-            stmt.emit_arguments = arguments
-            stmt.src_line = self.current_start_line
-            cur_block.statements.append(stmt)

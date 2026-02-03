@@ -156,7 +156,7 @@ class DynamicCFGBuilder:
 
         # 2) Add statement to the new block
         new_block.add_assign_statement(expr.left, expr.operator, expr.right, line_no)
-
+        
         return new_block
 
     def build_unary_statement(
@@ -184,7 +184,7 @@ class DynamicCFGBuilder:
 
         # 2) Add statement to the new block
         new_block.add_unary_statement(expr, op_token, line_no)
-
+        
         return new_block
 
     def build_function_call_statement(
@@ -248,7 +248,9 @@ class DynamicCFGBuilder:
         f_blk.variables = VariableEnv.copy_variables(false_env)
 
         join_env = VariableEnv.join_variables_simple(true_env, false_env)
-        join = CFGNode(f"if_join_{line_no}", join_point_node=True, src_line=line_no,
+        # ★ join의 src_line은 end_line으로 설정 (line_info[end_line]에 등록되므로 _shift_meta와 일치시킴)
+        join_src_line = end_line if end_line is not None else line_no
+        join = CFGNode(f"if_join_{line_no}", join_point_node=True, src_line=join_src_line,
                        is_loop_body=cur_block.is_loop_body)
         join.variables = VariableEnv.copy_variables(join_env)
 
@@ -655,7 +657,7 @@ class DynamicCFGBuilder:
             line_no: int,
             fcfg: FunctionCFG,
             line_info: dict,
-    ) -> list[CFGNode]:  # 반환: 재배선 전 '원래 후속'(seed 용)
+    ) -> list[CFGNode]:  # 반환: 재배선 전 ‘원래 후속’(seed 용)
 
         G = fcfg.graph
 
@@ -670,7 +672,7 @@ class DynamicCFGBuilder:
         # 2) statement 추가
         new_block.add_return_statement(return_expr, line_no)
 
-        # 3) seed 용으로 현재(new_block) 후속 = "원래 cur_block 의 후속" 확보
+        # 3) seed 용으로 현재(new_block) 후속 = “원래 cur_block 의 후속” 확보
         old_succs = list(G.successors(new_block))
 
         # 4) RETURN_EXIT 로 재배선
@@ -740,10 +742,20 @@ class DynamicCFGBuilder:
             line_info: dict,
     ) -> list[CFGNode]:  # ★ 변경: 이전 succ 들을 반환
 
-        # ① statement
-        cur_block.add_revert_statement(revert_id, string_literal, call_args, line_no)
+        G = fcfg.graph
 
-        # ★ seed 용으로 '재배선 전' succ 보관
+        # 1) 새 블록 삽입
+        new_block = self.insert_new_statement_block(
+            pred_block=cur_block,
+            fcfg=fcfg,
+            line_no=line_no,
+            line_info=line_info,
+            tag="revert"
+        )
+        # 2) statement 추가
+        new_block.add_revert_statement(revert_id, string_literal, call_args, line_no)
+
+        # ★ seed 용으로 ‘재배선 전’ succ 보관
         g = fcfg.graph
         old_succs = list(g.successors(cur_block))
 
@@ -899,7 +911,7 @@ class DynamicCFGBuilder:
             line_info: dict,
     ) -> None:
         """
-        • 현재 modifier-CFG에서 식별자 '_'(place-holder)를 만나면
+        • 현재 modifier-CFG에서 식별자 ‘_’(place-holder)를 만나면
           =⇒ 새로운 CFGNode("MOD_PLACEHOLDER_n") 를 cur_block 뒤에 삽입.
 
         cur_block ─▶ placeholder ─▶ (원래 succ …)
@@ -1170,45 +1182,45 @@ class DynamicCFGBuilder:
     ) -> CFGNode:
         """
         Create a new statement block and insert it between pred_block and its successors.
-
+        
         Args:
             pred_block: The predecessor block
             fcfg: The function CFG
             line_no: Source line number
             line_info: Line info mapping
             tag: Name prefix for the new block
-
+            
         Returns:
             The newly created block
         """
         from Utils.Helper import VariableEnv
-
+        
         G = fcfg.graph
-
+        
         # 1. Get current successors of pred_block
         old_succs = list(G.successors(pred_block))
-
+        
         # 2. Create new block with pred's environment
         new_block = CFGNode(f"{tag}_{line_no}", is_loop_body=pred_block.is_loop_body)
         new_block.variables = VariableEnv.copy_variables(pred_block.variables or {})
         new_block.src_line = line_no
-
+        
         # 3. Add new block to graph
         G.add_node(new_block)
-
+        
         # 4. Rewire edges: pred -> new_block -> old_succs
         for succ in old_succs:
             G.remove_edge(pred_block, succ)
             G.add_edge(new_block, succ)
         G.add_edge(pred_block, new_block)
-
+        
         # 5. Update line_info mapping
         bc = line_info.setdefault(line_no, {"open": 0, "close": 0, "cfg_nodes": []})
         bc["cfg_nodes"].append(new_block)
-
+        
         # 6. Update FCG
         fcfg.update_block(new_block)
-
+        
         return new_block
 
     def get_current_block(self, context: str = "statement") :

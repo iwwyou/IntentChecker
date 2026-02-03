@@ -24,7 +24,8 @@
       "Bash(for dir in \"Liquidity_borrow,_purchase,_mint,_deposit\" \"Other_coding_mistakes\" \"Other_protocol_vulnerabilities\" \"Other_unfair_or_unsafe_DeFi_protocol_interaction\" \"Unfair_liquidity_providing\" \"Unfair_slippage_protection\")",
       "Bash(do echo \"=== $dir ===\")",
       "Bash(if [ -f \"C:\\Users\\isjeon\\PycharmProjects\\pythonProject\\SolidityGuardian\\Dataset\\LogicErrorContracts\\$dir\\Analysis.md\" ])",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

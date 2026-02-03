@@ -281,15 +281,23 @@ class Evaluation :
         # ── (A) 배열 ───────────────────────────────────────────────
         if sol_t.typeCategory == "array":
             # 동적 배열 크기 평가: new uint256[](size) 형태
+            MAX_CONCRETE_ARRAY_LEN = 100  # 구체적으로 초기화할 최대 배열 길이
             array_length = sol_t.arrayLength
             if expr.arguments and len(expr.arguments) > 0:
                 # arguments[0]에 길이 표현식이 있으면 평가
                 length_result = self.evaluate_expression(expr.arguments[0], variables, callerObject, callerContext)
-                # 결과가 interval이면 상한값 사용
-                if hasattr(length_result, 'upper'):
-                    array_length = length_result.upper
+                # 결과가 interval이면 상한값 사용 (max_value 속성 사용)
+                if hasattr(length_result, 'max_value') and length_result.max_value is not None:
+                    # 배열 길이가 너무 크면 동적 배열로 처리 (무한 루프 방지)
+                    if length_result.max_value > MAX_CONCRETE_ARRAY_LEN:
+                        array_length = None  # 동적 배열로 처리
+                    else:
+                        array_length = length_result.max_value
                 elif isinstance(length_result, int):
-                    array_length = length_result
+                    if length_result > MAX_CONCRETE_ARRAY_LEN:
+                        array_length = None
+                    else:
+                        array_length = length_result
                 else:
                     # 심볼릭이거나 다른 타입이면 None으로 (동적)
                     array_length = None
@@ -489,7 +497,6 @@ class Evaluation :
 
                     if idx >= len(callerObject.elements):
                         # ❗ 요소가 아직 없음 → base-type 의 TOP 값 (알 수 없는 값)
-                        print(f"[ARRAY OOB] Array {callerObject.identifier} accessed at index {idx}, but length is {len(callerObject.elements)} - returning TOP")
                         base_t = callerObject.typeInfo.arrayBaseType
                         if base_t.elementaryTypeName and base_t.elementaryTypeName.startswith("uint"):
                             bits = base_t.intTypeLength or 256
@@ -499,8 +506,21 @@ class Evaluation :
                             return IntegerInterval.top(bits)
                         elif base_t.elementaryTypeName and base_t.elementaryTypeName == "bool":
                             return BoolInterval.top()
+                        elif base_t.elementaryTypeName and base_t.elementaryTypeName == "address":
+                            return AddressSet.top()
+                        elif isinstance(base_t, SolType) and base_t.typeCategory == "struct":
+                            # 구조체 타입: 빈 구조체 생성 후 초기화
+                            empty_struct = StructVariable(
+                                f"{callerObject.identifier}[{idx}]",
+                                base_t.structTypeName,
+                                scope=callerObject.scope
+                            )
+                            ccf = self.an.contract_cfgs[self.an.current_target_contract]
+                            if base_t.structTypeName in ccf.structDefs:
+                                empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                            return empty_struct
                         else:
-                            # 주소/bytes/string 등은 symbol
+                            # 기타 (bytes/string 등)는 symbol
                             return f"symbolic_{callerObject.identifier}[{idx}]"
 
                     elem = callerObject.elements[idx]
@@ -605,7 +625,18 @@ class Evaluation :
                         elif val.min_value == val.max_value:  # 숫자·bool 싱글톤
                             key_val = str(val.min_value)
                         else:
-                            key_val = key_var.identifier  # 여전히 TOP
+                            # TOP 범위인 경우: 매핑에 이미 설정된 키 중 범위 내 키가 있으면 사용
+                            # (디버그 annotation으로 설정된 concrete 키 우선)
+                            found_key = None
+                            for existing_key in callerObject.mapping.keys():
+                                try:
+                                    k_int = int(existing_key)
+                                    if val.min_value <= k_int <= val.max_value:
+                                        found_key = existing_key
+                                        break
+                                except (ValueError, TypeError):
+                                    continue
+                            key_val = found_key if found_key else key_var.identifier
                     else:
                         key_val = key_var.identifier  # string·bool 등
                 else:
@@ -1326,9 +1357,9 @@ class Evaluation :
 
         if (isinstance(leftInterval, Interval) and leftInterval.is_bottom()) or \
                 (isinstance(rightInterval, Interval) and rightInterval.is_bottom()):
-            # 산술/비트/시프트 → ⊥,  비교/논리 → BoolInterval ⊤(= [0,1])
+            # ★ BOTTOM 피연산자가 있으면 결과도 BOTTOM (unreachable 경로 전파)
             if operator in ['==', '!=', '<', '>', '<=', '>=', '&&', '||']:
-                return BoolInterval.top()
+                return BoolInterval.bottom()
             return _bottom(leftInterval if not leftInterval.is_bottom() else rightInterval)
 
         if operator == '+':
@@ -2119,10 +2150,10 @@ class Evaluation :
     @staticmethod
     def compare_intervals(left_interval, right_interval, operator):
 
-        # 값이 하나라도 없으면 판단 불가 → TOP
+        # 값이 하나라도 BOTTOM이면 비교 결과도 BOTTOM (unreachable)
         if (left_interval.min_value is None or left_interval.max_value is None or
                 right_interval.min_value is None or right_interval.max_value is None):
-            return BoolInterval(0, 1)  # [0,1]
+            return BoolInterval.bottom()  # unreachable
 
         definitely_true = False
         definitely_false = False
