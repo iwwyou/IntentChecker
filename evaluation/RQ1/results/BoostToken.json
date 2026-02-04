@@ -1,0 +1,35 @@
+{
+  "id": "BoostToken",
+  "name": "BoostToken operator_order_issue",
+  "category": "operator_order_issue",
+  "source": "Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json",
+  "target_contract": "BoostToken",
+  "target_function": "sendETHToTeam",
+  "bug_lines": [
+    141,
+    142
+  ],
+  "status": "pass",
+  "violations": [
+    "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FB730> → violated (conf=0.0)",
+    "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FA170> → violated (conf=0.0)"
+  ],
+  "warnings": [],
+  "satisfied": [],
+  "errors": [],
+  "execution_time": 2.038,
+  "metrics": {
+    "total_intents": 2,
+    "num_violations": 2,
+    "num_warnings": 0,
+    "num_satisfied": 0,
+    "num_errors": 0,
+    "num_bug_detected": 2,
+    "violation_rate": 100.0,
+    "warning_rate": 0.0,
+    "satisfied_rate": 0.0,
+    "bug_detection_rate": 100.0
+  },
+  "actual_violations": 2,
+  "expected_violations": 2
+}

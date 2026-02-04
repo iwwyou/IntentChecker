@@ -1,0 +1,39 @@
+{
+  "id": "BoostToken",
+  "name": "BoostToken operator_order_issue",
+  "description": "sendETHToTeam 함수에서 amount.div(12).mul(5) 등 연산 순서로 인한 precision loss 버그",
+  "source": "Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json",
+  "target_contract": "BoostToken",
+  "target_function": "sendETHToTeam",
+  "bug_lines": [141, 142],
+  "debug_annotations": [
+    {
+      "type": "LocalVar",
+      "var": "amount",
+      "value": [65, 65],
+      "line": 140,
+      "comment": "amount=65일 때 precision loss 발생"
+    }
+  ],
+  "intent_annotations": [
+    {
+      "type": "During",
+      "line": 141,
+      "expr": "transfer.arg[0] > 27",
+      "expected": "violated",
+      "comment": "65*5/12=27 vs 65/12*5=25, 25 > 27 is FALSE"
+    },
+    {
+      "type": "During",
+      "line": 142,
+      "expr": "transfer.arg[0] > 14",
+      "expected": "violated",
+      "comment": "65*2/9=14 vs 65/9*2=14, 14 > 14 is FALSE"
+    }
+  ],
+  "expected_results": {
+    "total_intents": 2,
+    "expected_violations": 2,
+    "expected_satisfied": 0
+  }
+}

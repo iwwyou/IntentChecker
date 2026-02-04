@@ -59,6 +59,9 @@ class CFGNode:
         self.src_line = src_line
         self.function_evaluated = None
 
+        # intent annotations attached to this node
+        self.intents: list[dict] = []  # @During, @Post 등
+
     def add_variable_declaration_statement(self, typeObj, varName, initExpr, line_no):
 
         # Statement 생성

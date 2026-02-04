@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-02-04T20:29:56.004306",
+  "cases": [
+    {
+      "id": "BoostToken",
+      "name": "BoostToken operator_order_issue",
+      "category": "operator_order_issue",
+      "source": "Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json",
+      "target_contract": "BoostToken",
+      "target_function": "sendETHToTeam",
+      "bug_lines": [
+        141,
+        142
+      ],
+      "status": "pass",
+      "violations": [
+        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FB730> → violated (conf=0.0)",
+        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FA170> → violated (conf=0.0)"
+      ],
+      "warnings": [],
+      "satisfied": [],
+      "errors": [],
+      "execution_time": 2.038,
+      "metrics": {
+        "total_intents": 2,
+        "num_violations": 2,
+        "num_warnings": 0,
+        "num_satisfied": 0,
+        "num_errors": 0,
+        "num_bug_detected": 2,
+        "violation_rate": 100.0,
+        "warning_rate": 0.0,
+        "satisfied_rate": 0.0,
+        "bug_detection_rate": 100.0
+      },
+      "actual_violations": 2,
+      "expected_violations": 2
+    }
+  ],
+  "summary": {
+    "total_cases": 1,
+    "passed": 1,
+    "partial": 0,
+    "failed": 0,
+    "errors": 0,
+    "pass_rate": 100.0,
+    "intent_stats": {
+      "total_intents": 2,
+      "violations": 2,
+      "warnings": 0,
+      "satisfied": 0,
+      "errors": 0,
+      "bug_detected": 2,
+      "violation_rate": 100.0,
+      "warning_rate": 0.0,
+      "satisfied_rate": 0.0,
+      "bug_detection_rate": 100.0
+    },
+    "time_stats": {
+      "total_time": 2.038,
+      "avg_time": 2.038,
+      "min_time": 2.038,
+      "max_time": 2.038
+    },
+    "category_stats": {
+      "operator_order_issue": {
+        "total": 1,
+        "pass": 1,
+        "partial": 0,
+        "fail": 0,
+        "error": 0,
+        "violations": 2,
+        "warnings": 0,
+        "satisfied": 0,
+        "execution_time": 2.038,
+        "pass_rate": 100.0
+      }
+    }
+  }
+}

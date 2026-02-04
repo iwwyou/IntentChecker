@@ -703,7 +703,7 @@ Antecedent $A$ & Result of $A \Rightarrow B$ \\
 We evaluate IntentChecker through the following research questions:
 
 \begin{itemize}
-    \item \textbf{RQ1 (Detection)}: Can IntentChecker detect real-world numeric logic errors from the Web3Bugs and Numscout datasets (127 bugs) when annotations are provided based on bug report descriptions? We also analyze coverage across the 9 error patterns identified in Section~\ref{sec:background}.
+    \item \textbf{RQ1 (Mitigation)}: Can IntentChecker mitigate real-world numeric logic errors from the Web3Bugs and Numscout datasets (127 bugs) when annotations are provided based on bug report descriptions? We also analyze coverage across the 9 error patterns identified in Section~\ref{sec:background}.
     \item \textbf{RQ2 (Warning Usefulness)}: When IntentChecker reports \texttt{Warning}, does the \texttt{false\_regions} information help developers identify the conditions under which bugs occur?
     \item \textbf{RQ3 (Expressiveness)}: Can the intent model express developer intentions for general integer/unsigned integer statements? We evaluate this using Code4rena bug reports' expected behavior descriptions as ground truth for developer intent.
     \item \textbf{RQ4 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
