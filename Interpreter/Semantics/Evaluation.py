@@ -222,6 +222,9 @@ class Evaluation :
     def evaluate_expression(self, expr: Expression, variables, callerObject=None, callerContext=None):
         if expr.context == "LiteralExpContext":
             return self.evaluate_literal_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "NumLiteralContext":
+            # Guardian DSL의 숫자 리터럴 (arithExpr에서 사용)
+            return self.evaluate_literal_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IdentifierExpContext":
             return self.evaluate_identifier_context(expr, variables, callerObject, callerContext)
         elif expr.context == 'MemberAccessContext':
@@ -692,24 +695,41 @@ class Evaluation :
         baseVal = self.evaluate_expression(expr.base, variables, None,
                                            "MemberAccessContext")
         member = expr.member
-        
+
+        # DEBUG: baseVal 타입 및 값 출력
+        print(f"[MEMBER_ACCESS DEBUG] member={member}, baseVal type={type(baseVal).__name__}, baseVal={baseVal}, callerContext={callerContext}")
+
         # ──────────────────────────────────────────────────────────────
         # 0. Function call context 처리 (using directive 지원)
         # ──────────────────────────────────────────────────────────────
         # callerContext가 "functionCallContext"인 경우 - a.mul(b)에서 a.mul 부분이 호출될 때
         if callerContext == "functionCallContext":
-            # baseVal이 Variables, mapping, Struct 등에 대해 라이브러리 함수 호출 처리
-            if isinstance(baseVal, (Variables, MappingVariable, StructVariable)):
+            # baseVal이 Variables, mapping, Struct, 또는 interval인 경우 라이브러리 함수 호출 처리
+            base_type = None
+            implicit_arg = baseVal
+
+            # 타입 추출
+            if isinstance(baseVal, Variables):
+                base_type = self._get_variable_type_string(baseVal)
+            elif isinstance(baseVal, (UnsignedIntegerInterval, IntegerInterval)):
+                # interval의 경우 bits에서 타입 추출
+                bits = getattr(baseVal, 'bits', 256)
+                if isinstance(baseVal, UnsignedIntegerInterval):
+                    base_type = f"uint{bits}"
+                else:
+                    base_type = f"int{bits}"
+
+            print(f"[MEMBER_ACCESS DEBUG] base_type={base_type}")
+
+            if base_type:
                 # 현재 컨트랙트의 using directive 확인
                 current_contract = self.an.current_target_contract
                 if current_contract and current_contract in self.an.contract_cfgs:
                     contract_cfg = self.an.contract_cfgs[current_contract]
-                    
-                    # baseVal의 타입 추출
-                    base_type = self._get_variable_type_string(baseVal) if isinstance(baseVal, Variables) else "unknown"
-                    
+
                     # 라이브러리 함수 검색
                     library_function = contract_cfg.find_library_function(base_type, member)
+                    print(f"[MEMBER_ACCESS DEBUG] find_library_function({base_type}, {member}) = {library_function}")
                     if library_function:
                         # 라이브러리 함수가 발견되면 특별한 Expression 객체 반환
                         # evaluate_function_call_context에서 이것을 인식하여 라이브러리 함수로 처리
@@ -720,7 +740,7 @@ class Evaluation :
                         )
                         # 라이브러리 함수 정보와 첫 번째 인자를 임시로 저장
                         result_expr._library_function_cfg = library_function
-                        result_expr._implicit_first_arg = baseVal
+                        result_expr._implicit_first_arg = implicit_arg
                         return result_expr
         
         # ──────────────────────────────────────────────────────────────
@@ -1509,6 +1529,8 @@ class Evaluation :
         function_cfg = self.find_function_in_hierarchy(contract_cfg, function_name)
         if not function_cfg:
             # 함수를 찾을 수 없음 → Top 반환 (외부 함수, interface 메서드, 미정의 함수)
+            # ★ 아직 분석 안 된 함수일 수 있음 → pending_callee_name에 기록
+            self.an.pending_callee_name = function_name
             # 반환 타입을 알 수 없으므로 uint256 Top으로 처리
             return UnsignedIntegerInterval.top()
 
@@ -1589,8 +1611,12 @@ class Evaluation :
         
         # 2) 파라미터와 인자 매핑
         param_names = getattr(library_function_cfg, 'parameters', [])
-        
-        if len(param_names) != len(arguments):
+
+        # 인자 개수 조정: 부족하면 기본값으로 채움 (SafeMath의 선택적 errorMessage 등)
+        if len(param_names) > len(arguments):
+            for _ in range(len(param_names) - len(arguments)):
+                arguments.append("")
+        elif len(param_names) < len(arguments):
             return f"symbolic_library_call_mismatch({expr.function.identifier})"
         
         # 3) 라이브러리 함수의 related_variables에 인자 값 설정
@@ -1600,16 +1626,24 @@ class Evaluation :
             if isinstance(arguments[i], Variables):
                 # Variables 객체인 경우 value 추출
                 arg_val = arguments[i].value if hasattr(arguments[i], 'value') else arguments[i]
+            elif isinstance(arguments[i], str):
+                # 문자열은 그대로 사용 (기본값으로 채워진 경우)
+                arg_val = arguments[i]
+            elif isinstance(arguments[i], (UnsignedIntegerInterval, IntegerInterval)):
+                # interval은 그대로 사용 (체이닝된 라이브러리 호출의 결과)
+                arg_val = arguments[i]
             else:
                 # Expression인 경우 평가
                 arg_val = self.evaluate_expression(arguments[i], variables, None, None)
             
+            # DEBUG: 인자값 확인
+            print(f"[LIB_ARG DEBUG] func={library_function_cfg.function_name}, param={param_name}, arg_val={arg_val}, type={type(arg_val).__name__}")
+
             # 라이브러리 함수의 파라미터에 값 설정
             if param_name in library_function_cfg.related_variables:
                 library_function_cfg.related_variables[param_name].value = arg_val
             else:
                 # 파라미터가 없으면 새로 생성 (간단한 Variables 객체)
-                from Domain.Variable import Variables
                 param_var = Variables(identifier=param_name, scope="local")
                 param_var.value = arg_val
                 library_function_cfg.related_variables[param_name] = param_var
@@ -1641,6 +1675,9 @@ class Evaluation :
             # 라이브러리 함수 CFG 실행
             return_value = self.engine.interpret_function_cfg(library_function_cfg, caller_env)
 
+            # DEBUG
+            print(f"[LIB_RETURN DEBUG] function={library_function_cfg.function_name}, return_value={return_value}, type={type(return_value).__name__}")
+
             # 함수 컨텍스트 복원
             self.an.current_target_function = saved_function
             self.an.current_target_function_cfg = saved_function_cfg
@@ -1649,6 +1686,9 @@ class Evaluation :
             
         except Exception as e:
             # 오류 발생 시 symbolic 값 반환
+            import traceback
+            print(f"[LIBRARY CALL ERROR] {expr.function.identifier}: {str(e)}")
+            traceback.print_exc()
             return f"symbolic_library_error({expr.function.identifier}: {str(e)})"
 
     def evaluate_super_function_call_context(self, expr, variables, super_function_cfg):

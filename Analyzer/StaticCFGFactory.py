@@ -242,11 +242,12 @@ class StaticCFGFactory:
                 fcfg.add_related_variable(gv)
 
         # ───────────────────────────────────────────────────────────────
-        # ❷  entry-env 스냅 (변경 없음)
+        # ❷  entry-env 스냅 + entry_node.variables 초기화
         # ───────────────────────────────────────────────────────────────
         entry_vars = VariableEnv.copy_variables(fcfg.related_variables)
-        fcfg.entry_env = entry_vars  # ★ 추가: 함수 진입 스냅샷
+        fcfg.entry_env = entry_vars  # ★ 함수 진입 스냅샷
         fcfg.assign_env.update(entry_vars)
+        fcfg.entry_node.variables.update(entry_vars)  # ★ entry_node에도 복사
         return fcfg
 
     @staticmethod

@@ -166,7 +166,7 @@ functionDefinition
   (';' | block) ;
 
 eventDefinition
-  : 'event' identifier '(' (eventParameter (',' eventParameter)*)? AnonymousKeyword? ';' ;
+  : 'event' identifier '(' (eventParameter (',' eventParameter)*)? ')' AnonymousKeyword? ';' ;
 
 enumDefinition
   : 'enum' identifier '{' identifier (',' identifier)* '}' ;
@@ -175,7 +175,7 @@ parameterList
   : (typeName dataLocation? identifier?) (',' typeName dataLocation? identifier?)* ;
 
 eventParameter
-  : typeName identifier? ;
+  : typeName 'indexed'? identifier? ;
 
 variableDeclaration
   : typeName dataLocation? identifier ;
@@ -549,7 +549,7 @@ assertStatement
   : 'assert' '(' expression ')' ';' ;
 
 variableDeclarationStatement
-  : (variableDeclaration ('=' expression)?) | (variableDeclarationTuple '=' expression) ';' ;
+  : (variableDeclaration ('=' expression)?) ';' | (variableDeclarationTuple '=' expression) ';' ;
 
 interactiveStatement
   : interactiveSimpleStatement
@@ -616,9 +616,9 @@ expression
   | expression '[' expression? ':' expression? ']'        # IndexRangeAccess
   | expression '.' (identifier | 'address')               # MemberAccess
   | expression '{' (identifier ':' expression (',' identifier ':' expression)*)? '}'  # FunctionCallOptions
+  | elementaryTypeName '(' expression ')'                 # TypeConversion
   | expression callArgumentList                           # FunctionCall
   | PayableKeyword callArgumentList                       # PayableFunctionCall
-  | elementaryTypeName '(' identifier ')'                 # TypeConversion
   | 'type' '(' typeName ')'                               # MetaType
   | ('++'|'--'|'!'|'~'|'delete'|'-') expression           # UnaryPrefixOp
   | expression ('++'|'--')                                # UnarySuffixOp

@@ -57,6 +57,10 @@ class DebugInitializer:
         elif expr.context == "IntentMemberAccess":
             return self._update_left_var_of_intent_member_access_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
+        elif expr.context == "VarRefBase":
+            # VarRefBase: visitVarRef에서 생성되는 단순 변수 참조
+            return self._update_left_var_of_varref_base_context_for_debug(
+                expr, rVal, operator, variables, callerObject, callerContext)
 
         return None
 
@@ -435,6 +439,18 @@ class DebugInitializer:
 
         return None
 
+    def _update_left_var_of_varref_base_context_for_debug(
+            self, expr: Expression, rVal, operator, variables, callerObject=None, callerContext=None):
+        """
+        VarRefBase 컨텍스트 처리 (디버깅 전용) - visitVarRef에서 생성되는 단순 변수 참조
+        """
+        ident = expr.identifier
+
+        if ident in variables:
+            return variables[ident]
+        else:
+            return None
+
     def apply_debug_directive_enhanced(
         self,
         *,
@@ -496,11 +512,11 @@ class DebugInitializer:
             print(f"[WARNING] Available variables: {list(variables.keys())[:10]}...")
             return  # Skip this annotation instead of raising error
 
-        # DEBUG: Show what we're patching (safe repr) - commented out for clean output
+        # DEBUG: Show what we're patching (disabled for clean output)
         # try:
         #     target_id = getattr(target, 'identifier', '?')
         #     target_val = repr(getattr(target, 'value', '?'))
-        #     print(f"[APPLY DEBUG] Patching {target_id} with value {value}")
+        #     print(f"[APPLY DEBUG] Patching {target_id}: {target_val} -> {value}")
         # except:
         #     pass
 

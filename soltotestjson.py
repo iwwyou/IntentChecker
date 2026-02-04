@@ -61,8 +61,40 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             i += 1
             continue
 
-        # 5) 그밖의 형식은 아직 지원하지 않음 ────────────────────
-        raise ValueError(f"지원되지 않는 형식: {raw!r} (line {cur_line})")
+        # 5) 다중 라인 문장 (세미콜론으로 끝나지 않는 줄) ──────────
+        #    세미콜론을 만날 때까지 줄들을 누적
+        start_line = cur_line
+        accumulated = [txt]
+        cur_line += 1
+        i += 1
+
+        while i < len(lines):
+            next_raw = lines[i]
+            next_txt = next_raw.strip()
+
+            # 빈 줄이면 건너뛰되 라인 번호는 증가
+            if _only_ws.match(next_raw):
+                cur_line += 1
+                i += 1
+                continue
+
+            accumulated.append(next_txt)
+            cur_line += 1
+            i += 1
+
+            # 세미콜론으로 끝나면 다중 라인 문장 종료
+            if _one_liner.search(next_txt):
+                break
+
+        # 다중 라인 문장을 공백으로 연결하여 하나의 청크로 생성
+        merged_code = " ".join(accumulated)
+        inputs.append({
+            "code": merged_code,
+            "startLine": start_line,
+            "endLine": cur_line - 1,
+            "event": "add"
+        })
+        continue
 
     return inputs
 

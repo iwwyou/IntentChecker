@@ -25,7 +25,18 @@
       "Bash(do echo \"=== $dir ===\")",
       "Bash(if [ -f \"C:\\Users\\isjeon\\PycharmProjects\\pythonProject\\SolidityGuardian\\Dataset\\LogicErrorContracts\\$dir\\Analysis.md\" ])",
       "Bash(fi)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(powershell -Command \"wsl ls /home/isjeon/NumScout/defect_identifier\")",
+      "Bash(powershell -Command \"wsl ls /home/isjeon/NumScout/Experiment\")",
+      "Bash(powershell -Command \"wsl cat /home/isjeon/NumScout/defect_identifier/defect.py\")",
+      "Bash(powershell -Command \"wsl cat /home/isjeon/NumScout/Experiment/README.md\")",
+      "Bash(powershell -Command \"wsl ls /home/isjeon/NumScout/feature_detector\")",
+      "Bash(powershell -Command \"wsl cat /home/isjeon/NumScout/feature_detector/semantic_analysis.py\")",
+      "Bash(powershell -Command \"wsl grep -n ''def check_operator_order_issue'' /home/isjeon/NumScout/feature_detector/semantic_analysis.py\")",
+      "Bash(powershell -Command \"wsl sed -n ''861,923p'' /home/isjeon/NumScout/feature_detector/semantic_analysis.py\")",
+      "Bash(powershell:*)",
+      "Bash(findstr:*)",
+      "Bash(more:*)"
     ],
     "deny": [],
     "ask": []

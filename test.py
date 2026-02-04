@@ -38,18 +38,8 @@ def simulate_inputs(records):
             if not in_testcase: batch_mgr.flush()
             continue
 
-        # ③ annotation 파싱 (@During, @Post 등) ----------------------------
-        # update_code에서 분리한 annotation_part 사용
-        if contract_analyzer.last_annotation_part:
-            tree = ParserHelpers.generate_parse_tree(contract_analyzer.last_annotation_part, "IntentUnit")
-            EnhancedSolidityVisitor(contract_analyzer).visit(tree)
-
-        # ④ 일반 Solidity 코드 파싱 --------------------------------------------
-        # update_code에서 분리한 statement_part 사용
-        if contract_analyzer.last_statement_part and contract_analyzer.last_statement_part.strip():
-            ctx = contract_analyzer.get_current_context_type()
-            tree = ParserHelpers.generate_parse_tree(contract_analyzer.last_statement_part, ctx, True)
-            EnhancedSolidityVisitor(contract_analyzer).visit(tree)
+        # ③ 코드 분석은 update_code 내부에서 analyze_context로 자동 수행됨
+        # Intent annotation은 코드 분석 완료 후 add_intent_annotation으로 추가
 
         # ✨ ★ 여기서 바로 찍어 보기 ★ ✨
         analysis = contract_analyzer.get_line_analysis(s, e)

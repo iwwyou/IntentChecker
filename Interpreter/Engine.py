@@ -1017,11 +1017,20 @@ class Engine:
     # =================================================================
     def _branch_feasible(self, env: dict, cond: Expression, assume_true: bool) -> bool:
         r = self.eval.evaluate_expression(cond, env, None, None)
+        # DEBUG
+        if self.an.current_target_function in ['mul', 'div']:
+            print(f"[BRANCH DEBUG] func={self.an.current_target_function}, cond={cond}, r={r}, type={type(r).__name__}, assume_true={assume_true}")
         if isinstance(r, BoolInterval):
-            return (r.max_value == 1) if assume_true else (r.min_value == 0)
+            result = (r.max_value == 1) if assume_true else (r.min_value == 0)
+            if self.an.current_target_function in ['mul', 'div']:
+                print(f"[BRANCH DEBUG] BoolInterval result={result}")
+            return result
         if VariableEnv.is_interval(r):
             as_bool = VariableEnv.convert_int_to_bool_interval(r)
-            return (as_bool.max_value == 1) if assume_true else (as_bool.min_value == 0)
+            result = (as_bool.max_value == 1) if assume_true else (as_bool.min_value == 0)
+            if self.an.current_target_function in ['mul', 'div']:
+                print(f"[BRANCH DEBUG] Interval->Bool result={result}, as_bool={as_bool}")
+            return result
         return True
 
     def _set_bottom_env(self, env: dict[str, Variables]) -> None:
@@ -1195,7 +1204,10 @@ class Engine:
         if line_no is None:
             return
 
-        # line_info에서 during_annotations 가져오기
+        # ═══ CFG 노드에 저장된 intent 검증 (새로운 메커니즘) ═══
+        self._process_node_intents(node, cur_vars, line_no)
+
+        # line_info에서 during_annotations 가져오기 (기존 메커니즘)
         line_info = self.an.line_info.get(line_no, {})
         during_annotations = line_info.get('during_annotations', [])
 
@@ -1229,6 +1241,68 @@ class Engine:
                         'status': 'error',
                         'message': f'During annotation processing error: {str(e)}'
                     }
+                })
+
+    def _process_node_intents(self, node, cur_vars, line_no):
+        """
+        CFG 노드에 저장된 intent 검증 (새로운 메커니즘)
+
+        Args:
+            node: CFGNode (intents 리스트 포함)
+            cur_vars: 현재 변수 환경
+            line_no: 현재 라인 번호
+        """
+        if not hasattr(node, 'intents') or not node.intents:
+            return
+
+        guardian = self.an.guardian_verifier
+
+        for intent in node.intents:
+            if intent.get("type") != "during":
+                continue
+
+            # 노드에 연결된 모든 during intent 처리 (라인 번호는 참고용)
+            intent_line = intent.get("line_no")
+
+            clauses = intent.get("clauses", [])
+            logic_ops = intent.get("logic_ops", [])
+
+            try:
+                # 각 clause 검증
+                results = []
+                for clause in clauses:
+                    result = self._verify_during_clause_dynamic(clause, node, cur_vars, guardian, line_no)
+                    results.append(result)
+
+                # 논리 연산자로 조합
+                combined_result = self._combine_logic_results(results, logic_ops)
+
+                # 결과 출력
+                status = combined_result.get("status", "unknown")
+                if status == "violated":
+                    print(f"[INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}")
+                elif status == "satisfied":
+                    print(f"[INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}")
+                else:
+                    print(f"[INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}")
+
+                # analysis_per_line에 기록
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'during_intent',
+                    'clauses': clauses,
+                    'result': combined_result
+                })
+
+            except Exception as e:
+                print(f"[INTENT ERROR] Line {line_no}: {str(e)}")
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'during_intent',
+                    'result': {'status': 'error', 'message': str(e)}
                 })
 
     def _verify_during_annotation(self, annot, node, cur_vars):
@@ -1313,12 +1387,14 @@ class Engine:
             results.append(result)
 
         # 논리 연산자로 조합
-        return self.an._combine_logic_results(results, compound.logic_ops)
+        return self._combine_logic_results(results, compound.logic_ops)
 
-    def _verify_during_clause_dynamic(self, clause: dict, node, cur_vars, guardian):
+    def _verify_during_clause_dynamic(self, clause: dict, node, cur_vars, guardian, line_no=None):
         """개별 during clause 동적 검증"""
         kind = clause["kind"]
-        line_no = node.start_line
+        if line_no is None:
+            # fallback: 노드의 첫 번째 statement에서 라인 번호 추출
+            line_no = getattr(node.statements[0], "src_line", 0) if node.statements else 0
 
         if kind == "beforeAfter":
             return guardian.verify_during_before_after(
@@ -1372,6 +1448,16 @@ class Engine:
                 line_no=line_no,
                 cfg_node=node
             )
+        elif kind == "functionArg":
+            # @During transfer.arg[0] > 27 형식
+            return guardian.verify_during_function_arg(
+                func_name=clause["func_name"],
+                arg_index=clause["arg_index"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                cfg_node=node
+            )
         else:
             return {"status": "error", "message": f"Unknown clause kind: {kind}"}
 
@@ -1385,7 +1471,10 @@ class Engine:
         if not self._record_enabled:
             return
 
-        # 함수 내 모든 post annotations 수집
+        # ═══ Exit 노드에 저장된 post intent 검증 (새로운 메커니즘) ═══
+        self._process_exit_node_intents(fcfg)
+
+        # 함수 내 모든 post annotations 수집 (기존 메커니즘)
         post_annotations = []
         for line_no, line_info in self.an.line_info.items():
             annots = line_info.get('post_annotations', [])
@@ -1424,6 +1513,130 @@ class Engine:
                         'message': f'Post annotation processing error: {str(e)}'
                     }
                 })
+
+    def _process_exit_node_intents(self, fcfg):
+        """
+        Exit 노드에 저장된 post intent 검증 (새로운 메커니즘)
+
+        Args:
+            fcfg: FunctionCFG 객체
+        """
+        if fcfg is None:
+            return
+
+        exit_node = fcfg.get_exit_node() if hasattr(fcfg, 'get_exit_node') else None
+        if exit_node is None or not hasattr(exit_node, 'intents'):
+            return
+
+        if not exit_node.intents:
+            return
+
+        guardian = self.an.guardian_verifier
+
+        for intent in exit_node.intents:
+            if intent.get("type") != "post":
+                continue
+
+            clauses = intent.get("clauses", [])
+            logic_ops = intent.get("logic_ops", [])
+            line_no = intent.get("line_no", 0)
+
+            try:
+                # 각 clause 검증
+                results = []
+                for clause in clauses:
+                    result = self._verify_post_clause_dynamic(clause, fcfg, guardian)
+                    results.append(result)
+
+                # 논리 연산자로 조합
+                combined_result = self._combine_logic_results(results, logic_ops)
+
+                # 결과 출력
+                status = combined_result.get("status", "unknown")
+                if status == "violated":
+                    print(f"[POST INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}")
+                elif status == "satisfied":
+                    print(f"[POST INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}")
+                else:
+                    print(f"[POST INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}")
+
+                # analysis_per_line에 기록
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'post_intent',
+                    'clauses': clauses,
+                    'result': combined_result
+                })
+
+            except Exception as e:
+                print(f"[POST INTENT ERROR] Line {line_no}: {str(e)}")
+                if line_no not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[line_no] = []
+                self.an.analysis_per_line[line_no].append({
+                    'type': 'post_intent',
+                    'result': {'status': 'error', 'message': str(e)}
+                })
+
+    def _verify_post_clause_dynamic(self, clause: dict, fcfg, guardian):
+        """개별 post clause 동적 검증"""
+        kind = clause["kind"]
+        line_no = fcfg.start_line if hasattr(fcfg, 'start_line') else 0
+
+        if kind == "entryExit":
+            return guardian.verify_post_entry_exit(
+                var_ref=clause["var"],
+                comp_op=clause["op"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "unchanged":
+            return guardian.verify_post_unchanged(
+                var_ref=clause["var"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retExpr":
+            return guardian.verify_post_return_expression(
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retIndex":
+            return guardian.verify_post_return_index(
+                index=clause["index"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "retVar":
+            return guardian.verify_post_return_variable(
+                var_ref=clause["lhs"],
+                comp_op=clause["op"],
+                value_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "direct":
+            return guardian.verify_post_direct_comparison(
+                lhs_expr=clause["lhs"],
+                comp_op=clause["op"],
+                rhs_expr=clause["rhs"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        elif kind == "implication":
+            return guardian.verify_post_implication(
+                antecedent=clause["antecedent"],
+                consequent=clause["consequent"],
+                line_no=line_no,
+                fn_cfg=fcfg
+            )
+        else:
+            return {"status": "error", "message": f"Unknown post clause kind: {kind}"}
 
     def _verify_post_annotation(self, annot, fcfg):
         """
@@ -1505,7 +1718,7 @@ class Engine:
             results.append(result)
 
         # 논리 연산자로 조합
-        return self.an._combine_logic_results(results, compound.logic_ops)
+        return self._combine_logic_results(results, compound.logic_ops)
 
     def _verify_post_clause_dynamic(self, clause: dict, line_no: int, fcfg, guardian):
         """개별 post clause 동적 검증"""
@@ -1564,3 +1777,55 @@ class Engine:
             )
         else:
             return {"status": "error", "message": f"Unknown clause kind: {kind}"}
+
+    def _combine_logic_results(self, results: list[dict], logic_ops: list[str]) -> dict:
+        """
+        여러 clause 결과를 논리 연산자로 조합
+
+        Args:
+            results: 각 clause의 검증 결과 리스트
+            logic_ops: 논리 연산자 리스트 ('&&' 또는 '||')
+
+        Returns:
+            조합된 결과 딕셔너리
+        """
+        if not results:
+            return {"status": "error", "message": "No results to combine"}
+
+        if len(results) == 1:
+            return results[0]
+
+        # 초기 결과
+        combined = results[0]
+        combined_status = combined.get("status", "unknown")
+
+        for i, result in enumerate(results[1:]):
+            op = logic_ops[i] if i < len(logic_ops) else "&&"
+            status = result.get("status", "unknown")
+
+            if op == "&&":
+                # AND: 하나라도 violated이면 violated, 하나라도 unknown이면 unknown
+                if combined_status == "violated" or status == "violated":
+                    combined_status = "violated"
+                elif combined_status == "unknown" or status == "unknown":
+                    combined_status = "unknown"
+                elif combined_status == "error" or status == "error":
+                    combined_status = "error"
+                else:
+                    combined_status = "satisfied"
+            elif op == "||":
+                # OR: 하나라도 satisfied이면 satisfied, 둘 다 violated이면 violated
+                if combined_status == "satisfied" or status == "satisfied":
+                    combined_status = "satisfied"
+                elif combined_status == "error" or status == "error":
+                    combined_status = "error"
+                elif combined_status == "unknown" or status == "unknown":
+                    combined_status = "unknown"
+                else:
+                    combined_status = "violated"
+
+        # 메시지 조합
+        messages = [r.get("message", "") for r in results if r.get("message")]
+        combined_msg = " ; ".join(messages) if messages else ""
+
+        return {"status": combined_status, "message": combined_msg}

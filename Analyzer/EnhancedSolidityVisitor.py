@@ -129,7 +129,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             self.contract_analyzer.make_abstract_contract_cfg(contract_name, parent_contracts)
         else:
             self.contract_analyzer.make_contract_cfg(contract_name, parent_contracts)
-        return
+        # 컨트랙트 내부의 함수, 변수 등을 방문하기 위해 visitChildren 호출
+        return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#interfaceDefinition.
     def visitInterfaceDefinition(self, ctx:SolidityParser.InterfaceDefinitionContext):
@@ -321,22 +322,25 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#usingDirective.
     def visitUsingDirective(self, ctx:SolidityParser.UsingDirectiveContext):
         # using LibraryName for TypeName; 또는 using LibraryName for *;
-        
-        # 라이브러리 이름 추출
-        library_name = ctx.identifierPath().getText()
-        
+
+        # 라이브러리 이름 추출 (identifierPath는 리스트로 반환됨)
+        id_paths = ctx.identifierPath()
+        if id_paths:
+            # 첫 번째 identifierPath 사용 (단일 라이브러리인 경우)
+            library_name = id_paths[0].getText() if isinstance(id_paths, list) else id_paths.getText()
+        else:
+            return self.visitChildren(ctx)
+
         # 대상 타입 추출 (for 다음에 오는 부분)
         target_type = None
         if ctx.typeName():
             # 특정 타입에 대한 using directive
             target_type = ctx.typeName().getText()
-        elif ctx.getChildCount() > 4 and ctx.getChild(3).getText() == '*':
-            # using Library for *; (모든 타입에 적용)
-            target_type = None
-        
+        # '*'인 경우 target_type = None (모든 타입에 적용)
+
         # ContractAnalyzer에 using directive 등록
         self.contract_analyzer.process_using_directive(library_name, target_type)
-        
+
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#userDefinableOperators.
@@ -531,7 +535,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # 2. indexed 여부 확인
         is_indexed = False
-        if ctx.Indexed():
+        if ctx.IndexedKeyword():
             is_indexed = True
 
         # 3. 파라미터 이름 추출 (선택적)
@@ -1026,9 +1030,17 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#DebugEnumLiteral.
     def visitDebugEnumLiteral(self, ctx: SolidityParser.DebugEnumLiteralContext):
         return self.visitChildren(ctx)
-    def visitVarRef(self, ctx: SolidityParser.VarRefContext):
-        # 그냥 children 으로 위임
-        return self.visitChildren(ctx)
+    def visitVarRef(self, ctx):
+        # NormalVarRefContext가 직접 전달될 수 있음
+        if isinstance(ctx, SolidityParser.NormalVarRefContext):
+            return self.visitNormalVarRef(ctx)
+        elif isinstance(ctx, SolidityParser.LengthVarRefContext):
+            return self.visitLengthVarRef(ctx)
+        elif hasattr(ctx, 'normalVarRef') and ctx.normalVarRef():
+            return self.visitNormalVarRef(ctx.normalVarRef())
+        elif hasattr(ctx, 'lengthVarRef') and ctx.lengthVarRef():
+            return self.visitLengthVarRef(ctx.lengthVarRef())
+        return None
 
     def visitNormalVarRef(self, ctx: SolidityParser.NormalVarRefContext):
         # 첫 식별자
@@ -1254,6 +1266,31 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#interactiveVariableDeclarationStatement.
     def visitInteractiveVariableDeclarationStatement(self, ctx:SolidityParser.InteractiveVariableDeclarationStatementContext):
+        # 튜플 변수 선언인지 확인: (uint256 a, uint256 b) = func();
+        if ctx.variableDeclarationTuple():
+            tuple_ctx = ctx.variableDeclarationTuple()
+            init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
+
+            # 튜플 내 변수 정보 수집: [(type_obj, var_name), ...]
+            var_declarations = []
+            for var_decl in tuple_ctx.variableDeclaration():
+                if var_decl:
+                    type_ctx = var_decl.typeName()
+                    var_name = var_decl.identifier().getText()
+                    type_obj = SolType()
+                    type_obj = self.visitTypeName(type_ctx, type_obj)
+                    var_declarations.append((type_obj, var_name))  # (type_obj, var_name) 순서
+                else:
+                    var_declarations.append(None)  # (,uint256 x) 같은 경우
+
+            # 튜플 전체를 한번에 처리
+            self.contract_analyzer.process_variable_declaration_tuple(
+                var_declarations=var_declarations,
+                init_expr=init_expr
+            )
+            return
+
+        # 단일 변수 선언: uint256 x = value;
         # 1. 변수 선언 정보 가져오기
         type_ctx = ctx.variableDeclaration().typeName()
         var_name = ctx.variableDeclaration().identifier().getText()

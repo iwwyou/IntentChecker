@@ -330,6 +330,21 @@ class Refine:
                 # 동일 싱글톤이면 모순
                 return (A.bottom(A.type_length),
                         B.bottom(B.type_length))
+
+            # 상대방이 싱글톤일 때 경계값 제외 (sound refinement)
+            if B.min_value == B.max_value:
+                b_val = B.min_value
+                if A.min_value == b_val:
+                    A.min_value = b_val + 1
+                elif A.max_value == b_val:
+                    A.max_value = b_val - 1
+            if A.min_value == A.max_value:
+                a_val = A.min_value
+                if B.min_value == a_val:
+                    B.min_value = a_val + 1
+                elif B.max_value == a_val:
+                    B.max_value = a_val - 1
+
             return A, B
 
         # 알 수 없는 op → 변경 없음

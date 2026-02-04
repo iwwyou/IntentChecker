@@ -24,6 +24,7 @@ class ParserHelpers:
         'error':'interactiveSourceUnit',    'modifier':'interactiveSourceUnit',
         'stateVariableDeclaration':'interactiveSourceUnit',
         'constantVariableDeclaration': 'interactiveSourceUnit',
+        'usingDirective':'interactiveSourceUnit',
         'enumMember':'interactiveEnumUnit',
         'structMember':'interactiveStructUnit',
 
@@ -35,6 +36,8 @@ class ParserHelpers:
         'unchecked':'interactiveBlockUnit',
 
         'doWhileWhile':'interactiveDoWhileUnit',
+
+        'intentUnit':'intentUnit',  # @LocalVar, @During, @Post etc.
         'catch':'interactiveCatchClauseUnit',
         'else_if':'interactiveIfElseUnit', 'else':'interactiveIfElseUnit',
 

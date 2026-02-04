@@ -959,6 +959,11 @@ class GuardianVerificationEngine:
             return {"state": "warning", "confidence": round(conf, 3)}
 
         if op == '>':
+            # L > R: L.min > R.max → satisfied, L.max <= R.min → violated
+            if left_iv.min_value > right_iv.max_value:
+                return {"state": "satisfied", "confidence": 1.0}
+            if left_iv.max_value <= right_iv.min_value:
+                return {"state": "violated", "confidence": 0.0}
             true_len = max(0, left_iv.max_value - max(left_iv.min_value, right_iv.max_value))
             false_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
             total = lw

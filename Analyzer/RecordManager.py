@@ -29,6 +29,11 @@ class RecordManager:
     def get_range(self, start: int, end: int) -> Dict[int, List[Dict[str, Any]]]:
         return {ln: self.ledger[ln] for ln in range(start, end + 1) if ln in self.ledger}
 
+    def clear_line(self, line_no: int) -> None:
+        """해당 라인의 레코드 삭제 (재분석 전 초기화용)"""
+        if line_no in self.ledger:
+            self.ledger[line_no].clear()
+
     # ─────────────────────────────────────────────────────
     # 지역변수 선언 기록
     # ─────────────────────────────────────────────────────
