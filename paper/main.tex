@@ -248,11 +248,11 @@ The representative single-transaction numeric logic error patterns identified in
 
     \item \textbf{Minor Amount Retention}~\citep{numscout}: Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock.
 
-    \item \textbf{Wrong Interest Rate Order}~\citep{gptscan}: Balance calculations using outdated or prematurely updated interest rates yield incorrect results.
-
-    \item \textbf{Wrong Checkpoint Order}~\citep{gptscan}: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
-
-    \item \textbf{Erroneous Accounting}~\citep{exploitablebugs}: Incorrect implementation of business model formulas introduces small errors that accumulate into substantial losses.
+    \item \textbf{Erroneous Accounting}~\citep{gptscan, exploitablebugs}: Incorrect implementation of business model formulas introduces errors that accumulate into substantial losses. Representative sub-patterns include:
+    \begin{itemize}
+        \item \textit{Wrong Interest Rate Order}: Balance calculations using outdated or prematurely updated interest rates yield incorrect results.
+        \item \textit{Wrong Checkpoint Order}: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
+    \end{itemize}
 
     \item \textbf{Greedy Contract}~\citep{flyinointment}: Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock.
 
@@ -262,30 +262,6 @@ Despite their diversity, these error patterns share a common root: the actual be
 
 \subsection{Motivation for Intent-Based Validation}
 
-\begin{table}[!t]
-\centering
-\caption{Mapping of Error Patterns to Variable Flow Stages}
-\label{tab:error_mapping}
-\begin{tabular}{|l|l|}
-\hline
-\textbf{Variable Flow} & \textbf{Error Pattern} \\
-\hline
-\multirow{6}{*}{COMPUTE}
-& Operator Order Issue \\
-& Precision Loss Trend \\
-& Div In Path \\
-& Exchange Problem \\
-& Wrong Interest Rate Order \\
-& Erroneous Accounting \\
-\hline
-TRANSFER & Minor Amount Retention \\
-\hline
-\multirow{2}{*}{OUTPUT}
-& Greedy Contract \\
-& Wrong Checkpoint Order \\
-\hline
-\end{tabular}
-\end{table}
 
 Existing approaches to detecting numeric logic errors---whether pattern-based static analyzers, formal verification tools, or LLM-based methods---fundamentally analyze code without access to the developer's actual intentions.
 Since logic errors arise when program behavior diverges from developer intent, and this intent exists only in the developer's mind, these approaches cannot reliably distinguish between intended behavior and unintended bugs.
@@ -304,9 +280,9 @@ Numeric variables flow through three distinct stages during function execution, 
     reflecting the intended effects of the computation.
 \end{itemize}
 
-To validate that this classification comprehensively covers numeric logic errors,
-the previously identified error patterns are mapped to these variable flow stages, as shown in Table~\ref{tab:error_mapping}.
 This classification provides a foundation for designing an intent specification mechanism that can address errors at each stage of variable flow.
+Note that error patterns do not map strictly to a single stage---for instance, an operator order issue during computation may manifest as an incorrect argument passed to a transfer function.
+The intent system accommodates this by allowing developers to specify constraints at any relevant stage.
 
 \subsection{IntentChecker Overview}
 

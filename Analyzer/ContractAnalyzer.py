@@ -967,18 +967,29 @@ class ContractAnalyzer:
         fn_cfg  ← 방금 만들고 있는 함수-CFG
         modifier_name  ← 'onlyOwner' 처럼 한 개
 
-        ① 컨트랙트에 등록돼 있는 modifier-CFG 가져오기
+        ① 컨트랙트에 등록돼 있는 modifier-CFG 가져오기 (상속된 modifier 포함)
         ② modifier-CFG 를 *얕은 복사* 하여 fn_cfg.graph 에 붙인다.
         ③ placeholder 노드(들)를 fn-entry/exit 로 스플라이스
         """
 
         contract_cfg = self.contract_cfgs[self.current_target_contract]
 
-        # ── ① modifier 존재 확인 ──────────────────────────────────
-        if modifier_name not in contract_cfg.functions:
-            raise ValueError(f"Modifier '{modifier_name}' is not defined.")
+        # ── ① modifier 존재 확인 (현재 컨트랙트 + 부모 컨트랙트) ────────
+        mod_cfg: FunctionCFG | None = None
 
-        mod_cfg: FunctionCFG = contract_cfg.functions[modifier_name]
+        # 현재 컨트랙트에서 찾기
+        if modifier_name in contract_cfg.functions:
+            mod_cfg = contract_cfg.functions[modifier_name]
+        else:
+            # 부모 컨트랙트에서 찾기
+            for parent_name in getattr(contract_cfg, 'parent_contracts', []):
+                parent_cfg = self.contract_cfgs.get(parent_name)
+                if parent_cfg and modifier_name in parent_cfg.functions:
+                    mod_cfg = parent_cfg.functions[modifier_name]
+                    break
+
+        if mod_cfg is None:
+            raise ValueError(f"Modifier '{modifier_name}' is not defined.")
 
         self.builder.splice_modifier(fn_cfg, mod_cfg, modifier_name)
 

@@ -254,8 +254,8 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # ContractAnalyzer로 전달하여 처리
         self.contract_analyzer.process_constructor_definition(
-            constructor_name=constructor_name,
-            parameters=parameters,
+            name=constructor_name,
+            params=parameters,
             modifiers=modifiers
         )
 

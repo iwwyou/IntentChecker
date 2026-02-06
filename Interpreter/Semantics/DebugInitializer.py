@@ -61,6 +61,14 @@ class DebugInitializer:
             # VarRefBase: visitVarRef에서 생성되는 단순 변수 참조
             return self._update_left_var_of_varref_base_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
+        elif expr.context == "VarRefMemberAccess":
+            # VarRefMemberAccess: varRef의 .member 접근 (IntentMemberAccess와 동일 구조)
+            return self._update_left_var_of_intent_member_access_context_for_debug(
+                expr, rVal, operator, variables, callerObject, callerContext)
+        elif expr.context == "VarRefIndexAccess":
+            # VarRefIndexAccess: varRef의 [index] 접근 (IntentIndexAccess와 동일 구조)
+            return self._update_left_var_of_intent_index_access_context_for_debug(
+                expr, rVal, operator, variables, callerObject, callerContext)
 
         return None
 
@@ -512,14 +520,6 @@ class DebugInitializer:
             print(f"[WARNING] Available variables: {list(variables.keys())[:10]}...")
             return  # Skip this annotation instead of raising error
 
-        # DEBUG: Show what we're patching (disabled for clean output)
-        # try:
-        #     target_id = getattr(target, 'identifier', '?')
-        #     target_val = repr(getattr(target, 'value', '?'))
-        #     print(f"[APPLY DEBUG] Patching {target_id}: {target_val} -> {value}")
-        # except:
-        #     pass
-
         # ① snapshot & restore
         self._snapshot_once_for_debug(target)
         if edit_event == "delete":
@@ -530,10 +530,6 @@ class DebugInitializer:
 
         # ② 값 패치
         self._patch_var_with_new_value_for_debug(target, value)
-        # try:
-        #     print(f"[APPLY DEBUG] After patching: {target_id} value updated")
-        # except:
-        #     pass
 
         # ③ 주소-ID 바인딩
         self._bind_if_address_for_debug(target)

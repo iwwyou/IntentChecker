@@ -9,6 +9,7 @@ _only_ws   = re.compile(r"^\s*$")          # 공백/탭 뿐
 _open_blk  = re.compile(r"\{\s*$")         # … {
 _one_liner = re.compile(r";\s*$")          # … ;
 _only_clo  = re.compile(r"^\s*}\s*$")      # }
+_comment   = re.compile(r"^\s*//")          # // 주석
 
 def slice_solidity(source: str) -> List[Dict[str, str | int]]:
     """
@@ -41,6 +42,13 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             i += 1
             continue
 
+        # 2.5) 주석 라인 ── 별도 청크로 처리 ──
+        if _comment.match(raw):
+            inputs.append({"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"})
+            cur_line += 1
+            i += 1
+            continue
+
         # 3) '{' 로 끝나는 헤더 줄  ──────────────────────────────
         if _open_blk.search(txt):
             block_code = f"{txt}\n}}"                    # header + 가짜 닫는 괄호
@@ -50,7 +58,7 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
                 "endLine":   cur_line + 1,                # 헤더+1 ⇒ 2-line block
                 "event": "add"
             })
-            cur_line += 1        # ※ 실제 소스엔 닫는 ‘}’ 가 없으므로 +1만
+            cur_line += 1        # ※ 실제 소스엔 닫는 '}' 가 없으므로 +1만
             i += 1
             continue
 

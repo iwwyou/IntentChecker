@@ -227,9 +227,18 @@ class Evaluation :
             return self.evaluate_literal_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IdentifierExpContext":
             return self.evaluate_identifier_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "VarRefBase":
+            # Guardian DSL의 단순 변수 참조 (IdentifierExpContext와 동일 구조)
+            return self.evaluate_identifier_context(expr, variables, callerObject, callerContext)
         elif expr.context == 'MemberAccessContext':
             return self.evaluate_member_access_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "VarRefMemberAccess":
+            # Guardian DSL의 멤버 접근 (MemberAccessContext와 동일 구조)
+            return self.evaluate_member_access_context(expr, variables, callerObject, callerContext)
         elif expr.context == "IndexAccessContext":
+            return self.evaluate_index_access_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "VarRefIndexAccess":
+            # Guardian DSL의 인덱스 접근 (IndexAccessContext와 동일 구조)
             return self.evaluate_index_access_context(expr, variables, callerObject, callerContext)
         elif expr.context == "MetaTypeContext":
             # type(uint256), type(address) 등

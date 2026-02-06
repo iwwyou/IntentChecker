@@ -351,6 +351,9 @@ class ContractCFG(CFG):
         self.functions[function_name] = function_cfg
 
     def get_function_cfg(self, function_name):
+        # constructor 특별 처리
+        if function_name == "constructor" and self.constructor is not None:
+            return self.constructor
         return self.functions[function_name]
     
     def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):

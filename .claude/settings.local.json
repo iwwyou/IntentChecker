@@ -36,7 +36,9 @@
       "Bash(powershell -Command \"wsl sed -n ''861,923p'' /home/isjeon/NumScout/feature_detector/semantic_analysis.py\")",
       "Bash(powershell:*)",
       "Bash(findstr:*)",
-      "Bash(more:*)"
+      "Bash(more:*)",
+      "Bash(xargs:*)",
+      "Bash(cmd /c \"move Dataset\\\\Numscout\\\\contraction\\\\greedy_contract\\\\SwordCrowdsale_simple.sol Dataset\\\\flyinointment\\\\greedy_contract\"\" && cmd /c \"move DatasetNumscoutcontractiongreedy_contractSwordCrowdsale_simple.json Datasetflyinointmentgreedy_contract\"\")"
     ],
     "deny": [],
     "ask": []

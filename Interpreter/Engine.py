@@ -1545,7 +1545,7 @@ class Engine:
                 # 각 clause 검증
                 results = []
                 for clause in clauses:
-                    result = self._verify_post_clause_dynamic(clause, fcfg, guardian)
+                    result = self._verify_post_clause_dynamic(clause, line_no, fcfg, guardian)
                     results.append(result)
 
                 # 논리 연산자로 조합

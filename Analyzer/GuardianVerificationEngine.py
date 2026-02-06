@@ -644,9 +644,9 @@ class GuardianVerificationEngine:
     # ----------------------------------------------------------------
     def verify_post_entry_exit(self, *, var_ref, comp_op: str, line_no: int, fn_cfg) -> dict[str, Any]:
         try:
-            entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
-            entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
+            entry_env = fn_cfg.related_variables  # debug annotation 패치가 반영된 값 사용
 
+            entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
             cmp = self._compare_values(entry_val, comp_op, exit_val)

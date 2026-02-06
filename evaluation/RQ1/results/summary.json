@@ -1,6 +1,51 @@
 {
-  "timestamp": "2026-02-04T20:29:56.004306",
+  "timestamp": "2026-02-06T20:01:14.983597",
   "cases": [
+    {
+      "id": "SwordCrowdsale",
+      "name": "SwordCrowdsale greedy_contract",
+      "category": "greedy_contract",
+      "source": "Dataset/flyinointment/greedy_contract/SwordCrowdsale_simple.json",
+      "target_contract": "SwordCrowdsale",
+      "target_function": "refundMoney",
+      "bug_lines": [
+        33
+      ],
+      "status": "pass",
+      "violations": [
+        "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (conf=0.0)"
+      ],
+      "warnings": [],
+      "satisfied": [],
+      "errors": [],
+      "execution_time": 0.107,
+      "metrics": {
+        "total_intents": 1,
+        "num_violations": 1,
+        "num_warnings": 0,
+        "num_satisfied": 0,
+        "num_errors": 0,
+        "num_bug_detected": 1,
+        "violation_rate": 100.0,
+        "warning_rate": 0.0,
+        "satisfied_rate": 0.0,
+        "bug_detection_rate": 100.0
+      },
+      "intent_details": [
+        {
+          "intent_type": "Post",
+          "intent_clause_type": "PostEntryExit",
+          "intent_expression": "weiRaised(Entry > Exit)",
+          "intent_line": 33,
+          "expected_result": "violated",
+          "actual_result": "violated",
+          "is_correct": true,
+          "probability": 0.0
+        }
+      ],
+      "actual_violations": 1,
+      "expected_violations": 1
+    },
     {
       "id": "BoostToken",
       "name": "BoostToken operator_order_issue",
@@ -14,13 +59,13 @@
       ],
       "status": "pass",
       "violations": [
-        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FB730> → violated (conf=0.0)",
-        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002DBFB3FA170> → violated (conf=0.0)"
+        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E3962B3610> → violated (conf=0.0)",
+        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E396741540> → violated (conf=0.0)"
       ],
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 2.038,
+      "execution_time": 2.255,
       "metrics": {
         "total_intents": 2,
         "num_violations": 2,
@@ -33,36 +78,70 @@
         "satisfied_rate": 0.0,
         "bug_detection_rate": 100.0
       },
+      "intent_details": [
+        {
+          "intent_type": "During",
+          "intent_clause_type": "DuringFunctionArg",
+          "intent_expression": "transfer.arg[0] > 27",
+          "intent_line": 141,
+          "expected_result": "violated",
+          "actual_result": "not_found",
+          "is_correct": false,
+          "probability": null
+        },
+        {
+          "intent_type": "During",
+          "intent_clause_type": "DuringFunctionArg",
+          "intent_expression": "transfer.arg[0] > 14",
+          "intent_line": 142,
+          "expected_result": "violated",
+          "actual_result": "violated",
+          "is_correct": true,
+          "probability": 0.0
+        }
+      ],
       "actual_violations": 2,
       "expected_violations": 2
     }
   ],
   "summary": {
-    "total_cases": 1,
-    "passed": 1,
+    "total_cases": 2,
+    "passed": 2,
     "partial": 0,
     "failed": 0,
     "errors": 0,
     "pass_rate": 100.0,
     "intent_stats": {
-      "total_intents": 2,
-      "violations": 2,
+      "total_intents": 3,
+      "violations": 3,
       "warnings": 0,
       "satisfied": 0,
       "errors": 0,
-      "bug_detected": 2,
+      "bug_detected": 3,
       "violation_rate": 100.0,
       "warning_rate": 0.0,
       "satisfied_rate": 0.0,
       "bug_detection_rate": 100.0
     },
     "time_stats": {
-      "total_time": 2.038,
-      "avg_time": 2.038,
-      "min_time": 2.038,
-      "max_time": 2.038
+      "total_time": 2.362,
+      "avg_time": 1.181,
+      "min_time": 0.107,
+      "max_time": 2.255
     },
     "category_stats": {
+      "greedy_contract": {
+        "total": 1,
+        "pass": 1,
+        "partial": 0,
+        "fail": 0,
+        "error": 0,
+        "violations": 1,
+        "warnings": 0,
+        "satisfied": 0,
+        "execution_time": 0.107,
+        "pass_rate": 100.0
+      },
       "operator_order_issue": {
         "total": 1,
         "pass": 1,
@@ -72,7 +151,7 @@
         "violations": 2,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 2.038,
+        "execution_time": 2.255,
         "pass_rate": 100.0
       }
     }

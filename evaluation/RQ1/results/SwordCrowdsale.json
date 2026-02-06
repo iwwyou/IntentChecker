@@ -1,0 +1,45 @@
+{
+  "id": "SwordCrowdsale",
+  "name": "SwordCrowdsale greedy_contract",
+  "category": "greedy_contract",
+  "source": "Dataset/flyinointment/greedy_contract/SwordCrowdsale_simple.json",
+  "target_contract": "SwordCrowdsale",
+  "target_function": "refundMoney",
+  "bug_lines": [
+    33
+  ],
+  "status": "pass",
+  "violations": [
+    "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (conf=0.0)"
+  ],
+  "warnings": [],
+  "satisfied": [],
+  "errors": [],
+  "execution_time": 0.107,
+  "metrics": {
+    "total_intents": 1,
+    "num_violations": 1,
+    "num_warnings": 0,
+    "num_satisfied": 0,
+    "num_errors": 0,
+    "num_bug_detected": 1,
+    "violation_rate": 100.0,
+    "warning_rate": 0.0,
+    "satisfied_rate": 0.0,
+    "bug_detection_rate": 100.0
+  },
+  "intent_details": [
+    {
+      "intent_type": "Post",
+      "intent_clause_type": "PostEntryExit",
+      "intent_expression": "weiRaised(Entry > Exit)",
+      "intent_line": 33,
+      "expected_result": "violated",
+      "actual_result": "violated",
+      "is_correct": true,
+      "probability": 0.0
+    }
+  ],
+  "actual_violations": 1,
+  "expected_violations": 1
+}

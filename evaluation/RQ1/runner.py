@@ -13,6 +13,8 @@ import os
 import sys
 import json
 import time
+import csv
+import re
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -32,6 +34,68 @@ class RQ1Runner:
         self.cases_dir = cases_dir
         self.results_dir = results_dir
         self.results_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def classify_intent_clause(intent_type: str, expr: str) -> str:
+        """
+        Intent expression을 clause type으로 분류
+
+        During (3 types):
+          - DuringBeforeAfter: var(Before relOp After)
+          - DuringAssignCurrent: var(Assign relOp Current)
+          - DuringFunctionArg: func.arg[N] relOp value
+
+        Post (1 type for paper, 2 in implementation):
+          - PostEntryExit: var(Entry relOp Exit) or Unchanged(var)
+
+        Common (1 type):
+          - CommonClause: relational comparisons, return checks, etc.
+        """
+        expr_lower = expr.lower()
+
+        if intent_type == "Post":
+            if "entry" in expr_lower and "exit" in expr_lower:
+                return "PostEntryExit"
+            elif "unchanged" in expr_lower:
+                return "PostEntryExit"  # Unchanged는 Entry == Exit로 통합
+            else:
+                return "CommonClause"
+        elif intent_type == "During":
+            if "before" in expr_lower and "after" in expr_lower:
+                return "DuringBeforeAfter"
+            elif "assign" in expr_lower and "current" in expr_lower:
+                return "DuringAssignCurrent"
+            elif ".arg[" in expr:
+                return "DuringFunctionArg"
+            else:
+                return "CommonClause"
+        else:
+            return "CommonClause"
+
+    @staticmethod
+    def parse_result_line(line: str) -> dict:
+        """결과 라인에서 정보 추출"""
+        result = {
+            "actual_result": "unknown",
+            "probability": None,
+            "message": line
+        }
+
+        if "VIOLATION]" in line:
+            result["actual_result"] = "violated"
+        elif "SATISFIED]" in line or "SUCCESS]" in line:
+            result["actual_result"] = "satisfied"
+        elif "WARNING]" in line:
+            result["actual_result"] = "warning"
+        elif "ERROR]" in line:
+            result["actual_result"] = "error"
+
+        # probability (conf=X.X) 추출
+        conf_match = re.search(r'conf=([0-9.]+)', line)
+        if conf_match:
+            result["probability"] = float(conf_match.group(1))
+
+        return result
 
     def discover_cases(self, category: str = None, case_id: str = None) -> list[dict]:
         """테스트 케이스 탐색"""
@@ -77,7 +141,8 @@ class RQ1Runner:
             "satisfied": [],
             "errors": [],
             "execution_time": 0,
-            "metrics": {}
+            "metrics": {},
+            "intent_details": []  # Intent별 상세 정보
         }
 
         try:
@@ -93,6 +158,10 @@ class RQ1Runner:
 
             print(f"Loaded {len(records)} code records")
 
+            # 2.5. target contract/function 설정
+            analyzer.current_target_contract = case.get("target_contract")
+            analyzer.current_target_function = case.get("target_function")
+
             # 3. Phase 1: 코드 파싱
             for rec in records:
                 code, s, e, ev = rec["code"], rec["startLine"], rec["endLine"], rec["event"]
@@ -104,8 +173,9 @@ class RQ1Runner:
                     try:
                         tree = ParserHelpers.generate_parse_tree(code, ctx, False)
                         EnhancedSolidityVisitor(analyzer).visit(tree)
-                    except:
-                        pass
+                    except Exception as parse_err:
+                        # Debug: show parsing errors
+                        print(f"[PARSE ERR] Line {s}: ctx={ctx}, code={code[:50]}... -> {parse_err}")
 
             # 4. Phase 2: Intent annotations 추가 (CFG 노드에 저장)
             for intent in case.get("intent_annotations", []):
@@ -119,7 +189,9 @@ class RQ1Runner:
                 try:
                     analyzer.add_intent_annotation(line_no, annotation)
                 except Exception as e:
+                    import traceback
                     result["errors"].append(f"Intent annotation error at line {line_no}: {e}")
+                    print(f"Traceback: {traceback.format_exc()}")
 
             # 5. Phase 3: Debug annotations 추가 및 실행
             batch_mgr.reset()
@@ -132,13 +204,14 @@ class RQ1Runner:
                 var = debug["var"]
                 value = debug["value"]
                 line = debug.get("line", debug_line)
+                anno_type = debug.get("type", "LocalVar")  # LocalVar or StateVar
 
                 if isinstance(value, list) and len(value) == 2:
                     value_str = f"[{value[0]}, {value[1]}]"
                 else:
                     value_str = str(value)
 
-                annotation = f"// @LocalVar {var} = {value_str}"
+                annotation = f"// @{anno_type} {var} = {value_str}"
                 print(f"Adding debug: {annotation}")
                 batch_mgr.add_line(annotation, line, line)
 
@@ -146,22 +219,71 @@ class RQ1Runner:
             import io
             from contextlib import redirect_stdout
 
+            # Set target context for debug annotations
+            analyzer.current_target_contract = case.get("target_contract")
+            analyzer.current_target_function = case.get("target_function")
+
             output_buffer = io.StringIO()
-            with redirect_stdout(output_buffer):
-                batch_mgr.flush()
+            try:
+                with redirect_stdout(output_buffer):
+                    batch_mgr.flush()
+            except Exception as flush_err:
+                import traceback
+                print(f"[FLUSH ERR] {flush_err}")
+                print(f"Traceback: {traceback.format_exc()}")
 
             output = output_buffer.getvalue()
 
             # 7. 결과 파싱
+            output_lines = []
             for line in output.split('\n'):
-                if '[INTENT VIOLATION]' in line:
-                    result["violations"].append(line.strip())
-                elif '[INTENT SUCCESS]' in line or '[INTENT SATISFIED]' in line:
-                    result["satisfied"].append(line.strip())
-                elif '[INTENT ERROR]' in line:
-                    result["errors"].append(line.strip())
-                elif '[INTENT WARNING]' in line:
-                    result["warnings"].append(line.strip())
+                line = line.strip()
+                if not line:
+                    continue
+                if 'VIOLATION]' in line:
+                    result["violations"].append(line)
+                    output_lines.append(line)
+                elif 'SUCCESS]' in line or 'SATISFIED]' in line:
+                    result["satisfied"].append(line)
+                    output_lines.append(line)
+                elif 'ERROR]' in line:
+                    result["errors"].append(line)
+                    output_lines.append(line)
+                elif 'WARNING]' in line:
+                    result["warnings"].append(line)
+                    output_lines.append(line)
+
+            # 7.5 Intent별 상세 정보 수집
+            intent_annotations = case.get("intent_annotations", [])
+            for i, intent in enumerate(intent_annotations):
+                intent_type = intent.get("type", "During")
+                expr = intent.get("expr", "")
+                line_no = intent.get("line", 0)
+                expected = intent.get("expected", "violated")
+
+                # 해당 라인의 출력 찾기
+                actual_result = "not_found"
+                probability = None
+                for out_line in output_lines:
+                    if f"Line {line_no}:" in out_line:
+                        parsed = self.parse_result_line(out_line)
+                        actual_result = parsed["actual_result"]
+                        probability = parsed["probability"]
+                        break
+
+                is_correct = (expected == actual_result) or \
+                             (expected == "violated" and actual_result in ["violated", "warning"])
+
+                result["intent_details"].append({
+                    "intent_type": intent_type,
+                    "intent_clause_type": self.classify_intent_clause(intent_type, expr),
+                    "intent_expression": expr,
+                    "intent_line": line_no,
+                    "expected_result": expected,
+                    "actual_result": actual_result,
+                    "is_correct": is_correct,
+                    "probability": probability
+                })
 
             # 8. 메트릭 계산
             total_intents = case.get("expected_results", {}).get("total_intents",
@@ -207,6 +329,21 @@ class RQ1Runner:
             result["errors"].append(str(e))
             import traceback
             result["traceback"] = traceback.format_exc()
+            # 에러 시 기본 metrics 설정
+            result["metrics"] = {
+                "total_intents": 0,
+                "num_violations": 0,
+                "num_warnings": 0,
+                "num_satisfied": 0,
+                "num_errors": 1,
+                "num_bug_detected": 0,
+                "violation_rate": 0,
+                "warning_rate": 0,
+                "satisfied_rate": 0,
+                "bug_detection_rate": 0,
+            }
+            result["actual_violations"] = 0
+            result["expected_violations"] = case.get("expected_results", {}).get("expected_violations", 0)
 
         result["execution_time"] = round(time.time() - start_time, 3)
 
@@ -266,6 +403,9 @@ class RQ1Runner:
             }, f, indent=2, ensure_ascii=False)
 
         self._print_summary(summary)
+
+        # CSV 출력
+        self.export_csv(results)
 
         return {"cases": results, "summary": summary}
 
@@ -394,6 +534,69 @@ class RQ1Runner:
                 print(f"    Time:  {stats['execution_time']}s")
 
         print(f"\n{'='*60}")
+
+    def export_csv(self, results: list[dict], filename: str = "rq1_results.csv"):
+        """결과를 CSV 파일로 출력"""
+        csv_path = self.results_dir / filename
+
+        # CSV 컬럼 정의
+        fieldnames = [
+            "case_id", "category", "source_file",
+            "target_contract", "target_function", "bug_lines",
+            "intent_type", "intent_clause_type", "intent_expression", "intent_line",
+            "expected_result", "actual_result", "is_correct", "probability",
+            "total_intents", "num_violations", "num_satisfied",
+            "execution_time_sec"
+        ]
+
+        rows = []
+        for result in results:
+            case_base = {
+                "case_id": result["id"],
+                "category": result["category"],
+                "source_file": result["source"],
+                "target_contract": result["target_contract"],
+                "target_function": result["target_function"],
+                "bug_lines": ";".join(map(str, result.get("bug_lines", []))),
+                "total_intents": result["metrics"].get("total_intents", 0),
+                "num_violations": result["metrics"].get("num_violations", 0),
+                "num_satisfied": result["metrics"].get("num_satisfied", 0),
+                "execution_time_sec": result.get("execution_time", 0)
+            }
+
+            intent_details = result.get("intent_details", [])
+            if intent_details:
+                for detail in intent_details:
+                    row = {**case_base}
+                    row["intent_type"] = detail.get("intent_type", "")
+                    row["intent_clause_type"] = detail.get("intent_clause_type", "")
+                    row["intent_expression"] = detail.get("intent_expression", "")
+                    row["intent_line"] = detail.get("intent_line", "")
+                    row["expected_result"] = detail.get("expected_result", "")
+                    row["actual_result"] = detail.get("actual_result", "")
+                    row["is_correct"] = detail.get("is_correct", "")
+                    row["probability"] = detail.get("probability", "")
+                    rows.append(row)
+            else:
+                # intent_details가 없으면 케이스 정보만 출력
+                row = {**case_base}
+                row["intent_type"] = ""
+                row["intent_clause_type"] = ""
+                row["intent_expression"] = ""
+                row["intent_line"] = ""
+                row["expected_result"] = ""
+                row["actual_result"] = ""
+                row["is_correct"] = ""
+                row["probability"] = ""
+                rows.append(row)
+
+        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        print(f"\nCSV exported: {csv_path}")
+        return csv_path
 
 
 def main():
