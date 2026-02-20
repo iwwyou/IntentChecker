@@ -77,7 +77,7 @@ class RQ1Runner:
         """결과 라인에서 정보 추출"""
         result = {
             "actual_result": "unknown",
-            "probability": None,
+            "risk_score": None,
             "message": line
         }
 
@@ -90,10 +90,10 @@ class RQ1Runner:
         elif "ERROR]" in line:
             result["actual_result"] = "error"
 
-        # probability (conf=X.X) 추출
-        conf_match = re.search(r'conf=([0-9.]+)', line)
-        if conf_match:
-            result["probability"] = float(conf_match.group(1))
+        # risk score [risk=X.X] 추출
+        risk_match = re.search(r'\[risk=([0-9.]+)\]', line)
+        if risk_match:
+            result["risk_score"] = float(risk_match.group(1))
 
         return result
 
@@ -263,12 +263,12 @@ class RQ1Runner:
 
                 # 해당 라인의 출력 찾기
                 actual_result = "not_found"
-                probability = None
+                risk_score = None
                 for out_line in output_lines:
                     if f"Line {line_no}:" in out_line:
                         parsed = self.parse_result_line(out_line)
                         actual_result = parsed["actual_result"]
-                        probability = parsed["probability"]
+                        risk_score = parsed["risk_score"]
                         break
 
                 is_correct = (expected == actual_result) or \
@@ -282,7 +282,7 @@ class RQ1Runner:
                     "expected_result": expected,
                     "actual_result": actual_result,
                     "is_correct": is_correct,
-                    "probability": probability
+                    "risk_score": risk_score
                 })
 
             # 8. 메트릭 계산
@@ -544,7 +544,7 @@ class RQ1Runner:
             "case_id", "category", "source_file",
             "target_contract", "target_function", "bug_lines",
             "intent_type", "intent_clause_type", "intent_expression", "intent_line",
-            "expected_result", "actual_result", "is_correct", "probability",
+            "expected_result", "actual_result", "is_correct", "risk_score",
             "total_intents", "num_violations", "num_satisfied",
             "execution_time_sec"
         ]
@@ -575,7 +575,7 @@ class RQ1Runner:
                     row["expected_result"] = detail.get("expected_result", "")
                     row["actual_result"] = detail.get("actual_result", "")
                     row["is_correct"] = detail.get("is_correct", "")
-                    row["probability"] = detail.get("probability", "")
+                    row["risk_score"] = detail.get("risk_score", "")
                     rows.append(row)
             else:
                 # intent_details가 없으면 케이스 정보만 출력
@@ -587,7 +587,7 @@ class RQ1Runner:
                 row["expected_result"] = ""
                 row["actual_result"] = ""
                 row["is_correct"] = ""
-                row["probability"] = ""
+                row["risk_score"] = ""
                 rows.append(row)
 
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:

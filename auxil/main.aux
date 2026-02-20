@@ -20,21 +20,17 @@
 \newlabel{sec:background}{{2}{3}{Background}{section.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Numeric Logic Errors in Solidity}{3}{subsection.2.1}\protected@file@percent }
 \citation{numscout}
-\citation{gptscan}
-\citation{gptscan}
-\citation{exploitablebugs}
+\citation{gptscan,exploitablebugs}
 \citation{flyinointment}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of Error Patterns to Variable Flow Stages}}{4}{table.caption.5}\protected@file@percent }
-\newlabel{tab:error_mapping}{{2}{4}{Mapping of Error Patterns to Variable Flow Stages}{table.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Motivation for Intent-Based Validation}{4}{subsection.2.2}\protected@file@percent }
 \citation{solqdebug}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.3}IntentChecker Overview}{5}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}The Design of IntentChecker}{5}{section.3}\protected@file@percent }
+\newlabel{sec:design}{{3}{5}{The Design of IntentChecker}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}System Architecture}{5}{subsection.3.1}\protected@file@percent }
 \citation{solqdebug}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker.}}{6}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:architecture}{{1}{6}{System architecture of IntentChecker}{figure.caption.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3}The Design of IntentChecker}{6}{section.3}\protected@file@percent }
-\newlabel{sec:design}{{3}{6}{The Design of IntentChecker}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}System Architecture}{6}{subsection.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker.}}{6}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:architecture}{{1}{6}{System architecture of IntentChecker}{figure.caption.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Motivating Examples}{7}{subsection.3.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}COMPUTE: Precision Loss in Arithmetic}{7}{subsubsection.3.2.1}\protected@file@percent }
 \newlabel{lst:compute-example}{{1}{7}{Example: Precision loss in fee calculation}{lstlisting.1}{}}
@@ -45,64 +41,63 @@
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.3}OUTPUT: State Consistency After Execution}{7}{subsubsection.3.2.3}\protected@file@percent }
 \newlabel{lst:output-example}{{3}{7}{Example: Verifying balance consistency}{lstlisting.3}{}}
 \@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Example: Verifying balance consistency}}{7}{lstlisting.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{8}{figure.caption.7}\protected@file@percent }
-\newlabel{fig:intent-grammar}{{2}{8}{Grammar of intent annotations}{figure.caption.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Intent Model}{8}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Intent Model}{7}{subsection.3.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{8}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:intent-grammar}{{2}{8}{Grammar of intent annotations}{figure.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Validation Engine}{9}{subsection.3.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{11}{table.caption.9}\protected@file@percent }
-\newlabel{tab:interval-mapping}{{3}{11}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.9}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{10}{section.4}\protected@file@percent }
+\newlabel{sec:evaluation}{{4}{10}{Evaluation}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{10}{subsection.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{11}{table.caption.7}\protected@file@percent }
+\newlabel{tab:interval-mapping}{{2}{11}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Interval Comparison with Three-Valued Result}}{11}{algorithm.1}\protected@file@percent }
 \newlabel{alg:interval-compare}{{1}{11}{Interval Comparison with Three-Valued Result}{algorithm.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{11}{section.4}\protected@file@percent }
-\newlabel{sec:evaluation}{{4}{11}{Evaluation}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{11}{subsection.4.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Conjunction (\texttt  {\&\&}) truth table for three-valued logic.}}{12}{table.caption.11}\protected@file@percent }
-\newlabel{tab:conjunction}{{4}{12}{Conjunction (\texttt {\&\&}) truth table for three-valued logic}{table.caption.11}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Disjunction (\texttt  {||}) truth table for three-valued logic.}}{12}{table.caption.13}\protected@file@percent }
-\newlabel{tab:disjunction}{{5}{12}{Disjunction (\texttt {||}) truth table for three-valued logic}{table.caption.13}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Implication (\texttt  {=>}) result based on antecedent state.}}{12}{table.caption.15}\protected@file@percent }
-\newlabel{tab:implication}{{6}{12}{Implication (\texttt {=>}) result based on antecedent state}{table.caption.15}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{12}{subsection.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Detection Effectiveness}{12}{subsection.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Intent Model Coverage}{12}{subsection.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}RQ3: Usefulness of Uncertain Results}{12}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Threats to Validity}{12}{subsection.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{12}{section.5}\protected@file@percent }
-\newlabel{sec:discussion}{{5}{12}{Discussion}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Limitations}{12}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Conjunction (\texttt  {\&\&}) truth table for three-valued logic.}}{12}{table.caption.9}\protected@file@percent }
+\newlabel{tab:conjunction}{{3}{12}{Conjunction (\texttt {\&\&}) truth table for three-valued logic}{table.caption.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Disjunction (\texttt  {||}) truth table for three-valued logic.}}{12}{table.caption.11}\protected@file@percent }
+\newlabel{tab:disjunction}{{4}{12}{Disjunction (\texttt {||}) truth table for three-valued logic}{table.caption.11}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Implication (\texttt  {=>}) result based on antecedent state.}}{12}{table.caption.13}\protected@file@percent }
+\newlabel{tab:implication}{{5}{12}{Implication (\texttt {=>}) result based on antecedent state}{table.caption.13}{}}
 \citation{highguard}
 \citation{smartpulse}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{13}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Detection}{13}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Warning Usefulness}{13}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}RQ3: Expressiveness}{13}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}RQ4: Developer Perception}{13}{subsection.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Threats to Validity}{13}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{13}{section.5}\protected@file@percent }
+\newlabel{sec:discussion}{{5}{13}{Discussion}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Limitations}{13}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{13}{section.6}\protected@file@percent }
+\newlabel{sec:related}{{6}{13}{Related Works}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{13}{subsection.6.1}\protected@file@percent }
 \citation{consolidating}
 \citation{smartinv}
 \citation{exploitablebugs}
 \citation{accountingerrors}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{13}{section.6}\protected@file@percent }
-\newlabel{sec:related}{{6}{13}{Related Works}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{13}{subsection.6.1}\protected@file@percent }
 \citation{defiranger,defiguard,pomabuster,secplf,defitainter}
 \citation{defitail,midnight}
 \citation{scribble}
 \citation{mythx}
 \citation{mythril}
 \citation{smartace}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Specification-based Smart Contract Verification}{14}{subsection.6.2}\protected@file@percent }
 \citation{scribble}
 \citation{seahorn}
 \citation{libfuzzer}
 \citation{klee}
 \citation{idealist}
 \citation{solvent}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Specification-based Smart Contract Verification}{14}{subsection.6.2}\protected@file@percent }
 \citation{making}
 \citation{oyente}
 \citation{mythril}
 \citation{securify}
 \citation{solhint}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Tools for Strengthening Security During Development Phase}{15}{subsection.6.3}\protected@file@percent }
 \bibcite{secplf}{{1}{2024}{{Arora et~al.}}{{}}}
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Tools for Strengthening Security During Development Phase}{15}{subsection.6.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{15}{section.7}\protected@file@percent }
-\newlabel{sec:conclusion}{{7}{15}{Conclusion}{section.7}{}}
 \bibcite{defisecurity}{{4}{2024}{{Chaliasos et~al.}}{{}}}
 \bibcite{numscout}{{5}{2025}{{Chen et~al.}}{{}}}
 \bibcite{mythril}{{6}{2025a}{{Consensys Diligence}}{{}}}
@@ -113,6 +108,8 @@
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
 \bibcite{defitainter}{{12}{2023}{{Kong et~al.}}{{}}}
 \bibcite{defitail}{{13}{2025}{{Li et~al.}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{16}{section.7}\protected@file@percent }
+\newlabel{sec:conclusion}{{7}{16}{Conclusion}{section.7}{}}
 \bibcite{libfuzzer}{{14}{2025}{{LLVM}}{{}}}
 \bibcite{oyente}{{15}{2016}{{Luu et~al.}}{{}}}
 \bibcite{idealist}{{16}{2023}{{Nguyen et~al.}}{{}}}

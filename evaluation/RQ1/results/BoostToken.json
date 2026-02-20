@@ -11,13 +11,13 @@
   ],
   "status": "pass",
   "violations": [
-    "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E3962B3610> → violated (conf=0.0)",
-    "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E396741540> → violated (conf=0.0)"
+    "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E0AC0> → violated (risk=10.0) [risk=10.0]",
+    "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E14E0> → violated (risk=10.0) [risk=10.0]"
   ],
   "warnings": [],
   "satisfied": [],
   "errors": [],
-  "execution_time": 2.255,
+  "execution_time": 1.969,
   "metrics": {
     "total_intents": 2,
     "num_violations": 2,
@@ -39,7 +39,7 @@
       "expected_result": "violated",
       "actual_result": "not_found",
       "is_correct": false,
-      "probability": null
+      "risk_score": null
     },
     {
       "intent_type": "During",
@@ -49,7 +49,7 @@
       "expected_result": "violated",
       "actual_result": "violated",
       "is_correct": true,
-      "probability": 0.0
+      "risk_score": 10.0
     }
   ],
   "actual_violations": 2,

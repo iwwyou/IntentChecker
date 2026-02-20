@@ -1279,12 +1279,14 @@ class Engine:
 
                 # 결과 출력
                 status = combined_result.get("status", "unknown")
+                risk = combined_result.get("risk_score", "")
+                risk_str = f" [risk={risk}]" if risk != "" else ""
                 if status == "violated":
-                    print(f"[INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
                 elif status == "satisfied":
-                    print(f"[INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
                 else:
-                    print(f"[INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
 
                 # analysis_per_line에 기록
                 if line_no not in self.an.analysis_per_line:
@@ -1553,12 +1555,14 @@ class Engine:
 
                 # 결과 출력
                 status = combined_result.get("status", "unknown")
+                risk = combined_result.get("risk_score", "")
+                risk_str = f" [risk={risk}]" if risk != "" else ""
                 if status == "violated":
-                    print(f"[POST INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[POST INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
                 elif status == "satisfied":
-                    print(f"[POST INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[POST INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
                 else:
-                    print(f"[POST INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}")
+                    print(f"[POST INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
 
                 # analysis_per_line에 기록
                 if line_no not in self.an.analysis_per_line:
@@ -1793,7 +1797,13 @@ class Engine:
             return {"status": "error", "message": "No results to combine"}
 
         if len(results) == 1:
-            return results[0]
+            r = results[0]
+            # details 내부의 risk_score를 top-level로 전파
+            if r.get("risk_score") is None and r.get("details"):
+                rs = r["details"].get("risk_score")
+                if rs is not None:
+                    r["risk_score"] = rs
+            return r
 
         # 초기 결과
         combined = results[0]
@@ -1828,4 +1838,17 @@ class Engine:
         messages = [r.get("message", "") for r in results if r.get("message")]
         combined_msg = " ; ".join(messages) if messages else ""
 
-        return {"status": combined_status, "message": combined_msg}
+        # risk_score: 가장 높은 위험도를 전파 (top-level 또는 details 내부에서 추출)
+        risk_scores = []
+        for r in results:
+            rs = r.get("risk_score")
+            if rs is None:
+                rs = r.get("details", {}).get("risk_score")
+            if rs is not None:
+                risk_scores.append(rs)
+        max_risk = max(risk_scores) if risk_scores else None
+
+        out = {"status": combined_status, "message": combined_msg}
+        if max_risk is not None:
+            out["risk_score"] = max_risk
+        return out

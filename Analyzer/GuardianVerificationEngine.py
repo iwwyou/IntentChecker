@@ -253,7 +253,7 @@ class GuardianVerificationEngine:
     ) -> dict[str, Any]:
 
         try:
-            # ── 1) “현재 함수” CFG -------------------------------
+            # ── 1) "현재 함수" CFG -------------------------------
             fcfg = self.analyzer.current_target_function_cfg
             if fcfg is None:
                 return self._err("duringRetExpr",
@@ -277,7 +277,7 @@ class GuardianVerificationEngine:
 
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -346,7 +346,7 @@ class GuardianVerificationEngine:
 
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -379,7 +379,7 @@ class GuardianVerificationEngine:
             fcfg = self.analyzer.current_target_function_cfg
             exit_n = fcfg.get_exit_node()
 
-            # ① “해당‧또는 가장 가까운 이전” return-값 가져오기 -------------
+            # ① "해당‧또는 가장 가까운 이전" return-값 가져오기 -------------
             if line_no in exit_n.return_vals:
                 ret_val = exit_n.return_vals[line_no]
             else:  # 앞쪽에서 찾기
@@ -417,7 +417,7 @@ class GuardianVerificationEngine:
 
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -459,7 +459,7 @@ class GuardianVerificationEngine:
 
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -565,7 +565,7 @@ class GuardianVerificationEngine:
 
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -653,7 +653,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
 
@@ -693,7 +693,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
             return {
@@ -750,7 +750,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
             return {
@@ -790,7 +790,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
             return {
@@ -818,7 +818,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
             return {
@@ -847,7 +847,7 @@ class GuardianVerificationEngine:
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
-                msg_tail = f" | false-candidates L={fr['left']} R={fr['right']}"
+                msg_tail = f" | violation lower={fr.get('lower_violation')} upper={fr.get('upper_violation')} overlap={fr.get('overlap_zone')}"
             else:
                 msg_tail = ""
             return {
@@ -913,6 +913,74 @@ class GuardianVerificationEngine:
         return getattr(expr, "identifier", "") or str(expr)
 
     # ----------------------------------------------------------------
+    # Risk type / Risk score 계산
+    # ----------------------------------------------------------------
+    def _compute_risk_type(self, state: str, false_regions: dict, op: str) -> int:
+        """
+        위험도 타입 판별:
+          1 = satisfied (위반 경로 없음, spec 느슨할 수 있음)
+          2 = 한쪽 방향만 위반
+          3 = 양쪽 방향 위반 (in operator 등)
+        violated 상태는 violation_ratio=1.0 과 결합하여 최대 점수가 됨.
+        """
+        if state == "satisfied":
+            return 1
+        if state == "violated":
+            # violated는 타입 자체는 false_regions로 판별
+            # violated이면서 양방향이면 3, 아니면 2
+            pass
+
+        # warning 또는 violated: false_regions 기반 판별
+        lower = false_regions.get("lower_violation") if false_regions else None
+        upper = false_regions.get("upper_violation") if false_regions else None
+
+        has_lower = lower is not None
+        has_upper = upper is not None
+
+        # == / != 는 interval 기반 분석과 본질적으로 궁합이 안 맞으므로
+        # warning이면 타입 3 (높은 위험도) 부여
+        if op in {"==", "!="}:
+            return 3 if state != "satisfied" else 1
+
+        if has_lower and has_upper:
+            return 3
+        elif has_lower or has_upper:
+            return 2
+        else:
+            # false_regions 계산 실패 등 → overlap_zone만 있으면 타입 2
+            overlap = false_regions.get("overlap_zone") if false_regions else None
+            return 2 if overlap is not None else 1
+
+    def _compute_risk_score(self, state: str, confidence: float,
+                            false_regions: dict, op: str) -> float:
+        """
+        0-10 스케일 위험도 점수 계산.
+          타입 1 (satisfied)   → 0.0 ~ 3.3
+          타입 2 (한쪽 위반)    → 3.4 ~ 6.6
+          타입 3 (양쪽 위반)    → 6.7 ~ 10.0
+        confidence = 성립할 확률 (0~1), violation_ratio = 1 - confidence
+        """
+        if state == "satisfied" and confidence == 1.0:
+            return 0.0
+        if state == "violated" and confidence == 0.0:
+            return 10.0
+
+        risk_type = self._compute_risk_type(state, false_regions, op)
+        violation_ratio = 1.0 - confidence  # 위반 비율
+
+        # 타입별 구간: [base, base + span)
+        # 타입 1: 0.0 ~ 3.3,  타입 2: 3.4 ~ 6.6,  타입 3: 6.7 ~ 10.0
+        if risk_type == 1:
+            base, span = 0.0, 3.3
+        elif risk_type == 2:
+            base, span = 3.4, 3.2   # 3.4 ~ 6.6
+        else:
+            base, span = 6.7, 3.3   # 6.7 ~ 10.0
+
+        score = base + violation_ratio * span
+        return round(min(10.0, max(0.0, score)), 1)
+
+    # ----------------------------------------------------------------
     # Interval-aware comparison with probability
     # ----------------------------------------------------------------
     def _compare_intervals_prob(self, left_iv, right_iv, op: str) -> dict:
@@ -930,10 +998,18 @@ class GuardianVerificationEngine:
             """두 구간 [a1,a2], [b1,b2] 의 겹치는 길이"""
             return max(0, min(a2, b2) - max(a1, b1))
 
+        def _enrich(info):
+            """모든 반환 경로에 risk_type, risk_score를 추가"""
+            fr = info.get("false_regions", {})
+            info["risk_type"] = self._compute_risk_type(info["state"], fr, op)
+            info["risk_score"] = self._compute_risk_score(
+                info["state"], info["confidence"], fr, op)
+            return info
+
         # ① min/max 가 None → 정보 부족 → 완전 불확정
         if (left_iv.min_value is None or left_iv.max_value is None or
                 right_iv.min_value is None or right_iv.max_value is None):
-            return {"state": "warning", "confidence": 0.5}
+            return _enrich({"state": "warning", "confidence": 0.5})
 
         # ② Interval 폭
         lw, rw = left_iv.max_value - left_iv.min_value, right_iv.max_value - right_iv.min_value
@@ -944,26 +1020,32 @@ class GuardianVerificationEngine:
             left_inside = (left_iv.min_value >= right_iv.min_value and
                            left_iv.max_value <= right_iv.max_value)
             if left_inside:
-                return {"state": "satisfied" if op == "in" else "violated",
-                        "confidence": 1.0}
-            # 완전히 분리 → ‘in’ 은 false 확정,  ‘not in’ 은 true 확정
+                return _enrich({"state": "satisfied" if op == "in" else "violated",
+                                "confidence": 1.0})
+            # 완전히 분리 → 'in' 은 false 확정,  'not in' 은 true 확정
             separated = (left_iv.max_value < right_iv.min_value or
                          left_iv.min_value > right_iv.max_value)
             if separated:
-                return {"state": "violated" if op == "in" else "satisfied",
-                        "confidence": 1.0}
+                return _enrich({"state": "violated" if op == "in" else "satisfied",
+                                "confidence": 1.0})
             # 부분-겹침 → 불확정, 겹치는 비율을 신뢰도로
             overlap = max(0, min(left_iv.max_value, right_iv.max_value) -
                           max(left_iv.min_value, right_iv.min_value))
             conf = 1 - overlap / lw if op == "not in" else overlap / lw
-            return {"state": "warning", "confidence": round(conf, 3)}
+            info = {"state": "warning", "confidence": round(conf, 3)}
+            try:
+                info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
+            except Exception:
+                info["false_regions"] = {"lower_violation": None, "upper_violation": None,
+                                         "overlap_zone": None, "notes": "failed to compute"}
+            return _enrich(info)
 
         if op == '>':
             # L > R: L.min > R.max → satisfied, L.max <= R.min → violated
             if left_iv.min_value > right_iv.max_value:
-                return {"state": "satisfied", "confidence": 1.0}
+                return _enrich({"state": "satisfied", "confidence": 1.0})
             if left_iv.max_value <= right_iv.min_value:
-                return {"state": "violated", "confidence": 0.0}
+                return _enrich({"state": "violated", "confidence": 0.0})
             true_len = max(0, left_iv.max_value - max(left_iv.min_value, right_iv.max_value))
             false_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
             total = lw
@@ -980,7 +1062,7 @@ class GuardianVerificationEngine:
             false_len = max(0, left_iv.min_value - right_iv.min_value - 1)
             total = lw + 1
         elif op == '==':
-            # 겹치는 길이를 “true”, 나머지를 “false”
+            # 겹치는 길이를 "true", 나머지를 "false"
             true_len = _overlap(left_iv.min_value, left_iv.max_value,
                                 right_iv.min_value, right_iv.max_value)
             false_len = lw - true_len
@@ -995,20 +1077,20 @@ class GuardianVerificationEngine:
 
         # ④ 결과 state / confidence ----------------------------------
         if false_len == 0:
-            return {"state": "satisfied", "confidence": 1.0}
+            return _enrich({"state": "satisfied", "confidence": 1.0})
         if true_len == 0:
-            return {"state": "violated", "confidence": 0.0}
+            return _enrich({"state": "violated", "confidence": 0.0})
 
         conf = true_len / total if total else 0.5
         info = {"state": "warning", "confidence": round(conf, 3)}
 
-        # ✨ 추가: warning이면 false-support 구간을 계산해서 달아준다
         try:
             info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
         except Exception:
-            info["false_regions"] = {"left": [], "right": [], "notes": "failed to compute"}
+            info["false_regions"] = {"lower_violation": None, "upper_violation": None,
+                                     "overlap_zone": None, "notes": "failed to compute"}
 
-        return info
+        return _enrich(info)
 
     def _compare_values(self, left, op: str, right) -> dict:
         # ───────── Interval ↔ Interval (기존) ─────────
@@ -1019,7 +1101,9 @@ class GuardianVerificationEngine:
                 "violated": info["state"] == "violated",
                 "warning": info["state"] == "warning",
                 "confidence": info["confidence"],
-                "message": f"{info['state']} (conf={info['confidence']})"
+                "risk_score": info.get("risk_score", 0.0),
+                "risk_type": info.get("risk_type", 1),
+                "message": f"{info['state']} (risk={info.get('risk_score', 0.0)})"
             }
             if "false_regions" in info:
                 out["false_regions"] = info["false_regions"]
@@ -1031,6 +1115,7 @@ class GuardianVerificationEngine:
                 if right.min_value is None or right.max_value is None:
                     return {"satisfied": False, "violated": True,
                             "warning": True, "confidence": 0.0,
+                            "risk_score": 10.0, "risk_type": 2,
                             "message": "interval unknown"}
                 inside = right.min_value <= left <= right.max_value
                 satisfied = inside if op == "in" else not inside
@@ -1039,6 +1124,8 @@ class GuardianVerificationEngine:
                     "violated": not satisfied,
                     "warning": False,
                     "confidence": 1.0,
+                    "risk_score": 0.0 if satisfied else 10.0,
+                    "risk_type": 1 if satisfied else 2,
                     "message": f"{left} {op} [{right.min_value},{right.max_value}] = {satisfied}"
                 }
 
@@ -1066,11 +1153,14 @@ class GuardianVerificationEngine:
                 "violated": not satisfied,
                 "warning": False,
                 "confidence": 1.0,
+                "risk_score": 0.0 if satisfied else 10.0,
+                "risk_type": 1 if satisfied else 2,
                 "message": f"{left} {op} {right} = {satisfied}"
             }
         except Exception as e:
             return {"satisfied": False, "violated": True,
                     "warning": True, "confidence": 0.0,
+                    "risk_score": 10.0, "risk_type": 2,
                     "message": f"comparison error: {e}"}
 
     def _expr_to_str(self, e):  # 간단 문자열 직렬화 helper
@@ -1318,75 +1408,88 @@ class GuardianVerificationEngine:
     def _false_regions_for_op(self, L, R, op: str) -> dict:
         """
         L,R: Interval-like (min_value, max_value).
-        warning일 때 '거짓이 될 수 있는' 후보 구간을 보수적으로 리턴.
+        warning일 때 '거짓이 될 수 있는' 후보 구간을 방향별로 분리해서 리턴.
         반환 예:
-          { "left":  [[l1,l2], ...],
-            "right": [[r1,r2], ...],
+          { "lower_violation": [lo, hi] or None,   # intent 하한 아래로 벗어난 구간
+            "upper_violation": [lo, hi] or None,   # intent 상한 위로 벗어난 구간
+            "overlap_zone":    [lo, hi] or None,   # 겹치는 불확정 구간
             "notes": "inclusive integer intervals" }
         """
+        empty = {"lower_violation": None, "upper_violation": None,
+                 "overlap_zone": None, "notes": "unknown bounds"}
+
         if (getattr(L, "min_value", None) is None or getattr(L, "max_value", None) is None or
                 getattr(R, "min_value", None) is None or getattr(R, "max_value", None) is None):
-            return {"left": [], "right": [], "notes": "unknown bounds"}
+            return empty
 
         a = [int(L.min_value), int(L.max_value)]
         b = [int(R.min_value), int(R.max_value)]
-        left, right = [], []
+        lower = None   # actual이 intent 하한 아래로 벗어남
+        upper = None   # actual이 intent 상한 위로 벗어남
+        overlap = None # 겹치는 불확정 구간
 
         if op == '>':
-            # 거짓(A<=B) 가능: A in [a_min, min(a_max, b_max)], B in [max(b_min, a_min), b_max]
-            lf = self._mk_interval(a[0], min(a[1], b[1]))
-            rf = self._mk_interval(max(b[0], a[0]), b[1])
-            left = [lf] if lf else []
-            right = [rf] if rf else []
+            # L > R 가 거짓인 구간: L이 R 이하인 부분
+            # lower: L의 하단이 R.min 이하 → 확실히 거짓
+            # overlap: L과 R이 겹치는 구간 → 불확정
+            if a[0] <= b[0]:
+                lower = self._mk_interval(a[0], min(a[1], b[0]))
+            overlap = self._mk_interval(max(a[0], b[0] + 1), min(a[1], b[1]))
 
         elif op == '<':
-            # 거짓(A>=B) 가능
-            lf = self._mk_interval(max(a[0], b[0]), a[1])
-            rf = self._mk_interval(b[0], min(b[1], a[1]))
-            left, right = ([lf] if lf else [], [rf] if rf else [])
+            # L < R 가 거짓인 구간: L이 R 이상인 부분
+            # upper: L의 상단이 R.max 이상 → 확실히 거짓
+            # overlap: L과 R이 겹치는 구간 → 불확정
+            if a[1] >= b[1]:
+                upper = self._mk_interval(max(a[0], b[1]), a[1])
+            overlap = self._mk_interval(max(a[0], b[0]), min(a[1], b[1] - 1))
 
         elif op == '>=':
-            # 거짓(A<B) 가능: 정수 의미로 b_max-1, a_min+1 보정
-            lf = self._mk_interval(a[0], min(a[1], b[1] - 1))
-            rf = self._mk_interval(max(b[0], a[0] + 1), b[1])
-            left, right = ([lf] if lf else [], [rf] if rf else [])
+            # L >= R 가 거짓인 구간: L < R 인 부분
+            if a[0] < b[0]:
+                lower = self._mk_interval(a[0], min(a[1], b[0] - 1))
+            overlap = self._mk_interval(max(a[0], b[0]), min(a[1], b[1]))
 
         elif op == '<=':
-            # 거짓(A>B) 가능
-            lf = self._mk_interval(max(a[0], b[0] + 1), a[1])
-            rf = self._mk_interval(b[0], min(b[1], a[1] - 1))
-            left, right = ([lf] if lf else [], [rf] if rf else [])
+            # L <= R 가 거짓인 구간: L > R 인 부분
+            if a[1] > b[1]:
+                upper = self._mk_interval(max(a[0], b[1] + 1), a[1])
+            overlap = self._mk_interval(max(a[0], b[0]), min(a[1], b[1]))
 
         elif op == '==':
-            # 거짓은 '겹침 밖' 영역. left_false = A \ (A∩B), right_false = B \ (A∩B)
+            # 거짓은 '겹침 밖' 영역
             inter = self._intersect(a, b)
-            left = self._minus(a, inter) if inter else [a]
-            right = self._minus(b, inter) if inter else [b]
+            if inter:
+                if a[0] < inter[0]:
+                    lower = self._mk_interval(a[0], inter[0] - 1)
+                if a[1] > inter[1]:
+                    upper = self._mk_interval(inter[1] + 1, a[1])
+                overlap = inter  # 겹치는 구간 (같을 수 있는 유일한 구간)
+            else:
+                # 완전 분리 → 전체가 violation
+                if a[1] < b[0]:
+                    lower = a
+                else:
+                    upper = a
 
         elif op == '!=':
-            # 거짓은 '같을 수 있는' 영역. 즉 겹치는 부분이 false-support
+            # 거짓은 '같을 수 있는' 영역 = 겹치는 부분
             inter = self._intersect(a, b)
-            left = [inter] if inter else []
-            right = [inter] if inter else []
+            overlap = inter  # 겹치는 구간이 false-support
 
         elif op == 'in':
-            # 거짓은 left의 '오버플로' 부분 (left \ right)
-            inter = self._intersect(a, b)
-            left = self._minus(a, inter) if inter else [a]
-            right = []  # 오른쪽은 정보성 낮아 비움
+            # L ⊆ R 가 거짓인 구간: L이 R 밖으로 벗어나는 부분
+            if a[0] < b[0]:
+                lower = self._mk_interval(a[0], min(a[1], b[0] - 1))
+            if a[1] > b[1]:
+                upper = self._mk_interval(max(a[0], b[1] + 1), a[1])
 
         elif op == 'not in':
-            # 거짓은 left⊆right 가 될 가능성. 보수적으로 left∩right를 “위험 후보”로 보고 리턴
+            # L ⊄ R 가 거짓인 구간: L이 R 안에 들어가는 부분
             inter = self._intersect(a, b)
-            left = [inter] if inter else []
-            right = [inter] if inter else []
+            overlap = inter  # R 안에 들어가는 부분이 위험
 
-        else:
-            left, right = [], []
-
-        # None 정리
-        left = [x for x in left if x]
-        right = [x for x in right if x]
-        return {"left": left, "right": right, "notes": "inclusive integer intervals"}
+        return {"lower_violation": lower, "upper_violation": upper,
+                "overlap_zone": overlap, "notes": "inclusive integer intervals"}
 
 

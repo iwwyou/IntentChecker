@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-06T20:01:14.983597",
+  "timestamp": "2026-02-20T16:42:53.465979",
   "cases": [
     {
       "id": "SwordCrowdsale",
@@ -13,12 +13,12 @@
       ],
       "status": "pass",
       "violations": [
-        "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (conf=0.0)"
+        "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (risk=10.0) [risk=10.0]"
       ],
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 0.107,
+      "execution_time": 0.104,
       "metrics": {
         "total_intents": 1,
         "num_violations": 1,
@@ -40,7 +40,7 @@
           "expected_result": "violated",
           "actual_result": "violated",
           "is_correct": true,
-          "probability": 0.0
+          "risk_score": 10.0
         }
       ],
       "actual_violations": 1,
@@ -59,13 +59,13 @@
       ],
       "status": "pass",
       "violations": [
-        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E3962B3610> → violated (conf=0.0)",
-        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002E396741540> → violated (conf=0.0)"
+        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E0AC0> → violated (risk=10.0) [risk=10.0]",
+        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E14E0> → violated (risk=10.0) [risk=10.0]"
       ],
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 2.255,
+      "execution_time": 1.969,
       "metrics": {
         "total_intents": 2,
         "num_violations": 2,
@@ -87,7 +87,7 @@
           "expected_result": "violated",
           "actual_result": "not_found",
           "is_correct": false,
-          "probability": null
+          "risk_score": null
         },
         {
           "intent_type": "During",
@@ -97,7 +97,7 @@
           "expected_result": "violated",
           "actual_result": "violated",
           "is_correct": true,
-          "probability": 0.0
+          "risk_score": 10.0
         }
       ],
       "actual_violations": 2,
@@ -124,10 +124,10 @@
       "bug_detection_rate": 100.0
     },
     "time_stats": {
-      "total_time": 2.362,
-      "avg_time": 1.181,
-      "min_time": 0.107,
-      "max_time": 2.255
+      "total_time": 2.073,
+      "avg_time": 1.036,
+      "min_time": 0.104,
+      "max_time": 1.969
     },
     "category_stats": {
       "greedy_contract": {
@@ -139,7 +139,7 @@
         "violations": 1,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 0.107,
+        "execution_time": 0.104,
         "pass_rate": 100.0
       },
       "operator_order_issue": {
@@ -151,7 +151,7 @@
         "violations": 2,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 2.255,
+        "execution_time": 1.969,
         "pass_rate": 100.0
       }
     }
