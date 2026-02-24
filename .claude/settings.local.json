@@ -39,7 +39,10 @@
       "Bash(more:*)",
       "Bash(xargs:*)",
       "Bash(cmd /c \"move Dataset\\\\Numscout\\\\contraction\\\\greedy_contract\\\\SwordCrowdsale_simple.sol Dataset\\\\flyinointment\\\\greedy_contract\"\" && cmd /c \"move DatasetNumscoutcontractiongreedy_contractSwordCrowdsale_simple.json Datasetflyinointmentgreedy_contract\"\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

@@ -239,6 +239,7 @@ class ContractCFG(CFG):
     def __init__(self, contract_name):
         super().__init__('contract')
         self.contract_name = contract_name
+        self.is_interface = False
         self.state_variable_node = None
 
         self.structDefs = {}  # name -> StructDefinition 객체
@@ -354,6 +355,8 @@ class ContractCFG(CFG):
         # constructor 특별 처리
         if function_name == "constructor" and self.constructor is not None:
             return self.constructor
+        if function_name not in self.functions:
+            return None
         return self.functions[function_name]
     
     def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):

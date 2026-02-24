@@ -36,6 +36,39 @@ class Evaluation :
 
     # ──────────────────── Helper functions ───────────────────────────
 
+    def _mapping_lookup_if_needed(self, result, callerObject):
+        """
+        callerObject가 MappingVariable이면 result를 key로 mapping lookup 수행.
+        index access 내 함수 호출 등에서 사용.
+        """
+        if not isinstance(callerObject, MappingVariable) or result is None:
+            return result
+
+        mapping_var = callerObject
+        if not mapping_var.struct_defs or not mapping_var.enum_defs:
+            ccf = self.an.contract_cfgs[self.an.current_target_contract]
+            mapping_var.struct_defs = ccf.structDefs
+            mapping_var.enum_defs = ccf.enumDefs
+
+        # key 결정: 리턴값에서 추론
+        if isinstance(result, AddressSet):
+            key_val = str(result)
+        elif hasattr(result, "min_value"):
+            if result.min_value == result.max_value:
+                key_val = str(result.min_value)
+            else:
+                key_val = f"func_result_{id(result)}"
+        else:
+            key_val = str(result)
+
+        if key_val not in mapping_var.mapping:
+            mapping_var.mapping[key_val] = mapping_var.get_or_create(key_val)
+        mvar = mapping_var.mapping[key_val]
+        if isinstance(mvar, (StructVariable, ArrayVariable, MappingVariable)):
+            return mvar
+        else:
+            return mvar.value
+
     def find_function_in_hierarchy(self, contract_cfg, function_name: str):
         """
         현재 컨트랙트와 부모 체인에서 함수를 검색한다 (상속 지원).
@@ -98,15 +131,6 @@ class Evaluation :
         if not struct_list:
             return None
 
-        # DEBUG: Struct joining
-        try:
-            if struct_list and hasattr(struct_list[0], 'identifier'):
-                print(f"[STRUCT DEBUG] Joining {len(struct_list)} structs")
-            else:
-                print(f"[STRUCT DEBUG] Joining {len(struct_list)} structs")
-        except:
-            pass
-
         # 첫 구조체를 복사하여 결과 구조체 생성
         result = copy.deepcopy(struct_list[0])
 
@@ -122,10 +146,6 @@ class Evaluation :
                         break
                     else:
                         val = field_var.value
-                        try:
-                            print(f"[STRUCT DEBUG]   struct[{i}].{field_name} = {repr(val)[:80]}")
-                        except:
-                            pass
                         values.append(val)
 
             # join 수행
@@ -134,10 +154,6 @@ class Evaluation :
                 for v in values[1:]:
                     if hasattr(joined_val, 'join') and hasattr(v, 'join'):
                         joined_val = joined_val.join(v)
-                try:
-                    print(f"[STRUCT DEBUG]   {field_name} joined = {repr(joined_val)[:80]}")
-                except:
-                    pass
 
                 # 결과 저장
                 if isinstance(result.members[field_name], Variables):
@@ -705,9 +721,6 @@ class Evaluation :
                                            "MemberAccessContext")
         member = expr.member
 
-        # DEBUG: baseVal 타입 및 값 출력
-        print(f"[MEMBER_ACCESS DEBUG] member={member}, baseVal type={type(baseVal).__name__}, baseVal={baseVal}, callerContext={callerContext}")
-
         # ──────────────────────────────────────────────────────────────
         # 0. Function call context 처리 (using directive 지원)
         # ──────────────────────────────────────────────────────────────
@@ -728,8 +741,6 @@ class Evaluation :
                 else:
                     base_type = f"int{bits}"
 
-            print(f"[MEMBER_ACCESS DEBUG] base_type={base_type}")
-
             if base_type:
                 # 현재 컨트랙트의 using directive 확인
                 current_contract = self.an.current_target_contract
@@ -738,7 +749,6 @@ class Evaluation :
 
                     # 라이브러리 함수 검색
                     library_function = contract_cfg.find_library_function(base_type, member)
-                    print(f"[MEMBER_ACCESS DEBUG] find_library_function({base_type}, {member}) = {library_function}")
                     if library_function:
                         # 라이브러리 함수가 발견되면 특별한 Expression 객체 반환
                         # evaluate_function_call_context에서 이것을 인식하여 라이브러리 함수로 처리
@@ -893,7 +903,6 @@ class Evaluation :
             if member == "length":
                 # ★ widening으로 TOP으로 표시된 경우 (-1)
                 if baseVal.typeInfo.arrayLength == -1:
-                    print(f"[LENGTH DEBUG] Array {baseVal.identifier} has widened arrayLength=-1, returning TOP")
                     return UnsignedIntegerInterval(0, 2 ** 256 - 1, 256)
 
                 # 동적 배열의 경우: 실제 elements 길이를 우선 사용
@@ -902,7 +911,6 @@ class Evaluation :
                     if len(baseVal.elements) > 0:
                         # elements가 있으면 그 길이 반환
                         ln = len(baseVal.elements)
-                        print(f"[LENGTH DEBUG] Dynamic array {baseVal.identifier} has {ln} elements")
                         return UnsignedIntegerInterval(ln, ln, 256)
                     else:
                         # 빈 동적 배열: TOP 반환 (알 수 없는 길이)
@@ -1474,10 +1482,11 @@ class Evaluation :
                 function_result.context == 'LibraryFunctionCallContext'):
 
                 # 라이브러리 함수 호출로 처리
-                return self.evaluate_library_function_call_context(
-                    expr, variables, function_result._implicit_first_arg,
-                    function_result._library_function_cfg
-                )
+                return self._mapping_lookup_if_needed(
+                    self.evaluate_library_function_call_context(
+                        expr, variables, function_result._implicit_first_arg,
+                        function_result._library_function_cfg),
+                    callerObject)
 
             # super 함수 호출인 경우 (super.foo())
             if (isinstance(function_result, Expression) and
@@ -1485,9 +1494,10 @@ class Evaluation :
                 function_result.context == 'SuperFunctionCallContext'):
 
                 # super 함수 호출로 처리
-                return self.evaluate_super_function_call_context(
-                    expr, variables, function_result._super_function_cfg
-                )
+                return self._mapping_lookup_if_needed(
+                    self.evaluate_super_function_call_context(
+                        expr, variables, function_result._super_function_cfg),
+                    callerObject)
 
             # this 함수 호출인 경우 (this.foo())
             if (isinstance(function_result, Expression) and
@@ -1495,12 +1505,13 @@ class Evaluation :
                 function_result.context == 'ThisFunctionCallContext'):
 
                 # this 함수 호출로 처리 (일반 함수 호출과 동일)
-                return self.evaluate_this_function_call_context(
-                    expr, variables, function_result._this_function_cfg
-                )
+                return self._mapping_lookup_if_needed(
+                    self.evaluate_this_function_call_context(
+                        expr, variables, function_result._this_function_cfg),
+                    callerObject)
 
             # 일반적인 member access 결과 반환 (dynamic array push/pop 등)
-            return function_result
+            return self._mapping_lookup_if_needed(function_result, callerObject)
             
         elif expr.function.context == "IdentifierExpContext":
             function_name = expr.function.identifier
@@ -1541,7 +1552,7 @@ class Evaluation :
             # ★ 아직 분석 안 된 함수일 수 있음 → pending_callee_name에 기록
             self.an.pending_callee_name = function_name
             # 반환 타입을 알 수 없으므로 uint256 Top으로 처리
-            return UnsignedIntegerInterval.top()
+            return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
 
         # 4) 함수 파라미터와 인자 매핑
         #    expr.arguments -> 위치 기반 인자
@@ -1600,7 +1611,7 @@ class Evaluation :
         # 7) 함수 컨텍스트 복원
         self.an.current_target_function = saved_function
 
-        return return_value
+        return self._mapping_lookup_if_needed(return_value, callerObject)
 
     def evaluate_library_function_call_context(self, expr, variables, implicit_first_arg, library_function_cfg):
         """
@@ -1645,8 +1656,6 @@ class Evaluation :
                 # Expression인 경우 평가
                 arg_val = self.evaluate_expression(arguments[i], variables, None, None)
             
-            # DEBUG: 인자값 확인
-            print(f"[LIB_ARG DEBUG] func={library_function_cfg.function_name}, param={param_name}, arg_val={arg_val}, type={type(arg_val).__name__}")
 
             # 라이브러리 함수의 파라미터에 값 설정
             if param_name in library_function_cfg.related_variables:
@@ -1683,9 +1692,6 @@ class Evaluation :
             
             # 라이브러리 함수 CFG 실행
             return_value = self.engine.interpret_function_cfg(library_function_cfg, caller_env)
-
-            # DEBUG
-            print(f"[LIB_RETURN DEBUG] function={library_function_cfg.function_name}, return_value={return_value}, type={type(return_value).__name__}")
 
             # 함수 컨텍스트 복원
             self.an.current_target_function = saved_function

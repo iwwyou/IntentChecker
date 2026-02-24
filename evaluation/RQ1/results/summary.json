@@ -1,158 +1,87 @@
 {
-  "timestamp": "2026-02-20T16:42:53.465979",
+  "timestamp": "2026-02-24T19:00:39.483171",
   "cases": [
     {
-      "id": "SwordCrowdsale",
-      "name": "SwordCrowdsale greedy_contract",
-      "category": "greedy_contract",
-      "source": "Dataset/flyinointment/greedy_contract/SwordCrowdsale_simple.json",
-      "target_contract": "SwordCrowdsale",
-      "target_function": "refundMoney",
+      "id": "WANGMI",
+      "name": "WANGMI div_in_path",
+      "category": "div_in_path",
+      "source": "Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json",
+      "target_contract": "WANGMI",
+      "target_function": "_transfer",
       "bug_lines": [
-        33
+        428
       ],
-      "status": "pass",
-      "violations": [
-        "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (risk=10.0) [risk=10.0]"
-      ],
+      "status": "fail",
+      "violations": [],
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 0.104,
+      "execution_time": 2.407,
       "metrics": {
         "total_intents": 1,
-        "num_violations": 1,
+        "num_violations": 0,
         "num_warnings": 0,
         "num_satisfied": 0,
         "num_errors": 0,
-        "num_bug_detected": 1,
-        "violation_rate": 100.0,
+        "num_bug_detected": 0,
+        "violation_rate": 0.0,
         "warning_rate": 0.0,
         "satisfied_rate": 0.0,
-        "bug_detection_rate": 100.0
-      },
-      "intent_details": [
-        {
-          "intent_type": "Post",
-          "intent_clause_type": "PostEntryExit",
-          "intent_expression": "weiRaised(Entry > Exit)",
-          "intent_line": 33,
-          "expected_result": "violated",
-          "actual_result": "violated",
-          "is_correct": true,
-          "risk_score": 10.0
-        }
-      ],
-      "actual_violations": 1,
-      "expected_violations": 1
-    },
-    {
-      "id": "BoostToken",
-      "name": "BoostToken operator_order_issue",
-      "category": "operator_order_issue",
-      "source": "Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json",
-      "target_contract": "BoostToken",
-      "target_function": "sendETHToTeam",
-      "bug_lines": [
-        141,
-        142
-      ],
-      "status": "pass",
-      "violations": [
-        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E0AC0> → violated (risk=10.0) [risk=10.0]",
-        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x000002115F7E14E0> → violated (risk=10.0) [risk=10.0]"
-      ],
-      "warnings": [],
-      "satisfied": [],
-      "errors": [],
-      "execution_time": 1.969,
-      "metrics": {
-        "total_intents": 2,
-        "num_violations": 2,
-        "num_warnings": 0,
-        "num_satisfied": 0,
-        "num_errors": 0,
-        "num_bug_detected": 2,
-        "violation_rate": 100.0,
-        "warning_rate": 0.0,
-        "satisfied_rate": 0.0,
-        "bug_detection_rate": 100.0
+        "bug_detection_rate": 0.0
       },
       "intent_details": [
         {
           "intent_type": "During",
-          "intent_clause_type": "DuringFunctionArg",
-          "intent_expression": "transfer.arg[0] > 27",
-          "intent_line": 141,
+          "intent_clause_type": "DuringAssignCurrent",
+          "intent_expression": "tokensForLiquidity(Assign > Current)",
+          "intent_line": 428,
           "expected_result": "violated",
           "actual_result": "not_found",
           "is_correct": false,
           "risk_score": null
-        },
-        {
-          "intent_type": "During",
-          "intent_clause_type": "DuringFunctionArg",
-          "intent_expression": "transfer.arg[0] > 14",
-          "intent_line": 142,
-          "expected_result": "violated",
-          "actual_result": "violated",
-          "is_correct": true,
-          "risk_score": 10.0
         }
       ],
-      "actual_violations": 2,
-      "expected_violations": 2
+      "actual_violations": 0,
+      "expected_violations": 1
     }
   ],
   "summary": {
-    "total_cases": 2,
-    "passed": 2,
+    "total_cases": 1,
+    "passed": 0,
     "partial": 0,
-    "failed": 0,
+    "failed": 1,
     "errors": 0,
-    "pass_rate": 100.0,
+    "pass_rate": 0.0,
     "intent_stats": {
-      "total_intents": 3,
-      "violations": 3,
+      "total_intents": 1,
+      "violations": 0,
       "warnings": 0,
       "satisfied": 0,
       "errors": 0,
-      "bug_detected": 3,
-      "violation_rate": 100.0,
+      "bug_detected": 0,
+      "violation_rate": 0.0,
       "warning_rate": 0.0,
       "satisfied_rate": 0.0,
-      "bug_detection_rate": 100.0
+      "bug_detection_rate": 0.0
     },
     "time_stats": {
-      "total_time": 2.073,
-      "avg_time": 1.036,
-      "min_time": 0.104,
-      "max_time": 1.969
+      "total_time": 2.407,
+      "avg_time": 2.407,
+      "min_time": 2.407,
+      "max_time": 2.407
     },
     "category_stats": {
-      "greedy_contract": {
+      "div_in_path": {
         "total": 1,
-        "pass": 1,
+        "pass": 0,
         "partial": 0,
-        "fail": 0,
+        "fail": 1,
         "error": 0,
-        "violations": 1,
+        "violations": 0,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 0.104,
-        "pass_rate": 100.0
-      },
-      "operator_order_issue": {
-        "total": 1,
-        "pass": 1,
-        "partial": 0,
-        "fail": 0,
-        "error": 0,
-        "violations": 2,
-        "warnings": 0,
-        "satisfied": 0,
-        "execution_time": 1.969,
-        "pass_rate": 100.0
+        "execution_time": 2.407,
+        "pass_rate": 0.0
       }
     }
   }

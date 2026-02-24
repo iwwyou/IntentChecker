@@ -42,6 +42,10 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             i += 1
             continue
 
+        # 2.3) '} else ...' 패턴 ── 앞의 '}'를 분리하고 'else ...'만 처리 ──
+        if txt.startswith('}') and ('else' in txt or 'catch' in txt):
+            txt = txt[1:].strip()   # '}' 제거 → 'else if(...) {' 또는 'else {' 등
+
         # 2.5) 주석 라인 ── 별도 청크로 처리 ──
         if _comment.match(raw):
             inputs.append({"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"})
@@ -70,11 +74,12 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             continue
 
         # 5) 다중 라인 문장 (세미콜론으로 끝나지 않는 줄) ──────────
-        #    세미콜론을 만날 때까지 줄들을 누적
+        #    세미콜론 또는 '{' 를 만날 때까지 줄들을 누적
         start_line = cur_line
         accumulated = [txt]
         cur_line += 1
         i += 1
+        found_block_header = False
 
         while i < len(lines):
             next_raw = lines[i]
@@ -90,18 +95,34 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             cur_line += 1
             i += 1
 
+            # '{' 로 끝나면 → 블록 헤더로 처리 (body는 별도 레코드)
+            if _open_blk.search(next_txt):
+                found_block_header = True
+                break
+
             # 세미콜론으로 끝나면 다중 라인 문장 종료
             if _one_liner.search(next_txt):
                 break
 
-        # 다중 라인 문장을 공백으로 연결하여 하나의 청크로 생성
-        merged_code = " ".join(accumulated)
-        inputs.append({
-            "code": merged_code,
-            "startLine": start_line,
-            "endLine": cur_line - 1,
-            "event": "add"
-        })
+        if found_block_header:
+            # 블록 헤더: header + 가짜 닫는 괄호
+            merged_code = " ".join(accumulated)
+            block_code = f"{merged_code}\n}}"
+            inputs.append({
+                "code":      block_code,
+                "startLine": start_line,
+                "endLine":   cur_line,       # header 끝 라인 + 1 (가짜 })
+                "event": "add"
+            })
+        else:
+            # 일반 다중 라인 문장 (세미콜론으로 종료)
+            merged_code = " ".join(accumulated)
+            inputs.append({
+                "code": merged_code,
+                "startLine": start_line,
+                "endLine": cur_line - 1,
+                "event": "add"
+            })
         continue
 
     return inputs

@@ -170,12 +170,13 @@ class RQ1Runner:
                 stripped = code.strip()
                 if stripped and not stripped.startswith("// @"):
                     ctx = analyzer.get_current_context_type()
-                    try:
-                        tree = ParserHelpers.generate_parse_tree(code, ctx, False)
-                        EnhancedSolidityVisitor(analyzer).visit(tree)
-                    except Exception as parse_err:
-                        # Debug: show parsing errors
-                        print(f"[PARSE ERR] Line {s}: ctx={ctx}, code={code[:50]}... -> {parse_err}")
+                    if ctx:  # ctx=None은 interface body 등 파싱 불필요한 라인
+                        try:
+                            tree = ParserHelpers.generate_parse_tree(code, ctx, False)
+                            EnhancedSolidityVisitor(analyzer).visit(tree)
+                        except Exception as parse_err:
+                            # Debug: show parsing errors
+                            print(f"[PARSE ERR] Line {s}: ctx={ctx}, code={code[:50]}... -> {parse_err}")
 
             # 4. Phase 2: Intent annotations 추가 (CFG 노드에 저장)
             for intent in case.get("intent_annotations", []):

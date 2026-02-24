@@ -341,7 +341,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # ContractAnalyzer에 using directive 등록
         self.contract_analyzer.process_using_directive(library_name, target_type)
 
-        return self.visitChildren(ctx)
+        return
 
     # Visit a parse tree produced by SolidityParser#userDefinableOperators.
     def visitUserDefinableOperators(self, ctx:SolidityParser.UserDefinableOperatorsContext):
@@ -657,6 +657,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             # Struct 타입인 경우
             type_obj.typeCategory = "struct"
             type_obj.structTypeName = type_name
+        elif type_name in self.contract_analyzer.interface_names:
+            # Interface 타입 → Solidity에서 본질적으로 address
+            type_obj.typeCategory = "elementary"
+            type_obj.elementaryTypeName = "address"
+            type_obj.intTypeLength = 160
         else:
             # 정의되지 않은 타입인 경우 예외 처리 또는 기본값 설정
             raise ValueError(f"Type '{type_name}' is not defined as struct or enum in contract '{contract_name}'.")
@@ -1580,25 +1585,20 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitEmitStatement(self, ctx:SolidityParser.EmitStatementContext):
         """
         emit Transfer(msg.sender, recipient, amount); 형태의 emit 문 처리
+        문법: 'emit' expression callArgumentList ';'
         """
-        # 1. event 이름 추출 (functionCall의 identifier 부분)
+        # 1. event 이름 추출 (expression에서)
         event_name = None
         arguments = []
 
-        # functionCall context에서 event 이름과 인자 추출
-        if ctx.functionCall():
-            func_call = ctx.functionCall()
-            # identifier 또는 identifierPath에서 event 이름 추출
-            if func_call.identifier():
-                event_name = func_call.identifier().getText()
-            elif func_call.identifierPath():
-                event_name = func_call.identifierPath().getText()
+        if ctx.expression():
+            event_name = ctx.expression().getText()
 
-            # callArgumentList에서 인자 추출
-            if func_call.callArgumentList():
-                arguments = self.visitCallArgumentList(func_call.callArgumentList())
+        # 2. callArgumentList에서 인자 추출
+        if ctx.callArgumentList():
+            arguments = self.visitCallArgumentList(ctx.callArgumentList())
 
-        # 2. ContractAnalyzer에 emit 문 등록
+        # 3. ContractAnalyzer에 emit 문 등록 (상태 변경 없으므로 skip)
         if event_name:
             self.contract_analyzer.process_emit_statement(event_name, arguments)
 

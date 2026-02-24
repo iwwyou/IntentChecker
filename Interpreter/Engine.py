@@ -184,7 +184,11 @@ class Engine:
 
     def _interpret_return(self, stmt, variables, ret_acc=None):
         rexpr = stmt.return_expr
-        r_val = self.eval.evaluate_expression(rexpr, variables, None, None)
+        if rexpr is None:
+            # bare return; (값 없는 리턴)
+            r_val = None
+        else:
+            r_val = self.eval.evaluate_expression(rexpr, variables, None, None)
         if self._record_enabled and not self._suppress_stmt_records:
             self.rec.record_return(
                 line_no=stmt.src_line,
@@ -1017,19 +1021,12 @@ class Engine:
     # =================================================================
     def _branch_feasible(self, env: dict, cond: Expression, assume_true: bool) -> bool:
         r = self.eval.evaluate_expression(cond, env, None, None)
-        # DEBUG
-        if self.an.current_target_function in ['mul', 'div']:
-            print(f"[BRANCH DEBUG] func={self.an.current_target_function}, cond={cond}, r={r}, type={type(r).__name__}, assume_true={assume_true}")
         if isinstance(r, BoolInterval):
             result = (r.max_value == 1) if assume_true else (r.min_value == 0)
-            if self.an.current_target_function in ['mul', 'div']:
-                print(f"[BRANCH DEBUG] BoolInterval result={result}")
             return result
         if VariableEnv.is_interval(r):
             as_bool = VariableEnv.convert_int_to_bool_interval(r)
             result = (as_bool.max_value == 1) if assume_true else (as_bool.min_value == 0)
-            if self.an.current_target_function in ['mul', 'div']:
-                print(f"[BRANCH DEBUG] Interval->Bool result={result}, as_bool={as_bool}")
             return result
         return True
 

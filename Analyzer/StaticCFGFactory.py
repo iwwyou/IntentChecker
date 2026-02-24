@@ -84,6 +84,14 @@ class StaticCFGFactory:
                 identifier="msg.value",
                 value=_u256(),
                 typeInfo=_sol_elem("uint")),
+            "msg.data": GlobalVariable(
+                identifier="msg.data",
+                value="symbol_msg.data",
+                typeInfo=_sol_elem("bytes")),
+            "msg.sig": GlobalVariable(
+                identifier="msg.sig",
+                value="symbol_msg.sig",
+                typeInfo=_sol_elem("bytes4")),
 
             # --- tx ---
             "tx.gasprice": GlobalVariable(
@@ -146,17 +154,31 @@ class StaticCFGFactory:
 
             mod_cfg.add_related_variable(var_obj)
 
-        # ────────── 2. 상태‧글로벌 변수 얕은 참조 등록 ──────────
-        if contract_cfg.state_variable_node:
-            for var in contract_cfg.state_variable_node.variables.values():
-                mod_cfg.add_related_variable(var)
-        for gv in contract_cfg.globals.values():
-            mod_cfg.add_related_variable(gv)
+        # 상태·글로벌 변수 복사
+        ccf = an.contract_cfgs[an.current_target_contract]
 
+        # (1) state / constant variables  ─ 존재할 때만 주입
+        sv_node = getattr(ccf, "state_variable_node", None)
+        if sv_node and getattr(sv_node, "variables", None):
+            for v in sv_node.variables.values():
+                mod_cfg.add_related_variable(v)
+
+        # (2) 글로벌 변수 (block.timestamp 등) ─ ContractCFG 만 가짐
+        if getattr(ccf, "globals", None):
+            for gv in ccf.globals.values():
+                mod_cfg.add_related_variable(gv)
+
+        # ───────────────────────────────────────────────────────────────
+        # ❷  entry-env 스냅 + entry_node.variables 초기화
+        # ───────────────────────────────────────────────────────────────
         # ────────── 3. 저장 & snapshot 등록 ──────────
         contract_cfg.functions[modifier_name] = mod_cfg
-        an.snapman.register(mod_cfg, an.ser)  # 원한다면 전체 CFG 스냅도
+        an.snapman.register(mod_cfg, an.ser)
 
+        entry_vars = VariableEnv.copy_variables(mod_cfg.related_variables)
+        mod_cfg.entry_env = entry_vars  # ★ 함수 진입 스냅샷
+        mod_cfg.assign_env.update(entry_vars)
+        mod_cfg.entry_node.variables.update(entry_vars)  # ★ entry_node에도 복사
         return mod_cfg
 
     @staticmethod
@@ -180,12 +202,25 @@ class StaticCFGFactory:
 
         # 상태·글로벌 변수 복사
         ccf = an.contract_cfgs[an.current_target_contract]
-        if ccf.state_variable_node:
-            for v in ccf.state_variable_node.variables.values():
-                cfg.add_related_variable(v)
-        for gv in ccf.globals.values():
-            cfg.add_related_variable(gv)
 
+        # (1) state / constant variables  ─ 존재할 때만 주입
+        sv_node = getattr(ccf, "state_variable_node", None)
+        if sv_node and getattr(sv_node, "variables", None):
+            for v in sv_node.variables.values():
+                cfg.add_related_variable(v)
+
+        # (2) 글로벌 변수 (block.timestamp 등) ─ ContractCFG 만 가짐
+        if getattr(ccf, "globals", None):
+            for gv in ccf.globals.values():
+                cfg.add_related_variable(gv)
+
+        # ───────────────────────────────────────────────────────────────
+        # ❷  entry-env 스냅 + entry_node.variables 초기화
+        # ───────────────────────────────────────────────────────────────
+        entry_vars = VariableEnv.copy_variables(cfg.related_variables)
+        cfg.entry_env = entry_vars  # ★ 함수 진입 스냅샷
+        cfg.assign_env.update(entry_vars)
+        cfg.entry_node.variables.update(entry_vars)  # ★ entry_node에도 복사
         return cfg
 
     @staticmethod
