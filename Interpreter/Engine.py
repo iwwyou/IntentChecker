@@ -42,12 +42,12 @@ class Engine:
     # =================================================================
     #  (통합) 문장 해석기 – 기존 Runtime.* 가 여기로 이동
     # =================================================================
-    def update_statement_with_variables(self, stmt, current_variables, ret_acc=None):
+    def update_statement_with_variables(self, stmt, current_variables, ret_acc=None, node=None):
         typ = stmt.statement_type
         if   typ == 'variableDeclaration':
             return self._interpret_var_decl(stmt, current_variables)
         elif typ == 'assignment':
-            return self._interpret_assignment(stmt, current_variables)
+            return self._interpret_assignment(stmt, current_variables, node=node)
         elif typ == 'unary':
             return self._interpret_unary(stmt, current_variables)
         elif typ == 'functionCall':
@@ -147,16 +147,24 @@ class Engine:
                         var_name=var_name,
                         var_obj=vobj
                     )
+                    # ★ assign_env에 선언 시점 값 기록 (During assignCurrent용)
+                    fcfg = self.an.current_target_function_cfg
+                    if fcfg is not None:
+                        fcfg.assign_env[var_name] = VariableEnv.copy_single_variable(vobj)
 
         return variables
 
-    def _interpret_assignment(self, stmt, variables):
+    def _interpret_assignment(self, stmt, variables, node=None):
         lexp, rexpr, op = stmt.left, stmt.right, stmt.operator
         r_val = (self.eval.evaluate_expression(rexpr, variables, None, None)
                  if isinstance(rexpr, Expression) else rexpr)
 
         should_record = self._record_enabled and not self._suppress_stmt_records
         line_num = getattr(stmt, 'src_line', None)
+
+        # ★ before_envs: 대입 직전 스냅샷 (동적 재해석 시 During beforeAfter용)
+        if should_record and line_num is not None and node is not None:
+            node.before_envs[line_num] = VariableEnv.copy_variables(variables)
 
         # stmt.src_line을 line_no로 전달
         self.up.update_left_var(lexp, r_val, op, variables, None, None, should_record, line_num)
@@ -179,6 +187,10 @@ class Engine:
         return variables
 
     def _interpret_func_call(self, stmt, variables):
+        # ★ infeasible branch(BOTTOM env)에서는 함수 호출 스킵
+        #   → caller_env 반영이 BOTTOM 값을 TOP으로 오염시키는 것을 방지
+        if self._is_bottom_env(variables):
+            return variables
         self.eval.evaluate_function_call_context(stmt.function_expr, variables, None, None)
         return variables
 
@@ -254,7 +266,7 @@ class Engine:
         env_out = VariableEnv.copy_variables(env_in)
         if getattr(node, "statements", None):
             for st in node.statements:
-                env_out = self.update_statement_with_variables(st, env_out)
+                env_out = self.update_statement_with_variables(st, env_out, node=node)
         node.variables = VariableEnv.copy_variables(env_out)
         return env_out
 
@@ -661,6 +673,11 @@ class Engine:
                 if ln is not None and ln in an.analysis_per_line:
                     an.analysis_per_line[ln].clear()
 
+        # ★ 동적 재해석 시 assign_env / entry_env를 debug-patched related_variables로 갱신
+        if record_enabled:
+            fcfg.assign_env = VariableEnv.copy_variables(fcfg.related_variables)
+            fcfg.entry_env = VariableEnv.copy_variables(fcfg.related_variables)
+
         entry = fcfg.get_entry_node()
         (start_block,) = fcfg.graph.successors(entry)
 
@@ -668,7 +685,7 @@ class Engine:
 
         if caller_env is not None:
             for k, v in caller_env.items():
-                start_block.variables[k] = v
+                start_block.variables[k] = VariableEnv.copy_single_variable(v)
 
         G = fcfg.graph
         def _is_sink(n: CFGNode) -> bool:
@@ -796,7 +813,7 @@ class Engine:
 
             elif getattr(node, "is_for_increment", False):
                 for stmt in node.statements:
-                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
+                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values, node=node)
                 for succ in G.successors(node):
                     if _is_sink(succ): continue
                     succ.variables = VariableEnv.copy_variables(node.variables)
@@ -809,7 +826,7 @@ class Engine:
                     return_values.remove("__STOP__")
 
                 for stmt in node.statements:
-                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
+                    cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values, node=node)
                     if "__STOP__" in return_values:
                         break
 
@@ -1035,6 +1052,26 @@ class Engine:
             return result
         return True
 
+    def _is_bottom_env(self, env: dict) -> bool:
+        """env가 infeasible branch를 나타내는지 검사 (하나라도 BOTTOM이면 infeasible)."""
+        for v in env.values():
+            if self._is_bottom_var(v):
+                return True
+        return False
+
+    def _is_bottom_var(self, v) -> bool:
+        """Variable 하나(또는 하위 원소)가 BOTTOM인지 재귀 검사."""
+        if isinstance(v, ArrayVariable):
+            return any(self._is_bottom_var(e) for e in v.elements)
+        if isinstance(v, StructVariable):
+            return any(self._is_bottom_var(m) for m in v.members.values())
+        if isinstance(v, MappingVariable):
+            return any(self._is_bottom_var(mv) for mv in v.mapping.values())
+        val = getattr(v, "value", None)
+        if val is not None and hasattr(val, "is_bottom"):
+            return val.is_bottom()
+        return False
+
     def _set_bottom_env(self, env: dict[str, Variables]) -> None:
         for v in env.values():
             self._make_bottom(v)
@@ -1053,6 +1090,9 @@ class Engine:
             v.value = IntegerInterval.bottom(val.type_length); return
         if isinstance(val, BoolInterval):
             v.value = BoolInterval.bottom(); return
+        from Domain.AddressSet import AddressSet
+        if isinstance(val, AddressSet):
+            v.value = AddressSet.bot(); return
         v.value = None
 
     def _force_join_before_exit(self, fcfg: FunctionCFG) -> None:

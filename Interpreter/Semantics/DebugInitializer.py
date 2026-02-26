@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 from Domain.Variable import Variables, ArrayVariable, StructVariable, MappingVariable, EnumVariable
 from Domain.Type import SolType
 from Domain.Interval import Interval, IntegerInterval, BoolInterval, UnsignedIntegerInterval
+from Domain.AddressSet import AddressSet
 from Domain.IR import Expression
 
 from Utils.Helper import VariableEnv
@@ -153,16 +154,15 @@ class DebugInitializer:
             if ident in variables:  # ident == 변수명
                 key_var = variables[ident]
                 val = getattr(key_var, "value", key_var)
-                # 주소형 판별
-                is_address = (
-                        hasattr(key_var, "typeInfo") and
-                        getattr(key_var.typeInfo, "elementaryTypeName", None) == "address"
-                )
 
-                if hasattr(val, "min_value"):
-                    if is_address:
-                        key_str = key_var.identifier  # "account" 그대로
-                    elif val.min_value == val.max_value:  # 숫자·bool 싱글톤
+                # ★ AddressSet: singleton이면 str(val)을 key로 사용
+                if isinstance(val, AddressSet):
+                    if val.is_singleton():
+                        key_str = str(val)  # "AddressSet({1})"
+                    else:
+                        key_str = key_var.identifier  # TOP/multi → identifier
+                elif hasattr(val, "min_value"):
+                    if val.min_value == val.max_value:  # 숫자·bool 싱글톤
                         key_str = str(val.min_value)
                     else:
                         key_str = key_var.identifier  # 여전히 TOP

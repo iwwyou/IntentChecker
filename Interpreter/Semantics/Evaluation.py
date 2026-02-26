@@ -641,16 +641,15 @@ class Evaluation :
                 if ident_str in variables:  # ident_str == 변수명
                     key_var = variables[ident_str]
                     val = getattr(key_var, "value", key_var)
-                    # ★ 주소형 판별을 elementaryTypeName 으로
-                    is_address = (
-                            hasattr(key_var, "typeInfo") and
-                            getattr(key_var.typeInfo, "elementaryTypeName", None) == "address"
-                    )
 
-                    if hasattr(val, "min_value"):
-                        if is_address:
-                            key_val = key_var.identifier  # "msg.sender" 그대로
-                        elif val.min_value == val.max_value:  # 숫자·bool 싱글톤
+                    # ★ AddressSet: singleton이면 str(val)을 key로 사용
+                    if isinstance(val, AddressSet):
+                        if val.is_singleton():
+                            key_val = str(val)  # "AddressSet({1})"
+                        else:
+                            key_val = key_var.identifier  # TOP/multi → identifier
+                    elif hasattr(val, "min_value"):
+                        if val.min_value == val.max_value:  # 숫자·bool 싱글톤
                             key_val = str(val.min_value)
                         else:
                             # TOP 범위인 경우: 매핑에 이미 설정된 키 중 범위 내 키가 있으면 사용
@@ -1195,22 +1194,39 @@ class Evaluation :
         elif type_name == "address":
             # ★ address 타입 변환
             if isinstance(sub_val, AddressSet):
-                return sub_val  # 이미 AddressSet이면 그대로
-            if isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                addr_result = sub_val
+            elif isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
                 # uint → address: singleton이면 구체적 ID, 아니면 TOP
                 if sub_val.is_bottom():
-                    return AddressSet.bot()
-                if sub_val.min_value == sub_val.max_value:
-                    return AddressSet(ids={sub_val.min_value})
-                return AddressSet.top()
-            if isinstance(sub_val, str) and sub_val.startswith("0x"):
+                    addr_result = AddressSet.bot()
+                elif sub_val.min_value == sub_val.max_value:
+                    addr_result = AddressSet(ids={sub_val.min_value})
+                else:
+                    addr_result = AddressSet.top()
+            elif isinstance(sub_val, str) and sub_val.startswith("0x"):
                 addr_int = int(sub_val, 16)
-                return AddressSet(ids={addr_int})
-            # ★ address(this) 처리: "this" → 현재 컨트랙트 주소 (symbolic ID 1)
-            if isinstance(sub_val, str) and sub_val == "this":
-                # 현재 컨트랙트의 주소는 symbolic ID 1로 고정
-                return self.an.addr_mgr.make_symbolic_address(1, "this")
-            return AddressSet.top()  # 기타 → symbolic TOP
+                addr_result = AddressSet(ids={addr_int})
+            elif isinstance(sub_val, str) and sub_val == "this":
+                # ★ address(this): 현재 컨트랙트 주소 (symbolic ID 1)
+                addr_result = self.an.addr_mgr.make_symbolic_address(1, "this")
+            else:
+                addr_result = AddressSet.top()
+
+            # ★ callerObject가 MappingVariable이면 mapping lookup 수행
+            if isinstance(callerObject, MappingVariable):
+                if not callerObject.struct_defs or not callerObject.enum_defs:
+                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
+                    callerObject.struct_defs = ccf.structDefs
+                    callerObject.enum_defs = ccf.enumDefs
+                key_val = str(addr_result)
+                if key_val not in callerObject.mapping:
+                    callerObject.mapping[key_val] = callerObject.get_or_create(key_val)
+                mvar = callerObject.mapping[key_val]
+                if isinstance(mvar, (StructVariable, ArrayVariable, MappingVariable)):
+                    return mvar
+                return mvar.value
+
+            return addr_result
 
         # ★ payable(addr) 타입 변환 - address와 동일하게 처리
         elif type_name == "payable" or type_name == "address payable":

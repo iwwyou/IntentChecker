@@ -13,6 +13,10 @@ class AddressSet:
         self.ids = frozenset(ids or [])
         self.is_top = is_top
 
+    def is_bottom(self) -> bool:
+        """Empty set (⊥) check"""
+        return not self.is_top and len(self.ids) == 0
+
     @staticmethod
     def top():
         return AddressSet(is_top=True)

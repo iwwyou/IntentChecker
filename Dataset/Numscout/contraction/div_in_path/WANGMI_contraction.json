@@ -594,8 +594,20 @@
     "event": "add"
   },
   {
-    "code": "function _beforeTokenTransfer( address _from, address to, uint256 amount ) internal virtual {} function _transfer( address sender, address recipient, uint256 amount ) internal virtual {\n}",
+    "code": "function _beforeTokenTransfer( address _from, address to, uint256 amount ) internal virtual {}",
     "startLine": 219,
+    "endLine": 223,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 224,
+    "endLine": 224,
+    "event": "add"
+  },
+  {
+    "code": "function _transfer( address sender, address recipient, uint256 amount ) internal virtual {\n}",
+    "startLine": 225,
     "endLine": 230,
     "event": "add"
   },
@@ -1419,7 +1431,8 @@
     "code": "else if( _from == uniswapV2Pair && to != uniswapV2Pair && block.number < launchBlock + 2 && !isExcludedFromFees[to] ) {\n}",
     "startLine": 407,
     "endLine": 413,
-    "event": "add"
+    "event": "add",
+    "closeBefore": true
   },
   {
     "code": "_setBlacklist(to, true);",

@@ -1,0 +1,45 @@
+{
+  "id": "WANGMI",
+  "name": "WANGMI div_in_path",
+  "category": "div_in_path",
+  "source": "Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json",
+  "target_contract": "WANGMI",
+  "target_function": "_transfer",
+  "bug_lines": [
+    428
+  ],
+  "status": "pass",
+  "violations": [
+    "[INTENT VIOLATION] Line 429: tokensForLiquidity(Before < After) → violated (risk=10.0) [risk=10.0]\n    Before = [100, 100]\n    After  = [100, 100]\n    Risk: Type 3 (both-side)"
+  ],
+  "warnings": [],
+  "satisfied": [],
+  "errors": [],
+  "execution_time": 5.619,
+  "metrics": {
+    "total_intents": 1,
+    "num_violations": 1,
+    "num_warnings": 0,
+    "num_satisfied": 0,
+    "num_errors": 0,
+    "num_bug_detected": 1,
+    "violation_rate": 100.0,
+    "warning_rate": 0.0,
+    "satisfied_rate": 0.0,
+    "bug_detection_rate": 100.0
+  },
+  "intent_details": [
+    {
+      "intent_type": "During",
+      "intent_clause_type": "DuringBeforeAfter",
+      "intent_expression": "tokensForLiquidity(Before < After)",
+      "intent_line": 428,
+      "expected_result": "violated",
+      "actual_result": "violated",
+      "is_correct": true,
+      "risk_score": 10.0
+    }
+  ],
+  "actual_violations": 1,
+  "expected_violations": 1
+}

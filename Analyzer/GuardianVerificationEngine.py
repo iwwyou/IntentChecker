@@ -1050,24 +1050,49 @@ class GuardianVerificationEngine:
             false_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
             total = lw
         elif op == '<':
+            # L < R: L.max < R.min → satisfied, L.min >= R.max → violated
+            if left_iv.max_value < right_iv.min_value:
+                return _enrich({"state": "satisfied", "confidence": 1.0})
+            if left_iv.min_value >= right_iv.max_value:
+                return _enrich({"state": "violated", "confidence": 0.0})
             true_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
             false_len = max(0, right_iv.max_value - max(right_iv.min_value, left_iv.max_value))
             total = lw
         elif op == '>=':
-            true_len = max(0, left_iv.max_value - right_iv.min_value + 1)
-            false_len = max(0, right_iv.max_value - left_iv.max_value - 1)
-            total = lw + 1  # 보수적인 처리
+            # L >= R: L.min >= R.max → satisfied, L.max < R.min → violated
+            if left_iv.min_value >= right_iv.max_value:
+                return _enrich({"state": "satisfied", "confidence": 1.0})
+            if left_iv.max_value < right_iv.min_value:
+                return _enrich({"state": "violated", "confidence": 0.0})
+            true_len = max(0, left_iv.max_value - right_iv.max_value + 1)
+            false_len = max(0, right_iv.min_value - left_iv.min_value)
+            total = lw + 1
         elif op == '<=':
-            true_len = max(0, right_iv.max_value - left_iv.min_value + 1)
-            false_len = max(0, left_iv.min_value - right_iv.min_value - 1)
+            # L <= R: L.max <= R.min → satisfied, L.min > R.max → violated
+            if left_iv.max_value <= right_iv.min_value:
+                return _enrich({"state": "satisfied", "confidence": 1.0})
+            if left_iv.min_value > right_iv.max_value:
+                return _enrich({"state": "violated", "confidence": 0.0})
+            true_len = max(0, right_iv.min_value - left_iv.min_value + 1)
+            false_len = max(0, left_iv.max_value - right_iv.max_value)
             total = lw + 1
         elif op == '==':
+            # disjoint → violated, both singletons & equal → satisfied
+            if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
+                return _enrich({"state": "violated", "confidence": 0.0})
+            if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
+                return _enrich({"state": "satisfied", "confidence": 1.0})
             # 겹치는 길이를 "true", 나머지를 "false"
             true_len = _overlap(left_iv.min_value, left_iv.max_value,
                                 right_iv.min_value, right_iv.max_value)
             false_len = lw - true_len
             total = lw
         elif op == '!=':
+            # disjoint → satisfied, both singletons & equal → violated
+            if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
+                return _enrich({"state": "satisfied", "confidence": 1.0})
+            if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
+                return _enrich({"state": "violated", "confidence": 0.0})
             true_len = lw - _overlap(left_iv.min_value, left_iv.max_value,
                                      right_iv.min_value, right_iv.max_value)
             false_len = lw - true_len

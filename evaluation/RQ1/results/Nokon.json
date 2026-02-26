@@ -1,0 +1,45 @@
+{
+  "id": "Nokon",
+  "name": "Nokon exchange_problem",
+  "category": "exchange_problem",
+  "source": "Dataset/Numscout/contraction/exchange_problem/Nokon_contraction.json",
+  "target_contract": "Nokon",
+  "target_function": "buy",
+  "bug_lines": [
+    51
+  ],
+  "status": "pass",
+  "violations": [],
+  "warnings": [
+    "[INTENT WARNING] Line 52: amountToBuy >= <Domain.IR.Expression object at 0x000002130A41B220>  →  warning (risk=3.4)  | violation lower=[1250000000000, 1250000000011] upper=None overlap=[1250000000012, 1250000000012] [risk=3.4]\n    Analysis = [1250000000000, 3333330000000]\n    Intent   = [1250000000012, 1250000000012]\n    Risk: Type 2 (one-side)"
+  ],
+  "satisfied": [],
+  "errors": [],
+  "execution_time": 0.252,
+  "metrics": {
+    "total_intents": 1,
+    "num_violations": 0,
+    "num_warnings": 1,
+    "num_satisfied": 0,
+    "num_errors": 0,
+    "num_bug_detected": 1,
+    "violation_rate": 0.0,
+    "warning_rate": 100.0,
+    "satisfied_rate": 0.0,
+    "bug_detection_rate": 100.0
+  },
+  "intent_details": [
+    {
+      "intent_type": "During",
+      "intent_clause_type": "CommonClause",
+      "intent_expression": "amountToBuy >= 1250000000012",
+      "intent_line": 51,
+      "expected_result": "violated",
+      "actual_result": "warning",
+      "is_correct": true,
+      "risk_score": 3.4
+    }
+  ],
+  "actual_violations": 1,
+  "expected_violations": 1
+}

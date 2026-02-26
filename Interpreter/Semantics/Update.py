@@ -662,14 +662,23 @@ class Update :
             # ── (1) ident 가 변수로 선언돼 있을 때 ──────────────────────────
             if ident in variables:
                 key_var = variables[ident]
-                # --- address / bytes / symbolic => 그대로 식별자 사용 -------
-                et = getattr(key_var.typeInfo, "elementaryTypeName", "")
-                if et == "address" or et.startswith("bytes") or not VariableEnv.is_interval(key_var.value):
+                val = getattr(key_var, "value", key_var)
+
+                # ★ AddressSet: singleton이면 str(val)을 key로 사용
+                if isinstance(val, AddressSet):
+                    if val.is_singleton():
+                        key_str = str(val)  # "AddressSet({1})"
+                    else:
+                        key_str = ident  # TOP/multi → identifier
+
+                # --- bytes / symbolic => 그대로 식별자 사용 -------
+                elif getattr(key_var.typeInfo, "elementaryTypeName", "").startswith("bytes") \
+                        or not VariableEnv.is_interval(val):
                     key_str = ident
 
                 # --- int/uint singleton interval ----------------------------
-                elif VariableEnv.is_interval(key_var.value):
-                    iv = key_var.value
+                elif VariableEnv.is_interval(val):
+                    iv = val
 
                     if not iv.is_bottom() and iv.min_value == iv.max_value:
                         key_str = str(iv.min_value)
