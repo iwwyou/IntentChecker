@@ -1,2 +1,2 @@
 case_id,category,source_file,target_contract,target_function,bug_lines,intent_type,intent_clause_type,intent_expression,intent_line,expected_result,actual_result,is_correct,risk_score,total_intents,num_violations,num_satisfied,execution_time_sec
-WANGMI,div_in_path,Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json,WANGMI,_transfer,428,During,DuringAssignCurrent,tokensForLiquidity(Assign > Current),428,violated,not_found,False,,1,0,0,2.407
+WANGMI,div_in_path,Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json,WANGMI,_transfer,428,During,DuringAssignCurrent,tokensForLiquidity(Assign > Current),428,violated,not_found,False,,1,0,0,6.195

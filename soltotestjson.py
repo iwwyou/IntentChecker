@@ -7,6 +7,7 @@ from typing import List, Dict
 # ── 패턴 ──────────────────────────────────────────────────────────────
 _only_ws   = re.compile(r"^\s*$")          # 공백/탭 뿐
 _open_blk  = re.compile(r"\{\s*$")         # … {
+_empty_blk = re.compile(r"\{\s*\}\s*$")   # … {}  (empty block body)
 _one_liner = re.compile(r";\s*$")          # … ;
 _only_clo  = re.compile(r"^\s*}\s*$")      # }
 _comment   = re.compile(r"^\s*//")          # // 주석
@@ -42,13 +43,26 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             i += 1
             continue
 
-        # 2.3) '} else ...' 패턴 ── 앞의 '}'를 분리하고 'else ...'만 처리 ──
-        if txt.startswith('}') and ('else' in txt or 'catch' in txt):
+        # 2.3) '} else/catch/while ...' 패턴 ── 앞의 '}'를 분리하고 나머지만 처리 ──
+        close_before = False
+        if txt.startswith('}') and ('else' in txt or 'catch' in txt or 'while' in txt):
             txt = txt[1:].strip()   # '}' 제거 → 'else if(...) {' 또는 'else {' 등
+            close_before = True
 
         # 2.5) 주석 라인 ── 별도 청크로 처리 ──
         if _comment.match(raw):
-            inputs.append({"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"})
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            cur_line += 1
+            i += 1
+            continue
+
+        # 3-pre) '{}' 로 끝나는 empty block ── 그 자체로 완결된 레코드 ──
+        if _empty_blk.search(txt):
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
             cur_line += 1
             i += 1
             continue
@@ -56,19 +70,23 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
         # 3) '{' 로 끝나는 헤더 줄  ──────────────────────────────
         if _open_blk.search(txt):
             block_code = f"{txt}\n}}"                    # header + 가짜 닫는 괄호
-            inputs.append({
+            rec = {
                 "code":      block_code,
                 "startLine": cur_line,
                 "endLine":   cur_line + 1,                # 헤더+1 ⇒ 2-line block
                 "event": "add"
-            })
+            }
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
             cur_line += 1        # ※ 실제 소스엔 닫는 '}' 가 없으므로 +1만
             i += 1
             continue
 
         # 4) 세미콜론으로 끝나는 한 줄 문장  ─────────────────────
         if _one_liner.search(txt):
-            inputs.append({"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"})
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
             cur_line += 1
             i += 1
             continue
@@ -95,6 +113,10 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             cur_line += 1
             i += 1
 
+            # '{}' 로 끝나면 → empty block, 완결된 레코드
+            if _empty_blk.search(next_txt):
+                break
+
             # '{' 로 끝나면 → 블록 헤더로 처리 (body는 별도 레코드)
             if _open_blk.search(next_txt):
                 found_block_header = True
@@ -108,21 +130,25 @@ def slice_solidity(source: str) -> List[Dict[str, str | int]]:
             # 블록 헤더: header + 가짜 닫는 괄호
             merged_code = " ".join(accumulated)
             block_code = f"{merged_code}\n}}"
-            inputs.append({
+            rec = {
                 "code":      block_code,
                 "startLine": start_line,
                 "endLine":   cur_line,       # header 끝 라인 + 1 (가짜 })
                 "event": "add"
-            })
+            }
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
         else:
             # 일반 다중 라인 문장 (세미콜론으로 종료)
             merged_code = " ".join(accumulated)
-            inputs.append({
+            rec = {
                 "code": merged_code,
                 "startLine": start_line,
                 "endLine": cur_line - 1,
                 "event": "add"
-            })
+            }
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
         continue
 
     return inputs

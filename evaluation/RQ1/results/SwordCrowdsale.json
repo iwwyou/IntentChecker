@@ -10,12 +10,12 @@
   ],
   "status": "pass",
   "violations": [
-    "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (risk=10.0) [risk=10.0]"
+    "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (risk=10.0) [risk=10.0]\n    Entry = [1000, 1000]\n    Exit  = [1000, 1000]\n    Risk: Type 3 (both-side)"
   ],
   "warnings": [],
   "satisfied": [],
   "errors": [],
-  "execution_time": 0.104,
+  "execution_time": 0.055,
   "metrics": {
     "total_intents": 1,
     "num_violations": 1,

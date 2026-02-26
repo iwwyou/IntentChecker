@@ -16,7 +16,8 @@ from Domain.IR import Expression
 class ParserHelpers:
     # --------------------------- 컨텍스트 → 파싱 규칙 매핑
     _CTX_MAP: dict[str, str] = {
-        'contract':'interactiveSourceUnit', 'library':'interactiveSourceUnit',
+        'contract':'interactiveSourceUnit', 'abstract contract':'interactiveSourceUnit',
+        'library':'interactiveSourceUnit',
         'interface':'interactiveSourceUnit', 'enum':'interactiveSourceUnit',
         'struct':'interactiveSourceUnit',   'functionDefinition':'interactiveSourceUnit',
         'constructor':'interactiveSourceUnit', 'fallback':'interactiveSourceUnit',
@@ -267,6 +268,9 @@ class VariableEnv:
         # ① primitive -----------------------------------------------------
         if not isinstance(v1, (Variables, ArrayVariable, StructVariable,
                                MappingVariable, EnumVariable)):
+            # ★ 문자열(symbolic 값)은 str.join 등 호출 방지
+            if isinstance(v1, str):
+                return v1 if v1 == v2 else f"symbolic{mode.capitalize()}({v1},{v2})"
             if mode == "widen" and not _should_widen(v1):
                 return VariableEnv._merge_values(v1, v2, "join")
             if hasattr(v1, mode):
@@ -337,7 +341,15 @@ class VariableEnv:
         res = VariableEnv.copy_variables(left)
         for name, r_var in (right or {}).items():
             if name in res:
-                res[name] = VariableEnv._merge_values(res[name], r_var, mode)
+                try:
+                    res[name] = VariableEnv._merge_values(res[name], r_var, mode)
+                except AttributeError as e:
+                    l_val = getattr(res[name], 'value', '?')
+                    r_val = getattr(r_var, 'value', '?')
+                    raise AttributeError(
+                        f"merge '{name}': left.value={l_val} ({type(l_val).__name__}), "
+                        f"right.value={r_val} ({type(r_val).__name__}) - {e}"
+                    ) from e
             else:
                 res[name] = VariableEnv.copy_variables({name: r_var})[name]
         return res

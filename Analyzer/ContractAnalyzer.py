@@ -151,39 +151,49 @@ class ContractAnalyzer:
             # 1. if/else-if의 join + else/else-if
             # 2. do의 끝 + while
             # 3. try의 stub + catch
-            # cfg_nodes에 else_block이 이미 있는지 확인 (} else { 한 줄로 처리된 경우)
-            has_else_block = any(getattr(n, 'name', '').startswith('else_block') for n in cfg_nodes)
-
             for node in cfg_nodes:
-                # if/else-if join + else/else-if
-                # join만 있고 else_block이 없으면: 다른 if의 join이므로 skip하면 안 됨
-                # join과 else_block이 모두 있으면: 같은 if의 } else { 이므로 skip
+                # if/else-if join + else/else-if  (같은 줄 '} else' 일 때만 skip)
                 if (getattr(node, 'join_point_node', False) and
                     (first_new_line.startswith('else if') or first_new_line.startswith('else')) and
-                    has_else_block):
+                    self.current_close_before):
                     skip_shift_at_start = True
                     break
-                # do end + while
+                # do end + while  (같은 줄 '} while' 일 때만 skip)
                 if (getattr(node, 'is_do_end', False) and
-                    first_new_line.startswith('while')):
+                    first_new_line.startswith('while') and
+                    self.current_close_before):
                     skip_shift_at_start = True
                     break
-                # try false_stub + catch
+                # try false_stub + catch  (같은 줄 '} catch' 일 때만 skip)
                 if (node.name.startswith('try_false_stub') and
-                    first_new_line.startswith('catch')):
+                    first_new_line.startswith('catch') and
+                    self.current_close_before):
                     skip_shift_at_start = True
                     break
 
         # 뒤 라인 밀기 (skip_shift_at_start이면 start+1부터)
         shift_from = start + 1 if skip_shift_at_start else start
+
         for old_ln in sorted([ln for ln in self.full_code_lines if ln >= shift_from], reverse=True):
             self.full_code_lines[old_ln + offset] = self.full_code_lines.pop(old_ln)
             self._shift_meta(old_ln, old_ln + offset)
 
-        # 삽입 - offset 이내에서 실제 코드 줄만 쓴다 (offset > len(new_lines)일 수 있음)
+        # 삽입 - 실제 코드 줄은 스팬 끝에, 빈 슬롯은 앞에 채운다
+        # 예: startLine=225, endLine=230, code="header {\n}" → 229에 header, 230에 }
         write_count = min(len(new_lines), offset)
-        for i in range(write_count):
+        write_start = start + offset - write_count  # 코드 줄을 스팬 끝에 배치
+
+        # 앞쪽 빈 슬롯 채우기 (full_code_lines + line_info 모두)
+        for i in range(write_start - start):
             ln = start + i
+            if ln not in self.full_code_lines:
+                self.full_code_lines[ln] = ""
+            if ln not in self.line_info:
+                self.line_info[ln] = {"open": 0, "close": 0, "cfg_nodes": []}
+
+        # 실제 코드 줄 쓰기
+        for i in range(write_count):
+            ln = write_start + i
             line = new_lines[i]
             self.full_code_lines[ln] = line
             self.update_brace_count(ln, line)  # ★ 항상 카운트
@@ -212,10 +222,12 @@ class ContractAnalyzer:
             r"^(abstract\s+contract|contract|library|interface|function|constructor|modifier|"
             r"struct|enum|event|if|else(\s+if)?\b|for|while|do\b|try|catch|unchecked|assembly)\b", s))
 
-    def update_code(self, start_line: int, end_line: int, new_code: str, event: str):
+    def update_code(self, start_line: int, end_line: int, new_code: str, event: str,
+                    close_before: bool = False):
         self.current_start_line = start_line
         self.current_end_line = end_line
         self.current_edit_event = event
+        self.current_close_before = close_before
 
         if event not in {"add", "modify", "delete"}:
             raise ValueError(f"unknown event '{event}'")
@@ -357,7 +369,7 @@ class ContractAnalyzer:
                 if parent_context == "interface":
                     # interface body: function 시그니처만 파서→visitor 경유로 처리
                     if stripped_code.startswith('function '):
-                        self.current_context_type = "function"
+                        self.current_context_type = "functionDefinition"
                         self.current_target_contract = self.find_contract_context(start_line)
                     else:
                         return  # event 등 non-function interface body는 스킵
@@ -403,7 +415,7 @@ class ContractAnalyzer:
                 for check_line in range(start_line - 1, 0, -1):
                     check_code = self.full_code_lines.get(check_line, '').strip()
                     if check_code.startswith('function'):
-                        self.current_context_type = 'function'
+                        self.current_context_type = 'functionDefinition'
                         self.current_target_contract = self.find_contract_context(start_line)
                         # print(f"[analyze_context] Line {start_line}: Found function, contract={self.current_target_contract}")
                         self.current_target_function = None  # 아직 함수가 생성되지 않음
@@ -597,7 +609,7 @@ class ContractAnalyzer:
             elif stripped_code.startswith("library"):
                 return "library"
             elif stripped_code.startswith("function"):
-                return "function"
+                return "functionDefinition"
             elif stripped_code.startswith("constructor"):
                 return "constructor"
             elif stripped_code.startswith("fallback"):

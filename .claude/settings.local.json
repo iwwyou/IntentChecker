@@ -42,7 +42,8 @@
       "WebSearch",
       "Bash(find:*)",
       "Bash(python3:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cp:*)"
     ],
     "deny": [],
     "ask": []

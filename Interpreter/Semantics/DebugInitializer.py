@@ -504,12 +504,18 @@ class DebugInitializer:
                     expr_repr += f" (identifier: {lhs_expr.identifier})"
                 if hasattr(lhs_expr, 'member') and lhs_expr.member is not None:
                     expr_repr += f" (member: {lhs_expr.member})"
+                if hasattr(lhs_expr, 'base') and lhs_expr.base is not None:
+                    base_id = getattr(lhs_expr.base, 'identifier', None)
+                    expr_repr += f" (base: {base_id})"
+                if hasattr(lhs_expr, 'index') and lhs_expr.index is not None:
+                    idx_id = getattr(lhs_expr.index, 'identifier', None)
+                    expr_repr += f" (index: {idx_id})"
             except:
                 expr_repr = "unknown"
 
             # Don't raise error, just log warning and skip this annotation
             print(f"[WARNING] Cannot resolve LHS expression: {expr_repr} (scope: {scope})")
-            print(f"[WARNING] Available variables: {list(variables.keys())[:10]}...")
+            print(f"[WARNING] Available variables: {list(variables.keys())}...")
             return  # Skip this annotation instead of raising error
 
         # ① snapshot & restore

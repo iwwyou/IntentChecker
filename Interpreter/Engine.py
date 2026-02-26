@@ -753,11 +753,13 @@ class Engine:
                     if can_true:
                         t.variables = true_variables;  work.append(t)
                     else:
-                        self._set_bottom_env(t.variables)
+                        t.variables = VariableEnv.copy_variables(cur_vars)
+                        self._set_bottom_env(t.variables); work.append(t)
                     if can_false:
                         f.variables = false_variables; work.append(f)
                     else:
-                        self._set_bottom_env(f.variables)
+                        f.variables = VariableEnv.copy_variables(cur_vars)
+                        self._set_bottom_env(f.variables); work.append(f)
                     continue
 
                 elif node.condition_node_type in ["require", "assert"]:
@@ -802,8 +804,11 @@ class Engine:
                 continue
 
             else:
+                # ★ __STOP__ 범위를 현재 노드로 한정: 이전 노드의 return이 다른 branch를 막지 않도록
+                if "__STOP__" in return_values:
+                    return_values.remove("__STOP__")
+
                 for stmt in node.statements:
-                    # ★ 디버그 로그 제거 (문제 파악 완료)
                     cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values)
                     if "__STOP__" in return_values:
                         break
@@ -1285,6 +1290,10 @@ class Engine:
                 else:
                     print(f"[INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
 
+                detail_str = self._format_violation_detail(results, clauses)
+                if detail_str:
+                    print(detail_str)
+
                 # analysis_per_line에 기록
                 if line_no not in self.an.analysis_per_line:
                     self.an.analysis_per_line[line_no] = []
@@ -1560,6 +1569,10 @@ class Engine:
                     print(f"[POST INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
                 else:
                     print(f"[POST INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
+
+                detail_str = self._format_violation_detail(results, clauses)
+                if detail_str:
+                    print(detail_str)
 
                 # analysis_per_line에 기록
                 if line_no not in self.an.analysis_per_line:
@@ -1849,3 +1862,103 @@ class Engine:
         if max_risk is not None:
             out["risk_score"] = max_risk
         return out
+
+    # ── 상세 출력 헬퍼 ──────────────────────────────────────────────
+    @staticmethod
+    def _risk_type_label(risk_type: int) -> str:
+        return {1: "safe", 2: "one-side", 3: "both-side"}.get(risk_type, "unknown")
+
+    @staticmethod
+    def _risk_type_from_score(score) -> int:
+        """risk_score(0-10)에서 risk type 역산"""
+        if score is None:
+            return 0
+        score = float(score)
+        if score <= 3.3:
+            return 1
+        elif score <= 6.6:
+            return 2
+        else:
+            return 3
+
+    @staticmethod
+    def _is_literal_expr(expr) -> bool:
+        """Expression 객체가 순수 리터럴(상수)인지 판별"""
+        if expr is None:
+            return False
+        return (getattr(expr, "literal", None) is not None
+                and getattr(expr, "operator", None) is None
+                and getattr(expr, "identifier", None) is None)
+
+    @staticmethod
+    def _fmt_val(v: str) -> str:
+        """'UnsignedIntegerInterval([0, 100])' → '[0, 100]' 로 간결화"""
+        import re
+        m = re.search(r'\[([^\]]*)\]', v)
+        return f"[{m.group(1)}]" if m else v
+
+    def _format_violation_detail(self, results: list[dict], clauses: list[dict]) -> str:
+        """각 clause 결과의 상세 정보를 포맷팅하여 반환"""
+        lines = []
+        for i, result in enumerate(results):
+            details = result.get("details", {})
+            kind = result.get("kind", "")
+            clause = clauses[i] if i < len(clauses) else {}
+            risk_score = details.get("risk_score")
+            risk_type = self._risk_type_from_score(risk_score) if risk_score is not None else None
+            risk_label = self._risk_type_label(risk_type) if risk_type else None
+
+            prefix = "  "
+            if len(results) > 1:
+                prefix = f"  [{i+1}] "
+
+            fv = self._fmt_val
+
+            if kind == "duringAssignCurrent":
+                lines.append(f"{prefix}Assign  = {fv(details.get('assign_value', '?'))}")
+                lines.append(f"{prefix}Current = {fv(details.get('current_value', '?'))}")
+            elif kind == "duringBeforeAfter":
+                lines.append(f"{prefix}Before = {fv(details.get('before', '?'))}")
+                lines.append(f"{prefix}After  = {fv(details.get('after', '?'))}")
+            elif kind in ("postEntryExit", "postUnchanged"):
+                lines.append(f"{prefix}Entry = {fv(details.get('entry_value', '?'))}")
+                lines.append(f"{prefix}Exit  = {fv(details.get('exit_value', '?'))}")
+            elif kind in ("duringDirectCmp", "postDirectCmp"):
+                lhs_val = fv(details.get("lhs", details.get("lhs_value", "?")))
+                rhs_val = fv(details.get("rhs", details.get("rhs_value", "?")))
+                # RHS가 리터럴이면 Analysis/Intent, 아니면 LHS/RHS
+                rhs_expr = clause.get("rhs")
+                if rhs_expr is not None and self._is_literal_expr(rhs_expr):
+                    lines.append(f"{prefix}Analysis = {lhs_val}")
+                    lines.append(f"{prefix}Intent   = {rhs_val}")
+                else:
+                    lines.append(f"{prefix}LHS = {lhs_val}")
+                    lines.append(f"{prefix}RHS = {rhs_val}")
+            elif kind in ("duringRetExpr", "postRetExpr",
+                          "duringRetIndex", "postRetIndex",
+                          "duringRetVar", "postRetVar"):
+                ret_val = fv(details.get("return_value", details.get("return_join",
+                          details.get("indexed_join", details.get("actual", "?")))))
+                rhs_val = fv(details.get("expected", details.get("rhs_value", "?")))
+                lines.append(f"{prefix}Analysis = {ret_val}")
+                lines.append(f"{prefix}Intent   = {rhs_val}")
+            elif kind in ("duringFunctionArg",):
+                lines.append(f"{prefix}Analysis = {fv(details.get('arg_value', '?'))}")
+                lines.append(f"{prefix}Intent   = {fv(details.get('rhs_value', '?'))}")
+            elif kind in ("duringImplication", "postImplication"):
+                ant = details.get("antecedent", {})
+                con = details.get("consequent", {})
+                ant_status = ant.get("status", "?") if isinstance(ant, dict) else str(ant)
+                con_status = con.get("status", "?") if isinstance(con, dict) else str(con)
+                logic = details.get("logic")
+                if logic == "vacuous-true":
+                    lines.append(f"{prefix}Antecedent = false (vacuous truth)")
+                else:
+                    lines.append(f"{prefix}Antecedent = {ant_status}")
+                    lines.append(f"{prefix}Consequent = {con_status}")
+                risk_label = None  # implication은 risk type 별도 미표시
+
+            if risk_label:
+                lines.append(f"{prefix}Risk: Type {risk_type} ({risk_label})")
+
+        return "\n".join(lines) if lines else ""

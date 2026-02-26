@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-24T19:00:39.483171",
+  "timestamp": "2026-02-26T20:53:51.914268",
   "cases": [
     {
       "id": "WANGMI",
@@ -16,7 +16,7 @@
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 2.407,
+      "execution_time": 6.195,
       "metrics": {
         "total_intents": 1,
         "num_violations": 0,
@@ -65,10 +65,10 @@
       "bug_detection_rate": 0.0
     },
     "time_stats": {
-      "total_time": 2.407,
-      "avg_time": 2.407,
-      "min_time": 2.407,
-      "max_time": 2.407
+      "total_time": 6.195,
+      "avg_time": 6.195,
+      "min_time": 6.195,
+      "max_time": 6.195
     },
     "category_stats": {
       "div_in_path": {
@@ -80,7 +80,7 @@
         "violations": 0,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 2.407,
+        "execution_time": 6.195,
         "pass_rate": 0.0
       }
     }

@@ -116,13 +116,7 @@ class Refine:
                 if self._is_false(B_b):
                     self.update_variables_with_condition(variables, condB, False)
                     return
-                # 둘 다 불명 → 분기 2개를 만들어 정제 후 join
-                env1 = self._clone_env(variables)
-                self.update_variables_with_condition(env1, condA, False)
-                env2 = self._clone_env(variables)
-                self.update_variables_with_condition(env2, condB, False)
-                merged = self._join_two_envs(env1, env2)
-                self._apply_env_inplace(variables, merged)
+                # 둘 다 불명 → 어느 쪽이 거짓인지 알 수 없으므로 정제 skip (sound)
                 return
 
         # ───────── OR ─────────
@@ -136,13 +130,7 @@ class Refine:
                 if self._is_true(B_b):
                     self.update_variables_with_condition(variables, condB, True)
                     return
-                # 둘 다 불명 → 분기 2개를 만들어 정제 후 join
-                env1 = self._clone_env(variables)
-                self.update_variables_with_condition(env1, condA, True)
-                env2 = self._clone_env(variables)
-                self.update_variables_with_condition(env2, condB, True)
-                merged = self._join_two_envs(env1, env2)
-                self._apply_env_inplace(variables, merged)
+                # 둘 다 불명 → 어느 쪽이 참인지 알 수 없으므로 정제 skip (sound)
                 return
             else:
                 # ¬(A || B) ≡ ¬A ∧ ¬B → 둘 다 false로 정제

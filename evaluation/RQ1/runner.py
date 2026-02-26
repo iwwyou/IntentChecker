@@ -72,6 +72,18 @@ class RQ1Runner:
         else:
             return "CommonClause"
 
+    _DETAIL_PREFIXES = (
+        "Assign", "Current", "Before", "After", "Entry", "Exit",
+        "Analysis", "Intent", "LHS", "RHS", "Risk:", "Antecedent", "Consequent",
+        "[",  # multi-clause prefix like [1], [2]
+    )
+
+    @staticmethod
+    def _is_detail_line(line: str) -> bool:
+        """Engine의 _format_violation_detail이 출력한 상세 라인인지 판별"""
+        stripped = line.lstrip()
+        return stripped.startswith(RQ1Runner._DETAIL_PREFIXES)
+
     @staticmethod
     def parse_result_line(line: str) -> dict:
         """결과 라인에서 정보 추출"""
@@ -165,7 +177,8 @@ class RQ1Runner:
             # 3. Phase 1: 코드 파싱
             for rec in records:
                 code, s, e, ev = rec["code"], rec["startLine"], rec["endLine"], rec["event"]
-                analyzer.update_code(s, e, code, ev)
+                cb = rec.get("closeBefore", False)
+                analyzer.update_code(s, e, code, ev, close_before=cb)
 
                 stripped = code.strip()
                 if stripped and not stripped.startswith("// @"):
@@ -237,22 +250,31 @@ class RQ1Runner:
 
             # 7. 결과 파싱
             output_lines = []
-            for line in output.split('\n'):
-                line = line.strip()
+            last_list = None  # 마지막으로 추가된 결과 리스트 참조
+            for raw_line in output.split('\n'):
+                line = raw_line.strip()
                 if not line:
                     continue
                 if 'VIOLATION]' in line:
                     result["violations"].append(line)
                     output_lines.append(line)
+                    last_list = result["violations"]
                 elif 'SUCCESS]' in line or 'SATISFIED]' in line:
                     result["satisfied"].append(line)
                     output_lines.append(line)
+                    last_list = result["satisfied"]
                 elif 'ERROR]' in line:
                     result["errors"].append(line)
                     output_lines.append(line)
+                    last_list = result["errors"]
                 elif 'WARNING]' in line:
                     result["warnings"].append(line)
                     output_lines.append(line)
+                    last_list = result["warnings"]
+                elif raw_line.startswith('  ') and last_list and self._is_detail_line(line):
+                    # 상세 출력 라인 — 마지막 intent 결과에 이어 붙임
+                    last_list[-1] = last_list[-1] + '\n    ' + line
+                    output_lines[-1] = output_lines[-1] + '\n    ' + line
 
             # 7.5 Intent별 상세 정보 수집
             intent_annotations = case.get("intent_annotations", [])
@@ -263,10 +285,11 @@ class RQ1Runner:
                 expected = intent.get("expected", "violated")
 
                 # 해당 라인의 출력 찾기
+                # debug annotation 삽입으로 라인이 +1 shift될 수 있으므로 둘 다 검색
                 actual_result = "not_found"
                 risk_score = None
                 for out_line in output_lines:
-                    if f"Line {line_no}:" in out_line:
+                    if f"Line {line_no}:" in out_line or f"Line {line_no + 1}:" in out_line:
                         parsed = self.parse_result_line(out_line)
                         actual_result = parsed["actual_result"]
                         risk_score = parsed["risk_score"]

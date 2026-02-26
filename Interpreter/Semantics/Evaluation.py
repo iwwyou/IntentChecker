@@ -694,6 +694,8 @@ class Evaluation :
                 elif ident_str == "this":
                     # this 키워드: 현재 컨트랙트 자체를 반환
                     return "this"
+                elif ident_str == "super":
+                    return "super"
                 elif ident_str in ["block", "tx", "msg", "address", "code"]:
                     return ident_str  # block, tx, msg를 리턴
                 elif ident_str in self.an.contract_cfgs[self.an.current_target_contract].enumDefs:  # EnumDef 리턴
@@ -705,6 +707,8 @@ class Evaluation :
                     return variables[ident_str]  # ArrayVariable, MappingVariable 자체를 리턴
 
         # callerContext, callerObject 둘다 없는 경우
+        if ident_str == "this":
+            return "this"
         if ident_str in variables:  # variables에 있으면
             return variables[ident_str].value  # 해당 value 리턴
         else:
@@ -1513,6 +1517,20 @@ class Evaluation :
             # 일반적인 member access 결과 반환 (dynamic array push/pop 등)
             return self._mapping_lookup_if_needed(function_result, callerObject)
             
+        elif expr.function.context == "NewExpContext":
+            # new Type[](size) → FunctionCall(NewExp, [size]) 로 파싱된 경우
+            new_expr = expr.function
+            if not new_expr.arguments:
+                new_expr.arguments = expr.arguments
+            return self.evaluate_new_expression_context(new_expr, variables, callerObject, callerContext)
+
+        elif expr.function.context == "FunctionCallOptionContext":
+            # expr{value: ethAmount}(args) → options는 무시, 외부 호출이므로 Top 반환
+            return self._mapping_lookup_if_needed(
+                self.evaluate_function_call_option_context(
+                    expr.function, variables, callerObject, callerContext),
+                callerObject)
+
         elif expr.function.context == "IdentifierExpContext":
             function_name = expr.function.identifier
         else:

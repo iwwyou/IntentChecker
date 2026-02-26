@@ -2036,7 +2036,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     def visitFunctionCallOptions(self, ctx):
         # 1. 베이스 표현식 방문
-        base_expr = self.visitExpression(ctx.expression())
+        base_expr = self.visitExpression(ctx.expression(0))
 
         # 2. 옵션 매개변수 처리
         options = {}
