@@ -171,7 +171,7 @@ var analysisDemo = {
         // Result
         '<div style="background: #FFF3E0; border-left: 4px solid #FF9800; padding: 14px 18px; margin-top: 16px; border-radius: 4px; font-size: 15px;">' +
         '<strong>Result:</strong> Intent <code>fee > 0</code> &rarr; ' +
-        '<strong style="color: #FF9800;">Warning</strong> <span style="color: #E65100; font-weight: bold;">(Risk: 6.2 / 10)</span> ' +
+        '<strong style="color: #FF9800;">Warning</strong> <span style="color: #E65100; font-weight: bold;">(Risk: 3.4 / 10)</span> ' +
         '&mdash; fee can be 0 when amount &lt; 100 (due to integer division truncation)' +
         '</div>' +
         // Note

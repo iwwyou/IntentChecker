@@ -1040,24 +1040,31 @@ class GuardianVerificationEngine:
                                          "overlap_zone": None, "notes": "failed to compute"}
             return _enrich(info)
 
+        # ── 정수 구간 카운팅 (모든 연산자에서 lw+1 = 정수 개수) ──
+        int_total = lw + 1  # L 구간의 정수 개수
+
         if op == '>':
             # L > R: L.min > R.max → satisfied, L.max <= R.min → violated
             if left_iv.min_value > right_iv.max_value:
                 return _enrich({"state": "satisfied", "confidence": 1.0})
             if left_iv.max_value <= right_iv.min_value:
                 return _enrich({"state": "violated", "confidence": 0.0})
-            true_len = max(0, left_iv.max_value - max(left_iv.min_value, right_iv.max_value))
-            false_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
-            total = lw
+            # 확실히 true: L > R.max  →  L ∈ {R.max+1 .. L.max}
+            true_len = max(0, left_iv.max_value - right_iv.max_value)
+            # 확실히 false: L ≤ R.min  →  L ∈ {L.min .. R.min}
+            false_len = max(0, right_iv.min_value - left_iv.min_value + 1)
+            total = int_total
         elif op == '<':
             # L < R: L.max < R.min → satisfied, L.min >= R.max → violated
             if left_iv.max_value < right_iv.min_value:
                 return _enrich({"state": "satisfied", "confidence": 1.0})
             if left_iv.min_value >= right_iv.max_value:
                 return _enrich({"state": "violated", "confidence": 0.0})
-            true_len = max(0, min(left_iv.max_value, right_iv.min_value) - left_iv.min_value)
-            false_len = max(0, right_iv.max_value - max(right_iv.min_value, left_iv.max_value))
-            total = lw
+            # 확실히 true: L < R.min  →  L ∈ {L.min .. R.min-1}
+            true_len = max(0, right_iv.min_value - left_iv.min_value)
+            # 확실히 false: L ≥ R.max  →  L ∈ {R.max .. L.max}
+            false_len = max(0, left_iv.max_value - right_iv.max_value + 1)
+            total = int_total
         elif op == '>=':
             # L >= R: L.min >= R.max → satisfied, L.max < R.min → violated
             if left_iv.min_value >= right_iv.max_value:
@@ -1066,7 +1073,7 @@ class GuardianVerificationEngine:
                 return _enrich({"state": "violated", "confidence": 0.0})
             true_len = max(0, left_iv.max_value - right_iv.max_value + 1)
             false_len = max(0, right_iv.min_value - left_iv.min_value)
-            total = lw + 1
+            total = int_total
         elif op == '<=':
             # L <= R: L.max <= R.min → satisfied, L.min > R.max → violated
             if left_iv.max_value <= right_iv.min_value:
@@ -1075,28 +1082,30 @@ class GuardianVerificationEngine:
                 return _enrich({"state": "violated", "confidence": 0.0})
             true_len = max(0, right_iv.min_value - left_iv.min_value + 1)
             false_len = max(0, left_iv.max_value - right_iv.max_value)
-            total = lw + 1
+            total = int_total
         elif op == '==':
             # disjoint → violated, both singletons & equal → satisfied
             if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
                 return _enrich({"state": "violated", "confidence": 0.0})
             if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
                 return _enrich({"state": "satisfied", "confidence": 1.0})
-            # 겹치는 길이를 "true", 나머지를 "false"
-            true_len = _overlap(left_iv.min_value, left_iv.max_value,
-                                right_iv.min_value, right_iv.max_value)
-            false_len = lw - true_len
-            total = lw
+            # 겹치는 정수 개수를 "true", 나머지를 "false"
+            overlap_count = max(0, min(left_iv.max_value, right_iv.max_value)
+                                - max(left_iv.min_value, right_iv.min_value) + 1)
+            true_len = overlap_count
+            false_len = int_total - true_len
+            total = int_total
         elif op == '!=':
             # disjoint → satisfied, both singletons & equal → violated
             if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
                 return _enrich({"state": "satisfied", "confidence": 1.0})
             if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
                 return _enrich({"state": "violated", "confidence": 0.0})
-            true_len = lw - _overlap(left_iv.min_value, left_iv.max_value,
-                                     right_iv.min_value, right_iv.max_value)
-            false_len = lw - true_len
-            total = lw
+            overlap_count = max(0, min(left_iv.max_value, right_iv.max_value)
+                                - max(left_iv.min_value, right_iv.min_value) + 1)
+            true_len = int_total - overlap_count
+            false_len = overlap_count
+            total = int_total
         else:
             raise ValueError(f"unsupported op {op}")
 
