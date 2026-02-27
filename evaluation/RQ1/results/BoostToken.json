@@ -11,13 +11,13 @@
   ],
   "status": "pass",
   "violations": [
-    "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x0000021309B4AC20> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 25]\n    Intent   = [27, 27]\n    Risk: Type 3 (both-side)",
-    "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x0000021309B4A9E0> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 14]\n    Intent   = [14, 14]\n    Risk: Type 3 (both-side)"
+    "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x0000026366B527D0> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 25]\n    Intent   = [27, 27]\n    Risk: Type 3 (both-side)",
+    "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x0000026366B52740> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 14]\n    Intent   = [14, 14]\n    Risk: Type 3 (both-side)"
   ],
   "warnings": [],
   "satisfied": [],
   "errors": [],
-  "execution_time": 2.335,
+  "execution_time": 2.285,
   "metrics": {
     "total_intents": 2,
     "num_violations": 2,

@@ -170,8 +170,18 @@ class DebugInitializer:
                     key_str = key_var.identifier  # string·bool 등
             else:
                 # ───── 디버깅 전용: 리터럴 키로 강제 사용 ────────────────────────────
-                # 일반 프로그램에서는 오류이지만, 디버깅에서는 허용
-                key_str = ident
+                # mapping key type이 address이면 AddressSet 형식으로 자동 변환
+                key_type = getattr(caller_object.typeInfo, 'mappingKeyType', None)
+                key_type_name = getattr(key_type, 'elementaryTypeName', None) if key_type else None
+
+                if key_type_name == "address":
+                    try:
+                        addr_id = int(ident)
+                        key_str = str(AddressSet(ids={addr_id}))  # "AddressSet({1})"
+                    except ValueError:
+                        key_str = ident  # 숫자가 아니면 그대로
+                else:
+                    key_str = ident
 
             # ── ③ 매핑 엔트리 가져오거나 생성 ─────────────
             if not caller_object.struct_defs or not caller_object.enum_defs:

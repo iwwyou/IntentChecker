@@ -1,51 +1,6 @@
 {
-  "timestamp": "2026-02-27T06:30:16.708272",
+  "timestamp": "2026-02-27T14:19:13.471550",
   "cases": [
-    {
-      "id": "WANGMI",
-      "name": "WANGMI div_in_path",
-      "category": "div_in_path",
-      "source": "Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json",
-      "target_contract": "WANGMI",
-      "target_function": "_transfer",
-      "bug_lines": [
-        428
-      ],
-      "status": "pass",
-      "violations": [
-        "[INTENT VIOLATION] Line 429: tokensForLiquidity(Before < After) → violated (risk=10.0) [risk=10.0]\n    Before = [100, 100]\n    After  = [100, 100]\n    Risk: Type 3 (both-side)"
-      ],
-      "warnings": [],
-      "satisfied": [],
-      "errors": [],
-      "execution_time": 5.619,
-      "metrics": {
-        "total_intents": 1,
-        "num_violations": 1,
-        "num_warnings": 0,
-        "num_satisfied": 0,
-        "num_errors": 0,
-        "num_bug_detected": 1,
-        "violation_rate": 100.0,
-        "warning_rate": 0.0,
-        "satisfied_rate": 0.0,
-        "bug_detection_rate": 100.0
-      },
-      "intent_details": [
-        {
-          "intent_type": "During",
-          "intent_clause_type": "DuringBeforeAfter",
-          "intent_expression": "tokensForLiquidity(Before < After)",
-          "intent_line": 428,
-          "expected_result": "violated",
-          "actual_result": "violated",
-          "is_correct": true,
-          "risk_score": 10.0
-        }
-      ],
-      "actual_violations": 1,
-      "expected_violations": 1
-    },
     {
       "id": "Nokon",
       "name": "Nokon exchange_problem",
@@ -57,58 +12,13 @@
         51
       ],
       "status": "pass",
-      "violations": [],
-      "warnings": [
-        "[INTENT WARNING] Line 52: amountToBuy >= <Domain.IR.Expression object at 0x000002130A41B220>  →  warning (risk=3.4)  | violation lower=[1250000000000, 1250000000011] upper=None overlap=[1250000000012, 1250000000012] [risk=3.4]\n    Analysis = [1250000000000, 3333330000000]\n    Intent   = [1250000000012, 1250000000012]\n    Risk: Type 2 (one-side)"
-      ],
-      "satisfied": [],
-      "errors": [],
-      "execution_time": 0.252,
-      "metrics": {
-        "total_intents": 1,
-        "num_violations": 0,
-        "num_warnings": 1,
-        "num_satisfied": 0,
-        "num_errors": 0,
-        "num_bug_detected": 1,
-        "violation_rate": 0.0,
-        "warning_rate": 100.0,
-        "satisfied_rate": 0.0,
-        "bug_detection_rate": 100.0
-      },
-      "intent_details": [
-        {
-          "intent_type": "During",
-          "intent_clause_type": "CommonClause",
-          "intent_expression": "amountToBuy >= 1250000000012",
-          "intent_line": 51,
-          "expected_result": "violated",
-          "actual_result": "warning",
-          "is_correct": true,
-          "risk_score": 3.4
-        }
-      ],
-      "actual_violations": 1,
-      "expected_violations": 1
-    },
-    {
-      "id": "SwordCrowdsale",
-      "name": "SwordCrowdsale greedy_contract",
-      "category": "greedy_contract",
-      "source": "Dataset/flyinointment/greedy_contract/SwordCrowdsale_simple.json",
-      "target_contract": "SwordCrowdsale",
-      "target_function": "refundMoney",
-      "bug_lines": [
-        33
-      ],
-      "status": "pass",
       "violations": [
-        "[POST INTENT VIOLATION] Line 33: weiRaised(Entry > Exit) → violated (risk=10.0) [risk=10.0]\n    Entry = [1000, 1000]\n    Exit  = [1000, 1000]\n    Risk: Type 3 (both-side)"
+        "[INTENT VIOLATION] Line 52: amountToBuy >= <Domain.IR.Expression object at 0x0000024799D50C70>  →  violated (risk=10.0)  [risk=10.0]\n    Analysis = [0, 0]\n    Intent   = [1250000000012, 1250000000012]\n    Risk: Type 3 (both-side)"
       ],
       "warnings": [],
       "satisfied": [],
       "errors": [],
-      "execution_time": 0.06,
+      "execution_time": 0.28,
       "metrics": {
         "total_intents": 1,
         "num_violations": 1,
@@ -123,10 +33,10 @@
       },
       "intent_details": [
         {
-          "intent_type": "Post",
-          "intent_clause_type": "PostEntryExit",
-          "intent_expression": "weiRaised(Entry > Exit)",
-          "intent_line": 33,
+          "intent_type": "During",
+          "intent_clause_type": "CommonClause",
+          "intent_expression": "amountToBuy >= 1250000000012",
+          "intent_line": 51,
           "expected_result": "violated",
           "actual_result": "violated",
           "is_correct": true,
@@ -135,137 +45,44 @@
       ],
       "actual_violations": 1,
       "expected_violations": 1
-    },
-    {
-      "id": "BoostToken",
-      "name": "BoostToken operator_order_issue",
-      "category": "operator_order_issue",
-      "source": "Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json",
-      "target_contract": "BoostToken",
-      "target_function": "sendETHToTeam",
-      "bug_lines": [
-        141,
-        142
-      ],
-      "status": "pass",
-      "violations": [
-        "[INTENT VIOLATION] Line 142: transfer.arg[0] > <Domain.IR.Expression object at 0x0000021309B4AC20> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 25]\n    Intent   = [27, 27]\n    Risk: Type 3 (both-side)",
-        "[INTENT VIOLATION] Line 143: transfer.arg[0] > <Domain.IR.Expression object at 0x0000021309B4A9E0> → violated (risk=10.0) [risk=10.0]\n    Analysis = [0, 14]\n    Intent   = [14, 14]\n    Risk: Type 3 (both-side)"
-      ],
-      "warnings": [],
-      "satisfied": [],
-      "errors": [],
-      "execution_time": 2.335,
-      "metrics": {
-        "total_intents": 2,
-        "num_violations": 2,
-        "num_warnings": 0,
-        "num_satisfied": 0,
-        "num_errors": 0,
-        "num_bug_detected": 2,
-        "violation_rate": 100.0,
-        "warning_rate": 0.0,
-        "satisfied_rate": 0.0,
-        "bug_detection_rate": 100.0
-      },
-      "intent_details": [
-        {
-          "intent_type": "During",
-          "intent_clause_type": "DuringFunctionArg",
-          "intent_expression": "transfer.arg[0] > 27",
-          "intent_line": 141,
-          "expected_result": "violated",
-          "actual_result": "violated",
-          "is_correct": true,
-          "risk_score": 10.0
-        },
-        {
-          "intent_type": "During",
-          "intent_clause_type": "DuringFunctionArg",
-          "intent_expression": "transfer.arg[0] > 14",
-          "intent_line": 142,
-          "expected_result": "violated",
-          "actual_result": "violated",
-          "is_correct": true,
-          "risk_score": 10.0
-        }
-      ],
-      "actual_violations": 2,
-      "expected_violations": 2
     }
   ],
   "summary": {
-    "total_cases": 4,
-    "passed": 4,
+    "total_cases": 1,
+    "passed": 1,
     "partial": 0,
     "failed": 0,
     "errors": 0,
     "pass_rate": 100.0,
     "intent_stats": {
-      "total_intents": 5,
-      "violations": 4,
-      "warnings": 1,
+      "total_intents": 1,
+      "violations": 1,
+      "warnings": 0,
       "satisfied": 0,
       "errors": 0,
-      "bug_detected": 5,
-      "violation_rate": 80.0,
-      "warning_rate": 20.0,
+      "bug_detected": 1,
+      "violation_rate": 100.0,
+      "warning_rate": 0.0,
       "satisfied_rate": 0.0,
       "bug_detection_rate": 100.0
     },
     "time_stats": {
-      "total_time": 8.266,
-      "avg_time": 2.066,
-      "min_time": 0.06,
-      "max_time": 5.619
+      "total_time": 0.28,
+      "avg_time": 0.28,
+      "min_time": 0.28,
+      "max_time": 0.28
     },
     "category_stats": {
-      "div_in_path": {
-        "total": 1,
-        "pass": 1,
-        "partial": 0,
-        "fail": 0,
-        "error": 0,
-        "violations": 1,
-        "warnings": 0,
-        "satisfied": 0,
-        "execution_time": 5.619,
-        "pass_rate": 100.0
-      },
       "exchange_problem": {
         "total": 1,
         "pass": 1,
         "partial": 0,
         "fail": 0,
         "error": 0,
-        "violations": 0,
-        "warnings": 1,
-        "satisfied": 0,
-        "execution_time": 0.252,
-        "pass_rate": 100.0
-      },
-      "greedy_contract": {
-        "total": 1,
-        "pass": 1,
-        "partial": 0,
-        "fail": 0,
-        "error": 0,
         "violations": 1,
         "warnings": 0,
         "satisfied": 0,
-        "execution_time": 0.06,
-        "pass_rate": 100.0
-      },
-      "operator_order_issue": {
-        "total": 1,
-        "pass": 1,
-        "partial": 0,
-        "fail": 0,
-        "error": 0,
-        "violations": 2,
-        "warnings": 0,
-        "satisfied": 0,
-        "execution_time": 2.335,
+        "execution_time": 0.28,
         "pass_rate": 100.0
       }
     }

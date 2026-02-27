@@ -20,6 +20,13 @@
       "value": "true",
       "line": 50,
       "comment": "require(presell) 통과용"
+    },
+    {
+      "type": "StateVar",
+      "var": "balances[1]",
+      "value": [0, 0],
+      "line": 49,
+      "comment": "balances[address(this)] = 0 → calculateRate()가 250000 확정 리턴"
     }
   ],
   "intent_annotations": [

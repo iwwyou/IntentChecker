@@ -9,22 +9,22 @@
     51
   ],
   "status": "pass",
-  "violations": [],
-  "warnings": [
-    "[INTENT WARNING] Line 52: amountToBuy >= <Domain.IR.Expression object at 0x000002130A41B220>  →  warning (risk=3.4)  | violation lower=[1250000000000, 1250000000011] upper=None overlap=[1250000000012, 1250000000012] [risk=3.4]\n    Analysis = [1250000000000, 3333330000000]\n    Intent   = [1250000000012, 1250000000012]\n    Risk: Type 2 (one-side)"
+  "violations": [
+    "[INTENT VIOLATION] Line 52: amountToBuy >= <Domain.IR.Expression object at 0x0000024799D50C70>  →  violated (risk=10.0)  [risk=10.0]\n    Analysis = [0, 0]\n    Intent   = [1250000000012, 1250000000012]\n    Risk: Type 3 (both-side)"
   ],
+  "warnings": [],
   "satisfied": [],
   "errors": [],
-  "execution_time": 0.252,
+  "execution_time": 0.28,
   "metrics": {
     "total_intents": 1,
-    "num_violations": 0,
-    "num_warnings": 1,
+    "num_violations": 1,
+    "num_warnings": 0,
     "num_satisfied": 0,
     "num_errors": 0,
     "num_bug_detected": 1,
-    "violation_rate": 0.0,
-    "warning_rate": 100.0,
+    "violation_rate": 100.0,
+    "warning_rate": 0.0,
     "satisfied_rate": 0.0,
     "bug_detection_rate": 100.0
   },
@@ -35,9 +35,9 @@
       "intent_expression": "amountToBuy >= 1250000000012",
       "intent_line": 51,
       "expected_result": "violated",
-      "actual_result": "warning",
+      "actual_result": "violated",
       "is_correct": true,
-      "risk_score": 3.4
+      "risk_score": 10.0
     }
   ],
   "actual_violations": 1,

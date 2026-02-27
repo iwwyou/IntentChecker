@@ -1,6 +1,2 @@
 case_id,category,source_file,target_contract,target_function,bug_lines,intent_type,intent_clause_type,intent_expression,intent_line,expected_result,actual_result,is_correct,risk_score,total_intents,num_violations,num_satisfied,execution_time_sec
-WANGMI,div_in_path,Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json,WANGMI,_transfer,428,During,DuringBeforeAfter,tokensForLiquidity(Before < After),428,violated,violated,True,10.0,1,1,0,5.619
-Nokon,exchange_problem,Dataset/Numscout/contraction/exchange_problem/Nokon_contraction.json,Nokon,buy,51,During,CommonClause,amountToBuy >= 1250000000012,51,violated,warning,True,3.4,1,0,0,0.252
-SwordCrowdsale,greedy_contract,Dataset/flyinointment/greedy_contract/SwordCrowdsale_simple.json,SwordCrowdsale,refundMoney,33,Post,PostEntryExit,weiRaised(Entry > Exit),33,violated,violated,True,10.0,1,1,0,0.06
-BoostToken,operator_order_issue,Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json,BoostToken,sendETHToTeam,141;142,During,DuringFunctionArg,transfer.arg[0] > 27,141,violated,violated,True,10.0,2,2,0,2.335
-BoostToken,operator_order_issue,Dataset/Numscout/contraction/operator_order_issue/BoostToken_contraction.json,BoostToken,sendETHToTeam,141;142,During,DuringFunctionArg,transfer.arg[0] > 14,142,violated,violated,True,10.0,2,2,0,2.335
+Nokon,exchange_problem,Dataset/Numscout/contraction/exchange_problem/Nokon_contraction.json,Nokon,buy,51,During,CommonClause,amountToBuy >= 1250000000012,51,violated,violated,True,10.0,1,1,0,0.28

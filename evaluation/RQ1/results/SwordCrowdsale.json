@@ -15,7 +15,7 @@
   "warnings": [],
   "satisfied": [],
   "errors": [],
-  "execution_time": 0.06,
+  "execution_time": 0.08,
   "metrics": {
     "total_intents": 1,
     "num_violations": 1,
