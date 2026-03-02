@@ -45,21 +45,22 @@
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{8}{figure.caption.5}\protected@file@percent }
 \newlabel{fig:intent-grammar}{{2}{8}{Grammar of intent annotations}{figure.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Validation Engine}{9}{subsection.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}Validation Targets}{10}{subsubsection.3.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}State Determination and Risk Scoring}{10}{subsubsection.3.4.2}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{11}{table.caption.7}\protected@file@percent }
 \newlabel{tab:interval-mapping}{{2}{11}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt  {in}/\texttt  {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}}{11}{table.caption.9}\protected@file@percent }
 \newlabel{tab:op-formulas}{{3}{11}{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt {in}/\texttt {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$}{table.caption.9}{}}
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Interval Comparison with Risk Score}}{12}{algorithm.1}\protected@file@percent }
 \newlabel{alg:interval-compare}{{1}{12}{Interval Comparison with Risk Score}{algorithm.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{12}{section.4}\protected@file@percent }
-\newlabel{sec:evaluation}{{4}{12}{Evaluation}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{12}{subsection.4.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{13}{table.caption.11}\protected@file@percent }
-\newlabel{tab:logic-combination}{{4}{13}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Conjunction (\texttt  {\&\&}) truth table for three-valued logic.}}{13}{table.caption.11}\protected@file@percent }
+\newlabel{tab:conjunction}{{4}{13}{Conjunction (\texttt {\&\&}) truth table for three-valued logic}{table.caption.11}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Disjunction (\texttt  {||}) truth table for three-valued logic.}}{13}{table.caption.13}\protected@file@percent }
+\newlabel{tab:disjunction}{{5}{13}{Disjunction (\texttt {||}) truth table for three-valued logic}{table.caption.13}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Implication (\texttt  {=>}) result based on antecedent state.}}{13}{table.caption.15}\protected@file@percent }
+\newlabel{tab:implication}{{6}{13}{Implication (\texttt {=>}) result based on antecedent state}{table.caption.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{13}{section.4}\protected@file@percent }
+\newlabel{sec:evaluation}{{4}{13}{Evaluation}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{13}{subsection.4.1}\protected@file@percent }
 \citation{highguard}
-\citation{smartpulse}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{14}{subsection.4.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Mitigation}{14}{subsection.4.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Warning Usefulness}{14}{subsection.4.4}\protected@file@percent }
@@ -72,6 +73,7 @@
 \@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{14}{section.6}\protected@file@percent }
 \newlabel{sec:related}{{6}{14}{Related Works}{section.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{14}{subsection.6.1}\protected@file@percent }
+\citation{smartpulse}
 \citation{consolidating}
 \citation{smartinv}
 \citation{exploitablebugs}
@@ -108,9 +110,9 @@
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
 \bibcite{defitainter}{{12}{2023}{{Kong et~al.}}{{}}}
 \bibcite{defitail}{{13}{2025}{{Li et~al.}}{{}}}
+\bibcite{libfuzzer}{{14}{2025}{{LLVM}}{{}}}
 \@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{17}{section.7}\protected@file@percent }
 \newlabel{sec:conclusion}{{7}{17}{Conclusion}{section.7}{}}
-\bibcite{libfuzzer}{{14}{2025}{{LLVM}}{{}}}
 \bibcite{oyente}{{15}{2016}{{Luu et~al.}}{{}}}
 \bibcite{idealist}{{16}{2023}{{Nguyen et~al.}}{{}}}
 \bibcite{solhint}{{17}{2025}{{Protofire}}{{}}}

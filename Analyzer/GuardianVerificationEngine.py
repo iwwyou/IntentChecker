@@ -472,7 +472,7 @@ class GuardianVerificationEngine:
                     "lhs": str(lhs_val),
                     "rhs": str(rhs_val),
                     "operator": comp_op,
-                    **cmp  # satisfied / violated / warning / confidence
+                    **cmp  # satisfied / violated / warning / prob_true
                 },
                 "message": f'{self._pretty_expr(lhs_expr)} {comp_op} '
                            f'{self._pretty_expr(rhs_expr)}  →  {cmp["message"]} {msg_tail}'
@@ -951,34 +951,36 @@ class GuardianVerificationEngine:
             overlap = false_regions.get("overlap_zone") if false_regions else None
             return 2 if overlap is not None else 1
 
-    def _compute_risk_score(self, state: str, confidence: float,
+    def _compute_risk_score(self, state: str, prob_true: float,
                             false_regions: dict, op: str) -> float:
         """
         0-10 스케일 위험도 점수 계산.
-          타입 1 (satisfied)   → 0.0 ~ 3.3
-          타입 2 (한쪽 위반)    → 3.4 ~ 6.6
-          타입 3 (양쪽 위반)    → 6.7 ~ 10.0
-        confidence = 성립할 확률 (0~1), violation_ratio = 1 - confidence
+          satisfied → 0.0 (고정)
+          violated  → 10.0 (고정)
+          warning:
+            타입 1 (한쪽 경미)  → 0.1 ~ 3.3
+            타입 2 (한쪽 위반)  → 3.4 ~ 6.6
+            타입 3 (양쪽 위반)  → 6.7 ~ 9.9
         """
-        if state == "satisfied" and confidence == 1.0:
+        if state == "satisfied":
             return 0.0
-        if state == "violated" and confidence == 0.0:
+        if state == "violated":
             return 10.0
 
+        # warning 전용: risk_type으로 구간 결정
         risk_type = self._compute_risk_type(state, false_regions, op)
-        violation_ratio = 1.0 - confidence  # 위반 비율
+        violation_ratio = 1.0 - prob_true  # 위반 비율
 
-        # 타입별 구간: [base, base + span)
-        # 타입 1: 0.0 ~ 3.3,  타입 2: 3.4 ~ 6.6,  타입 3: 6.7 ~ 10.0
+        # 타입별 구간
         if risk_type == 1:
-            base, span = 0.0, 3.3
+            base, span = 0.1, 3.2   # 0.1 ~ 3.3
         elif risk_type == 2:
             base, span = 3.4, 3.2   # 3.4 ~ 6.6
         else:
-            base, span = 6.7, 3.3   # 6.7 ~ 10.0
+            base, span = 6.7, 3.2   # 6.7 ~ 9.9
 
         score = base + violation_ratio * span
-        return round(min(10.0, max(0.0, score)), 1)
+        return round(min(9.9, max(0.1, score)), 1)
 
     # ----------------------------------------------------------------
     # Interval-aware comparison with probability
@@ -990,29 +992,27 @@ class GuardianVerificationEngine:
           - 'violated'  : 절대 성립 불가
           - 'warning'   : 일부 구간만 성립
         로 판정하고, warning 인 경우에는
-          confidence ∈ (0,1)  ≒  '성립할 확률' 값을 계산한다.
+          prob_true ∈ (0,1)  ≒  '성립할 확률' 값을 계산한다.
         """
-
-        # ③ op 별 true-zone, false-zone 계산 --------------------------
-        def _overlap(a1, a2, b1, b2):
-            """두 구간 [a1,a2], [b1,b2] 의 겹치는 길이"""
-            return max(0, min(a2, b2) - max(a1, b1))
 
         def _enrich(info):
             """모든 반환 경로에 risk_type, risk_score를 추가"""
             fr = info.get("false_regions", {})
             info["risk_type"] = self._compute_risk_type(info["state"], fr, op)
             info["risk_score"] = self._compute_risk_score(
-                info["state"], info["confidence"], fr, op)
+                info["state"], info["prob_true"], fr, op)
             return info
 
         # ① min/max 가 None → 정보 부족 → 완전 불확정
         if (left_iv.min_value is None or left_iv.max_value is None or
                 right_iv.min_value is None or right_iv.max_value is None):
-            return _enrich({"state": "warning", "confidence": 0.5})
+            return _enrich({"state": "warning", "prob_true": 0.5})
 
         # ② Interval 폭
         lw, rw = left_iv.max_value - left_iv.min_value, right_iv.max_value - right_iv.min_value
+
+        # ── 정수 구간 카운팅 (모든 연산자 공통) ──
+        int_total = lw + 1  # L 구간의 정수 개수
 
         # ─── 포함(in) / 비포함(not in) ────────────────────────────
         if op in {"in", "not in"}:
@@ -1021,18 +1021,18 @@ class GuardianVerificationEngine:
                            left_iv.max_value <= right_iv.max_value)
             if left_inside:
                 return _enrich({"state": "satisfied" if op == "in" else "violated",
-                                "confidence": 1.0})
+                                "prob_true": 1.0 if op == "in" else 0.0})
             # 완전히 분리 → 'in' 은 false 확정,  'not in' 은 true 확정
             separated = (left_iv.max_value < right_iv.min_value or
                          left_iv.min_value > right_iv.max_value)
             if separated:
                 return _enrich({"state": "violated" if op == "in" else "satisfied",
-                                "confidence": 1.0})
-            # 부분-겹침 → 불확정, 겹치는 비율을 신뢰도로
-            overlap = max(0, min(left_iv.max_value, right_iv.max_value) -
-                          max(left_iv.min_value, right_iv.min_value))
-            conf = 1 - overlap / lw if op == "not in" else overlap / lw
-            info = {"state": "warning", "confidence": round(conf, 3)}
+                                "prob_true": 0.0 if op == "in" else 1.0})
+            # 부분-겹침 → 정수 카운팅으로 겹치는 비율 계산
+            overlap_count = max(0, min(left_iv.max_value, right_iv.max_value)
+                                - max(left_iv.min_value, right_iv.min_value) + 1)
+            conf = (1 - overlap_count / int_total) if op == "not in" else (overlap_count / int_total)
+            info = {"state": "warning", "prob_true": round(conf, 3)}
             try:
                 info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
             except Exception:
@@ -1040,15 +1040,12 @@ class GuardianVerificationEngine:
                                          "overlap_zone": None, "notes": "failed to compute"}
             return _enrich(info)
 
-        # ── 정수 구간 카운팅 (모든 연산자에서 lw+1 = 정수 개수) ──
-        int_total = lw + 1  # L 구간의 정수 개수
-
         if op == '>':
             # L > R: L.min > R.max → satisfied, L.max <= R.min → violated
             if left_iv.min_value > right_iv.max_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             if left_iv.max_value <= right_iv.min_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             # 확실히 true: L > R.max  →  L ∈ {R.max+1 .. L.max}
             true_len = max(0, left_iv.max_value - right_iv.max_value)
             # 확실히 false: L ≤ R.min  →  L ∈ {L.min .. R.min}
@@ -1057,9 +1054,9 @@ class GuardianVerificationEngine:
         elif op == '<':
             # L < R: L.max < R.min → satisfied, L.min >= R.max → violated
             if left_iv.max_value < right_iv.min_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             if left_iv.min_value >= right_iv.max_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             # 확실히 true: L < R.min  →  L ∈ {L.min .. R.min-1}
             true_len = max(0, right_iv.min_value - left_iv.min_value)
             # 확실히 false: L ≥ R.max  →  L ∈ {R.max .. L.max}
@@ -1068,27 +1065,27 @@ class GuardianVerificationEngine:
         elif op == '>=':
             # L >= R: L.min >= R.max → satisfied, L.max < R.min → violated
             if left_iv.min_value >= right_iv.max_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             if left_iv.max_value < right_iv.min_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             true_len = max(0, left_iv.max_value - right_iv.max_value + 1)
             false_len = max(0, right_iv.min_value - left_iv.min_value)
             total = int_total
         elif op == '<=':
             # L <= R: L.max <= R.min → satisfied, L.min > R.max → violated
             if left_iv.max_value <= right_iv.min_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             if left_iv.min_value > right_iv.max_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             true_len = max(0, right_iv.min_value - left_iv.min_value + 1)
             false_len = max(0, left_iv.max_value - right_iv.max_value)
             total = int_total
         elif op == '==':
             # disjoint → violated, both singletons & equal → satisfied
             if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             # 겹치는 정수 개수를 "true", 나머지를 "false"
             overlap_count = max(0, min(left_iv.max_value, right_iv.max_value)
                                 - max(left_iv.min_value, right_iv.min_value) + 1)
@@ -1098,9 +1095,9 @@ class GuardianVerificationEngine:
         elif op == '!=':
             # disjoint → satisfied, both singletons & equal → violated
             if left_iv.max_value < right_iv.min_value or left_iv.min_value > right_iv.max_value:
-                return _enrich({"state": "satisfied", "confidence": 1.0})
+                return _enrich({"state": "satisfied", "prob_true": 1.0})
             if lw == 0 and rw == 0 and left_iv.min_value == right_iv.min_value:
-                return _enrich({"state": "violated", "confidence": 0.0})
+                return _enrich({"state": "violated", "prob_true": 0.0})
             overlap_count = max(0, min(left_iv.max_value, right_iv.max_value)
                                 - max(left_iv.min_value, right_iv.min_value) + 1)
             true_len = int_total - overlap_count
@@ -1109,14 +1106,48 @@ class GuardianVerificationEngine:
         else:
             raise ValueError(f"unsupported op {op}")
 
-        # ④ 결과 state / confidence ----------------------------------
-        if false_len == 0:
-            return _enrich({"state": "satisfied", "confidence": 1.0})
-        if true_len == 0:
-            return _enrich({"state": "violated", "confidence": 0.0})
+        # ④ 결과 state / prob_true ----------------------------------
+        uncertain = int_total - true_len - false_len
+        if false_len == 0 and uncertain == 0 and not (op in ('==', '!=') and rw > 0):
+            return _enrich({"state": "satisfied", "prob_true": 1.0})
+        if true_len == 0 and uncertain == 0 and not (op in ('==', '!=') and rw > 0):
+            return _enrich({"state": "violated", "prob_true": 0.0})
 
-        conf = true_len / total if total else 0.5
-        info = {"state": "warning", "confidence": round(conf, 3)}
+        # 불확정 구간의 기대 true 개수 (R이 범위일 때, 균등분포 가정)
+        unc_true = 0
+        if uncertain > 0 and rw > 0 and op in {'>', '<', '>=', '<='}:
+            r_count = rw + 1  # R 정수 개수
+            if op in ('>', '<='):
+                unc_lo = max(left_iv.min_value, right_iv.min_value + 1)
+                unc_hi = min(left_iv.max_value, right_iv.max_value)
+            else:  # >= 또는 <
+                unc_lo = max(left_iv.min_value, right_iv.min_value)
+                unc_hi = min(left_iv.max_value, right_iv.max_value - 1)
+            n = max(0, unc_hi - unc_lo + 1)
+            if n > 0:
+                if op == '>':
+                    a = unc_lo - right_iv.min_value
+                    b = unc_hi - right_iv.min_value
+                elif op == '>=':
+                    a = unc_lo - right_iv.min_value + 1
+                    b = unc_hi - right_iv.min_value + 1
+                elif op == '<':
+                    a = right_iv.max_value - unc_hi
+                    b = right_iv.max_value - unc_lo
+                else:  # <=
+                    a = right_iv.max_value - unc_hi + 1
+                    b = right_iv.max_value - unc_lo + 1
+                unc_true = (a + b) * n / 2 / r_count
+
+        if op == '==':
+            # overlap 값은 "확실히 true"가 아니라 1/(rw+1) 확률로 true
+            conf = true_len / (total * (rw + 1))
+        elif op == '!=':
+            # overlap 값은 "확실히 false"가 아니라 1/(rw+1) 확률로 false
+            conf = 1 - false_len / (total * (rw + 1))
+        else:
+            conf = (true_len + unc_true) / total
+        info = {"state": "warning", "prob_true": round(conf, 3)}
 
         try:
             info["false_regions"] = self._false_regions_for_op(left_iv, right_iv, op)
@@ -1134,7 +1165,7 @@ class GuardianVerificationEngine:
                 "satisfied": info["state"] == "satisfied",
                 "violated": info["state"] == "violated",
                 "warning": info["state"] == "warning",
-                "confidence": info["confidence"],
+                "prob_true": info["prob_true"],
                 "risk_score": info.get("risk_score", 0.0),
                 "risk_type": info.get("risk_type", 1),
                 "message": f"{info['state']} (risk={info.get('risk_score', 0.0)})"
@@ -1148,7 +1179,7 @@ class GuardianVerificationEngine:
             if op in {"in", "not in"}:
                 if right.min_value is None or right.max_value is None:
                     return {"satisfied": False, "violated": True,
-                            "warning": True, "confidence": 0.0,
+                            "warning": True, "prob_true": 0.0,
                             "risk_score": 10.0, "risk_type": 2,
                             "message": "interval unknown"}
                 inside = right.min_value <= left <= right.max_value
@@ -1157,7 +1188,7 @@ class GuardianVerificationEngine:
                     "satisfied": satisfied,
                     "violated": not satisfied,
                     "warning": False,
-                    "confidence": 1.0,
+                    "prob_true": 1.0,
                     "risk_score": 0.0 if satisfied else 10.0,
                     "risk_type": 1 if satisfied else 2,
                     "message": f"{left} {op} [{right.min_value},{right.max_value}] = {satisfied}"
@@ -1186,14 +1217,14 @@ class GuardianVerificationEngine:
                 "satisfied": satisfied,
                 "violated": not satisfied,
                 "warning": False,
-                "confidence": 1.0,
+                "prob_true": 1.0,
                 "risk_score": 0.0 if satisfied else 10.0,
                 "risk_type": 1 if satisfied else 2,
                 "message": f"{left} {op} {right} = {satisfied}"
             }
         except Exception as e:
             return {"satisfied": False, "violated": True,
-                    "warning": True, "confidence": 0.0,
+                    "warning": True, "prob_true": 0.0,
                     "risk_score": 10.0, "risk_type": 2,
                     "message": f"comparison error: {e}"}
 
@@ -1393,17 +1424,17 @@ class GuardianVerificationEngine:
         return "warning"
 
     def _prob_true_from_cmp(self, cmp: dict) -> float:
-        # 이 엔진에서 confidence는 "참일 확률" 의미로 일관 사용
+        # prob_true = 조건이 참일 확률 (0~1)
         if cmp.get("satisfied"): return 1.0
         if cmp.get("violated"):  return 0.0
-        return float(cmp.get("confidence", 0.5))
+        return float(cmp.get("prob_true", 0.5))
 
     def _prob_true_from_result(self, res: dict) -> float:
         # verify_* 결과에서 details에 펼쳐 넣은 cmp를 그대로 사용
         d = res.get("details", {})
         if d.get("satisfied"): return 1.0
         if d.get("violated"):  return 0.0
-        if "confidence" in d:  return float(d["confidence"])
+        if "prob_true" in d:  return float(d["prob_true"])
         # 비교 에러/정보부족 등
         return 0.5
 

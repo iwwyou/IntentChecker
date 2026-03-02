@@ -316,7 +316,7 @@ The validation result is deterministically categorized into one of three states:
     \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
 \]
 
-If neither fully satisfied nor clearly violated, the system reports \texttt{Warning}, along with a probability representing the likelihood of satisfaction and the specific sub-intervals where violation may occur.
+If neither fully satisfied nor clearly violated, the system reports \texttt{Warning}, along with a risk score on a 0--10 scale quantifying the severity of the potential violation and the specific sub-intervals where violation may occur.
 Unlike warnings from pattern-based static analyzers that suggest likely bugs, IntentChecker's \texttt{Warning} indicates partial satisfaction---the intent holds for some input values but not others within the specified range.
 
 SolQDebug was originally designed as a source-level Solidity debugger for single-transaction, single-contract analysis.
@@ -350,7 +350,7 @@ IntentChecker receives three types of input:
 For each intent annotation, IntentChecker produces:
 \begin{itemize}
     \item \textbf{Result}---a validation state of \texttt{Satisfied}, \texttt{Violated}, or \texttt{Warning}.
-    \item \textbf{Probability}---when the result is \texttt{Warning}, a probability indicating the likelihood of satisfaction.
+    \item \textbf{Risk Score}---a 0--10 scale score: $0.0$ for \texttt{Satisfied}, $10.0$ for \texttt{Violated}, and $0.1$--$9.9$ for \texttt{Warning} reflecting the severity of the potential violation.
     \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
 \end{itemize}
 
@@ -364,7 +364,7 @@ When a debug annotation is received, the Snapshot Manager preserves the current 
 
 The Validation Engine is IntentChecker's core contribution.
 It receives the computed variable intervals from the Analysis Module along with the parsed intent annotations.
-For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, probability, and violated regions as described above.
+For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, risk score, and violated regions as described above.
 
 \subsection{Motivating Examples}
 
@@ -440,7 +440,6 @@ While Section~\ref{sec:background} introduced the conceptual foundation---\textt
 & $|$ & \textit{commonClause} \\[6pt]
 
 \textit{postClause} & $\rightarrow$ & \textit{intentValue} \texttt{(entry} \textit{relOp} \texttt{exit)} \\
-& $|$ & \texttt{unchanged(} \textit{intentValue} \texttt{)} \\
 & $|$ & \textit{commonClause} \\[6pt]
 
 \textit{commonClause} & $\rightarrow$ & \texttt{returnExpression} \textit{relOp} \textit{intentValue} \\
@@ -495,8 +494,6 @@ It supports the following clause types:
 
 \begin{itemize}
     \item \texttt{x(entry relOp exit)}---compares the value of variable \texttt{x} at function entry against its value at function exit. This validates function-level effects on state variables (e.g., \texttt{totalSupply(entry == exit)} asserts that total supply remains unchanged).
-
-    \item \texttt{unchanged(x)}---a shorthand asserting that variable \texttt{x} has the same value at function exit as at function entry, equivalent to \texttt{x(entry == exit)}.
 \end{itemize}
 
 \smallskip
@@ -522,6 +519,7 @@ Both \texttt{@During} and \texttt{@Post} annotations share the following clause 
 The Validation Engine validates developer-specified intent annotations against actual program behavior computed through abstract interpretation.
 Given the CFG-based interval analysis from Section~\ref{sec:architecture}, the engine evaluates each annotation clause and determines whether the intended relationship holds across all possible execution states.
 
+% ── (1) 검증 환경 ──────────────────────────────────────────────
 To perform validation, the engine captures variable environments at specific program points:
 \begin{itemize}
     \item \textit{before\_env}: variable state immediately before a statement executes
@@ -531,7 +529,8 @@ To perform validation, the engine captures variable environments at specific pro
     \item \textit{exit\_env}: variable state at function exit, computed by joining all normal termination paths
 \end{itemize}
 
-\smallskip
+% ── (2) 어노테이션별 검증 시점 ────────────────────────────────
+\subsubsection{Validation Targets}
 \noindent\textbf{@During Validation.}
 The \texttt{@During} annotation is validated immediately after the associated statement executes:
 \begin{itemize}
@@ -547,8 +546,6 @@ The \texttt{@During} annotation is validated immediately after the associated st
 The \texttt{@Post} annotation is validated when function execution completes:
 \begin{itemize}
     \item \texttt{var(entry op exit)}: compares \textit{entry\_env} against \textit{exit\_env} for variable \texttt{var}.
-
-    \item \texttt{unchanged(var)}: verifies that \texttt{var} has the same value in \textit{entry\_env} and \textit{exit\_env}.
 \end{itemize}
 
 \smallskip
@@ -566,9 +563,27 @@ The following clauses can be used in both \texttt{@During} and \texttt{@Post} an
     \item $\mathit{exp}_1$ \texttt{op} $\mathit{exp}_2$: general comparison between two expressions.
 \end{itemize}
 
+% ── (3) 검증 의미론 + Risk Score ──────────────────────────────
+\subsubsection{State Determination and Risk Scoring}
+The engine compares interval-domain values and produces one of three possible outcomes:
+\begin{itemize}
+    \item \textit{satisfied}: the condition holds for all values in the intervals.
+    \item \textit{violated}: the condition fails for all values in the intervals.
+    \item \textit{warning}: the condition holds for some values but not others.
+\end{itemize}
+
+Each result is mapped to a \textit{risk score} on a 0--10 scale.
+A score of $0.0$ indicates a fully satisfied condition, while $10.0$ indicates a definite violation.
+For \textit{warning} results, the score reflects the severity of the potential violation.
+The engine classifies warnings into three risk types based on the structure of the violated region:
+type~1 (single-direction, minor) maps to scores $0.1$--$3.3$;
+type~2 (single-direction violation) maps to $3.4$--$6.6$;
+and type~3 (bidirectional violation or equality operators) maps to $6.7$--$9.9$.
+Within each band, the score is computed as $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, where $p_{\mathit{true}}$ is the probability that the condition holds under a uniform distribution assumption.
+
+% ── (4) 절 유형 → 구간 비교 입력 매핑 ─────────────────────────
 \smallskip
-\noindent\textbf{Validation Semantics.}
-The engine compares interval-domain values and produces one of three possible outcomes: \textit{satisfied} (the condition holds for all values), \textit{violated} (the condition fails for all values), or \textit{warning} (the condition holds for some values but not others).
+\noindent\textbf{Clause-to-Interval Mapping.}
 Table~\ref{tab:interval-mapping} shows how each clause type maps to the interval comparison inputs $L$ and $R$ in Algorithm~\ref{alg:interval-compare}.
 
 \begin{table}[t]
@@ -576,7 +591,7 @@ Table~\ref{tab:interval-mapping} shows how each clause type maps to the interval
 \caption{Mapping of clause types to interval comparison inputs. Here, $\mathit{exp}_1$ and $\mathit{exp}_2$ denote evaluated intent expressions; \textit{return value} is the value returned by the current return statement; \textit{return value}$[n]$ is the $n$-th element when the function returns a tuple.}
 \label{tab:interval-mapping}
 \small
-\begin{tabular}{lcc}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcc}
 \toprule
 Clause Type & $L$ & $R$ \\
 \midrule
@@ -585,91 +600,125 @@ Clause Type & $L$ & $R$ \\
 \texttt{func.arg[n] op value} & \texttt{arg[n]} & \texttt{value} \\
 \midrule
 \texttt{var(entry op exit)} & \textit{entry\_env}[\texttt{var}] & \textit{exit\_env}[\texttt{var}] \\
-\texttt{unchanged(var)} & \textit{entry\_env}[\texttt{var}] & \textit{exit\_env}[\texttt{var}] \\
 \midrule
 \texttt{returnExpression op value} & \textit{return value} & \texttt{value} \\
 \texttt{return[n] op value} & \textit{return value}$[n]$ & \texttt{value} \\
 $\mathit{exp}_1$ \texttt{op} $\mathit{exp}_2$ & $\mathit{exp}_1$ & $\mathit{exp}_2$ \\
 \bottomrule
+\end{tabular*}
+\end{table}
+
+% ── (5) 구간 비교 알고리즘 ────────────────────────────────────
+\smallskip
+\noindent\textbf{Interval Comparison Algorithm.}
+Algorithm~\ref{alg:interval-compare} presents the interval comparison procedure.
+Given two integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the algorithm partitions $L$ into three regions under a uniform distribution assumption over both intervals:
+\begin{itemize}
+    \item $T_s$ (\textit{satisfied region}): values of $L$ for which $l \mathrel{op} r$ holds for \emph{all} $r \in R$.
+    \item $T_v$ (\textit{violated region}): values of $L$ for which $l \mathrel{op} r$ fails for \emph{all} $r \in R$.
+    \item $T_w$ (\textit{warning region}): values of $L$ whose truth value depends on the actual value of $R$.
+\end{itemize}
+
+Table~\ref{tab:op-formulas} defines the early-return conditions and region sizes for each operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
+
+\begin{table}[t]
+\centering
+\caption{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max(0, \cdot)$. For \texttt{in}/\texttt{not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}
+\label{tab:op-formulas}
+\small
+\begin{tabular}{cllcc}
+\toprule
+$op$ & Satisfied condition & Violated condition & $|T_s|$ & $|T_v|$ \\
+\midrule
+$>$    & $l_{\min} > r_{\max}$    & $l_{\max} \leq r_{\min}$  & $l_{\max} - r_{\max}$     & $r_{\min} - l_{\min} + 1$ \\
+$\geq$ & $l_{\min} \geq r_{\max}$ & $l_{\max} < r_{\min}$     & $l_{\max} - r_{\max} + 1$ & $r_{\min} - l_{\min}$     \\
+$<$    & $l_{\max} < r_{\min}$    & $l_{\min} \geq r_{\max}$  & $r_{\min} - l_{\min}$     & $l_{\max} - r_{\max} + 1$ \\
+$\leq$ & $l_{\max} \leq r_{\min}$ & $l_{\min} > r_{\max}$     & $r_{\min} - l_{\min} + 1$ & $l_{\max} - r_{\max}$     \\
+\midrule
+$=$    & disjoint $\wedge$ singletons  & disjoint  & $|L \cap R|$ & $n_L - |L \cap R|$ \\
+$\neq$ & disjoint  & disjoint $\wedge$ singletons  & $n_L - |L \cap R|$ & $|L \cap R|$ \\
+\midrule
+\texttt{in}     & $L \subseteq R$ & $L \cap R = \emptyset$ & $|L \cap R|$       & $n_L - |L \cap R|$ \\
+\texttt{not\,in} & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \cap R|$       \\
+\bottomrule
 \end{tabular}
 \end{table}
 
-Algorithm~\ref{alg:interval-compare} presents the interval comparison procedure.
-
 \begin{algorithm}[t]
-\caption{Interval Comparison with Three-Valued Result}
+\caption{Interval Comparison with Risk Score}
 \label{alg:interval-compare}
 \begin{algorithmic}[1]
 \State \textbf{Input:} Intervals $L = [l_{\min}, l_{\max}]$, $R = [r_{\min}, r_{\max}]$, operator $op$
-\State \textbf{Output:} (state, probability, violated\_region)
-\State $T \gets$ region where $L \mathrel{op} R$ is true
-\State $F \gets$ region where $L \mathrel{op} R$ is false
-\State $|T| \gets$ size of true region, $|F| \gets$ size of false region
-\If{$|F| = 0$}
-    \State \Return (\textit{satisfied}, 1.0, $\emptyset$)
-\ElsIf{$|T| = 0$}
-    \State \Return (\textit{violated}, 0.0, $L \cap R$)
-\Else
-    \State $p \gets |T| / (|T| + |F|)$ \Comment{probability of satisfaction}
-    \State \Return (\textit{warning}, $p$, $F$)
+\State \textbf{Output:} $(\mathit{state},\; \mathit{risk\_score})$
+\State $n_L \gets l_{\max} - l_{\min} + 1$, \; $n_R \gets r_{\max} - r_{\min} + 1$
+\Statex
+\Statex \textit{// Step 1: Early return for definite cases (Table~\ref{tab:op-formulas})}
+\If{\textsc{SatisfiedCond}($op$, $L$, $R$)}
+    \State \Return $(\textit{satisfied},\; 0.0)$
+\ElsIf{\textsc{ViolatedCond}($op$, $L$, $R$)}
+    \State \Return $(\textit{violated},\; 10.0)$
 \EndIf
+\Statex
+\Statex \textit{// Step 2: Region partitioning (Table~\ref{tab:op-formulas})}
+\State $|T_s|,\; |T_v| \gets$ per-operator formulas from Table~\ref{tab:op-formulas}
+\State $|T_w| \gets n_L - |T_s| - |T_v|$
+\Statex
+\Statex \textit{// Step 3: Compute $p_{\mathit{true}}$}
+\If{$op \in \{\texttt{in},\; \texttt{not\,in}\}$}
+    \State $p_{\mathit{true}} \gets |T_s| \;/\; n_L$
+\ElsIf{$op \in \{=,\; \neq\}$ \textbf{and} $n_R > 1$}
+    \State $p_{\mathit{true}} \gets |T_s| \;/\; (n_L \cdot n_R)$ \Comment{$=$ case; $\neq$: $1 - |T_v|/(n_L \cdot n_R)$}
+\Else \Comment{$>,\; \geq,\; <,\; \leq$}
+    \State $E_w \gets$ expected true count from $T_w$ via arithmetic series over $R$
+    \State $p_{\mathit{true}} \gets (|T_s| + E_w) \;/\; n_L$
+\EndIf
+\Statex
+\Statex \textit{// Step 4: Risk score}
+\State $\mathit{risk\_type} \gets \textsc{ClassifyRisk}(\mathit{false\_regions},\; op)$
+\State $\mathit{risk\_score} \gets \mathit{base}(\mathit{risk\_type}) + (1 - p_{\mathit{true}}) \times \mathit{span}(\mathit{risk\_type})$
+\State \Return $(\textit{warning},\; \mathit{risk\_score})$
 \end{algorithmic}
 \end{algorithm}
 
-For warning results, the engine computes a \textit{probability} estimate based on the ratio of the satisfying region to the total interval size, assuming uniform distribution.
-Additionally, the engine identifies \textit{violated regions}---the specific subranges where the condition fails---to help developers pinpoint potential issues.
+For the comparison operators ($>$, $\geq$, $<$, $\leq$), the warning region $T_w$ contains values of $L$ whose comparison result depends on the actual value of $R$.
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across the warning region.
+The expected true count $E_w$ is therefore computed in closed form as $E_w = (a + b) \cdot |T_w| \;/\; (2 \cdot n_R)$, where $a$ and $b$ are the number of satisfying $R$-values for the smallest and largest elements of $T_w$, respectively.
 
+For equality and inequality operators ($=$, $\neq$), each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, rather than being a definite match.
+The probability is therefore adjusted by the factor $1/n_R$.
+
+% ── (6) 복합 절과 함의 ───────────────────────────────────────
 \smallskip
 \noindent\textbf{Compound Clauses and Implication.}
 Multiple clauses can be combined using logical operators.
-The engine evaluates each clause independently and combines the three-valued results according to Tables~\ref{tab:conjunction}--\ref{tab:implication}.
+The engine evaluates each clause independently and combines the three-valued results according to Table~\ref{tab:logic-combination}.
 
 \begin{table}[t]
 \centering
-\caption{Conjunction (\texttt{\&\&}) truth table for three-valued logic.}
-\label{tab:conjunction}
+\caption{Three-valued logic combination rules for compound clauses. S\,=\,\textit{satisfied}, V\,=\,\textit{violated}, W\,=\,\textit{warning}.}
+\label{tab:logic-combination}
 \small
-\begin{tabular}{c|ccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c|ccc}
 \toprule
-\texttt{\&\&} & \textit{satisfied} & \textit{violated} & \textit{warning} \\
+\texttt{\&\&} & S & V & W \\
 \midrule
-\textit{satisfied} & satisfied & violated & warning \\
-\textit{violated} & violated & violated & violated \\
-\textit{warning} & warning & violated & warning \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Disjunction (\texttt{||}) truth table for three-valued logic.}
-\label{tab:disjunction}
-\small
-\begin{tabular}{c|ccc}
-\toprule
-\texttt{||} & \textit{satisfied} & \textit{violated} & \textit{warning} \\
+S & S & V & W \\
+V & V & V & V \\
+W & W & V & W \\
+\midrule\midrule
+\texttt{||} & S & V & W \\
 \midrule
-\textit{satisfied} & satisfied & satisfied & satisfied \\
-\textit{violated} & satisfied & violated & warning \\
-\textit{warning} & satisfied & warning & warning \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\centering
-\caption{Implication (\texttt{=>}) result based on antecedent state.}
-\label{tab:implication}
-\small
-\begin{tabular}{c|c}
-\toprule
-Antecedent $A$ & Result of $A \Rightarrow B$ \\
+S & S & S & S \\
+V & S & V & W \\
+W & S & W & W \\
+\midrule\midrule
+\texttt{=>} & S & V & W \\
 \midrule
-\textit{satisfied} & state of $B$ \\
-\textit{violated} & \textit{satisfied} (vacuous truth) \\
-\textit{warning} & \textit{warning} \\
+S & S & V & W \\
+V & S & S & S \\
+W & W & W & W \\
 \bottomrule
-\end{tabular}
+\end{tabular*}
 \end{table}
 
 \section{Evaluation}\label{sec:evaluation}
