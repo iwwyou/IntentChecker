@@ -298,26 +298,25 @@ The intent model provides two annotation types aligned with the variable flow st
 Developers express these intentions through annotations embedded in comments, allowing intent specifications to coexist with existing code without modification.
 
 The validation engine builds upon SolQDebug~\citep{solqdebug}, a line-by-line debugging module that performs abstract interpretation over the interval domain, to compute actual value ranges of variables and compare them against the declared intent.
-The validation result is deterministically categorized into one of three states:
+Given an intent clause $l \mathrel{op} r$ where $l$ ranges over interval $L$ and $r$ ranges over interval $R$, the validation result is deterministically categorized into one of three states:
 
 \[
   \textbf{Satisfied} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \subseteq I_{\text{intent}}
+    \forall\, l \in L,\; \forall\, r \in R:\; l \mathrel{op}\, r \text{ holds}
 \]
 
 \[
   \textbf{Violated} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \cap I_{\text{intent}} = \varnothing
+    \forall\, l \in L,\; \forall\, r \in R:\; l \mathrel{op}\, r \text{ fails}
 \]
 
 \[
   \textbf{Warning} \quad \Longleftrightarrow \quad
-    I_{\text{actual}} \not\subseteq I_{\text{intent}}
-    \;\;\wedge\;\; I_{\text{actual}} \cap I_{\text{intent}} \neq \varnothing
+    \text{neither Satisfied nor Violated}
 \]
 
 If neither fully satisfied nor clearly violated, the system reports \texttt{Warning}, along with a risk score on a 0--10 scale quantifying the severity of the potential violation and the specific sub-intervals where violation may occur.
-Unlike warnings from pattern-based static analyzers that suggest likely bugs, IntentChecker's \texttt{Warning} indicates partial satisfaction---the intent holds for some input values but not others within the specified range.
+Unlike warnings from pattern-based static analyzers that suggest likely bugs, IntentChecker's \texttt{Warning} indicates partial satisfaction---the condition holds for some combinations of values in $L$ and $R$ but not others.
 
 SolQDebug was originally designed as a source-level Solidity debugger for single-transaction, single-contract analysis.
 IntentChecker extends this foundation to support multiple contracts defined within the same source file, with commonly used libraries pre-analyzed and their semantics imported during validation.
