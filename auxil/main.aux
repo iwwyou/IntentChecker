@@ -58,20 +58,23 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{12}{subsection.4.1}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{13}{table.caption.11}\protected@file@percent }
 \newlabel{tab:logic-combination}{{4}{13}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
-\citation{highguard}
-\citation{smartpulse}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{14}{subsection.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Mitigation}{14}{subsection.4.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Warning Usefulness}{14}{subsection.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}RQ3: Expressiveness}{14}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}RQ4: Developer Perception}{14}{subsection.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Threats to Validity}{14}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{13}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Validation Algorithm Soundness}{13}{subsection.4.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints, (b)~one shared endpoint, and (c)~both. Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{14}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:interval-topologies}{{3}{14}{Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints, (b)~one shared endpoint, and (c)~both. Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints}{figure.caption.12}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Mitigation}{14}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}RQ3: Developer Perception}{14}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Threats to Validity}{14}{subsection.4.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{14}{section.5}\protected@file@percent }
 \newlabel{sec:discussion}{{5}{14}{Discussion}{section.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Limitations}{14}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{14}{section.6}\protected@file@percent }
-\newlabel{sec:related}{{6}{14}{Related Works}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{14}{subsection.6.1}\protected@file@percent }
+\citation{highguard}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces RQ1 validation algorithm soundness: brute-force verification results by topological configuration. Each row aggregates 5 width profiles $\times $ 8 operators = 40 test cases.}}{15}{table.caption.14}\protected@file@percent }
+\newlabel{tab:rq1-results}{{5}{15}{RQ1 validation algorithm soundness: brute-force verification results by topological configuration. Each row aggregates 5 width profiles $\times $ 8 operators = 40 test cases}{table.caption.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{15}{section.6}\protected@file@percent }
+\newlabel{sec:related}{{6}{15}{Related Works}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{15}{subsection.6.1}\protected@file@percent }
+\citation{smartpulse}
 \citation{consolidating}
 \citation{smartinv}
 \citation{exploitablebugs}
@@ -81,8 +84,8 @@
 \citation{scribble}
 \citation{mythx}
 \citation{mythril}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Specification-based Smart Contract Verification}{16}{subsection.6.2}\protected@file@percent }
 \citation{smartace}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Specification-based Smart Contract Verification}{15}{subsection.6.2}\protected@file@percent }
 \citation{scribble}
 \citation{seahorn}
 \citation{libfuzzer}
@@ -94,7 +97,7 @@
 \citation{mythril}
 \citation{securify}
 \citation{solhint}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Tools for Strengthening Security During Development Phase}{16}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Tools for Strengthening Security During Development Phase}{17}{subsection.6.3}\protected@file@percent }
 \bibcite{secplf}{{1}{2024}{{Arora et~al.}}{{}}}
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
@@ -107,9 +110,9 @@
 \bibcite{seahorn}{{10}{2015}{{Gurfinkel et~al.}}{{}}}
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
 \bibcite{defitainter}{{12}{2023}{{Kong et~al.}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{18}{section.7}\protected@file@percent }
+\newlabel{sec:conclusion}{{7}{18}{Conclusion}{section.7}{}}
 \bibcite{defitail}{{13}{2025}{{Li et~al.}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{17}{section.7}\protected@file@percent }
-\newlabel{sec:conclusion}{{7}{17}{Conclusion}{section.7}{}}
 \bibcite{libfuzzer}{{14}{2025}{{LLVM}}{{}}}
 \bibcite{oyente}{{15}{2016}{{Luu et~al.}}{{}}}
 \bibcite{idealist}{{16}{2023}{{Nguyen et~al.}}{{}}}
@@ -132,4 +135,4 @@
 \bibcite{exploitablebugs}{{33}{2023}{{Zhang et~al.}}{{}}}
 \bibcite{dappscan}{{34}{2024}{{Zheng et~al.}}{{}}}
 \bibcite{defiattacks}{{35}{2023}{{Zhou et~al.}}{{}}}
-\gdef \@abspage@last{19}
+\gdef \@abspage@last{20}

@@ -727,17 +727,184 @@ W & W & W & W \\
 We evaluate IntentChecker through the following research questions:
 
 \begin{itemize}
-    \item \textbf{RQ1 (Mitigation)}: Can IntentChecker mitigate real-world numeric logic errors from the Web3Bugs and Numscout datasets (127 bugs) when annotations are provided based on bug report descriptions? We also analyze coverage across the 9 error patterns identified in Section~\ref{sec:background}.
-    \item \textbf{RQ2 (Warning Usefulness)}: When IntentChecker reports \texttt{Warning}, does the \texttt{false\_regions} information help developers identify the conditions under which bugs occur?
-    \item \textbf{RQ3 (Expressiveness)}: Can the intent model express developer intentions for general integer/unsigned integer statements? We evaluate this using Code4rena bug reports' expected behavior descriptions as ground truth for developer intent.
-    \item \textbf{RQ4 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
+    \item \textbf{RQ1 (Validation Algorithm Soundness)}: Is the interval comparison algorithm that underpins IntentChecker's validation engine mathematically correct? We exhaustively verify it against brute-force ground truth across all possible interval topologies and width profiles.
+    \item \textbf{RQ2 (Mitigation)}: Can IntentChecker mitigate real-world numeric logic errors from the Web3Bugs and Numscout datasets when intent and debug annotations are provided based on bug report descriptions? We also analyze coverage across the error patterns identified in Section~\ref{sec:background}.
+    \item \textbf{RQ3 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
 \end{itemize}
 
 \subsection{Experimental Setup}
 
 % Dataset, environment, methodology
 
-\subsection{RQ1: Mitigation}
+\subsection{RQ1: Validation Algorithm Soundness}
+
+To validate the correctness of the interval comparison algorithm
+(Algorithm~\ref{alg:interval-compare}), we perform an exhaustive
+brute-force verification across all possible interval configurations.
+
+\smallskip\noindent\textbf{Interval Topology.}
+
+Given two integer intervals $L = [l_{\min}, l_{\max}]$ and
+$R = [r_{\min}, r_{\max}]$, their relative position falls into exactly
+one of eleven \emph{topological configurations}, determined by how the
+endpoints relate.  We organise them into three groups based on the
+number of shared endpoints (Figure~\ref{fig:interval-topologies}).
+
+\begin{figure}[t]
+\centering
+\newcommand{\ivcase}[7]{%
+  \draw[ax] ({#1},{#2}) -- ({#1+11.8},{#2});%
+  \fill[Lb] ({#1+#3},{#2}) rectangle ({#1+#4},{#2-\rh});%
+  \fill[Rb] ({#1+#5},{#2}) rectangle ({#1+#6},{#2-\rh});%
+  \node[el] at ({#1+#3},{#2-\rh-\lp}) {$l_{\min}$};%
+  \node[el] at ({#1+#4},{#2-\rh-\lp}) {$l_{\max}$};%
+  \node[er] at ({#1+#5},{#2+\lp}) {$r_{\min}$};%
+  \node[er] at ({#1+#6},{#2+\lp}) {$r_{\max}$};%
+  \node[lbl] at ({#1-0.5},{#2-\lmid}) {#7};%
+}
+\newcommand{\shrmark}[2]{%
+  \draw[shr] ({#1},{#2-\rh-0.08}) -- ({#1},{#2+0.12});%
+}
+\begin{tikzpicture}[x=0.30cm, y=-0.65cm,
+    Lb/.style={fill=blue!45, fill opacity=0.5,
+               draw=blue!70!black, line width=0.4pt},
+    Rb/.style={fill=red!40, fill opacity=0.5,
+               draw=red!55!black, line width=0.4pt},
+    ax/.style={draw=black!60, line width=0.8pt, ->},
+    lbl/.style={font=\scriptsize, anchor=east},
+    glbl/.style={font=\scriptsize\bfseries, anchor=east},
+    sep/.style={draw=black!20, line width=0.3pt, dashed},
+    shr/.style={dashed, black!50, line width=0.5pt},
+    el/.style={font=\tiny, blue!70!black, anchor=south},
+    er/.style={font=\tiny, red!55!black, anchor=north},
+]
+
+\def\rh{0.32}
+\def\xr{15}
+\def\lp{0.06}
+\def\lmid{0.16}
+
+%%% (a) No shared endpoints %%%
+\node[glbl] at (-2, 1.2) {(a)};
+
+\ivcase{0}{0.6}{0}{4}{7}{11}{1-1}
+\ivcase{\xr}{0.6}{7}{11}{0}{4}{1-2}
+
+\ivcase{0}{1.8}{0}{7}{4}{11}{2-1}
+\ivcase{\xr}{1.8}{4}{11}{0}{7}{2-2}
+
+\ivcase{0}{3.0}{0}{11}{3}{8}{3-1}
+\ivcase{\xr}{3.0}{3}{8}{0}{11}{3-2}
+
+%%% Separator (a)/(b) %%%
+\draw[sep] (-2.5, 3.7) -- (\xr+12, 3.7);
+
+%%% (b) One shared endpoint %%%
+\node[glbl] at (-2, 5.0) {(b)};
+
+\ivcase{0}{4.4}{0}{11}{0}{6}{4-1}
+\shrmark{0}{4.4}
+\ivcase{\xr}{4.4}{0}{6}{0}{11}{4-2}
+\shrmark{\xr}{4.4}
+
+\ivcase{0}{5.6}{0}{11}{5}{11}{5-1}
+\shrmark{11}{5.6}
+\ivcase{\xr}{5.6}{5}{11}{0}{11}{5-2}
+\shrmark{\xr+11}{5.6}
+
+%%% Separator (b)/(c) %%%
+\draw[sep] (-2.5, 6.3) -- (\xr+12, 6.3);
+
+%%% (c) Both shared endpoints %%%
+\node[glbl] at (-2, 7.0) {(c)};
+
+\ivcase{0}{7.0}{0}{11}{0}{11}{6}
+\shrmark{0}{7.0}
+\shrmark{11}{7.0}
+
+%%% Legend %%%
+\pgfmathsetmacro{\ly}{8.2}
+\draw[ax] (0,\ly) -- (2.5,\ly);
+\node[font=\scriptsize, anchor=west] at (2.8, \ly) {$\mathbb{Z}$};
+%
+\fill[Lb] (6,\ly) rectangle (7.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (7.5, \ly-0.11) {$L$};
+%
+\fill[Rb] (10,\ly) rectangle (11.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (11.5, \ly-0.11) {$R$};
+%
+\fill[Lb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\fill[Rb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (16, \ly-0.11) {overlap};
+%
+\draw[shr] (21,{\ly-0.28}) -- (21,{\ly+0.08});
+\node[font=\scriptsize, anchor=west] at (21.5, \ly-0.11) {shared};
+
+\end{tikzpicture}
+\caption{Eleven topological configurations of two integer intervals,
+grouped by the number of shared endpoints:
+(a)~no shared endpoints, (b)~one shared endpoint, and (c)~both.
+Overlapping regions appear as blended color;
+dashed vertical lines indicate shared endpoints.}
+\label{fig:interval-topologies}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Verification Method.} For each of the eleven topological configurations, we generate five
+\emph{width profiles} that systematically vary the interval sizes:
+Small (width 1--3), Medium (5--10), Large (20--50), Asymmetric-L
+($|L| \gg |R|$), and Asymmetric-R ($|R| \gg |L|$).
+Each configuration--profile pair is tested against all eight comparison
+operators ($>$, $\geq$, $<$, $\leq$, $=$, $\neq$, \texttt{in},
+\texttt{not\,in}), yielding $11 \times 5 \times 8 = 440$ test cases.
+
+For every test case, we compute the \emph{ground-truth} probability
+$p_{\mathit{true}}$ by exhaustively enumerating all $(l, r)$ integer
+pairs under a uniform distribution and comparing it against the value
+returned by Algorithm~\ref{alg:interval-compare}.
+A test passes when $|p_{\mathit{bf}} - p_{\mathit{func}}| < 0.001$.
+
+\smallskip
+\noindent\textbf{Results.} All 440 test cases pass with an exact match between the brute-force
+ground truth and the algorithm output (Table~\ref{tab:rq1-results}).
+
+\begin{table}[t]
+\centering
+\caption{RQ1 validation algorithm soundness: brute-force verification results by topological configuration.
+Each row aggregates 5 width profiles $\times$ 8 operators = 40 test cases.}
+\label{tab:rq1-results}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} cl rrr @{}}
+\toprule
+\textbf{Config.} & \textbf{Description} & \textbf{Tests} & \textbf{Pass} & \textbf{Fail} \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{(a) No shared endpoints}} \\
+1-1 & Separated ($L$ left)           & 40 & 40 & 0 \\
+1-2 & Separated ($R$ left)           & 40 & 40 & 0 \\
+2-1 & Partial overlap ($L$ left)     & 40 & 40 & 0 \\
+2-2 & Partial overlap ($R$ left)     & 40 & 40 & 0 \\
+3-1 & $L$ strictly contains $R$      & 40 & 40 & 0 \\
+3-2 & $R$ strictly contains $L$      & 40 & 40 & 0 \\
+\addlinespace
+\multicolumn{5}{@{}l}{\textit{(b) One shared endpoint}} \\
+4-1 & Left shared, $L$ wider         & 40 & 40 & 0 \\
+4-2 & Left shared, $R$ wider         & 40 & 40 & 0 \\
+5-1 & Right shared, $L$ wider        & 40 & 40 & 0 \\
+5-2 & Right shared, $R$ wider        & 40 & 40 & 0 \\
+\addlinespace
+\multicolumn{5}{@{}l}{\textit{(c) Both shared endpoints}} \\
+6   & Identical                       & 40 & 40 & 0 \\
+\midrule
+    & \textbf{Total}                  & \textbf{440} & \textbf{440} & \textbf{0} \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+The 100\% pass rate across all configurations and width profiles
+confirms that the interval comparison algorithm correctly computes
+$p_{\mathit{true}}$ for every possible relative position of two
+intervals, independent of their absolute sizes.
+
+\subsection{RQ2: Mitigation}
 
 % Dataset: Web3Bugs S6-* + Numscout
 % For each bug:
@@ -746,10 +913,9 @@ We evaluate IntentChecker through the following research questions:
 %   3. Run IntentChecker and record result (Satisfied/Violated/Warning)
 % Results:
 %   - Overall detection rate
-%   - Detection rate per 9 error patterns (coverage analysis)
-%   - Examples of detected bugs
+%   - Detection rate per error pattern (coverage analysis)
 
-\subsection{RQ2: Warning Usefulness}
+\subsection{RQ3: Developer Perception}
 
 % Dataset: Cases from RQ1 where IntentChecker reported Warning
 % For each Warning case:
@@ -759,23 +925,6 @@ We evaluate IntentChecker through the following research questions:
 % Metrics:
 %   - Accuracy: Does false_regions match actual bug conditions?
 %   - Case studies showing how false_regions aids debugging
-
-\subsection{RQ3: Expressiveness}
-
-% Dataset: Code4rena bug reports (separate from RQ1 dataset)
-% For general int/uint statements:
-%   1. Extract expected behavior from bug reports
-%   2. Attempt to express as intent annotation
-%   3. Categorize: expressible / partially expressible / not expressible
-% Analysis:
-%   - What types of intentions can be expressed?
-%   - What are the limitations of the current intent model?
-
-\subsection{RQ4: Developer Perception}
-
-% Online survey using cognition.run
-% Evaluate: understandability, intuitiveness, expressiveness, willingness to use
-% Collect open-ended feedback for missing features and improvements
 
 \subsection{Threats to Validity}
 
