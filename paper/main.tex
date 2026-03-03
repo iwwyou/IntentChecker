@@ -254,6 +254,8 @@ The representative single-transaction numeric logic error patterns identified in
         \item \textit{Wrong Checkpoint Order}: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
     \end{itemize}
 
+    \item \textbf{Inconsistent State Updates}~\citep{exploitablebugs}: A required state variable update is omitted, causing subsequent calculations to use stale values. For example, failing to accrue interest before a balance query produces incorrect results.
+
     \item \textbf{Greedy Contract}~\citep{flyinointment}: Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock.
 
 \end{itemize}
@@ -732,9 +734,62 @@ We evaluate IntentChecker through the following research questions:
     \item \textbf{RQ3 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
 \end{itemize}
 
-\subsection{Experimental Setup}
+\subsection{Experimental Setup}\label{sec:setup}
 
-% Dataset, environment, methodology
+We construct a benchmark of 89 real-world numeric logic error instances drawn from two complementary sources.
+
+\smallskip\noindent\textbf{Numscout (8 instances).}
+Numscout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
+The dataset covers six single-transaction error patterns: Div In Path, Exchange Problem, Operator Order Issue, Precision Loss Trend, Minor Amount Retention, and Profit Opportunity.
+We select one representative instance per pattern (two for Precision Loss Trend) as ground-truth cases, restricting to contracts whose compiler pragma is \texttt{>=0.6}, the minimum version supported by IntentChecker's Solidity front-end.
+This yields 8 instances spanning 7 of the 8 error patterns defined in Section~\ref{sec:background}.
+
+\smallskip\noindent\textbf{Web3Bugs (81 instances).}
+Web3Bugs~\citep{exploitablebugs} systematically collected and classified 493 high-severity vulnerabilities from Code4rena audit contests.
+Among these, the authors identified 86 bugs whose root cause is a semantic error in arithmetic or accounting logic, labelled \textit{S6-1} through \textit{S6-4}.
+These correspond to the Erroneous Accounting pattern in our taxonomy.
+We include all 86 entries as candidates.
+Additionally, we manually reviewed the 22 bugs labelled \textit{S3-1} (Inconsistent State Updates) and selected the 11 instances whose root cause involves a numeric computation with a missing or stale state variable update, excluding non-numeric cases such as approval resets and access-control omissions.
+This yields 97 candidate instances.
+
+We then exclude 16 instances whose target contracts fall outside IntentChecker's analysis scope:
+contracts containing inline assembly blocks---either directly in the target contract or in locally imported/inherited files---cannot be processed by the abstract interpreter.
+After these exclusions, the final Web3Bugs subset contains 81 instances covering two error patterns: Erroneous Accounting (72) and Inconsistent State Updates (9).
+
+\smallskip\noindent\textbf{Dataset Summary.}
+Table~\ref{tab:dataset} summarises the resulting benchmark.
+For each instance, we record the target contract, the buggy function, the specific lines identified in the audit report, and the error pattern.
+
+\begin{table}[t]
+\centering
+\caption{Benchmark dataset composition.}
+\label{tab:dataset}
+\begin{tabular}{llcc}
+\hline
+\textbf{Source} & \textbf{Error Pattern} & \textbf{Count} \\
+\hline
+\multirow{7}{*}{Numscout}
+  & Div In Path              & 1  \\
+  & Exchange Problem         & 1  \\
+  & Operator Order Issue     & 1  \\
+  & Precision Loss Trend     & 2  \\
+  & Minor Amount Retention   & 1  \\
+  & Profit Opportunity       & 1  \\
+  & Greedy Contract          & 1  \\
+\hline
+\multirow{2}{*}{Web3Bugs}
+  & Erroneous Accounting        & 72 \\
+  & Inconsistent State Updates  & 9  \\
+\hline
+\textbf{Total} & & \textbf{89} \\
+\hline
+\end{tabular}
+\end{table}
+
+\smallskip\noindent\textbf{Methodology.}
+For each bug instance, we (1) analyse the audit report to understand the root cause,
+(2) write an intent annotation that captures the expected numeric behaviour described in the report,
+and (3) run IntentChecker to record whether it reports \textit{Satisfied}, \textit{Violated}, or \textit{Warning}.
 
 \subsection{RQ1: Validation Algorithm Soundness}
 

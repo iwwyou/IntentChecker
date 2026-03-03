@@ -43,7 +43,8 @@
       "Bash(find:*)",
       "Bash(python3:*)",
       "Bash(grep:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
