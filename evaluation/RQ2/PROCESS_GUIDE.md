@@ -70,6 +70,8 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
   "target_contract": "WANGMI",
   "target_function": "_transfer",
   "bug_lines": [428],
+  "web3bugs_report": "35.md",
+  "annotation_rationale": "35.md H-12: secondsPerLiquidity가 liquidity 변경 시 업데이트 안됨. mint에서 Ticks.insert() 전 업데이트 누락 → Assign != Current로 검증",
   "debug_annotations": [
     {
       "type": "StateVar|LocalVar|GlobalVar",
@@ -85,7 +87,7 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
       "line": 라인번호,
       "expr": "intent 표현식",
       "expected": "violated|satisfied",
-      "comment": "설명"
+      "rationale": "35.md H-12: 어떤 bug report 내용을 근거로 이 annotation을 선택했는지"
     }
   ],
   "expected_results": {
@@ -127,6 +129,16 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
 **Intent Annotation 사용자 제공 정보:**
 - 사용자가 제공: 어떤 변수에 어떤 의도의 annotation을 줄지, 어느 라인에 줄지
 - Claude가 생성: 해당 함수의 require 통과용 debug annotation 값 전체
+
+**Annotation 근거 추적 (Provenance):**
+- Web3Bugs 원본 bug report: `Web3Bugs/reports/{contest번호}.md` (e.g., `35.md`)
+  - 경로: 사용자 로컬 `C:\Users\isjeon\Web3Bugs\reports\`
+  - contest 번호는 contract_id에서 추출 (e.g., `web3bugs_35_H_12` → `35.md`)
+- Case JSON에 기록할 필드:
+  - `web3bugs_report`: `"35.md"` (report 파일 번호)
+  - `annotation_rationale`: 전체 annotation 선택 이유 (어떤 bug report를 보고 왜 이 annotation을 선택했는지)
+  - 각 intent의 `rationale`: `"35.md H-12: ..."` 형태로 리포트 항목 번호 + 근거 요약
+- 목적: Threats to Validity에서 "bug report 기반으로 annotation 작성" 주장의 증거
 
 ### Phase 5: 일괄 실행 + 결과 정리 (마지막에 한번에)
 - `runner.py`로 IntentChecker 실행
