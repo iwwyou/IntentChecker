@@ -731,7 +731,8 @@ We evaluate IntentChecker through the following research questions:
 \begin{itemize}
     \item \textbf{RQ1 (Validation Algorithm Soundness)}: Is the interval comparison algorithm that underpins IntentChecker's validation engine mathematically correct? We exhaustively verify it against brute-force ground truth across all possible interval topologies and width profiles.
     \item \textbf{RQ2 (Mitigation)}: Can IntentChecker mitigate real-world numeric logic errors from the Web3Bugs and Numscout datasets when intent and debug annotations are provided based on bug report descriptions? We also analyze coverage across the error patterns identified in Section~\ref{sec:background}.
-    \item \textbf{RQ3 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
+    \item \textbf{RQ3 (Comparison with Existing Tools)}: How does IntentChecker compare with existing numeric logic bug detection tools---GPTScan and NumScout---on the same benchmark dataset in terms of true positives, false positives, and false negatives?
+    \item \textbf{RQ4 (Developer Perception)}: Do developers find the intent annotation model intuitive and expressive for specifying their intended numeric behaviors?
 \end{itemize}
 
 \subsection{Experimental Setup}\label{sec:setup}
@@ -970,7 +971,95 @@ intervals, independent of their absolute sizes.
 %   - Overall detection rate
 %   - Detection rate per error pattern (coverage analysis)
 
-\subsection{RQ3: Developer Perception}
+\subsection{RQ3: Comparison with Existing Tools}\label{sec:rq3}
+
+% Methodology:
+%   1. Run GPTScan on the 89 target contracts
+%      - GPTScan: GPT-3.5-turbo + static analysis (scenario/property matching)
+%      - Source: https://github.com/GPTScan/GPTScan
+%   2. Run NumScout on the 89 target contracts
+%      - NumScout: LLM-pruning + symbolic execution on bytecode
+%      - Source: https://github.com/NumScout/NumScout
+%   3. Run IntentChecker on the 89 target contracts (with annotations)
+%   4. Compare TP/FP/FN + analysis time across all three tools
+%
+% NOTE: Our dataset contains only buggy contracts (89 instances).
+%   - TN is not directly applicable unless we add non-buggy contracts.
+%   - Consider adding a small set of clean contracts for FP rate measurement.
+%   - For IntentChecker, separate "annotation time" from "tool execution time".
+
+% --- Table A: NumScout vs IntentChecker on Numscout dataset (8 instances) ---
+\begin{table}[t]
+\centering
+\caption{NumScout vs.\ IntentChecker on the Numscout dataset (8 instances).}
+\label{tab:rq3-numscout}
+\begin{tabular}{l|cc|cccc|ccc|c}
+\toprule
+\textbf{Tool} & \textbf{Method} & \textbf{Auto.}
+              & \textbf{TP} & \textbf{TN} & \textbf{FP} & \textbf{FN}
+              & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1}
+              & \textbf{Time} \\
+\midrule
+NumScout
+  & LLM + SE & Full
+  & -- & -- & -- & --
+  & -- & -- & --
+  & -- \\
+IntentChecker
+  & AI + Ann. & Semi
+  & -- & -- & -- & --
+  & -- & -- & --
+  & -- \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+
+{\footnotesize
+SE = Symbolic Execution;\;
+AI = Abstract Interpretation;\;
+Ann. = Annotation-based.
+}
+\end{table}
+
+% --- Table B: GPTScan vs IntentChecker on Web3Bugs dataset (81 instances) ---
+\begin{table}[t]
+\centering
+\caption{GPTScan vs.\ IntentChecker on the Web3Bugs dataset (81 instances).}
+\label{tab:rq3-gptscan}
+\begin{tabular}{l|cc|cccc|ccc|c}
+\toprule
+\textbf{Tool} & \textbf{Method} & \textbf{Auto.}
+              & \textbf{TP} & \textbf{TN} & \textbf{FP} & \textbf{FN}
+              & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1}
+              & \textbf{Time} \\
+\midrule
+GPTScan
+  & GPT + SA & Full
+  & -- & -- & -- & --
+  & -- & -- & --
+  & -- \\
+IntentChecker
+  & AI + Ann. & Semi
+  & -- & -- & -- & --
+  & -- & -- & --
+  & -- \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+
+{\footnotesize
+SA = Static Analysis;\;
+AI = Abstract Interpretation;\;
+Ann. = Annotation-based.
+}
+\end{table}
+
+% TODO: Additional analysis
+%   - Qualitative discussion: why certain tools miss certain bug types
+%   - IntentChecker annotation effort (avg. time per contract) reported separately from tool execution time
+%   - TN note: dataset contains only buggy contracts; consider adding clean contracts for FP measurement
+
+\subsection{RQ4: Developer Perception}\label{sec:rq4}
 
 % Dataset: Cases from RQ1 where IntentChecker reported Warning
 % For each Warning case:
