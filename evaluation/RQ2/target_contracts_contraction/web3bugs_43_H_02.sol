@@ -79,10 +79,14 @@ contract DelegatedStaking is OwnableUpgradeable{
         require(amount >= allocatedTokensPerEpoch, "Does not cover least 1 epoch");
         require(amount % allocatedTokensPerEpoch == 0, "Not multiple");
         if (endEpoch != 0) {
-            unchecked { endEpoch += amount / allocatedTokensPerEpoch; }
+            unchecked {
+                endEpoch += amount / allocatedTokensPerEpoch;
+            }
         }
         else{
-            unchecked { rewardsLocked += amount; }
+            unchecked {
+                rewardsLocked += amount;
+            }
         }
         _transferToContract(msg.sender, amount);
         emit RewardTokensDeposited(amount);
@@ -95,11 +99,15 @@ contract DelegatedStaking is OwnableUpgradeable{
             uint128 currentEpoch = uint128(block.number);
             uint128 epochs = amount / allocatedTokensPerEpoch;
             require(endEpoch - epochs > currentEpoch, "Cannot takeout rewards from past");
-            unchecked { endEpoch = endEpoch - epochs; }
+            unchecked {
+                endEpoch = endEpoch - epochs;
+            }
         }
         else{
             require(rewardsLocked >= amount, "Amount is greater than available");
-            unchecked { rewardsLocked -= amount; }
+            unchecked {
+                rewardsLocked -= amount;
+            }
         }
         _transferFromContract(msg.sender, amount);
         emit AllocatedTokensTaken(amount);
@@ -111,7 +119,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         if (currentEpoch != lastUpdateEpoch){
             if(totalGlobalShares > 0)
             {
-                unchecked { globalExchangeRate += uint128(uint256(allocatedTokensPerEpoch) * divider * uint256(currentEpoch - lastUpdateEpoch)/uint256(totalGlobalShares)) ; }
+                unchecked {
+                    globalExchangeRate += uint128(uint256(allocatedTokensPerEpoch) * divider * uint256(currentEpoch - lastUpdateEpoch)/uint256(totalGlobalShares)) ;
+                }
             }
             lastUpdateEpoch = currentEpoch;
         }
@@ -124,11 +134,15 @@ contract DelegatedStaking is OwnableUpgradeable{
             }
             else {
                 uint128 rateDifference;
-                unchecked { rateDifference = globalExchangeRate - v.lastUpdateGlobalRate; }
+                unchecked {
+                    rateDifference = globalExchangeRate - v.lastUpdateGlobalRate;
+                }
                 uint128 tokensGivenToValidator = _sharesToTokens(v.globalShares, rateDifference);
                 uint128 commissionPaid = uint128(uint256(tokensGivenToValidator) * uint256(v.commissionRate) /  divider);
                 v.exchangeRate += uint128(uint256(tokensGivenToValidator - commissionPaid) * divider / v.totalShares);
-                unchecked { v.commissionAvailableToRedeem += commissionPaid; }
+                unchecked {
+                    v.commissionAvailableToRedeem += commissionPaid;
+                }
             }
             v.lastUpdateGlobalRate = globalExchangeRate;
         }
@@ -149,7 +163,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         Validator storage v = validators[validatorId];
         require(v.disabledEpoch == 0, "Validator is disabled");
         if (endEpoch == 0){
-            unchecked { endEpoch = uint128(block.number) + rewardsLocked / allocatedTokensPerEpoch; }
+            unchecked {
+                endEpoch = uint128(block.number) + rewardsLocked / allocatedTokensPerEpoch;
+            }
             rewardsLocked = 0;
         }
         require(endEpoch > block.number, "Program ended");
@@ -169,14 +185,26 @@ contract DelegatedStaking is OwnableUpgradeable{
         Staking storage s = v.stakings[msg.sender];
 
         uint128 globalSharesToAdd = _tokensToShares(amount, globalExchangeRate);
-        unchecked { totalGlobalShares += globalSharesToAdd; }
-        unchecked { v.globalShares += globalSharesToAdd; }
+        unchecked {
+            totalGlobalShares += globalSharesToAdd;
+        }
+        unchecked {
+            v.globalShares += globalSharesToAdd;
+        }
 
         uint128 newDelegatorSharesN = _tokensToShares(amount, v.exchangeRate);
-        unchecked { v.totalShares += newDelegatorSharesN; }
-        unchecked { s.shares += newDelegatorSharesN; }
-        unchecked { v.delegated += amount; }
-        unchecked { s.staked += amount; }
+        unchecked {
+            v.totalShares += newDelegatorSharesN;
+        }
+        unchecked {
+            s.shares += newDelegatorSharesN;
+        }
+        unchecked {
+            v.delegated += amount;
+        }
+        unchecked {
+            s.staked += amount;
+        }
         emit Staked(validatorId, msg.sender, amount);
     }
 
@@ -201,17 +229,31 @@ contract DelegatedStaking is OwnableUpgradeable{
 
             uint128 globalSharesRemove = _tokensToShares(amount, globalExchangeRate);
             require(globalSharesRemove > 0, "Unstake amount is too small");
-            unchecked { totalGlobalShares -= globalSharesRemove;}
-            unchecked { v.globalShares -= globalSharesRemove; }
+            unchecked {
+                totalGlobalShares -= globalSharesRemove;
+            }
+            unchecked {
+                v.globalShares -= globalSharesRemove;
+            }
 
-            unchecked { v.totalShares -= validatorSharesRemove; }
-            unchecked { v.delegated -= amount; }
+            unchecked {
+                v.totalShares -= validatorSharesRemove;
+            }
+            unchecked {
+                v.delegated -= amount;
+            }
         }
-        unchecked { s.shares -= validatorSharesRemove; }
-        unchecked { s.staked -= amount; }
+        unchecked {
+            s.shares -= validatorSharesRemove;
+        }
+        unchecked {
+            s.staked -= amount;
+        }
 
         uint128 coolDownEnd = v.disabledEpoch != 0 ? v.disabledEpoch : uint128(block.number);
-        unchecked { coolDownEnd += (isValidator ? validatorCoolDown : delegatorCoolDown); }
+        unchecked {
+            coolDownEnd += (isValidator ? validatorCoolDown : delegatorCoolDown);
+        }
         v.unstakings[msg.sender].push(Unstaking( coolDownEnd, amount));
         emit Unstaked(validatorId, msg.sender, amount);
     }
@@ -236,14 +278,20 @@ contract DelegatedStaking is OwnableUpgradeable{
         uint128 rewards = _sharesToTokens(s.shares, v.exchangeRate) - s.staked;
         if(msg.sender == v._address){
             if(amount == 0){
-                unchecked { amount = rewards + v.commissionAvailableToRedeem; }
+                unchecked {
+                    amount = rewards + v.commissionAvailableToRedeem;
+                }
             }
             require(rewards + v.commissionAvailableToRedeem >= amount, "Redeem amount > available");
             uint128 commissionLeftOver = amount < v.commissionAvailableToRedeem ? v.commissionAvailableToRedeem - amount : 0;
             if (commissionLeftOver == 0){
                 uint128 validatorSharesRemove = _tokensToShares(amount - v.commissionAvailableToRedeem, v.exchangeRate);
-                unchecked { s.shares -= validatorSharesRemove; }
-                unchecked { v.totalShares -= validatorSharesRemove; }
+                unchecked {
+                    s.shares -= validatorSharesRemove;
+                }
+                unchecked {
+                    v.totalShares -= validatorSharesRemove;
+                }
             }
             emit CommissionRewardRedeemed(validatorId, beneficiary, v.commissionAvailableToRedeem - commissionLeftOver);
             v.commissionAvailableToRedeem = commissionLeftOver;
@@ -254,15 +302,23 @@ contract DelegatedStaking is OwnableUpgradeable{
             }
             require(rewards >= amount, "Redeem amount > available");
             uint128 validatorSharesRemove = _tokensToShares(amount, v.exchangeRate);
-            unchecked { s.shares -= validatorSharesRemove; }
-            unchecked { v.totalShares -= validatorSharesRemove; }
+            unchecked {
+                s.shares -= validatorSharesRemove;
+            }
+            unchecked {
+                v.totalShares -= validatorSharesRemove;
+            }
         }
         _transferFromContract(beneficiary, amount);
 
         if (v.disabledEpoch == 0){
             uint128 globalSharesRemove = _tokensToShares(amount, globalExchangeRate);
-            unchecked { totalGlobalShares -= globalSharesRemove; }
-            unchecked { v.globalShares -= globalSharesRemove; }
+            unchecked {
+                totalGlobalShares -= globalSharesRemove;
+            }
+            unchecked {
+                v.globalShares -= globalSharesRemove;
+            }
         }
         emit RewardRedeemed(validatorId, beneficiary, amount);
     }
@@ -283,7 +339,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         validators[N].operator = operator;
         validators[N].commissionRate = commissionRate;
         emit ValidatorAdded(N, validator, operator);
-        unchecked { validatorsN += 1; }
+        unchecked {
+            validatorsN += 1;
+        }
     }
 
     function disableValidator(uint128 validatorId) public {
@@ -293,7 +351,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         _updateGlobalExchangeRate();
         _updateValidator(v);
         v.disabledEpoch = uint128(block.number) < endEpoch? uint128(block.number) : endEpoch;
-        unchecked { totalGlobalShares -= v.globalShares; }
+        unchecked {
+            totalGlobalShares -= v.globalShares;
+        }
         emit ValidatorDisabled(validatorId);
     }
 
@@ -307,7 +367,9 @@ contract DelegatedStaking is OwnableUpgradeable{
             uint128 addEpochs = futureRewards / amount;
             toTransfer = futureRewards % amount;
             require(addEpochs != 0, "This amount will end the program");
-            unchecked { endEpoch = uint128(block.number) + addEpochs; }
+            unchecked {
+                endEpoch = uint128(block.number) + addEpochs;
+            }
         }
         else {
           toTransfer = rewardsLocked % amount;
@@ -344,7 +406,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         Unstaking storage us = validators[oldValidatorId].unstakings[msg.sender][unstakingId];
         require(us.amount >= amount, "Unstaking has less tokens");
         _stake(newValidatorId, amount, false);
-        unchecked { us.amount -= amount; }
+        unchecked {
+            us.amount -= amount;
+        }
         if(us.amount == 0)
             us.coolDownEnd = 0;
         emit TransferredUnstake(oldValidatorId, newValidatorId, msg.sender, amount, unstakingId);
@@ -355,7 +419,9 @@ contract DelegatedStaking is OwnableUpgradeable{
         require( uint128(block.number) > us.coolDownEnd, "Cooldown period has not ended" );
         require(us.amount >= amount, "Amount is too high");
         _transferFromContract(msg.sender, amount);
-        unchecked { us.amount -= amount; }
+        unchecked {
+            us.amount -= amount;
+        }
         if (us.amount == 0)
             us.coolDownEnd = 0;
         emit UnstakeRedeemed(validatorId, msg.sender, amount);

@@ -16,5 +16,11 @@
   - `@During Changed(var)`: Entry → 해당 라인, CFG 전 경로에서 var에 write가 있었는지
   - `@Post Unchanged(var)`: 기존 구현이 Entry/Exit 값 비교라면 → 이벤트 기반으로 변경 필요
 - **기존 `@Post Unchanged(var)` 수정**: 값 비교 → write event 추적으로 변경
-- **예시**: `// @During Changed(secondsPerLiquidity)` expected "violated" → write 없음 → missing-operation 탐지
+- **예시**:
+  - `// @During Changed(secondsPerLiquidity)` expected "violated" → write 없음 → missing-operation 탐지 (web3bugs_35_H_12)
+  - `// @During Unchanged(balances[msg.sender])` expected "violated" → checkpoint 전에 balance 이미 변경됨 → ordering 버그 탐지 (web3bugs_112_H_01)
+- **Motivation case (web3bugs_112_H_01)**:
+  - StakerVault.transfer()에서 `balances` 업데이트 후 `userCheckpoint()` 호출 → 보상 계산이 변경된 balance로 수행됨
+  - `@During Unchanged(balances[msg.sender])` at checkpoint line → balance 이미 변경 → violated → 탐지
+  - 대조: 같은 컨트랙트의 `transferFrom()`은 올바르게 checkpoint → balance 순서
 - **영향 범위**: Parser/Solidity.g4 (문법 추가), Analyzer (CFG write tracking), Interpreter (validation logic)

@@ -218,17 +218,30 @@ RE_SINGLE_IF = re.compile(
     r"(.+;)\s*$"                 # (3) statement;
 )
 
+RE_SINGLE_UNCHECKED = re.compile(
+    r"^(\s*)"                    # (1) 들여쓰기
+    r"unchecked\s*\{\s*"         # unchecked {
+    r"(.+;)\s*\}\s*$"           # (2) statement; }
+)
 
-def expand_single_line_if(lines: list[str]) -> list[str]:
-    """if (cond) stmt; → if (cond) {\n    stmt;\n}"""
+
+def expand_single_line_blocks(lines: list[str]) -> list[str]:
+    """single-line if/unchecked 블록을 multi-line으로 확장"""
     result = []
     for line in lines:
-        m = RE_SINGLE_IF.match(line)
-        if m:
-            indent = m.group(1)
-            condition = m.group(2)
-            statement = m.group(3)
+        m_if = RE_SINGLE_IF.match(line)
+        m_unc = RE_SINGLE_UNCHECKED.match(line)
+        if m_if:
+            indent = m_if.group(1)
+            condition = m_if.group(2)
+            statement = m_if.group(3)
             result.append(f"{indent}{condition} {{")
+            result.append(f"{indent}    {statement}")
+            result.append(f"{indent}}}")
+        elif m_unc:
+            indent = m_unc.group(1)
+            statement = m_unc.group(2)
+            result.append(f"{indent}unchecked {{")
             result.append(f"{indent}    {statement}")
             result.append(f"{indent}}}")
         else:
@@ -309,8 +322,8 @@ def preprocess(source: str) -> str:
     # 4단계: bare scoping block 제거 + dedent
     result = remove_bare_scoping_blocks(result)
 
-    # 5단계: single-line if 확장 → if () {\n    stmt;\n}
-    result = expand_single_line_if(result)
+    # 5단계: single-line if/unchecked 확장 → multi-line
+    result = expand_single_line_blocks(result)
 
     # 6단계: 빈 줄 정리
     result = collapse_empty_lines(result)

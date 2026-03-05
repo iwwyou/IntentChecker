@@ -274,5 +274,5 @@ contract ConcentratedLiquidityPool is IPool {
         }
 
         emit Mint(mintParams.positionOwner, amount0Actual, amount1Actual, mintParams.positionRecipient);
-    }   
+    }
 }

@@ -214,6 +214,14 @@ var syntaxReference = {
         '<td style="padding: 10px; font-family: monospace;">@During func.arg[0] > 0</td>' +
         '<td style="padding: 10px;">The first argument passed to func() should be greater than 0</td>' +
         '</tr>' +
+        '<tr>' +
+        '<td style="padding: 10px; font-family: monospace;">@During Changed(x)</td>' +
+        '<td style="padding: 10px;">At this line, x should have been modified since the function started</td>' +
+        '</tr>' +
+        '<tr style="background: #f9f9f9;">' +
+        '<td style="padding: 10px; font-family: monospace;">@During Unchanged(x)</td>' +
+        '<td style="padding: 10px;">At this line, x should still equal its value from when the function started</td>' +
+        '</tr>' +
         '</table>' +
         // @Post
         '<h3 style="margin-top: 20px;">@Post &mdash; After Function Execution</h3>' +
@@ -225,6 +233,14 @@ var syntaxReference = {
         '<tr style="background: #f9f9f9;">' +
         '<td style="padding: 10px; font-family: monospace;">@Post x(entry > exit)</td>' +
         '<td style="padding: 10px;">After the function runs, x should be lower than it was before</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding: 10px; font-family: monospace;">@Post Changed(x)</td>' +
+        '<td style="padding: 10px;">After the function runs, x should have been modified</td>' +
+        '</tr>' +
+        '<tr style="background: #f9f9f9;">' +
+        '<td style="padding: 10px; font-family: monospace;">@Post Unchanged(x)</td>' +
+        '<td style="padding: 10px;">After the function runs, x should remain the same as before</td>' +
         '</tr>' +
         '</table>' +
         // Common
@@ -263,6 +279,10 @@ var syntaxReference = {
         'this includes internal function calls and cross-contract interactions within that transaction. ' +
         'Cross-transaction invariants (e.g., "the sum of all balances should always equal totalSupply across all function calls") ' +
         'are outside the current scope.' +
+        '</div>' +
+        '<div style="background: #E8F5E9; border-left: 4px solid #4CAF50; padding: 12px 16px; margin-top: 12px; border-radius: 4px;">' +
+        '<strong>In practice:</strong> Annotations can be written by developers preemptively during development ' +
+        '(e.g., "this fee should be > 0"), or suggested by automated tools such as LLMs given the intent model and source code.' +
         '</div>' +
         '</div>',
     choices: ['Start Examples']
