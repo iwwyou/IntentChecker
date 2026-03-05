@@ -16,7 +16,7 @@ web3bugs_112_H_01,web3bugs,S6-1,StakerVault,transfer,112;113;117;118,erroneous_a
 web3bugs_3_H_04,web3bugs,S6-2,HourlyBondSubscriptionLending,viewHourlyBondAmount,96;97,erroneous_accounting,Inconsistent usage of applyInterest,Dataset/Web3Bugs/S6_2/contest_3_H_04,pending
 web3bugs_61_H_02,web3bugs,S6-2,SavingsAccountUtil,savingsAccountTransfer,75;77;79,erroneous_accounting,Wrong returns of SavingsAccountUtil.depositFromSavingsAccount() can cause fund loss,Dataset/Web3Bugs/S6_2/contest_61_H_02,pending
 web3bugs_101_H_01,web3bugs,S6-2,LenderPool,_calculatePrincipalWithdrawable,678;679;680,erroneous_accounting,LenderPool: Principal withdrawable is incorrectly calculated if start() is invoked with non-zero start fee,Dataset/Web3Bugs/S6_2/contest_101_H_01,pending
-web3bugs_110_H_01,web3bugs,S6-2,StakedCitadel,balance,293;294,erroneous_accounting,StakedCitadel doesn‚Äôt use correct balance for internal accounting,Dataset/Web3Bugs/S6_2/contest_110_H_01,pending
+web3bugs_110_H_01,web3bugs,S6-2,StakedCitadel,balance,293;294,erroneous_accounting,StakedCitadel doesn°Øt use correct balance for internal accounting,Dataset/Web3Bugs/S6_2/contest_110_H_01,pending
 web3bugs_5_H_15,web3bugs,S6-3,Router,swapWithSynthsWithLimit,170,erroneous_accounting,Wrong slippage protection on Token -> Token trades,Dataset/Web3Bugs/S6_3/contest_5_H_15,pending
 web3bugs_14_H_01,web3bugs,S6-3,IdleYieldSource,redeemToken,131,erroneous_accounting,User could lose underlying tokens when redeeming from the IdleYieldSource,Dataset/Web3Bugs/S6_3/contest_14_H_01,pending
 web3bugs_14_H_03,web3bugs,S6-3,BadgerYieldSource,balanceOfToken,36,erroneous_accounting,BadgerYieldSource balanceOfToken share calculation seems wrong,Dataset/Web3Bugs/S6_3/contest_14_H_03,pending
@@ -27,7 +27,7 @@ web3bugs_42_H_01,web3bugs,S6-3,MochiVault,borrow,248,erroneous_accounting,Vault 
 web3bugs_47_H_02,web3bugs,S6-3,WrappedIbbtcEth,transferFrom,111,erroneous_accounting,Approved spender can spend too many tokens,Dataset/Web3Bugs/S6_3/contest_47_H_02,pending
 web3bugs_51_H_06,web3bugs,S6-3,SwapUtils,addLiquidity,1231,erroneous_accounting,Ideal balance is not calculated correctly when providing imbalanced liquidity,Dataset/Web3Bugs/S6_3/contest_51_H_06,pending
 web3bugs_52_H_16,web3bugs,S6-3,VaderRouter,calculateOutGivenIn,488;489;490;491,erroneous_accounting,VaderRouter.calculateOutGivenIn calculates wrong swap,Dataset/Web3Bugs/S6_3/contest_52_H_16,pending
-web3bugs_62_H_10,web3bugs,S6-3,Stream,recoverTokens,654,erroneous_accounting,recoverTokens doesn‚Äôt work when isSale is true,Dataset/Web3Bugs/S6_3/contest_62_H_10,pending
+web3bugs_62_H_10,web3bugs,S6-3,Stream,recoverTokens,654,erroneous_accounting,recoverTokens doesn°Øt work when isSale is true,Dataset/Web3Bugs/S6_3/contest_62_H_10,pending
 web3bugs_66_H_02,web3bugs,S6-3,sYETIToken,rebase,297,erroneous_accounting,Yeti token rebase checks the additional token amount incorrectly,Dataset/Web3Bugs/S6_3/contest_66_H_02,pending
 web3bugs_78_H_02,web3bugs,S6-3,RebaseProxy,mint,36,erroneous_accounting,wrong minting amount,Dataset/Web3Bugs/S6_3/contest_78_H_02,pending
 web3bugs_101_H_02,web3bugs,S6-3,LenderPool,terminate,389;400,erroneous_accounting,PooledCreditLine: termination likely fails because _principleWithdrawable is treated as shares,Dataset/Web3Bugs/S6_3/contest_101_H_02,pending
@@ -42,7 +42,7 @@ web3bugs_17_H_02,web3bugs,S6-4,Buoy3Pool,safetyCheck,88,erroneous_accounting,Buo
 web3bugs_25_H_01,web3bugs,S6-4,CompositeMultiOracle,_peek;_get,116;126,erroneous_accounting,CompositeMultiOracle returns wrong decimals for prices?,Dataset/Web3Bugs/S6_4/contest_25_H_01,pending
 web3bugs_25_H_05,web3bugs,S6-4,CTokenMultiOracle,_setSource,110,erroneous_accounting,Exchange rates from Compound are assumed with 18 decimals,Dataset/Web3Bugs/S6_4/contest_25_H_05,pending
 web3bugs_29_H_05,web3bugs,S6-4,HybridPool,_nonOptimalMintFee,433,erroneous_accounting,hybrid pool uses wrong non_optimal_mint_fee,Dataset/Web3Bugs/S6_4/contest_29_H_05,pending
-web3bugs_29_H_08,web3bugs,S6-4,HybridPool,_getReserves,255;256,erroneous_accounting,HybridPool‚Äôs reserve is converted to ‚Äúamount‚Äù twice,Dataset/Web3Bugs/S6_4/contest_29_H_08,pending
+web3bugs_29_H_08,web3bugs,S6-4,HybridPool,_getReserves,255;256,erroneous_accounting,HybridPool°Øs reserve is converted to °∞amount°± twice,Dataset/Web3Bugs/S6_4/contest_29_H_08,pending
 web3bugs_29_H_14,web3bugs,S6-4,IndexPool,_computeSingleOutGivenPoolIn,279,erroneous_accounting,Incorrect usage of _pow in _computeSingleOutGivenPoolIn of IndexPool,Dataset/Web3Bugs/S6_4/contest_29_H_14,pending
 web3bugs_29_H_15,web3bugs,S6-4,IndexPool,_computeSingleOutGivenPoolIn,282,erroneous_accounting,Incorrect multiplication in _computeSingleOutGivenPoolIn of IndexPool,Dataset/Web3Bugs/S6_4/contest_29_H_15,pending
 web3bugs_31_H_01,web3bugs,S6-4,MyStrategy,manualRebalance,469;471;477,erroneous_accounting,veCVXStrategy.manualRebalance has wrong logic,Dataset/Web3Bugs/S6_4/contest_31_H_01,pending
@@ -54,14 +54,14 @@ web3bugs_42_H_05,web3bugs,S6-4,MochiVault,borrow,248,erroneous_accounting,debts 
 web3bugs_44_H_02,web3bugs,S6-4,Swap,fillZrxQuote,210;215,erroneous_accounting,Wrong calculation of erc20Delta and ethDelta,Dataset/Web3Bugs/S6_4/contest_44_H_02,pending
 web3bugs_51_H_02,web3bugs,S6-4,SwapUtils,rampTargetPrice,1573;1578,erroneous_accounting,Can not update target price,Dataset/Web3Bugs/S6_4/contest_51_H_02,pending
 web3bugs_51_H_04,web3bugs,S6-4,SwapUtils,getYC,765;767;768,erroneous_accounting,Swaps are not split when trade crosses target price,Dataset/Web3Bugs/S6_4/contest_51_H_04,pending
-web3bugs_52_H_04,web3bugs,S6-4,TwapOracle,consult,156,erroneous_accounting,TwapOracle doesn‚Äôt calculate VADER:USDV exchange rate correctly,Dataset/Web3Bugs/S6_4/contest_52_H_04,pending
+web3bugs_52_H_04,web3bugs,S6-4,TwapOracle,consult,156,erroneous_accounting,TwapOracle doesn°Øt calculate VADER:USDV exchange rate correctly,Dataset/Web3Bugs/S6_4/contest_52_H_04,pending
 web3bugs_52_H_09,web3bugs,S6-4,VaderReserve,reimburseImpermanentLoss,85,erroneous_accounting,VaderPoolV2 incorrectly calculates the amount of IL protection to send to LPs,Dataset/Web3Bugs/S6_4/contest_52_H_09,pending
 web3bugs_52_H_15,web3bugs,S6-4,VaderRouter,_swap,326,erroneous_accounting,VaderRouter._swap performs wrong swap,Dataset/Web3Bugs/S6_4/contest_52_H_15,pending
 web3bugs_52_H_23,web3bugs,S6-4,VaderPoolV2,mintSynth,161,erroneous_accounting,Synth tokens can get over-minted,Dataset/Web3Bugs/S6_4/contest_52_H_23,pending
 web3bugs_52_H_25,web3bugs,S6-4,VaderMath,calculateSwap,105,erroneous_accounting,Wrong design of swap() results in unexpected and unfavorable outputs,Dataset/Web3Bugs/S6_4/contest_52_H_25,pending
 web3bugs_52_H_28,web3bugs,S6-4,TwapOracle,consult,156,erroneous_accounting,Incorrect Price Consultation Results,Dataset/Web3Bugs/S6_4/contest_52_H_28,pending
 web3bugs_52_H_34,web3bugs,S6-4,TwapOracle,consult,129;152,erroneous_accounting,Incorrect Accrual Of sumNative and sumUSD In Producing Consultation Results,Dataset/Web3Bugs/S6_4/contest_52_H_34,pending
-web3bugs_56_H_02,web3bugs,S6-4,CDP,update,39,erroneous_accounting,CDP.sol update overwrites user‚Äôs credit on every positive increment,Dataset/Web3Bugs/S6_4/contest_56_H_02,pending
+web3bugs_56_H_02,web3bugs,S6-4,CDP,update,39,erroneous_accounting,CDP.sol update overwrites user°Øs credit on every positive increment,Dataset/Web3Bugs/S6_4/contest_56_H_02,pending
 web3bugs_58_H_02,web3bugs,S6-4,LpIssuer,_chargeFees,270,erroneous_accounting,Wrong implementation of performanceFee can cause users to lose 50% to 100% of their funds,Dataset/Web3Bugs/S6_4/contest_58_H_02,pending
 web3bugs_59_H_04,web3bugs,S6-4,AuctionBurnReserveSkew,getPegDeltaFrequency,131,erroneous_accounting,AuctionBurnReserveSkew.getPegDeltaFrequency() Wrong implementation can result in an improper amount of excess Liquidity Extension balance to be used at the end of an auction,Dataset/Web3Bugs/S6_4/contest_59_H_04,pending
 web3bugs_59_H_05,web3bugs,S6-4,AuctionEscapeHatch,exitEarly,83;87,erroneous_accounting,AuctionEschapeHatch.sol#exitEarly updates state of the auction wrongly,Dataset/Web3Bugs/S6_4/contest_59_H_05,pending
@@ -70,7 +70,7 @@ web3bugs_61_H_01,web3bugs,S6-4,CreditLine,_borrowTokensToLiquidate,1050,erroneou
 web3bugs_61_H_04,web3bugs,S6-4,YearnYield,getTokensForShares,180,erroneous_accounting,Yearn token <> shares conversion decimal issue,Dataset/Web3Bugs/S6_4/contest_61_H_04,pending
 web3bugs_62_H_01,web3bugs,S6-4,Stream,recoverTokens,654,erroneous_accounting,Wrong calculation of excess depositToken allows stream creator to retrieve depositTokenFlashloanFeeAmount,Dataset/Web3Bugs/S6_4/contest_62_H_01,pending
 web3bugs_62_H_03,web3bugs,S6-4,Stream,recoverTokens,672,erroneous_accounting,Reward token not correctly recovered,Dataset/Web3Bugs/S6_4/contest_62_H_03,pending
-web3bugs_70_H_03,web3bugs,S6-4,LiquidityBasedTWAP,_calculateUSDVPrice,399;403,erroneous_accounting,Oracle doesn‚Äôt calculate USDV/VADER price correctly,Dataset/Web3Bugs/S6_4/contest_70_H_03,pending
+web3bugs_70_H_03,web3bugs,S6-4,LiquidityBasedTWAP,_calculateUSDVPrice,399;403,erroneous_accounting,Oracle doesn°Øt calculate USDV/VADER price correctly,Dataset/Web3Bugs/S6_4/contest_70_H_03,pending
 web3bugs_70_H_04,web3bugs,S6-4,LiquidityBasedTWAP,syncVaderPrice,131;140;144;147,erroneous_accounting,Vader TWAP averages wrong,Dataset/Web3Bugs/S6_4/contest_70_H_04,pending
 web3bugs_70_H_05,web3bugs,S6-4,LiquidityBasedTWAP,_calculateUSDVPrice,412,erroneous_accounting,Oracle returns an improperly scaled USDV/VADER price,Dataset/Web3Bugs/S6_4/contest_70_H_05,pending
 web3bugs_70_H_08,web3bugs,S6-4,VaderReserve,reimburseImpermanentLoss,98;102,erroneous_accounting,Reserve does not properly apply prices of VADER and USDV tokens,Dataset/Web3Bugs/S6_4/contest_70_H_08,pending
