@@ -24,3 +24,21 @@
   - `@During Unchanged(balances[msg.sender])` at checkpoint line → balance 이미 변경 → violated → 탐지
   - 대조: 같은 컨트랙트의 `transferFrom()`은 올바르게 checkpoint → balance 순서
 - **영향 범위**: Parser/Solidity.g4 (문법 추가), Analyzer (CFG write tracking), Interpreter (validation logic)
+
+## Issue 3: Contract 밖 file-level struct 지원
+- **현재**: struct 정의가 contract scope 안에 있어야만 파싱/처리 가능 (추정)
+- **필요**: Solidity 0.6+ 에서 contract 밖 file-level에 정의된 struct 지원
+- **예시**: web3bugs_3_H_04.sol
+  ```solidity
+  struct HourlyBond {
+      uint256 amount;
+      uint256 yieldQuotientFP;
+      uint256 moduloHour;
+  }
+
+  abstract contract HourlyBondSubscriptionLending is BaseLending {
+      // HourlyBond 사용
+  }
+  ```
+- **Motivation case (web3bugs_3_H_04)**: `HourlyBond` struct가 contract 밖에 정의되어 있음
+- **영향 범위**: Parser/Solidity.g4 (file-level struct 문법), Analyzer (struct resolution scope 확장)

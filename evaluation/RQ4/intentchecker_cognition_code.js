@@ -43,16 +43,16 @@ var participantInfo = {
     type: jsPsychSurveyText,
     questions: [
         {
-            prompt: 'Name (or Pseudonym)',
-            name: 'name',
+            prompt: 'Nickname',
+            name: 'nickname',
             required: true,
-            placeholder: 'Enter your name or pseudonym'
+            placeholder: 'Enter a nickname'
         },
         {
-            prompt: 'Email (optional, for follow-up)',
-            name: 'email',
+            prompt: 'Affiliation (optional)',
+            name: 'affiliation',
             required: false,
-            placeholder: 'Enter your email'
+            placeholder: 'e.g., company, university, community'
         }
     ]
 };
@@ -91,7 +91,7 @@ var demographics = {
         {
             prompt: "What is your current role?",
             name: 'role',
-            options: ['Software Developer', 'Smart Contract Auditor', 'Researcher', 'Other'],
+            options: ['Software Developer', 'Smart Contract Auditor', 'Researcher', 'Student', 'Other'],
             required: true
         }
     ]
@@ -138,8 +138,8 @@ var analysisDemo = {
     type: jsPsychHtmlButtonResponse,
     stimulus: '<h2>How the Analysis Works</h2>' +
         '<div style="text-align: left; max-width: 950px; margin: 0 auto; line-height: 1.8;">' +
-        '<p>IntentChecker uses <strong>interval-domain abstract interpretation</strong> to trace all possible numeric ranges ' +
-        'through your code. Here is a complete workflow:</p>' +
+        '<p>IntentChecker computes how numeric <strong>ranges</strong> (not individual values) propagate through each operation ' +
+        '&mdash; if the input is [1, 1000], it tracks the entire range at once. Here is a complete workflow:</p>' +
         // Step 1
         '<h3>Step 1. Write debug annotations (initial conditions)</h3>' +
         '<p>You specify the input ranges to analyze &mdash; similar to setting up conditions for a test, ' +
@@ -373,118 +373,81 @@ for (var i = 0; i < examples.length; i++) {
     timeline.push(exampleDisplay);
 }
 
-// Likert scale options
-var likertOptions = [
-    'Strongly Disagree',
-    'Disagree',
-    'Neutral',
-    'Agree',
-    'Strongly Agree'
-];
-
-// Combined Evaluation (all at once after seeing all examples)
+// Combined Evaluation + Open-ended (single page)
 var evaluation = {
-    type: jsPsychSurveyLikert,
+    type: jsPsychSurveyHtmlForm,
     preamble: '<h2>Evaluation</h2>' +
         '<p>Based on all the examples and the annotation reference you have seen, please rate the following:</p>',
-    questions: [
-        {
-            prompt: "The annotations were easy to understand.",
-            name: 'readability',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "The annotation syntax feels intuitive and natural.",
-            name: 'intuitiveness',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "I have wanted to express these kinds of numeric intentions when developing smart contracts.",
-            name: 'relevance',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "These annotations capture the developer's intent better than using require/assert alone.",
-            name: 'better_than_require',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "The annotation model is expressive enough to capture common numeric intentions in smart contracts.",
-            name: 'expressiveness',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "The annotation syntax would be easy to learn for a new user.",
-            name: 'learnability',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "I would use this kind of annotation in my smart contract development workflow.",
-            name: 'willingness',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "This tool provides value that LLM-based code review alone cannot (e.g., correctness guarantees for all input ranges).",
-            name: 'vs_llm',
-            labels: likertOptions,
-            required: true
-        },
-        {
-            prompt: "I would use intent annotations alongside other tools (LLMs, testing, auditing) in my workflow.",
-            name: 'complementary',
-            labels: likertOptions,
-            required: true
-        }
-    ],
+    html: '<div style="max-width: 900px; margin: 0 auto; text-align: left;">' +
+        // Likert questions
+        '<table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">' +
+        '<tr style="background: #f5f5f5;">' +
+        '<th style="padding: 10px; text-align: left; width: 40%;"></th>' +
+        '<th style="padding: 8px; text-align: center; font-size: 12px;">Strongly<br>Disagree</th>' +
+        '<th style="padding: 8px; text-align: center; font-size: 12px;">Disagree</th>' +
+        '<th style="padding: 8px; text-align: center; font-size: 12px;">Neutral</th>' +
+        '<th style="padding: 8px; text-align: center; font-size: 12px;">Agree</th>' +
+        '<th style="padding: 8px; text-align: center; font-size: 12px;">Strongly<br>Agree</th>' +
+        '</tr>' +
+        // readability
+        '<tr style="border-bottom: 1px solid #eee;">' +
+        '<td style="padding: 12px 10px;">The annotations were easy to understand.</td>' +
+        '<td style="text-align: center;"><input type="radio" name="readability" value="1" required></td>' +
+        '<td style="text-align: center;"><input type="radio" name="readability" value="2"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="readability" value="3"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="readability" value="4"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="readability" value="5"></td>' +
+        '</tr>' +
+        // relevance
+        '<tr style="border-bottom: 1px solid #eee; background: #fafafa;">' +
+        '<td style="padding: 12px 10px;">I have wanted to express these kinds of numeric intentions when developing smart contracts.</td>' +
+        '<td style="text-align: center;"><input type="radio" name="relevance" value="1" required></td>' +
+        '<td style="text-align: center;"><input type="radio" name="relevance" value="2"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="relevance" value="3"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="relevance" value="4"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="relevance" value="5"></td>' +
+        '</tr>' +
+        // expressiveness
+        '<tr style="border-bottom: 1px solid #eee;">' +
+        '<td style="padding: 12px 10px;">The annotation model is expressive enough to capture common numeric intentions in smart contracts.</td>' +
+        '<td style="text-align: center;"><input type="radio" name="expressiveness" value="1" required></td>' +
+        '<td style="text-align: center;"><input type="radio" name="expressiveness" value="2"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="expressiveness" value="3"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="expressiveness" value="4"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="expressiveness" value="5"></td>' +
+        '</tr>' +
+        // learnability
+        '<tr style="border-bottom: 1px solid #eee; background: #fafafa;">' +
+        '<td style="padding: 12px 10px;">The annotation syntax would be easy to learn for a new user.</td>' +
+        '<td style="text-align: center;"><input type="radio" name="learnability" value="1" required></td>' +
+        '<td style="text-align: center;"><input type="radio" name="learnability" value="2"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="learnability" value="3"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="learnability" value="4"></td>' +
+        '<td style="text-align: center;"><input type="radio" name="learnability" value="5"></td>' +
+        '</tr>' +
+        '</table>' +
+        // Open-ended: missing intents
+        '<div style="margin-top: 20px;">' +
+        '<label style="font-weight: bold; display: block; margin-bottom: 8px;">' +
+        'Are there any numeric intentions you would like to express but feel the current annotation model cannot support?' +
+        '</label>' +
+        '<textarea name="missing_features" rows="4" style="width: 100%; font-size: 14px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" ' +
+        'placeholder="e.g., &quot;I want to express that the sum of all balances should equal totalSupply&quot;"></textarea>' +
+        '</div>' +
+        // Open-ended: suggestions
+        '<div style="margin-top: 20px;">' +
+        '<label style="font-weight: bold; display: block; margin-bottom: 8px;">' +
+        'Any other comments or feedback?' +
+        '</label>' +
+        '<textarea name="other_comments" rows="3" style="width: 100%; font-size: 14px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" ' +
+        'placeholder="Any additional thoughts"></textarea>' +
+        '</div>' +
+        '</div>',
     data: {
         task: 'evaluation'
     }
 };
 timeline.push(evaluation);
-
-// Open-ended Questions
-var openEndedQuestions = {
-    type: jsPsychSurveyText,
-    preamble: '<h2>Your Feedback</h2>' +
-        '<p>We value your perspective as a developer. Please share any thoughts you have:</p>',
-    questions: [
-        {
-            prompt: 'Are there any numeric intentions you would like to express but feel the current annotation model cannot support?',
-            name: 'missing_features',
-            required: false,
-            rows: 4,
-            columns: 60,
-            placeholder: 'e.g., "I want to express that the sum of all balances should equal totalSupply"'
-        },
-        {
-            prompt: 'What improvements would make this tool more useful for your development workflow?',
-            name: 'suggestions',
-            required: false,
-            rows: 4,
-            columns: 60,
-            placeholder: 'e.g., IDE integration, better error messages, auto-suggestion of annotations, ...'
-        },
-        {
-            prompt: 'Any other comments or feedback?',
-            name: 'other_comments',
-            required: false,
-            rows: 3,
-            columns: 60,
-            placeholder: 'Any additional thoughts'
-        }
-    ],
-    data: {
-        task: 'open_ended'
-    }
-};
-timeline.push(openEndedQuestions);
 
 // End
 var end = {

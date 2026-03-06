@@ -21,53 +21,7 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
     mapping(address => mapping(address => HourlyBond))
         public hourlyBondAccounts;
 
-    uint256 public borrowingFactorPercent = 200;
-
-    function setWithdrawalWindow(uint256 window) external onlyOwner {
-        withdrawalWindow = window;
-    }
-
-    function _makeHourlyBond(
-        address issuer,
-        address holder,
-        uint256 amount
-    ) internal {
-        HourlyBond storage bond = hourlyBondAccounts[issuer][holder];
-        updateHourlyBondAmount(issuer, bond);
-
-        HourlyBondMetadata storage bondMeta = hourlyBondMetadata[issuer];
-        bond.yieldQuotientFP = bondMeta.yieldAccumulator.accumulatorFP;
-        bond.moduloHour = block.timestamp % (1 hours);
-        bond.amount += amount;
-        lendingMeta[issuer].totalLending += amount;
-
-        (bondMeta.buyingSpeed, bondMeta.lastBought) = updateSpeed(
-            bondMeta.buyingSpeed,
-            bondMeta.lastBought,
-            amount,
-            1 hours
-        );
-    }
-
-    function updateHourlyBondAmount(address issuer, HourlyBond storage bond)
-        internal
-    {
-        uint256 yieldQuotientFP = bond.yieldQuotientFP;
-        if (yieldQuotientFP > 0) {
-            YieldAccumulator storage yA =
-                getUpdatedHourlyYield(issuer, hourlyBondMetadata[issuer]);
-
-            uint256 oldAmount = bond.amount;
-            bond.amount = applyInterest(
-                bond.amount,
-                yA.accumulatorFP,
-                yieldQuotientFP
-            );
-
-            uint256 deltaAmount = bond.amount - oldAmount;
-            lendingMeta[issuer].totalLending += deltaAmount;
-        }
-    }
+    uint256 public borrowingFactorPercent = 200;    
 
     function viewHourlyBondAmount(address issuer, address holder)
         public
@@ -128,7 +82,7 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
 
         uint256 hoursDelta = timeDelta / (1 hours);
         if (hoursDelta > 0) {
-            for (uint256 i = 0; hoursDelta > i; i++) {
+            for (uint256 i = 0; i < hoursDelta; i++) {
                 accumulatorFP =
                     (accumulatorFP * yieldAccumulator.hourlyYieldFP) /
                     FP32;

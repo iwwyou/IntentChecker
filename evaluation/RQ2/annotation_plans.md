@@ -232,6 +232,119 @@ if (_amount > 0) {
 
 ---
 
+## web3bugs_3_H_04
+
+- **Contract**: HourlyBondSubscriptionLending
+- **Function**: viewHourlyBondAmount
+- **Bug lines (original)**: 96; 97
+- **Pattern**: erroneous_accounting
+- **Status**: not_detectable (loop-widening-precision-loss)
+
+### Bug Description
+`viewHourlyBondAmount()`에서 `applyInterest()`의 리턴값 해석이 잘못됨.
+
+**같은 컨트랙트 내 두 가지 사용 패턴:**
+```solidity
+// (1) updateHourlyBondAmount(): applyInterest = 원금+이자 (full balance) 로 취급
+bond.amount = applyInterest(bond.amount, yA.accumulatorFP, yieldQuotientFP);
+uint256 deltaAmount = bond.amount - oldAmount;  // delta를 따로 계산
+
+// (2) viewHourlyBondAmount(): applyInterest = 이자만 (delta) 로 취급 → BUG
+return bond.amount + applyInterest(bond.amount, cumulativeYield, yieldQuotientFP);
+```
+
+`updateHourlyBondAmount()`에서 `deltaAmount = bond.amount - oldAmount`으로 delta를 별도 계산하는 것을 보면, `applyInterest`는 **원금+이자(full balance)를 리턴**하는 함수. 따라서 `viewHourlyBondAmount()`의 `bond.amount + applyInterest(...)`는 원금을 **이중 계산(double-count)**하여 실제보다 약 2배 큰 값을 리턴.
+
+### 탐지 가능성 분석
+
+**후보 Annotation**: `@During returnExpression == <expected_value>` (debug annotation으로 구체적 값 제공)
+
+**문제**: `returnExpression`에 대한 intent를 세우려면 `applyInterest`의 리턴값을 알아야 하는데, 그 값은 `cumulativeYield`에 의존하고, `cumulativeYield`는 `viewCumulativeYieldFP()` → `calcCumulativeYieldFP()`를 통해 계산됨.
+
+### 탐지 불가 사유: calcCumulativeYieldFP의 반복문과 Widening
+
+`calcCumulativeYieldFP()`에는 아래 반복문이 존재:
+
+```solidity
+function calcCumulativeYieldFP(
+    YieldAccumulator storage yieldAccumulator,
+    uint256 timeDelta
+) internal view returns (uint256 accumulatorFP) {
+    // Step 1: 시간 단위 미만 선형 보간
+    uint256 secondsDelta = timeDelta % (1 hours);
+    accumulatorFP =
+        (yieldAccumulator.accumulatorFP *
+            yieldAccumulator.hourlyYieldFP *
+            secondsDelta) /
+        (FP32 * 1 hours);     // 분모 = 2^32 × 3600 ≈ 1.5×10^13
+
+    // Step 2: 시간 단위 복리 계산 (문제의 반복문)
+    uint256 hoursDelta = timeDelta / (1 hours);
+    if (hoursDelta > 0) {
+        for (uint256 i = 0; i < hoursDelta; i++) {
+            accumulatorFP =
+                (accumulatorFP * yieldAccumulator.hourlyYieldFP) /
+                FP32;
+        }
+    }
+}
+```
+
+여기서 FP32 = 2^32 (고정소수점 32비트). 모든 `_FP` 접미사 변수는 실수값 × 2^32 형태.
+
+**반복문의 수학적 의미 (개발자 의도):**
+- `hourlyYieldFP`는 시간당 이자율 (예: 1.0001 → FP32로 ≈ 4,295,396,762)
+- 매 iteration: `acc = acc × hourlyYield_real` (실수로 풀면 단순 곱셈)
+- N시간 후: `acc = acc_initial × hourlyYield^N` (복리 계산)
+- 실제 Solidity 실행 시에는 정상 동작
+
+**IntentChecker의 Fixpoint 분석에서 발생하는 문제:**
+
+IntentChecker는 반복문을 **fixpoint iteration + widening**으로 분석:
+
+1. debug annotation으로 `hoursDelta = 2` 지정 시, 2회 반복까지 구체적으로 실행
+2. 2회 후에도 fixpoint(수렴)가 안 되면 **widening operator** 적용
+
+반복문 본체 `accumulatorFP = (accumulatorFP * hourlyYieldFP) / FP32`에서:
+- `hourlyYieldFP > FP32` (이자율 > 1.0, 정상 케이스): 매 iteration마다 **증가** → fixpoint 불가 → widening → **∞ (inf)**
+- `hourlyYieldFP < FP32` (이자율 < 1.0, 비정상): 매 iteration마다 **감소** → fixpoint 불가 → widening → **0**
+- `hourlyYieldFP == FP32` (이자율 = 1.0, 비현실적): fixpoint 도달하나 이자 0%로 무의미
+
+**결과적으로 `cumulativeYield`가 0 또는 ∞:**
+
+```solidity
+// applyInterest:
+return (balance * accumulatorFP) / yieldQuotientFP;
+```
+
+- `cumulativeYield = 0` → `applyInterest` = 0 → buggy return = `bond.amount + 0` = `bond.amount`
+  - 정상 return도 = `applyInterest(amount, 0, yieldQuotient)` = 0 → 구분 불가
+- `cumulativeYield = ∞` → `applyInterest` = ∞ → buggy/correct 모두 ∞ → 구분 불가
+
+두 경우 모두 buggy code와 correct code의 리턴값이 동일하게 되어 **annotation이 위반되지 않으므로 탐지 불가**.
+
+### Step 1 (선형 보간)만으로 우회 가능한가?
+
+`hoursDelta = 0` (timeDelta < 3600)으로 설정하면 반복문을 건너뛸 수 있으나:
+```solidity
+accumulatorFP = (acc * hourlyYield * secondsDelta) / (FP32 * 3600);
+```
+분모가 `2^32 × 3600 ≈ 1.5×10^13`이므로:
+- 작은 debug 값 (acc=100, hourlyYield=100, secondsDelta=30): 분자 = 300,000 → 정수 나눗셈 → **0**
+- FP32 스케일 값 (acc=2^32, hourlyYield=2^32): 의미 있는 결과가 나오지만, 이 경우 `secondsDelta`가 0이면 여전히 0이고, `secondsDelta > 0`이면 결과가 나와도 `applyInterest`까지 정확히 기대값을 계산해야 함 → diagnostic annotation 성격
+
+### 요약
+
+| 구분 | 내용 |
+|------|------|
+| **Limitation 유형** | loop-widening-precision-loss |
+| **근본 원인** | `calcCumulativeYieldFP`의 반복문이 고정소수점 복리 계산 → 매 iteration 값 변화 → fixpoint 미수렴 → widening으로 0 또는 ∞ |
+| **영향** | `cumulativeYield` (핵심 중간값)이 imprecise → `returnExpression` annotation의 expected value 계산 불가 |
+| **우회 불가 사유** | 반복문 없이(hoursDelta=0) 실행해도 선형 보간 분모가 2^32×3600으로 커서 작은 값은 0 되고, FP32 스케일 값을 써도 applyInterest 결과를 미리 계산해야 하는 diagnostic 문제 존재 |
+| **대조 (updateHourlyBondAmount)** | 같은 문제 — `getUpdatedHourlyYield` 내부에서도 `calcCumulativeYieldFP` 호출하므로 동일한 widening 문제 발생 |
+
+---
+
 ## web3bugs_112_H_01
 
 - **Contract**: StakerVault
