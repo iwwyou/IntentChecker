@@ -197,13 +197,32 @@ for (uint256 i = 0; i < array.length; i++) {
 
 ---
 
+## web3bugs_83_H_01
+
+- **Contract**: MasterChef
+- **Function**: add
+- **Bug lines (original)**: 89 (totalAllocPoint 변경 전 massUpdatePools() 호출 누락)
+- **Pattern**: inconsistent_state_updates
+- **Status**: not_detectable (L4b: missing-call-no-effect)
+
+### Bug Description
+`add()` 함수에서 `totalAllocPoint`을 증가시키기 전에 `massUpdatePools()`를 호출하지 않음. 기존 풀들의 `accConcurPerShare`가 이전의 `totalAllocPoint`로 갱신되지 않은 채 새로운 (더 큰) `totalAllocPoint`가 적용되어, 기존 staker들의 reward가 소급적으로 희석됨.
+
+### 탐지 불가 사유
+`add()` 함수 내 실제 사용 변수(`totalAllocPoint`, `poolInfo`, `pid[_token]`)는 모두 자기 역할을 올바르게 수행하며 값 수준의 이상이 없음. 버그의 효과(기존 풀의 `accConcurPerShare` 미갱신)는 `add()` scope 밖의 변수에만 나타남.
+
+- `poolInfo[1].accConcurPerShare(Entry != Exit)` 같은 post condition으로 표현은 가능하나, 개발자가 "기존 풀을 업데이트해야 한다"를 이미 인지해야 작성 가능 → 인지했으면 `massUpdatePools()` 호출을 추가하면 되므로 현실적 검출 시나리오가 아님
+- 함수 내 변수만으로는 누락된 side effect를 감지할 수 없음
+
+---
+
 ## web3bugs_83_H_02
 
 - **Contract**: MasterChef
 - **Function**: deposit
 - **Bug lines (original)**: 170; 171; 172
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (no-target-storage)
+- **Status**: not_detectable (L4a: no-target-storage)
 
 ### Bug Description
 `deposit()`에서 `depositFeeBP > 0`일 때 fee를 계산하여 `user.amount`에서 차감하지만, 그 fee를 받을 수신자(feeRecipient)의 `amount`를 증가시키는 코드가 없음. 결과적으로 deposit fee 만큼의 토큰이 컨트랙트에 영구 lock됨.

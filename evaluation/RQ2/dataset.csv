@@ -86,5 +86,5 @@ web3bugs_58_H_04,web3bugs,S3-1,AaveVault,tvl,47,inconsistent_state_updates,AaveV
 web3bugs_62_H_08,web3bugs,S3-1,Stream,updateStreamInternal,226;229;230,inconsistent_state_updates,ts.tokens sometimes calculated incorrectly,Dataset/Web3Bugs/S3_1/contest_62_H_08,pending
 web3bugs_65_H_01,web3bugs,S3-1,Basket,handleFees,136;137,inconsistent_state_updates,Wrong fee calculation after totalSupply was 0,Dataset/Web3Bugs/S3_1/contest_65_H_01,pending
 web3bugs_70_H_10,web3bugs,S3-1,LiquidityBasedTWAP,syncVaderPrice,187,inconsistent_state_updates,previousPrices is never updated upon syncing token price,Dataset/Web3Bugs/S3_1/contest_70_H_10,detectable
-web3bugs_83_H_01,web3bugs,S3-1,MasterChef,add,89,inconsistent_state_updates,Wrong reward token calculation in MasterChef due to stale totalPoints,Dataset/Web3Bugs/S3_1/contest_83_H_01,pending
+web3bugs_83_H_01,web3bugs,S3-1,MasterChef,add,89,inconsistent_state_updates,Wrong reward token calculation in MasterChef due to stale totalPoints,Dataset/Web3Bugs/S3_1/contest_83_H_01,not_detectable,missing-call-no-effect
 web3bugs_192_H_01,web3bugs,S3-1,Lock,extendLock,90;91,inconsistent_state_updates,Lock.sol extendLock does not update totalLocked causing accounting error,Dataset/Web3Bugs/S3_1/contest_192_H_01,pending

@@ -15,7 +15,9 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 | L1 | `loop-widening` | 루프 내 `+=` 등 누적 연산에 fixpoint iteration 시 widening 적용 → Top/∞. 버기 값과 정상 값이 모두 widened range에 포함되어 구분 불가 | web3bugs_34_H_01, web3bugs_52_H_04, web3bugs_52_H_34, web3bugs_59_H_04, web3bugs_70_H_03, web3bugs_70_H_04, web3bugs_70_H_05 |
 | L2 | `loop-widening-precision-loss` | loop-widening + precision loss가 결합된 케이스. 루프 내 누적 연산이 widening되어 precision loss 차이를 감지할 수 없음 | web3bugs_3_H_04 |
 | L3 | `loop-body-granularity` | intent annotation이 루프 바디 단위로만 배치 가능하나, 버그 탐지에 루프 내부의 더 세밀한 분석이 필요 | web3bugs_45_H_02 |
-| L4 | `no-target-storage` | 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
+| L4 | `absence-undetectable` | 코드에 존재하지 않는 요소의 부재를 감지할 수 없는 케이스. 아래 두 하위 유형으로 구분 | - |
+| L4a | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
+| L4b | `missing-call-no-effect` | L4의 하위 유형. 필요한 함수 호출이 누락되어 있으나, 그 호출의 효과(side effect)가 타겟 함수 scope 내 변수에 반영되지 않아 함수 내 조건으로 탐지 불가. Post condition 표현은 가능하나 버그 인지를 전제로 함 | web3bugs_83_H_01 |
 | L5 | `cross-deployment-call-top` | 별도 deployment된 외부 컨트랙트에 대한 호출 시, callee의 storage state가 annotation scope 밖 → 반환값 Top. 아래 두 하위 유형으로 구분 | - |
 | L5a | `interface-call-return-top` | L5의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_25_H_01, web3bugs_58_H_02, web3bugs_71_H_11 |
 | L5b | `external-call-state-unknown` | L5의 하위 유형. 구현 코드는 import로 존재하나, 외부 컨트랙트의 런타임 state를 모름 → 반환값 Top | web3bugs_3_H_05 |
@@ -54,9 +56,31 @@ L1(loop-widening)과 precision loss가 결합된 케이스. 버그 자체는 pre
 
 IntentChecker의 intent annotation은 루프 바디 단위(iteration 전체)로만 배치 가능하다. 버그가 루프 바디 내부의 특정 지점에서 발생하며, 해당 지점 전후의 중간 상태를 구분해야 탐지 가능한 경우, 현재 annotation 체계로는 표현할 수 없다.
 
-### L4: no-target-storage
+### L4: absence-undetectable
+
+코드에 **존재하지 않는 요소**의 부재를 감지할 수 없는 케이스. IntentChecker는 코드에 있는 변수/연산의 값에 대한 명제(proposition)를 검증하는 방식이므로, "있는 것의 오류"는 잡을 수 있지만 "없는 것"은 잡을 수 없다.
+
+#### L4a: no-target-storage
 
 IntentChecker의 intent annotation은 target contract의 storage variable 변경을 기준으로 올바름을 검증한다. 버기 함수가 target contract의 storage를 변경하지 않고 파라미터 계산이나 return 값만 관여하는 경우, annotation을 부착할 대상이 없다.
+
+#### L4b: missing-call-no-effect
+
+필요한 함수 호출이 누락되어 있으나, 그 호출의 효과(side effect)가 타겟 함수 scope 내에서 사용/수정되는 변수에 반영되지 않아, 함수 내 변수 조건으로 탐지 불가.
+
+타겟 함수 내 변수들은 모두 자기 역할을 올바르게 수행하여 값 수준의 이상이 없음. 누락된 호출이 영향을 미치는 변수에 대해 post condition을 걸면 표현 자체는 가능하나, 이는 개발자가 이미 버그를 인지한 것을 전제로 하므로 현실적 검출 시나리오가 아님.
+
+**예시** (web3bugs_83_H_01):
+```solidity
+function add(address _token, uint _allocationPoints, ...) public onlyOwner {
+    // massUpdatePools() 호출 누락 — 기존 풀의 accConcurPerShare 미갱신
+    totalAllocPoint = totalAllocPoint.add(_allocationPoints);  // 값 자체는 올바름
+    poolInfo.push(PoolInfo({...}));                             // 올바름
+    pid[_token] = poolInfo.length - 1;                          // 올바름
+}
+```
+- `totalAllocPoint`, `poolInfo`, `pid[_token]` 모두 정확한 값 → 함수 내 변수 조건으로 이상 감지 불가
+- `poolInfo[1].accConcurPerShare(Entry != Exit)` post condition은 가능하나, 개발자가 "기존 풀을 업데이트해야 한다"는 사실을 이미 알아야 작성 가능 → 버그 인지 전제
 
 ### L5: cross-deployment-call-top
 

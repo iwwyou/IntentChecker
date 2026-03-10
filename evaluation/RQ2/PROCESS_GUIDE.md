@@ -14,7 +14,8 @@
 ## 데이터셋 구성
 - **총 89건**: Web3Bugs 81건 + Numscout 8건
 - **마스터 인덱스**: `evaluation/RQ2/dataset.csv`
-- **원본 .sol 파일**: `evaluation/RQ2/target_contracts/` (89개 파일)
+- **원본 .sol 파일**: `evaluation/RQ2/target_contracts_original/` (89개 파일)
+- **축약 .sol 파일**: `evaluation/RQ2/target_contracts_contraction/` (detectable 건)
 - **의존성 파일**: `evaluation/RQ2/target_contracts/dependencies/` (302개 파일)
 - **dependency 정보 스크립트**: `evaluation/RQ2/collect_dependencies.py`
 
@@ -33,11 +34,32 @@
 
 **판정 기준:**
 - `detectable`: IntentChecker의 annotation으로 탐지 가능
-- `not_detectable`: 한계로 인해 탐지 불가
-  - `limitation_type`: missing-operation, multi-transaction, access-control, fixed-point 등
+- `not_detectable`: 한계로 인해 탐지 불가 (limitation type은 `limitation_types.md` 참조)
+- `excluded`: numeric logical error 정의에 해당하지 않거나 분석 대상 제외
 
-**진행 상황**: dataset.csv 기준 row 10 (web3bugs_35_H_12)까지 완료
-- web3bugs_35_H_12: `detectable` (During + Assign != Current 방식으로 missing-operation 간접 탐지 가능)
+**Three-file update rule**: 케이스 분석 시 아래 세 파일을 **항상 함께** 업데이트:
+1. `dataset.csv` — status 변경
+2. `annotation_plans.md` — 분석 내용/annotation 계획 기록
+3. `limitation_types.md` — not_detectable인 경우 limitation type 및 해당 케이스 목록 갱신
+
+**케이스별 수행 절차:**
+1. 원본 contract 읽기 (`target_contracts_original/`)
+2. 버그 이해 (bug description, bug report)
+3. Blocker 분석:
+   - **Loop 분석**: 누적 연산(`+=`, `*=`) → widening → Top. 단, min-finding 등 monotonically non-increasing 루프는 widening 대상 아님. 또한 widening 되더라도 annotation 대상 변수가 widened 변수와 독립적이면 blocker 아님
+   - **External call 분석**: interface call → Top (L5a), 외부 contract call → state unknown → Top (L5b). 단, interface에서 상속받은 struct/enum **타입 정의**는 compile-time 정보이므로 L5 아님 (target contract 자체 storage에 있는 데이터는 annotatable)
+   - **대상 변수 존재 여부**: storage variable 없음 (L4a), 누락된 함수 호출의 효과가 scope 밖 (L4b)
+   - **값 표현 가능성**: 올바른 값을 기존 변수의 산술 조합으로 표현 불가 (L6)
+4. detectable/not_detectable 판정
+5. Three-file update (dataset.csv + annotation_plans.md + limitation_types.md)
+6. detectable인 경우: annotation 계획 수립 (아래 상세)
+
+**detectable 케이스 annotation 계획 수립:**
+1. Contraction 파일 확인 (`target_contracts_contraction/`)
+2. Intent annotation 결정: 타입(@Post/@During), 대상 변수, 표현식, 삽입 라인
+3. Debug annotation 결정: 필요한 변수, 삽입 라인
+4. **Z3 solver 생성** (`evaluation/RQ2/z3_solvers/`): underflow/overflow 방지, require 통과, 버그 경로 진입 조건 등을 Z3 constraint로 모델링하여 안전한 debug annotation 값 도출
+5. **Annotation 삽입 순서**: Step 1에서 intent annotation 삽입 → Step 2에서 debug annotation 삽입 → interpreter가 둘 다 포함된 상태로 실행
 
 ### Phase 2: 환경 준비
 - contract별 import dependency 사전 수집 (collect_dependencies.py 완료)
@@ -167,6 +189,12 @@ python runner.py --case WANGMI            # 개별 케이스
 | Sol→JSON 변환 | `soltotestjson.py` | .sol → JSON 변환기 |
 | Dependency 수집 | `evaluation/RQ2/collect_dependencies.py` | import 정보 수집 |
 | Grammar | `Parser/Solidity.g4` | Intent annotation 문법 정의 |
+| Annotation 계획 | `evaluation/RQ2/annotation_plans.md` | 케이스별 annotation 계획/분석 기록 |
+| Limitation 유형 | `evaluation/RQ2/limitation_types.md` | not_detectable 한계 유형 정의/분류 |
+| 추가 구현 사항 | `evaluation/RQ2/code_modification_issues.md` | IntentChecker 코드 수정 필요 사항 추적 |
+| Z3 솔버 | `evaluation/RQ2/z3_solvers/` | debug annotation 값 생성용 Z3 constraint solver |
+| 원본 계약 | `evaluation/RQ2/target_contracts_original/` | 원본 .sol 파일 |
+| 축약 계약 | `evaluation/RQ2/target_contracts_contraction/` | 축약된 .sol 파일 (detectable 건) |
 
 ## Numscout 기존 contraction 예시
 | 파일 | 경로 |
