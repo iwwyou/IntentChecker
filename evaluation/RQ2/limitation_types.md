@@ -19,9 +19,9 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 | L4a | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
 | L4b | `missing-call-no-effect` | L4의 하위 유형. 필요한 함수 호출이 누락되어 있으나, 그 호출의 효과(side effect)가 타겟 함수 scope 내 변수에 반영되지 않아 함수 내 조건으로 탐지 불가. Post condition 표현은 가능하나 버그 인지를 전제로 함 | web3bugs_83_H_01 |
 | L5 | `cross-deployment-call-top` | 별도 deployment된 외부 컨트랙트에 대한 호출 시, callee의 storage state가 annotation scope 밖 → 반환값 Top. 아래 두 하위 유형으로 구분 | - |
-| L5a | `interface-call-return-top` | L5의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_25_H_01, web3bugs_58_H_02, web3bugs_71_H_11 |
+| L5a | `interface-call-return-top` | L5의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_25_H_01, web3bugs_31_H_01, web3bugs_42_H_01, web3bugs_44_H_02, web3bugs_52_H_16, web3bugs_58_H_02, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_71_H_11 |
 | L5b | `external-call-state-unknown` | L5의 하위 유형. 구현 코드는 import로 존재하나, 외부 컨트랙트의 런타임 state를 모름 → 반환값 Top | web3bugs_3_H_05 |
-| L6 | `inexpressible-expected-value` | 버기 결과와 올바른 결과의 차이가 순전히 양적(quantitative)이며, 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값을 구하려면 현재 코드에 존재하지 않는 새로운 중간 계산이 필요 | web3bugs_51_H_04, web3bugs_51_H_06 |
+| L6 | `inexpressible-expected-value` | 버기 결과와 올바른 결과의 차이가 순전히 양적(quantitative)이며, 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값을 구하려면 현재 코드에 존재하지 않는 새로운 중간 계산이 필요 | web3bugs_51_H_04, web3bugs_51_H_06, web3bugs_39_H_02, web3bugs_29_H_05 |
 
 ---
 
@@ -185,3 +185,5 @@ Numeric logical error 정의에 해당하지 않거나 분석 대상에서 제�
 | E1 | `excluded_fixed_code` | 제공된 소스코드가 이미 수정된 버전 | web3bugs_43_H_02 |
 | E2 | `overflow-revert` | Solidity >=0.8.0에서 integer overflow가 자동 revert됨. 잘못된 값을 "반환"하는 것이 아니라 실행 자체가 중단 → numeric logical error 정의에 해당하지 않음 | web3bugs_29_H_14 |
 | E3 | `duplicate` | 동일 컨트랙트의 동일 버그 지점을 다른 감사자가 중복 보고한 케이스. 원본 케이스에서 분석 | web3bugs_52_H_28 (duplicate of 52_H_04) |
+| E4 | `not-a-bug` | 감사 리포트에 보고되었으나 실제로는 버그가 아닌 케이스. Sponsor가 의도된 설계라고 dispute하거나, 코드가 의도대로 정확히 동작함 | web3bugs_52_H_25 |
+| E5 | `missing-dependency` | 분석에 필요한 외부 라이브러리(npm 패키지 등)의 소스코드가 제공되지 않아 dependency pre-analysis 불가 | web3bugs_52_H_23, web3bugs_16_H_04 |

@@ -22,26 +22,6 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
     mapping(uint256 => Detail) public override details;
     mapping(uint256 => uint256) public lastDeposit;
 
-    modifier updateDebt(uint256 _id) {
-        accrueDebt(_id);
-        _;
-    }
-
-    modifier wait(uint256 _id) {
-        require(
-            lastDeposit[_id] + engine.mochiProfile().delay() <= block.timestamp,
-            "!wait"
-        );
-        accrueDebt(_id);
-        _;
-    }
-
-    function initialize(address _asset) external override initializer {
-        asset = IERC20(_asset);
-        debtIndex = 1e18;
-        lastAccrued = block.timestamp;
-    }
-
     function liveDebtIndex() public view override returns (uint256 index) {
         return
             engine.mochiProfile().calculateFeeIndex(
@@ -51,23 +31,13 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
             );
     }
 
-    function status(uint256 _id) public view override returns (Status) {
-        return details[_id].status;
-    }
-
-    function currentDebt(uint256 _id) public view override returns (uint256) {
-        require(details[_id].status != Status.Invalid, "invalid");
-        uint256 newIndex = liveDebtIndex();
-        return (details[_id].debt * newIndex) / details[_id].debtIndex;
-    }
-
-    function accrueDebt(uint256 _id) public {
+    function accrueDebt(uint256 _id) public {        
         uint256 currentIndex = liveDebtIndex();
         uint256 increased = (debts * currentIndex) / debtIndex - debts;
         debts += increased;
-        claimable += int256(increased);
+        claimable += int256(increased);       
         debtIndex = currentIndex;
-        lastAccrued = block.timestamp;
+        lastAccrued = block.timestamp;       
         if (_id != type(uint256).max && details[_id].debtIndex < debtIndex) {
             require(details[_id].status != Status.Invalid, "invalid");
             if (details[_id].debt != 0) {
@@ -85,98 +55,30 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
         }
     }
 
-    function increase(
-        uint256 _id,
-        uint256 _deposits,
-        uint256 _borrows,
-        address _referrer,
-        bytes memory _data
-    ) external {
-        if (_id == type(uint256).max) {
-            _id = mint(msg.sender, _referrer);
-        }
-        if (_deposits > 0) {
-            deposit(_id, _deposits);
-        }
-        if (_borrows > 0) {
-            borrow(_id, _borrows, _data);
+    modifier updateDebt(uint256 _id) {
+        accrueDebt(_id);
+        _;
+    }
+
+    function mintFeeToPool(uint256 _amount, address _referrer) internal {
+        claimable -= int256(_amount);
+        if (address(0) != _referrer) {
+            engine.minter().mint(address(engine.referralFeePool()), _amount);
+            engine.referralFeePool().addReward(_referrer);
+        } else {
+            engine.minter().mint(address(engine.treasury()), _amount);
         }
     }
 
-    function decrease(
-        uint256 _id,
-        uint256 _withdraws,
-        uint256 _repays,
-        bytes memory _data
-    ) external {
-        if (_repays > 0) {
-            repay(_id, _repays);
-        }
-        if (_withdraws > 0) {
-            withdraw(_id, _withdraws, _data);
-        }
-    }
-
-    function mint(address _recipient, address _referrer)
-        public
-        returns (uint256 id)
-    {
-        id = engine.nft().mint(address(asset), _recipient);
-        details[id].debtIndex = liveDebtIndex();
-        details[id].status = Status.Idle;
-        details[id].referrer = _referrer;
-    }
-
-    function deposit(uint256 _id, uint256 _amount)
-        public
-        override
-        updateDebt(_id)
-    {
-        require(engine.nft().asset(_id) == address(asset), "!asset");
-        require(
-            details[_id].status == Status.Idle ||
-                details[_id].status == Status.Collaterized ||
-                details[_id].status == Status.Active,
-            "!depositable"
-        );
-        lastDeposit[_id] = block.timestamp;
-        deposits += _amount;
-        details[_id].collateral += _amount;
-        if (details[_id].status == Status.Idle) {
-            details[_id].status = Status.Collaterized;
-        }
-        asset.cheapTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    function withdraw(
-        uint256 _id,
-        uint256 _amount,
-        bytes memory _data
-    ) public override wait(_id) {
-        require(engine.nft().ownerOf(_id) == msg.sender, "!approved");
-        require(engine.nft().asset(_id) == address(asset), "!asset");
-        float memory price = engine.cssr().update(address(asset), _data);
-        require(
-            !_liquidatable(
-                details[_id].collateral - _amount,
-                price,
-                details[_id].debt
-            ),
-            "!healthy"
-        );
-        float memory cf = engine.mochiProfile().maxCollateralFactor(
+    function _liquidatable(
+        uint256 _collateral,
+        float memory _price,
+        uint256 _debt
+    ) internal view returns (bool) {
+        float memory lf = engine.mochiProfile().liquidationFactor(
             address(asset)
         );
-        uint256 maxMinted = (details[_id].collateral - _amount)
-            .multiply(cf)
-            .multiply(price);
-        require(details[_id].debt <= maxMinted, ">cf");
-        deposits -= _amount;
-        details[_id].collateral -= _amount;
-        if (details[_id].collateral == 0) {
-            details[_id].status = Status.Idle;
-        }
-        asset.cheapTransfer(engine.nft().ownerOf(_id), _amount);
+        return _collateral.multiply(lf) < _debt.divide(_price);
     }
 
     function borrow(
@@ -202,10 +104,7 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
         uint256 increasingDebt = (_amount * 1005) / 1000;
         uint256 totalDebt = details[_id].debt + increasingDebt;
         require(details[_id].debt + _amount >= engine.mochiProfile().minimumDebt(), "<minimum");
-        require(
-            !_liquidatable(details[_id].collateral, price, totalDebt),
-            "!healthy"
-        );
+        require(!_liquidatable(details[_id].collateral, price, totalDebt),"!healthy");
         mintFeeToPool(increasingDebt - _amount, details[_id].referrer);
         details[_id].debtIndex =
             (details[_id].debtIndex * (totalDebt)) /
@@ -214,119 +113,5 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
         details[_id].status = Status.Active;
         debts += _amount;
         engine.minter().mint(msg.sender, _amount);
-    }
-
-    function repay(uint256 _id, uint256 _amount)
-        public
-        override
-        updateDebt(_id)
-    {
-        if (_amount > details[_id].debt) {
-            _amount = details[_id].debt;
-        }
-        require(_amount > 0, "zero");
-        if (debts < _amount) {
-            debts = 0;
-        } else {
-            debts -= _amount;
-        }
-        details[_id].debt -= _amount;
-        if (details[_id].debt == 0) {
-            details[_id].status = Status.Collaterized;
-        }
-        engine.usdm().transferFrom(msg.sender, address(this), _amount);
-        engine.usdm().burn(_amount);
-    }
-
-    function liquidate(
-        uint256 _id,
-        uint256 _collateral,
-        uint256 _usdm
-    ) external override updateDebt(_id) {
-        require(msg.sender == address(engine.liquidator()), "!liquidator");
-        require(engine.nft().asset(_id) == address(asset), "!asset");
-        float memory price = engine.cssr().getPrice(address(asset));
-        require(
-            _liquidatable(details[_id].collateral, price, currentDebt(_id)),
-            "healthy"
-        );
-
-        debts -= _usdm;
-
-        details[_id].collateral -= _collateral;
-        details[_id].debt -= _usdm;
-
-        asset.cheapTransfer(msg.sender, _collateral);
-    }
-
-    function _liquidatable(
-        uint256 _collateral,
-        float memory _price,
-        uint256 _debt
-    ) internal view returns (bool) {
-        float memory lf = engine.mochiProfile().liquidationFactor(
-            address(asset)
-        );
-        return _collateral.multiply(lf) < _debt.divide(_price);
-    }
-
-    function liquidatable(uint256 _id) external view returns (bool) {
-        float memory price = engine.cssr().getPrice(address(asset));
-        return _liquidatable(details[_id].collateral, price, currentDebt(_id));
-    }
-
-    function claim() external updateDebt(type(uint256).max) {
-        require(claimable > 0, "!claimable");
-        uint256 toClaim = (uint256(claimable) * 75) / 100;
-        mintFeeToPool(toClaim, address(0));
-    }
-
-    function mintFeeToPool(uint256 _amount, address _referrer) internal {
-        claimable -= int256(_amount);
-        if (address(0) != _referrer) {
-            engine.minter().mint(address(engine.referralFeePool()), _amount);
-            engine.referralFeePool().addReward(_referrer);
-        } else {
-            engine.minter().mint(address(engine.treasury()), _amount);
-        }
-    }
-
-    function maxFlashLoan(address _token)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        require(_token == address(asset), "!supported");
-        return asset.balanceOf(address(this));
-    }
-
-    function flashFee(address _token, uint256 _amount)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        require(_token == address(asset), "!supported");
-        return (_amount * 1337) / 1000000;
-    }
-
-    function flashLoan(
-        IERC3156FlashBorrower _receiver,
-        address _token,
-        uint256 _amount,
-        bytes calldata _data
-    ) external override returns (bool) {
-        require(_token == address(asset), "!supported");
-        uint256 fee = flashFee(_token, _amount);
-        asset.cheapTransfer(address(_receiver), _amount);
-        require(
-            _receiver.onFlashLoan(msg.sender, _token, _amount, fee, _data) ==
-                CALLBACK_SUCCESS,
-            "!callback"
-        );
-        asset.cheapTransferFrom(address(_receiver), address(this), _amount);
-        asset.cheapTransferFrom(address(_receiver), engine.treasury(), fee);
-        return true;
-    }
+    }    
 }

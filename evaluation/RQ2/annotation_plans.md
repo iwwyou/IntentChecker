@@ -1179,6 +1179,23 @@ Top 전파 경로:
 
 ---
 
+## web3bugs_29_H_15
+
+- **Contract**: IndexPool
+- **Function**: _computeSingleOutGivenPoolIn
+- **Bug line (original)**: 282
+- **Pattern**: erroneous_accounting
+- **Status**: excluded (overflow-revert)
+
+### Bug Description
+Line 282에서 `(BASE - normalizedWeight) * _swapFee`로 raw `*`를 사용하나, fixed-point 곱셈 `_mul`을 써야 함. raw `*` 결과가 BASE^2 스케일이 되어, 이후 `BASE - zaz`에서 integer underflow → Solidity 0.8.x revert.
+
+### Excluded 사유
+- 29_H_14와 동일한 함수, 동일한 exclusion 사유
+- Underflow로 인해 revert되는 문제로, 잘못된 값을 반환하는 numeric logical error가 아님
+
+---
+
 ## web3bugs_112_H_01
 
 - **Contract**: StakerVault
@@ -1268,3 +1285,474 @@ function transfer(address account, uint256 amount) external override notPaused r
     return true;
 }
 ```
+
+---
+
+## web3bugs_24_H_03
+
+- **Contract**: SwappableYieldSource
+- **Function**: setYieldSource
+- **Bug lines (original)**: 258; 268; 269
+- **Pattern**: inconsistent_state_updates
+- **Status**: excluded (multi-transaction)
+
+### Notes
+- 버그는 `setYieldSource()` 호출 후 `transferFunds()` 호출 전 사이에 `supplyTokenTo()`가 호출되면 exchange rate가 왜곡되는 문제
+- yieldSource는 변경되었지만 자금은 아직 이전되지 않아 `balanceOfToken()`이 0에 가까운 값을 반환 → 비정상적으로 많은 shares 발행
+- 이는 두 개의 독립 트랜잭션 간의 상태 불일치 문제 (multi-transaction)이므로 single-transaction 분석 범위 밖 → excluded
+
+---
+
+## web3bugs_39_H_02
+
+- **Contract**: Swivel
+- **Function**: exitVaultFillingVaultInitiate
+- **Bug lines (original)**: 280
+- **Pattern**: erroneous_accounting
+- **Status**: not_detectable (inexpressible-expected-value)
+
+### Bug Description
+`exitVaultFillingVaultInitiate`에서 taker(msg.sender)에게 수수료가 2번 부과됨:
+1. Line 280: `transferFrom(o.maker, msg.sender, premiumFilled - fee)` — 받는 금액에서 fee 차감
+2. Line 283: `transferFrom(msg.sender, address(this), fee)` — fee를 별도로 또 지불
+
+결과적으로 sender의 순수익은 `premiumFilled - 2*fee`이며, 의도된 값은 `premiumFilled - fee`.
+
+### Not Detectable 사유
+- 각 `transferFrom` 호출의 인자 값은 개별적으로 모두 정확함 (`premiumFilled - fee`, `fee` 각각 올바른 계산 결과)
+- 버그는 두 external call의 **조합**에서 발생: fee 부담 주체가 잘못 설정되어 sender가 이중 부담
+- sender의 순수익(net token flow)을 표현하려면 외부 ERC20 contract의 balance 변화를 추적해야 하나, 이는 분석 대상 contract의 state variable이 아님
+- 단일 program point에서 어떤 변수나 산술 조합으로도 "sender가 fee를 이중으로 지불하고 있다"는 사실을 표현할 수 없음 → inexpressible-expected-value
+
+---
+
+## web3bugs_52_H_09
+
+- **Contract**: VaderReserve
+- **Function**: reimburseImpermanentLoss
+- **Bug lines (original)**: 85
+- **Pattern**: erroneous_accounting
+- **Status**: excluded (bug-not-in-target-contract)
+
+### Notes
+- 버그 제목은 "VaderPoolV2 incorrectly calculates the amount of IL protection to send to LPs"
+- 실제 IL protection 금액 계산은 호출자인 VaderPoolV2에서 수행되며, VaderReserve의 `reimburseImpermanentLoss`는 전달받은 amount를 reserve 잔액과 비교 후 전송하는 단순 로직
+- 권장 수정: VADER/USDV 간 conversion rate를 oracle(TwapOracle)로 처리 → VaderPoolV2 측 설계 변경 필요
+- 타겟 contract(VaderReserve)에 계산 오류가 없으므로 excluded
+
+---
+
+## web3bugs_52_H_23
+
+- **Contract**: VaderPoolV2
+- **Function**: mintSynth
+- **Bug lines (original)**: 161
+- **Pattern**: erroneous_accounting
+- **Status**: excluded (missing-dependency)
+
+### Notes
+- 버그: `mintSynth`에서 synth 발행 후 `_update` 호출 시 `reserveForeign`을 차감하지 않아 synth가 과다 발행됨
+- VaderPoolV2는 BasePoolV2를 상속하나, dependency에 BasePoolV2.sol이 존재하지 않음 (BasePool V1만 있음)
+- BasePoolV2의 `_update` 함수, `pairInfo` mapping 등 핵심 로직이 없어 contraction/분석 불가 → excluded
+
+---
+
+## web3bugs_5_H_07
+
+- **Contract**: Utils
+- **Function**: calcAsymmetricShare
+- **Bug line (original)**: 273
+- **Bug line (contraction)**: 22
+- **Pattern**: erroneous_accounting
+- **Status**: annotated
+
+### Bug Description
+`calcAsymmetricShare` 함수의 수식 구현에서 괄호 누락 버그. 주석에 의도된 수식은 `(part1 * (part2 - part3 + part4)) / part5` = `u*A*(2*U*U - 2*U*u + u*u) / (U*U*U)` 이나, 실제 코드(line 22)는 `((part1 * part2) - part3) + part4`로 구현되어 part3과 part4가 part1에 곱해지지 않음.
+
+### Dependencies
+없음
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| LocalVar | u | [100, 100] | 18 | 함수 파라미터, u < U 조건 충족 |
+| LocalVar | U | [1000, 1000] | 19 | 함수 파라미터, total units |
+| LocalVar | A | [5000, 5000] | 20 | 함수 파라미터, total amount |
+
+- overflow/underflow 검증: part1*part2 = 100*5000*2*10^6 = 10^12 (uint256 안전), part2-part3 = 2*10^6 - 2*10^5 = 1.8*10^6 > 0 (underflow 없음)
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 24 | returnExpression == u*A*(2*U*U - 2*U*u + u*u) / (U*U*U) | violated | 5.md H-07: 주석에 명시된 의도 수식과 실제 구현 불일치. 올바른 결과 905 vs 버그 결과 ~999 |
+
+---
+
+## web3bugs_5_H_08
+
+- **Contract**: Utils
+- **Function**: calcLiquidityUnits
+- **Bug line (original)**: 239
+- **Bug line (contraction)**: 40
+- **Pattern**: erroneous_accounting
+- **Status**: annotated
+
+### Bug Description
+`calcLiquidityUnits` 함수의 수식 구현에서 괄호 누락 버그. 주석에 의도된 수식은 `P * (t*B + T*b) / (2*T*B) * slipAdjustment`이나, 실제 코드(line 40)는 `(P * part1 + part2) / part3`으로 구현되어 `P`가 `part1`(`t*B`)에만 곱해지고 `part2`(`T*b`)에는 곱해지지 않음. 5_H_07과 동일한 괄호 누락 패턴.
+
+### Dependencies
+없음 (getSlipAdustment는 같은 컨트랙트 내 함수)
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| LocalVar | b | [100, 100] | 33 | 함수 파라미터, base deposited |
+| LocalVar | B | [1000, 1000] | 34 | 함수 파라미터, base balance |
+| LocalVar | t | [100, 100] | 35 | 함수 파라미터, token deposited |
+| LocalVar | T | [1000, 1000] | 36 | 함수 파라미터, token balance |
+| LocalVar | P | [500, 500] | 37 | 함수 파라미터, total pool units, P > 0으로 else 분기 진입 |
+
+- state variable `one = 10**18`은 컨트랙트에 이미 초기화됨
+- overflow/underflow 검증: 대칭 입금(b/B == t/T)으로 slipAdjustment = one. 올바른 _units=50, 버그 _units=25
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 40 | _units == P * (t * B + T * b) / ((T * B) * 2) | violated | 5.md H-08: 주석에 명시된 의도 수식 `P*(tB+Tb)/(2TB)`와 실제 구현 불일치. 올바른 결과 50 vs 버그 결과 25 |
+
+---
+
+## web3bugs_29_H_05
+
+- **Contract**: HybridPool
+- **Function**: _nonOptimalMintFee
+- **Bug line (original)**: 433
+- **Pattern**: erroneous_accounting
+- **Status**: not_detectable (inexpressible-expected-value)
+
+### Bug Description
+`_nonOptimalMintFee`에서 optimal deposit ratio를 `(_amount0 * _reserve1) / _reserve0`으로 계산하는데, 이는 constant-product AMM 공식. HybridPool은 stableswap 방식이므로 optimal ratio가 reserve 비율과 다름 (amplification parameter A에 의해 커브가 flat). 결과적으로 fee가 과대/과소 계산됨.
+
+### Not Detectable 사유 (L6)
+- 올바른 optimal ratio는 stableswap invariant D에 의존하며, D는 Newton's method 반복(loop)으로 계산됨
+- 올바른 fee 값을 프로그램 내 기존 변수의 산술 조합으로 표현할 수 없음
+- fee의 크기 자체는 정상 범위(0 ~ swapFee) 내에 있어 단순 bound annotation으로 구분 불가
+
+---
+
+## web3bugs_52_H_25
+
+- **Contract**: VaderMath (library)
+- **Function**: calculateSwap
+- **Bug line (original)**: 105
+- **Pattern**: erroneous_accounting
+- **Status**: excluded (not-a-bug)
+
+### Notes
+- 수식 `x * X * Y / (x + X)^2`는 Thorchain CLP 모델의 의도된 설계
+- Sponsor가 명시적으로 dispute: "This is the intended design of the Thorchain CLP model"
+- Judge도 sponsor 입장을 사실상 수용
+- 코드 구현이 주석과 일치하며, 수식 자체에 computation error 없음
+- `amountIn > reserveIn`일 때 output이 감소하는 현상은 CLP 모델의 고유 특성
+
+---
+
+## web3bugs_56_H_02
+
+- **Contract**: CDP (library)
+- **Function**: update
+- **Bug line (original)**: 39
+- **Bug line (contraction)**: 41
+- **Pattern**: erroneous_accounting
+- **Status**: annotated
+
+### Bug Description
+`update()` 함수에서 `_earnedYield > totalDebt`일 때 `totalCredit`을 누적(+=)하지 않고 덮어쓰기(=)함. 기존 credit이 소실됨.
+- Buggy (line 41): `_self.totalCredit = _earnedYield.sub(_currentTotalDebt);`
+- Correct: `_self.totalCredit = _self.totalCredit.add(_earnedYield.sub(_currentTotalDebt));`
+- `getUpdatedTotalCredit` (view 함수)에서는 올바르게 `_self.totalCredit + (yield - debt)`로 누적 — 의도 확인 가능
+- Report: sponsor 최종 confirmed
+
+### Dependencies
+- FixedPointMath library (FixedDecimal struct, sub/mul/cmp/decode 등)
+- SafeMath library (using SafeMath for uint256)
+- Issue 4 (code_modification_issues.md): `using` 키워드 커스텀 라이브러리 지원 필요
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | _self.totalCredit | [1000, 1000] | 37 | 기존 credit 양수 — overwrite 버그 시현 |
+| StateVar | _self.totalDebt | [0, 0] | 37 | debt 상환 완료 상태, earnedYield > 0이면 if 분기 진입 |
+| StateVar | _self.totalDeposited | [1000, 1000] | 37 | getEarnedYield 계산에 필요 |
+| StateVar | _self.lastAccumulatedYieldWeight.x | [1000000000000000000, 1000000000000000000] | 37 | 1e18 (fixed-point 1.0) |
+| StateVar | _ctx.accumulatedYieldWeight.x | [1200000000000000000, 1200000000000000000] | 37 | 1.2e18 (fixed-point 1.2) |
+
+- earnedYield = (1.2e18 - 1e18) * 1000 / 1e18 = 200
+- totalDebt = 0이므로 earnedYield(200) > totalDebt(0) → if 분기 진입
+- Buggy: totalCredit = 200 - 0 = 200 (1000에서 200으로 덮어씀)
+- Correct: totalCredit = 1000 + (200 - 0) = 1200
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 46 | totalCredit(entry <= exit) | violated | 56.md H-02: update 호출 시 credit은 감소하지 않아야 함. Buggy code에서 entry(1000) > exit(200) → violated |
+
+---
+
+## web3bugs_60_H_01
+
+- **Contract**: OptimisticLedgerLib
+- **Function**: settleAccount
+- **Bug lines (original)**: 68; 73
+- **Pattern**: erroneous_accounting
+- **Status**: annotated
+
+### Bug Description
+`settleAccount()`에서 shortfall이 이중 계산됨. `shortfall` (local) = `self.shortfall + |newBalance|`로 기존 shortfall을 포함시킨 뒤, `self.shortfall = self.shortfall + shortfall`로 또 기존 shortfall을 더함.
+- Buggy: `self.shortfall = 2 * old_shortfall + |newBalance|`
+- Correct: `self.shortfall = old_shortfall + |newBalance|`
+- Report: sponsor(kbrizzle) confirmed, judge 동의
+
+### Dependencies
+- Fixed18.sol (Fixed18Lib, `type Fixed18 is int256;`)
+- UFixed18.sol (UFixed18Lib, `type UFixed18 is uint256;`)
+- Issue 4 (code_modification_issues.md): `using` 키워드 커스텀 라이브러리 지원 필요
+- Issue 5 (code_modification_issues.md): user-defined value type 지원 필요
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | self.shortfall | [100, 100] | 15 | 비제로 필수 — shortfall 이중 계산 버그 시현 |
+| StateVar | self.balances[account] | [50, 50] | 15 | account balance |
+| LocalVar | amount | [-100, -100] | 15 | Fixed18 음수값 — newBalance를 음수로 만듦 |
+
+- newBalance = 50 + (-100) = -50 → 음수, if 분기 진입
+- |newBalance| = 50
+- Buggy: shortfall(local) = 100 + 50 = 150, self.shortfall = 100 + 150 = 250
+- Correct: self.shortfall = 100 + 50 = 150
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 23 | self.shortfall == 150 | violated | 60.md H-01: shortfall 이중 계산. 정상이면 150이어야 하나 buggy code에서 250 → violated |
+
+---
+
+## web3bugs_77_H_01
+
+- **Contract**: MathLib
+- **Function**: calculateLiquidityTokenQtyForSingleAssetEntry
+- **Bug lines (original)**: 174-185
+- **Pattern**: erroneous_accounting
+- **Status**: annotated
+
+### Bug Description
+Single asset entry 시 LP 토큰 수량(ΔRo) 계산을 위한 gamma(γ) 공식이 잘못됨. 과소 계산으로 새 LP가 기여 대비 적은 지분을 받아 자금 손실 발생.
+- Buggy gamma: `γ = ΔY / Y' / 2 * (ΔX / α^)` — 과소 계산
+- Report 예시: LP가 4 quoteToken 기여 → 2.67 quoteToken 가치만 수령 (1.33 손실)
+- 정확한 올바른 공식은 report 본문에 불완전하게 제시됨 (issue page 참조), sponsor도 제안 수정이 "partially correct"이라고 언급
+- **탐지 전략**: 정확한 공식 대신 경제적 공정 지분 하한값(proportional fairness bound) 사용
+- Report: sponsor(0xean) confirmed & resolved, judge High severity 동의
+
+### Dependencies
+- 없음 (wDiv, wMul이 같은 library 내 정의, pure function)
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| LocalVar | _totalSupplyOfLiquidityTokens | [1000, 1000] | 35 | Ro = sqrt(X*Y), X=1000, Y=1000 |
+| LocalVar | _tokenQtyAToAdd | [4000, 4000] | 36 | ΔY (quoteToken added by LP) |
+| LocalVar | _internalTokenAReserveQty | [5000, 5000] | 37 | Y' = Y + ΔY = 1000 + 4000 |
+| LocalVar | _tokenBDecayChange | [4000, 4000] | 38 | ΔX = ΔY * Omega (Omega=1) |
+| LocalVar | _tokenBDecay | [9000, 9000] | 39 | Alpha - X = 10000 - 1000 |
+
+- Report rebase-up 예시 기반: Alpha=10000, X=1000, Y=1000, Omega=1, LP adds 4000 quoteToken
+- wGamma = 16/90 * WAD ≈ 1.777e17
+- Buggy ΔRo ≈ 216
+- Fair ΔRo = Ro * 4/11 ≈ 363 (LP 기여 4000 / pool total 15000 = 4/15 지분)
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 38 | returnExpression >= 363 | violated | 77.md H-01: gamma 과소 계산. Fair ΔRo ≥ 363이어야 하나 buggy code에서 ≈216 → violated |
+
+---
+
+## web3bugs_31_H_01
+
+- **Contract**: MyStrategy
+- **Function**: manualRebalance
+- **Bug lines (original)**: 469; 471; 477
+- **Pattern**: erroneous_accounting
+- **Status**: not_detectable (L5a: interface-call-return-top)
+
+### Bug Description
+`manualRebalance()`에서 두 변수의 단위가 다른데 비교함:
+- Line 469: `currentLockRatio = balanceInLock * 1e18 / totalCVXBalance` → **비율** (percentage, max 1e18)
+- Line 471: `newLockRatio = totalCVXBalance * toLock / MAX_BPS` → **절대 CVX 수량** (token amount)
+- Line 477: `if (newLockRatio <= currentLockRatio)` → 비율과 수량을 비교 → 잘못된 분기
+- 결과: totalCVXBalance가 클수록 거의 모든 것을 lock하게 됨
+- Report: sponsor(GalloDaSballo) confirmed, mitigated by rewriting
+
+### Not Detectable 사유
+핵심 변수들이 전부 외부 interface 호출에 의존:
+- `IERC20(want).balanceOf()`, `IERC20(CVX).balanceOf()` → TOP
+- `LOCKER.balanceOf()` → TOP (ICvxLocker interface)
+- `wantToCVX()` → `CVX_VAULT.getPricePerFullShare()` → TOP (ISettV3 interface)
+- `totalCVXBalance`, `currentLockRatio`, `newLockRatio` 모두 TOP → line 477 비교 평가 불가
+
+---
+
+## web3bugs_16_H_04
+
+- **Contract**: Balances
+- **Function**: applyTrade
+- **Bug lines (original)**: 187
+- **Pattern**: erroneous_accounting
+- **Status**: excluded (E5: missing-dependency)
+
+### Bug Description
+`applyTrade()`에서 Long 포지션의 fee 부호가 반대:
+- Line 187: `newQuote = position.quote - quoteChange + fee` (buggy: fee를 더함)
+- Correct: `newQuote = position.quote - quoteChange - fee` (fee를 빼야 함)
+- Short 포지션(line 190)은 올바르게 `- fee` 처리
+- Report: sponsor(raymogg) confirmed
+
+### Excluded 사유
+PRBMathSD59x18.sol, PRBMathUD60x18.sol이 npm 패키지(`prb-math ^1.0.5`)로만 선언되어 있고 실제 .sol 파일이 Web3Bugs 저장소에 포함되지 않음. `using PRBMathSD59x18 for int256`, `using PRBMathUD60x18 for uint256` resolve 불가 → dependency pre-analysis 불가.
+
+---
+
+## web3bugs_62_H_01
+
+- **Contract**: Stream
+- **Function**: recoverTokens
+- **Bug lines (original)**: 654
+- **Pattern**: erroneous_accounting
+- **Status**: not_detectable (L5a: interface-call-return-top)
+
+### Bug Description
+`recoverTokens()`에서 excess depositToken 계산 시 `depositTokenFlashloanFeeAmount`을 빼지 않음. stream creator가 flashloan fee를 회수할 수 있어 governance의 fee 청구 또는 사용자 출금이 실패할 수 있음.
+- Buggy (line 654): `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)`
+- Correct: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount`
+- Report: sponsor(brockelmore) confirmed
+
+### Not Detectable 사유
+- `ERC20(token).balanceOf(address(this))` → interface 호출 → TOP
+- `excess = TOP - (storage - storage)` → TOP
+- 함수 내 storage variable 수정 없음 → @Post annotation 대상 없음
+- excess가 TOP이므로 누락된 `depositTokenFlashloanFeeAmount` 차감을 검증할 수 없음
+
+---
+
+## web3bugs_44_H_02
+- **Status**: not_detectable (interface-call-return-top)
+- **Contract**: Swap
+- **Function**: fillZrxQuote()
+- **Bug lines**: 210 (originalETHBalance), 215 (ethDelta)
+
+### Bug 설명
+`fillZrxQuote()`에서 balance snapshot을 잘못된 시점에 캡처:
+1. ETH: `originalETHBalance = address(this).balance` — 이미 `msg.value`가 포함된 상태. ETH refund가 있어도 `subOrZero(newBalance, originalETHBalance)` = 0
+2. ERC20: 같은 토큰 arb 시 `originalERC20Balance = balanceOf(this)` — 입력량이 이미 포함. delta가 실제보다 과소 계산
+- Buggy: `ethDelta = address(this).balance.subOrZero(originalETHBalance)` (originalETHBalance에 msg.value 포함)
+- Correct: `originalETHBalance = address(this).balance - msg.value`로 보정 필요
+- Report: sponsor(Shadowfiend) confirmed
+
+### Not Detectable 사유
+- `address(this).balance` — EVM 내장 글로벌, IntentChecker가 모델링하지 않음 → TOP
+- `zrxBuyTokenAddress.balanceOf(address(this))` — interface 호출 → TOP
+- `zrxTo.call{value: ethAmount}(zrxData)` — 외부 호출, side effect 불명
+- `ethDelta = TOP.subOrZero(TOP)` → TOP, `erc20Delta = TOP.subOrZero(TOP)` → TOP
+- 모든 delta 값이 TOP이므로 intent annotation 검증 불가
+
+---
+
+## web3bugs_66_H_02
+- **Status**: excluded_fixed_code
+- **Contract**: sYETIToken
+- **Function**: rebase()
+- **Bug line**: 297
+
+### 사유
+Web3Bugs repo의 코드가 이미 수정된 버전. buggy 코드에서는 `yetiTokenBalance` (whole balance)와 비교했으나, 현재 코드는 `adjustedYetiTokenBalance = yetiTokenBalance.sub(effectiveYetiTokenBalance)` (extra balance)와 비교. `_getValueOfContract` 수식도 변경됨.
+
+---
+
+## web3bugs_70_H_08
+- **Status**: not_detectable (interface-call-return-top)
+- **Contract**: VaderReserve
+- **Function**: reimburseImpermanentLoss()
+- **Bug lines**: 98, 102
+
+### Bug 설명
+IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
+- Buggy (line 98): `amount = amount / usdvPrice` — usdvPrice가 1e18 스케일 → 결과 1e18배 과소
+- Buggy (line 102): `amount = amount * vaderPrice` — vaderPrice가 1e18 스케일 → 결과 1e18배 과대
+- Correct: `amount * 1e18 / usdvPrice`, `amount * vaderPrice / 1e18`
+- Report: sponsor 미확인 (judge resolved)
+
+### Not Detectable 사유
+- `lbt.getUSDVPrice()` → `ILiquidityBasedTWAP` interface 호출 → TOP
+- `lbt.getVaderPrice()` → interface 호출 → TOP
+- `amount / TOP` → TOP, `amount * TOP` → TOP
+- 스케일링 오류(1e18 팩터 누락)를 검증할 수 없음
+
+---
+
+## web3bugs_42_H_01
+- **Status**: not_detectable (interface-call-return-top)
+- **Contract**: MochiVault
+- **Function**: borrow()
+- **Bug line**: 248 (original), 105 (contraction)
+
+### Bug 설명
+`borrow()`에서 0.5% fee를 포함한 `increasingDebt = (_amount * 1005) / 1000`으로 개별 debt를 증가시키지만, global `debts`는 fee 미포함 `_amount`로만 증가 → 개별 debt 합계와 global debts 불일치. 또한 debtIndex 계산(line 100-102)에서도 `_amount` 사용 (올바른 값: `increasingDebt`).
+- Buggy (line 105): `debts += _amount`
+- Correct: `debts += increasingDebt`
+- Report: sponsor(jonah1005) confirmed
+
+### Dependencies
+- `Float` library: `using Float for uint256` — `.multiply()`, `.divide()` 사용
+- `CheapERC20` library: `using CheapERC20 for IERC20`
+- `IMochiEngine` interface: `engine.cssr()`, `engine.mochiProfile()`, `engine.nft()`, `engine.minter()`, `engine.discountProfile()`
+- `Detail` struct: file-level struct (IMochiVault.sol) — Issue 3 해당
+
+### 추가 구현 사항
+- Issue 3: file-level struct 지원 (`struct Detail` — contract 밖 interface 파일에 정의)
+- Issue 4: `using Float for uint256`, `using CheapERC20 for IERC20` 커스텀 라이브러리 지원
+
+### Not Detectable 사유
+- `updateDebt` modifier → `accrueDebt(_id)` 호출 → `liveDebtIndex()` → `engine.mochiProfile().calculateFeeIndex(...)` interface 호출 → TOP
+- `accrueDebt` 내에서 `debts += TOP`, `details[_id].debt += TOP` → borrow() 진입 시 이미 TOP
+- borrow() 내 `engine.cssr().update()`, `engine.mochiProfile().maxCollateralFactor()` 등도 interface → TOP
+- `_amount`이 조건문(line 89-93)에서 TOP 기반 값으로 재할당 가능 → TOP
+- 모든 핵심 변수가 TOP이므로 `debts += _amount` vs `debts += increasingDebt` 차이 검증 불가
+
+---
+
+## web3bugs_42_H_05
+- **Status**: excluded (duplicate_of_42_H_01)
+- **Contract**: MochiVault
+- **Function**: borrow()
+- 42_H_01과 동일한 버그 (debts calculation 부정확)
+
+---
+
+## web3bugs_52_H_16
+- **Status**: not_detectable (interface-call-return-top)
+- **Contract**: VaderRouter
+- **Function**: calculateOutGivenIn()
+- **Bug lines**: 488-491
+
+### Bug 설명
+3-path swap에서 pool0과 pool1의 reserve 파라미터 순서가 뒤바뀜. inner calculateSwap이 pool1 reserve를 사용하고 outer가 pool0 reserve를 사용하지만, 올바르게는 inner=pool0(foreign→native), outer=pool1(native→foreign)이어야 함.
+- Buggy: `calculateSwap(calculateSwap(amountIn, nativeReserve1, foreignReserve1), foreignReserve0, nativeReserve0)`
+- Correct: `calculateSwap(calculateSwap(amountIn, foreignReserve0, nativeReserve0), nativeReserve1, foreignReserve1)`
+- Report: sponsor(SamSteinGG) confirmed
+
+### Not Detectable 사유
+- `pool0.getReserves()` → `IVaderPool` interface 호출 → nativeReserve0, foreignReserve0 = TOP
+- `pool1.getReserves()` → interface 호출 → nativeReserve1, foreignReserve1 = TOP
+- VaderMath.calculateSwap 소스는 존재하지만 입력이 모두 TOP → `calculateSwap(TOP, TOP, TOP)` = TOP
+- reserve 순서가 바뀌든 안 바뀌든 결과가 동일하게 TOP → 검증 불가

@@ -42,3 +42,26 @@
   ```
 - **Motivation case (web3bugs_3_H_04)**: `HourlyBond` struct가 contract 밖에 정의되어 있음
 - **영향 범위**: Parser/Solidity.g4 (file-level struct 문법), Analyzer (struct resolution scope 확장)
+
+## Issue 4: `using` 키워드 커스텀 라이브러리 지원
+- **현재**: `using SafeMath for uint256`만 지원 (SafeMath 내장 처리)
+- **필요**: 임의의 library에 대한 `using LibName for Type` 지원. `using`으로 바인딩된 메서드 호출을 해당 library의 internal 함수 호출로 resolve하여 분석
+- **구현 방향**: library를 dependency로 사전 정의 → `using` 선언 파싱 → `value.method(args)` 호출을 `LibName.method(value, args)`로 변환하여 library 함수 body 진입
+- **참고**: 일부 library는 function overloading 사용 (e.g., FixedPointMath의 `add(FixedDecimal, FixedDecimal)` vs `add(FixedDecimal, uint256)`). overload resolution도 필요할 수 있음
+- **해당 annotated 케이스**:
+  - web3bugs_35_H_12: `using Ticks for mapping(int24 => Ticks.Tick)`
+  - web3bugs_45_H_01: `using SafeERC20Upgradeable for IUErc20`
+  - web3bugs_112_H_01: `using AddressProviderHelpers for IAddressProvider`, `using SafeERC20 for IERC20`, `using ScaledMath for uint256`
+  - web3bugs_70_H_10: `using FixedPoint for FixedPoint.uq112x112`, `using FixedPoint for FixedPoint.uq144x112`
+  - web3bugs_56_H_02: `using FixedPointMath for FixedPointMath.FixedDecimal`, `using SafeMath for uint256`, `using SafeERC20 for IDetailedERC20`
+  - web3bugs_60_H_01: `using UFixed18Lib for UFixed18`, `using Fixed18Lib for Fixed18`
+- **영향 범위**: Parser (using 선언 파싱, method call resolution), Analyzer (library function body 진입), dependency pre-analysis (library 사전분석)
+
+## Issue 5: User-Defined Value Type 지원
+- **현재**: `type Fixed18 is int256;` 같은 user-defined value type 미지원 (추정)
+- **필요**: Solidity 0.8.8+에서 도입된 `type X is Y;` 구문 지원. 사용자 정의 타입을 underlying primitive type으로 resolve하여 분석
+- **구문**: `type Fixed18 is int256;`, `type UFixed18 is uint256;`
+- **동작**: `Fixed18.wrap(value)` → int256로, `Fixed18.unwrap(a)` → int256 추출, 타입 자체는 underlying type과 동일하게 취급
+- **해당 케이스**:
+  - web3bugs_60_H_01: `type Fixed18 is int256;`, `type UFixed18 is uint256;` (OptimisticLedgerLib에서 사용)
+- **영향 범위**: Parser (type 선언 파싱), Analyzer (타입 resolution — user-defined type을 underlying type으로 매핑), Interpreter (wrap/unwrap 처리)
