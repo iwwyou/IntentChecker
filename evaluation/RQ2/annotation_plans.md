@@ -12,34 +12,15 @@
 - **Function**: mint
 - **Bug lines (original)**: 176; 184
 - **Pattern**: erroneous_accounting
-- **Status**: contraction 대기
+- **Status**: `not_detectable,missing-state-update`
 
-### Dependencies
-**Interfaces** (6):
-- IPool, IBentoBoxMinimal, IMasterDeployer, IPositionManager, ITridentCallee, ITridentRouter
+### 버그 설명
+`mint()`에서 `liquidity`를 변경(line 176)하지만 `secondsPerLiquidity`를 업데이트하지 않음. `swap()`에서는 `secondsPerLiquidity += uint160((diff << 128) / liquidity)`로 올바르게 갱신하지만, `mint()`에서 동일한 갱신이 누락됨.
 
-**Libraries** (6):
-- DyDxMath, Ticks, FullMath, TickMath, UnsafeMath, SwapLib
-
-### Debug Annotations
-| Type | Variable | Comment |
-|------|----------|---------|
-| StateVar | secondsPerLiquidity | 유일하게 추적 가능한 상태변수 |
-
-### Debug Annotation 제한 사유
-mint 함수의 주요 파라미터가 아래 패턴으로 전달됨:
-```solidity
-MintParams memory mintParams = abi.decode(data, (MintParams));
-```
-- `data`는 `bytes calldata` → `abi.decode`로 memory struct에 할당
-- IntentChecker는 bytes 레벨 할당(abi.decode)에서 개별 struct 필드를 추적할 수 없음
-- 따라서 mintParams.lowerOld, mintParams.lower 등 함수 파라미터에 debug annotation 부여 불가
-- 만약 mapping → struct (상태변수)였다면 필드 단위 추적 가능했을 것
-
-### Intent Annotations
-| Type | Line | Expression | Expected | Comment |
-|------|------|------------|----------|---------|
-| During | 229 | Changed(secondsPerLiquidity) | violated | secondsPerLiquidity가 mint 내에서 갱신되어야 하나 실제로 안 됨 |
+### Not Detectable 사유
+- `Changed(secondsPerLiquidity)` annotation으로 표현 가능하나, "liquidity가 변경될 때 secondsPerLiquidity도 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+- `swap()`과의 일관성을 놓친 것이 버그 원인 — annotation 시점에서 그 일관성을 챙길 수 있었다면 코드에서도 챙겼을 것
+- 부가적으로, `abi.decode`로 파라미터가 전달되어 debugging annotation으로 concrete 값 설정 불가
 
 ---
 
@@ -203,7 +184,7 @@ for (uint256 i = 0; i < array.length; i++) {
 - **Function**: add
 - **Bug lines (original)**: 89 (totalAllocPoint 변경 전 massUpdatePools() 호출 누락)
 - **Pattern**: inconsistent_state_updates
-- **Status**: not_detectable (L4b: missing-call-no-effect)
+- **Status**: not_detectable (L4a: missing-call-no-effect)
 
 ### Bug Description
 `add()` 함수에서 `totalAllocPoint`을 증가시키기 전에 `massUpdatePools()`를 호출하지 않음. 기존 풀들의 `accConcurPerShare`가 이전의 `totalAllocPoint`로 갱신되지 않은 채 새로운 (더 큰) `totalAllocPoint`가 적용되어, 기존 staker들의 reward가 소급적으로 희석됨.
@@ -222,7 +203,7 @@ for (uint256 i = 0; i < array.length; i++) {
 - **Function**: deposit
 - **Bug lines (original)**: 170; 171; 172
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L4a: no-target-storage)
+- **Status**: not_detectable (L3b: no-target-storage)
 
 ### Bug Description
 `deposit()`에서 `depositFeeBP > 0`일 때 fee를 계산하여 `user.amount`에서 차감하지만, 그 fee를 받을 수신자(feeRecipient)의 `amount`를 증가시키는 코드가 없음. 결과적으로 deposit fee 만큼의 토큰이 컨트랙트에 영구 lock됨.
@@ -821,7 +802,7 @@ return 100 * holdings >= liquidationThresholdPercent * loan;  // BUG: >= should 
 
 ### 탐지 불가 사유
 
-**본질: external-call-state-unknown (L5b)**
+**본질: external-call-state-unknown (L2b)**
 
 `belowMaintenanceThreshold` → `loanInPeg` / `holdingsInPeg` → `sumTokensInPegWithYield` (loop) → `yieldTokenInPeg` → 외부 컨트랙트 호출:
 
@@ -899,7 +880,7 @@ if (aNew == a){     // We have used the correct A
 
 ### 탐지 불가 사유
 
-**본질: inexpressible-expected-value (L6)**
+**본질: inexpressible-expected-value (L3a)**
 
 **1. 질적 차이 없음**
 
@@ -971,7 +952,7 @@ imbalanced liquidity 추가로 토큰 비율이 역전되면 (`xp[0] < xp[1]` �
 
 ### 탐지 불가 사유
 
-**본질: inexpressible-expected-value (L6)**
+**본질: inexpressible-expected-value (L3a)**
 
 **1. 질적 차이 없음**
 
@@ -1017,7 +998,7 @@ imbalanced liquidity 추가로 토큰 비율이 역전되면 (`xp[0] < xp[1]` �
 
 `ExchangePair` struct와 `Paths` enum은 `ILiquidityBasedTWAP` 인터페이스에 정의됨. `LiquidityBasedTWAP is ILiquidityBasedTWAP`로 상속.
 
-- 이것은 L5(cross-deployment-call-top)와 **다름** — 외부 함수 호출이 아니라 **타입 상속**
+- 이것은 L2(cross-deployment-call-top)와 **다름** — 외부 함수 호출이 아니라 **타입 상속**
 - `twapData`는 target contract 자체의 storage → annotation scope 안
 - 사전분석(dependency pre-analysis)에서 인터페이스의 struct/enum 정의를 resolve하면 됨
 
@@ -1130,7 +1111,7 @@ for (uint256 i = 0; i < baseTvls.length; i++) {
 
 min-finding 패턴으로 accumulation(`+=`)이 아님. monotonically non-increasing → widening 대상 아님. **루프는 blocker가 아님.**
 
-### Not Detectable 사유: interface-call-return-top (L5a)
+### Not Detectable 사유: interface-call-return-top (L2a)
 
 `_chargeFees`에 전달되는 핵심 데이터가 모두 interface call에서 유래:
 
@@ -1433,7 +1414,7 @@ function transfer(address account, uint256 amount) external override notPaused r
 ### Bug Description
 `_nonOptimalMintFee`에서 optimal deposit ratio를 `(_amount0 * _reserve1) / _reserve0`으로 계산하는데, 이는 constant-product AMM 공식. HybridPool은 stableswap 방식이므로 optimal ratio가 reserve 비율과 다름 (amplification parameter A에 의해 커브가 flat). 결과적으로 fee가 과대/과소 계산됨.
 
-### Not Detectable 사유 (L6)
+### Not Detectable 사유 (L3a)
 - 올바른 optimal ratio는 stableswap invariant D에 의존하며, D는 Newton's method 반복(loop)으로 계산됨
 - 올바른 fee 값을 프로그램 내 기존 변수의 산술 조합으로 표현할 수 없음
 - fee의 크기 자체는 정상 범위(0 ~ swapFee) 내에 있어 단순 bound annotation으로 구분 불가
@@ -1584,7 +1565,7 @@ Single asset entry 시 LP 토큰 수량(ΔRo) 계산을 위한 gamma(γ) 공식�
 - **Function**: manualRebalance
 - **Bug lines (original)**: 469; 471; 477
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L5a: interface-call-return-top)
+- **Status**: not_detectable (L2a: interface-call-return-top)
 
 ### Bug Description
 `manualRebalance()`에서 두 변수의 단위가 다른데 비교함:
@@ -1629,7 +1610,7 @@ PRBMathSD59x18.sol, PRBMathUD60x18.sol이 npm 패키지(`prb-math ^1.0.5`)로만
 - **Function**: recoverTokens
 - **Bug lines (original)**: 654
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L5a: interface-call-return-top)
+- **Status**: not_detectable (L2a: interface-call-return-top)
 
 ### Bug Description
 `recoverTokens()`에서 excess depositToken 계산 시 `depositTokenFlashloanFeeAmount`을 빼지 않음. stream creator가 flashloan fee를 회수할 수 있어 governance의 fee 청구 또는 사용자 출금이 실패할 수 있음.
@@ -1756,3 +1737,549 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - `pool1.getReserves()` → interface 호출 → nativeReserve1, foreignReserve1 = TOP
 - VaderMath.calculateSwap 소스는 존재하지만 입력이 모두 TOP → `calculateSwap(TOP, TOP, TOP)` = TOP
 - reserve 순서가 바뀌든 안 바뀌든 결과가 동일하게 TOP → 검증 불가
+
+---
+
+## web3bugs_5_H_15
+
+- **Contract**: Router
+- **Function**: swapWithSynthsWithLimit
+- **Bug line**: 142 (contraction 기준)
+- **Bug**: Token→Token 스왑 시 두 번째 slippage check에서 첫 스왑의 base output 대신 원래 `inputAmount`를 사용
+- Buggy (line 142): `iUTILS(UTILS()).calcSwapSlip(inputAmount, iPOOLS(POOLS).getBaseAmount(outputToken))`
+- Correct: `iUTILS(UTILS()).calcSwapSlip(firstSwapOutput, iPOOLS(POOLS).getBaseAmount(outputToken))`
+- 첫 번째 스왑(line 138)의 return value가 미사용됨
+- Report: sponsor(strictly-scarce) confirmed
+
+### Not Detectable 사유
+- `iPOOLS(POOLS).isAnchor(...)` → interface call → 분기 조건 TOP
+- `iPOOLS(POOLS).getTokenAmount(...)` → interface call → TOP
+- `iPOOLS(POOLS).swap(...)` → interface call → 첫 스왑 결과 TOP
+- `iUTILS(UTILS()).calcSwapSlip(...)` → interface call → slippage 계산 결과 TOP
+- `iPOOLS(POOLS).getBaseAmount(...)` → interface call → TOP
+- 파라미터(`inputAmount`, `slipLimit`)는 LocalVar로 알 수 있으나, `calcSwapSlip` 자체가 interface call이라 결과 TOP → `require(TOP <= slipLimit)` 판정 불가
+
+---
+
+## web3bugs_61_H_01
+
+- **Contract**: CreditLine
+- **Function**: _borrowTokensToLiquidate
+- **Bug line**: 1050 (original 기준)
+- **Bug**: `IPriceOracle(priceOracle).getLatestPrice(_borrowAsset, _collateralAsset)` — 인자 순서가 반대
+- Buggy: `getLatestPrice(_borrowAsset, _collateralAsset)` → borrow/collateral 비율
+- Correct: `getLatestPrice(_collateralAsset, _borrowAsset)` → collateral/borrow 비율
+- collateral를 borrow token으로 환산하려면 collateral/borrow 비율이 필요
+- Report: sponsor(ritik99) confirmed
+
+### Not Detectable 사유
+- `IPriceOracle(priceOracle).getLatestPrice(...)` → interface call → `_ratioOfPrices`, `_decimals` = TOP
+- `_borrowTokens = _totalCollateralTokens * ... * TOP / TOP` → TOP
+- 인자 순서가 바뀌든 안 바뀌든 interface call 결과는 동일하게 TOP → 검증 불가
+
+---
+
+## web3bugs_14_H_01
+
+- **Contract**: IdleYieldSource
+- **Function**: redeemToken
+- **Bug line**: 131 (original 기준)
+- **Bug**: `redeemIdleToken(redeemedShare)` — `redeemedShare` 대신 `redeemAmount`를 전달해야 함
+- `redeemedShare = _tokenToShares(redeemAmount)` = `(redeemAmount * ONE_IDLE_TOKEN) / _price()`
+- `_price()` > `ONE_IDLE_TOKEN`이면 `redeemedShare < redeemAmount` → 사용자가 더 적은 토큰 수령
+- Report: sponsor(PierrickGT) confirmed and patched
+
+### Not Detectable 사유
+- `_price()` = `IIdleToken(idleToken).tokenPriceWithFee(...)` → interface call → TOP
+- `redeemedShare = (redeemAmount * ONE_IDLE_TOKEN) / TOP` → TOP
+- `redeemIdleToken(TOP)` → interface call → `redeemedUnderlyingAsset` = TOP
+- `DuringFunctionArg`로 `redeemIdleToken.arg[0] == redeemAmount` 검증 시도해도, 실제 전달값 `redeemedShare`가 이미 TOP → `TOP == redeemAmount` → 위반 감지 불가
+
+---
+
+## web3bugs_29_H_11
+
+- **Contract**: ConstantProductPool
+- **Function**: burnSingle
+- **Bug line**: 175; 183 (original 기준)
+- **Bug**: swap 계산 시 `_reserve`를 사용했지만 `balance`를 사용해야 함
+- Buggy (175): `_getAmountOut(amount0, _reserve0 - amount0, _reserve1 - amount1)`
+- Correct: `_getAmountOut(amount0, balance0 - amount0, balance1 - amount1)`
+- `burn` 후에는 reserve가 balance로 업데이트되므로 balance 기준이 맞음
+- Report: sponsor(maxsam4) confirmed, severity bumped to High
+
+### Not Detectable 사유
+- `balance0`, `balance1` → `_balance()` → `bento.staticcall(...)` → raw staticcall to 외부 컨트랙트 → TOP
+- `amount0 = (liquidity * TOP) / _totalSupply` → TOP
+- `amount1 = (liquidity * TOP) / _totalSupply` → TOP
+- `_getAmountOut(TOP, _reserve0 - TOP, _reserve1 - TOP)` → 입력 TOP → 결과 TOP
+- `_getAmountOut`은 내부 함수(분석 가능)이지만 입력이 모두 TOP이라 결과도 TOP
+- `_reserve`를 쓰든 `balance`를 쓰든 동일하게 TOP → 구분 불가
+
+---
+
+## web3bugs_16_H_02
+
+- **Contract**: Pricing
+- **Function**: updateFundingRate (internal, called from recordTrade)
+- **Bug Lines**: 155, 159
+- **Status**: `excluded,multi-transaction`
+
+### 버그 설명
+`updateFundingRate()`에서 cumulative funding rate를 계산할 때 `fundingRates[currentFundingIndex]`를 읽어 이전 cumulative 값을 가져옴. 그러나 이전 호출에서 `setFundingRate`가 같은 인덱스에 쓴 후 `currentFundingIndex += 1`로 증가시켰으므로, 현재 호출에서 새 인덱스(미초기화 슬롯)를 읽게 됨 → cumulative 값이 항상 0 + 신규 rate = 신규 rate만 남음.
+
+```solidity
+// line 155: fundingRates[currentFundingIndex] → 미초기화 슬롯 읽기 (0)
+int256 currentFundingRateValue = fundingRates[currentFundingIndex].cumulativeFundingRate;
+int256 cumulativeFundingRate = currentFundingRateValue + newFundingRate; // 0 + new = new (이전 cumulative 손실)
+
+// line 159: 동일 문제
+int256 currentInsuranceFundingRateValue = insuranceFundingRates[currentFundingIndex].cumulativeFundingRate;
+
+// line 163-165: 같은 인덱스에 쓰기
+setFundingRate(newFundingRate, cumulativeFundingRate);
+setInsuranceFundingRate(iPoolFundingRate, iPoolFundingRateValue);
+
+// line 168: 인덱스 증가 → 다음 호출에서 미초기화 슬롯 읽기 유발
+currentFundingIndex = currentFundingIndex + 1;
+```
+
+### Excluded 사유: multi-transaction
+- `updateFundingRate`는 `internal`이고, `recordTrade` (external)에서만 호출됨
+- 각 `recordTrade` 호출은 별도 트랜잭션
+- 버그 발현 조건: 이전 트랜잭션에서 `currentFundingIndex`가 증가된 상태에서 현재 트랜잭션이 미초기화 슬롯을 읽음
+- 첫 번째 호출(index=0)은 정상 (초기값 0이 올바름), 두 번째+ 호출부터 cumulative 손실 발생
+- IntentChecker는 single-transaction 분석 → 트랜잭션 간 상태 변화 추적 불가
+
+---
+
+## web3bugs_51_H_03
+
+- **Contract**: SwapUtils (library)
+- **Function**: _xp (두 오버로드)
+- **Bug Lines**: 666, 676
+- **Status**: `excluded,multi-transaction`
+
+### 버그 설명
+`_xp()` 함수들이 `self.tokenPrecisionMultipliers` (저장된 값)를 직접 사용하지만, 올바른 동작은 `_getTargetPricePrecise()`로 현재 `block.timestamp` 기반 보간된 target price를 실시간 계산하여 multiplier를 구해야 함. 저장된 multiplier는 `rampTargetPrice()` / `stopRampTargetPrice()` 호출 시점에만 갱신되므로, ramp 기간 중에는 stale한 값 사용.
+
+### Excluded 사유: multi-transaction
+- `rampTargetPrice()` 호출 (tx1)에서 multiplier 설정
+- 이후 swap/addLiquidity 등 (tx2~N)에서 `_xp()`가 stale multiplier 사용
+- multiplier의 "staleness"는 트랜잭션 간 시간 경과(`block.timestamp` 변화)에 의해 발생
+- 단일 트랜잭션 내에서 `tokenPrecisionMultipliers`는 단순히 이전 tx에서 설정된 상태값일 뿐, "stale 여부"를 판단할 수 없음
+
+---
+
+## web3bugs_5_H_12
+
+- **Contract**: Pools
+- **Function**: getAddedAmount (internal)
+- **Bug Line**: 201
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`getAddedAmount(address _token, address _pool)`의 else branch에서 `addedAmount = _balance - mapToken_tokenAmount[_pool]` 수행. `_token != _pool`일 때 `_token`의 balance에서 다른 풀(`_pool`)의 저장량을 빼므로 잘못된 결과 반환. `sync(token1, token2)` 등으로 악용하여 accounting 파괴 가능.
+
+### Not Detectable 사유
+- `_balance = iERC20(_token).balanceOf(address(this))` → interface call → TOP
+- `addedAmount = TOP - mapToken_tokenAmount[_pool]` → TOP
+- 올바른 값(`balance - mapToken_tokenAmount[_token]`)과 잘못된 값(`balance - mapToken_tokenAmount[_pool]`) 모두 TOP → 구분 불가
+- 호출자(`sync`, `swap`, `addLiquidity`, `mintSynth`)에서의 state 변경도 TOP에 기반하여 모두 TOP
+
+---
+
+## web3bugs_16_H_06
+
+- **Contract**: GasOracle
+- **Function**: latestAnswer
+- **Bug Line**: 32, 33, 35
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`latestAnswer()`에서 `gasOracle.latestAnswer()`(line 32)와 `priceOracle.latestAnswer()`(line 33)의 raw 값을 `toWad()`으로 18 decimals 변환 없이 바로 `PRBMathUD60x18.mul()`(line 35)에 전달. Chainlink oracle의 decimals가 18이 아닐 경우 결과값 스케일이 잘못됨. `toWad()` 함수가 존재하지만 호출되지 않음.
+
+### Not Detectable 사유
+- `gasOracle.latestAnswer()` → `IChainlinkOracle` interface call → TOP
+- `priceOracle.latestAnswer()` → `IChainlinkOracle` interface call → TOP
+- `PRBMathUD60x18.mul(TOP, TOP)` → TOP
+- result가 TOP이므로 스케일 오류 여부를 annotation으로 검증 불가
+
+---
+
+## web3bugs_14_H_03
+
+- **Contract**: BadgerYieldSource
+- **Function**: balanceOfToken
+- **Bug Line**: 36
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`balanceOfToken()`에서 `badger.balanceOf(address(badgerSett))`(line 36)는 Sett 컨트랙트에 물리적으로 보유된 badger만 반환하여 strategy에 deploy된 자금을 미포함. 올바른 구현은 `badgerSett.balance()`로 전체 잔액(Sett + Controller + Strategy)을 사용해야 함. 결과적으로 사용자의 실제 잔액을 과소 보고.
+
+### Not Detectable 사유
+- `badgerSett.totalSupply()` → `IBadgerSett` interface call → TOP
+- `badger.balanceOf(address(badgerSett))` → `IBadger` interface call → TOP
+- `balances[addr].mul(TOP).div(TOP)` → TOP
+- 올바른 구현(`badgerSett.balance()`)도 interface call → TOP → 두 값 구분 불가
+
+---
+
+## web3bugs_25_H_05
+
+- **Contract**: CTokenMultiOracle
+- **Function**: _setSource
+- **Bug Line**: 110
+- **Status**: `not_detectable,inexpressible-expected-value`
+
+### 버그 설명
+`_setSource()`(line 110)에서 `decimals_`를 18로 하드코딩. 그러나 Compound의 exchange rate는 `1 * 10^(18 - 8 + underlyingTokenDecimals)`로 스케일되므로, 올바른 decimals는 `10 + underlyingTokenDecimals`(예: USDC=16, DAI=28). 잘못된 decimals가 `_peek()`/`_get()`의 가격 스케일링 계산에 사용되어 가격 오류 발생.
+
+### Not Detectable 사유
+- 버기 값: `decimals_ = 18` (하드코딩된 상수)
+- 올바른 값: `18 - 8 + underlyingTokenDecimals` — `underlyingTokenDecimals`는 코드 내에 존재하지 않는 변수
+- 올바른 값을 구하려면 `CToken.underlying()` → `IERC20.decimals()` 같은 현재 코드에 없는 새로운 중간 계산이 필요
+- 프로그램 내 기존 변수들의 산술 조합으로 올바른 decimals를 표현할 수 없음 (L3a)
+
+---
+
+## web3bugs_61_H_04
+
+- **Contract**: YearnYield
+- **Function**: getTokensForShares
+- **Bug Line**: 180
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`getTokensForShares()`(line 180)에서 `IyVault.getPricePerFullShare()`의 결과를 `1e18`로 나누지만, Yearn의 `getPricePerFullShare()`는 `vault.decimals()` precision(= underlying token decimals)으로 반환. 올바른 구현은 `div(10 ** vault.decimals())`. 18 decimals가 아닌 토큰(e.g. USDC=6)에서 변환 오류 발생.
+
+### Not Detectable 사유
+- `IyVault(liquidityToken[asset]).getPricePerFullShare()` → `IyVault` interface call → TOP
+- `TOP.mul(shares).div(1e18)` → TOP
+- 올바른 구현(`TOP.mul(shares).div(10 ** vault.decimals())`)도 TOP (`vault.decimals()`도 interface call)
+- 버그 라인 자체에 interface call이 있어 결과가 직접 TOP (L2a)
+
+---
+
+## web3bugs_79_H_02
+
+- **Contract**: LaunchEvent
+- **Function**: createPair
+- **Bug Line**: 398
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`createPair()`(line 398)에서 floor price 미달 시 `tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice`로 계산. `floorPrice`는 1e18 스케일이므로 올바른 계산은 `wavaxReserve * 1e18 / floorPrice`. 18 decimals 아닌 토큰(e.g. WBTC=8)에서 심각한 오류 발생.
+
+### Not Detectable 사유
+- `token.decimals()` → `IERC20Metadata` interface call → TOP
+- `10 ** TOP` → TOP → `wavaxReserve * TOP / floorPrice` → TOP
+- `tokenAllocated = TOP`이므로 올바른 값(`wavaxReserve * 1e18 / floorPrice`, 표현 가능)과 비교 불가 (L2a)
+
+---
+
+## web3bugs_29_H_08
+
+- **Contract**: HybridPool
+- **Function**: _getReserves
+- **Bug Line**: 255, 256
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`_updateReserves()`에서 `_balance()`가 이미 BentoBox shares→amounts 변환한 값을 `reserve0`/`reserve1`에 저장. 그런데 `_getReserves()`(lines 255-256)에서 이미 amounts인 reserves를 `_toAmount()`으로 다시 변환 (double conversion). 모든 swap/mint/burn에서 잘못된 reserve 사용.
+
+### Not Detectable 사유
+- `_toAmount()` → `bento.staticcall(...)` (low-level external call) → TOP
+- `_balance()` → `__balance()` + `_toAmount()` → 둘 다 `bento.staticcall` → TOP
+- `_updateReserves()`: `reserve0 = uint128(TOP)` → storage에 TOP
+- `_getReserves()`: `_toAmount(token0, TOP)` → TOP
+- 모든 경로에서 external call이 TOP 반환 → "한 번 변환"과 "두 번 변환" 구분 불가 (L2a)
+
+---
+
+## web3bugs_78_H_02
+
+- **Contract**: RebaseProxy
+- **Function**: mint
+- **Bug Line**: 36
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`mint()`(line 36)에서 `proxy = (baseBalance * ONE) / _redeemRate`로 계산하지만, `baseBalance`는 transfer 후의 전체 잔액(기존 잔액 포함). 올바른 구현은 `(amount * ONE) / _redeemRate` (입금한 금액 기준). 기존 잔액이 있으면 과다 mint 발생.
+
+### Not Detectable 사유
+- `redeemRate()` 내부 `IERC20(baseToken).balanceOf(address(this))` → interface call → TOP → `_redeemRate = TOP`
+- `baseBalance = IERC20(baseToken).balanceOf(address(this))` → interface call → TOP
+- `proxy = (TOP * ONE) / TOP` → TOP
+- 올바른 구현도 `(amount * ONE) / TOP` → TOP (`_redeemRate`가 TOP이므로)
+- 두 계산 모두 interface call로 인해 TOP → 구분 불가 (L2a)
+
+---
+
+## web3bugs_101_H_01
+
+- **Contract**: LenderPool
+- **Function**: _calculatePrincipalWithdrawable
+- **Bug Line**: 678, 679, 680
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`_calculatePrincipalWithdrawable()`에서 `borrowLimit`(line 678)와 `totalSupply[_id]`가 다를 수 있음. `start()`에 non-zero start fee 적용 시 `borrowLimit = totalSupply - fee`로 설정됨. `_principalWithdrawable = (borrowLimit - principal) * lenderBalance / borrowLimit`에서 `lenderBalance > borrowLimit`이면 실제 가용량 초과하여 withdrawal 실패.
+
+### Not Detectable 사유
+- `POOLED_CREDIT_LINE.getPrincipal(_id)` → `IPooledCreditLine` interface call → TOP
+- `_totalLiquidityWithdrawable = _borrowedTokens.sub(TOP)` → TOP
+- `_principalWithdrawable = TOP.mul(balanceOf).div(_borrowedTokens)` → TOP
+- interface call로 인해 결과 TOP → 올바른 값과 비교 불가 (L2a)
+
+---
+
+## web3bugs_101_H_02
+
+- **Contract**: LenderPool
+- **Function**: terminate
+- **Bug Line**: 389, 400
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`terminate()`에서 `_actualNotBorrowedInShares`(line 389)를 token/share 혼합 계산으로 구하고, `_totalInterestInShares`와 합쳐 `withdrawShares`(line 400)에 전달. token amount와 share를 혼합하여 잘못된 값 산출. 올바른 구현은 단순히 `_sharesHeld`를 직접 사용하여 전체 shares를 출금하는 것.
+
+### Not Detectable 사유
+- `POOLED_CREDIT_LINE.getPrincipal(_id)` → `IPooledCreditLine` interface call → TOP
+- `IYield(_strategy).getSharesForTokens(TOP, _borrowAsset)` → `IYield` interface call → TOP
+- `_totalInterestInShares = _sharesHeld.sub(TOP)` → TOP
+- `_actualNotBorrowedInShares = TOP * totalSupply / _borrowedTokens` → TOP
+- 다수의 interface call로 인해 모든 중간 계산이 TOP → 올바른 값(`_sharesHeld`)과 비교 불가 (L2a)
+
+---
+
+## web3bugs_192_H_01
+
+- **Contract**: Lock
+- **Function**: extendLock
+- **Bug Line**: 90, 91 (original)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`extendLock()`에서 토큰을 전송받지만(`transferFrom`, line 90) `totalLocked[_asset] += _amount` 업데이트가 누락됨. 이후 `release()` 호출 시 `totalLocked[asset] -= lockAmount`에서 underflow 발생하여 자금이 영구 잠김.
+
+### Not Detectable 사유
+- `extendLock()` 내에 잘못된 numeric 연산이 아니라, 있어야 할 `totalLocked[_asset] += _amount` 코드가 누락됨
+- `totalLocked[_asset] Changed` 또는 `Before < After` post-condition으로 표현 가능하나, 이 annotation을 쓰려면 "totalLocked가 업데이트되어야 한다"는 사실을 이미 인지해야 함
+- `lock()`에서는 올바르게 `totalLocked += _amount`를 수행하지만, 개발자가 `extendLock()`에서 동일 업데이트가 필요하다는 일관성을 놓친 것이 버그의 원인 → 버그 인지 전제 (L4c)
+
+---
+
+## web3bugs_36_H_02
+
+- **Contract**: Basket
+- **Function**: auctionBurn
+- **Bug Line**: 105 (original)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`auctionBurn()`에서 `_burn()` 후 `ibRatio` 업데이트가 누락됨. `handleFees()`에서 fee에 의한 `ibRatio` 업데이트는 수행하지만, burn에 의한 supply 감소에 대한 `ibRatio = ibRatio * startSupply / (startSupply - amount)` 업데이트가 없음. 이후 다른 사용자의 `burn()` 호출 시 `pushUnderlying()`에서 낮은 ibRatio로 인해 받는 underlying token이 줄어듦.
+
+### Not Detectable 사유
+- `auctionBurn()` 내 `_burn()` 연산 자체는 올바름. 누락된 것은 burn 후 `ibRatio` 업데이트 코드
+- `handleFees()`가 이미 `ibRatio`를 변경하므로 단순 `Changed` annotation은 만족됨. burn에 의한 추가 업데이트가 필요하다는 것을 알아야 더 정밀한 annotation 작성 가능
+- `burn()`에서는 `handleFees()` → `pushUnderlying()` → `_burn()` 순서로 ibRatio 반영이 자연스럽지만, `auctionBurn()`에서는 별도 업데이트가 필요하다는 일관성을 놓친 것 → 버그 인지 전제 (L4c)
+
+---
+
+## web3bugs_65_H_01
+
+- **Contract**: Basket
+- **Function**: handleFees
+- **Bug Line**: 136, 137 (original)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`handleFees()`에서 `startSupply == 0`일 때 `return;`으로 즉시 반환하면서 `lastFee = block.timestamp` 업데이트 누락. 이후 다시 mint/burn 시 stale `lastFee`로 fee를 계산하여, supply가 0이었던 기간에 대해서도 fee 부과.
+
+### Not Detectable 사유
+- `handleFees()`의 3개 분기 중 2개(`lastFee == 0`, 정상 `else`)는 `lastFee = block.timestamp`를 수행하지만, `startSupply == 0` 분기에서만 누락
+- `lastFee Changed` post-condition으로 표현 가능하나, "supply가 0이어도 lastFee는 항상 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+
+---
+
+## web3bugs_62_H_03
+
+- **Contract**: Stream
+- **Function**: recoverTokens (bug line 672), root cause: claimReward
+- **Bug Line**: 672 (original, 증상 발현 지점)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`claimReward()`에서 reward token을 전송(line 575)하면서 `rewardTokenAmount`를 감소시키지 않음. `rewardTokenAmount`는 `fundStream()`에서만 증가. 이후 `recoverTokens()`에서 `excess = balanceOf(this) - (rewardTokenAmount + rewardTokenFeeAmount)` 계산 시, stale한 `rewardTokenAmount`로 인해 excess가 underflow 또는 0이 되어 토큰 회수 불가.
+
+### Not Detectable 사유
+- Root cause는 `claimReward()`에서 `rewardTokenAmount -= rewardAmt` 누락 (missing state update)
+- `rewardTokenAmount Changed` 또는 `Before > After` post-condition으로 표현 가능하나, "reward 전송 시 rewardTokenAmount를 감소시켜야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+- Bug line 672 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
+
+---
+
+## web3bugs_62_H_10
+
+- **Contract**: Stream
+- **Function**: recoverTokens (bug line 654), root cause: creatorClaimSoldTokens
+- **Bug Line**: 654 (original, 증상 발현 지점)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`creatorClaimSoldTokens()`에서 deposit token을 전송(line 597)하면서 `depositTokenAmount`이나 `redeemedDepositTokens`를 업데이트하지 않음. 이후 `recoverTokens()`에서 `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)` 계산 시, stale한 값으로 인해 underflow 또는 잘못된 excess 산출.
+
+### Not Detectable 사유
+- Root cause는 `creatorClaimSoldTokens()`에서 `redeemedDepositTokens = depositTokenAmount` 또는 `depositTokenAmount = 0` 누락 (missing state update)
+- 62_H_03과 동일 패턴: 토큰 전송 함수에서 tracking variable 미업데이트
+- Annotation 표현 가능하나 버그 인지 전제 (L4c)
+- Bug line 654 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
+
+---
+
+## web3bugs_35_H_10
+
+- **Contract**: ConcentratedLiquidityPool
+- **Function**: burn
+- **Bug Line**: 217 (original)
+- **Status**: `not_detectable,missing-state-update`
+
+### 버그 설명
+`burn()`에서 position을 제거할 때 `reserve0 -= amount0fees` / `reserve1 -= amount1fees`로 fee 금액만 차감하고 실제 liquidity 제거 금액(`amount0`, `amount1`)을 차감하지 않음. 이후 `reserve` 기반 계산이 부풀려진 reserve 값을 사용하여 가격/유동성 왜곡 발생.
+
+### Not Detectable 사유
+- `reserve0 -= amount0` 코드가 누락된 missing state update (L4c)
+- `@Post reserve0 == Before(reserve0) - amount0` annotation으로 표현 가능하나, "burn 시 amount0만큼 reserve를 차감해야 한다"는 것을 알아야 작성 가능 → 버그 인지 전제
+- 부가적으로, `abi.decode`로 파라미터(`lower`, `upper`, `amount`, `recipient`, `unwrapBento`)가 전달되어 debugging annotation으로 concrete 값 설정 불가 → 모든 decoded 변수가 TOP
+
+---
+
+## web3bugs_35_H_08
+
+- **Contract**: ConcentratedLiquidityPool
+- **Function**: mint, burn
+- **Bug Lines (original)**: 176 (mint), 242 (burn)
+- **Status**: `not_detectable,unsupported-construct-top`
+
+### 버그 설명
+`mint()`과 `burn()`에서 liquidity 업데이트 조건이 `priceLower < currentPrice && currentPrice < priceUpper`로 strict inequality를 사용. `priceLower == currentPrice` (현재 가격이 position 하한과 정확히 일치)일 때 liquidity가 업데이트되지 않아 swap 금액 왜곡. 올바른 조건은 `priceLower <= currentPrice`.
+
+### Not Detectable 사유
+- **Primary blocker: abi.decode → TOP (L8)**
+  - `mint()` line 142: `abi.decode(data, (MintParams))` → 모든 mint 파라미터 TOP
+  - `burn()` line 232-235: `abi.decode(data, ...)` → 모든 burn 파라미터 TOP
+  - `priceLower = TickMath.getSqrtRatioAtTick(TOP)` → TOP
+  - 조건 `TOP < concrete` → 양쪽 분기 모두 탐색 → 경계값 edge case 구분 불가
+- **Even without abi.decode**: `priceLower == currentPrice`라는 정확한 경계값을 debug annotation으로 설정해야 하며, 일반적 범위 설정으로는 잡히지 않는 edge case
+- 같은 컨트랙트의 35_H_10, 35_H_12도 abi.decode secondary blocker 보유
+
+---
+
+## web3bugs_113_H_05
+
+- **Contract**: NFTPairWithOracle
+- **Function**: _lend
+- **Bug Line (original)**: 316
+- **Status**: `not_detectable,wrong-validation-operator`
+
+### 버그 설명
+`_lend()`의 require 조건에서 `params.ltvBPS >= accepted.ltvBPS`로 검사하지만, lender 입장에서 낮은 LTV가 유리하므로 `params.ltvBPS <= accepted.ltvBPS`가 올바름. 예: borrower가 86% LTV를 요청하고 lender가 80%까지만 수용했는데, buggy 코드는 86%로 대출 실행 → lender에게 불리.
+
+### Not Detectable 사유
+- **Require 조건의 wrong operator (L4d)**: `>=` 대신 `<=`여야 하지만, require 자체가 직관적 검증문이라 annotation 대상이 아님. 올바른 조건을 During annotation으로 별도 표현 가능하나, 이미 작성된 require를 redundant하게 재검증하는 것은 해당 require가 틀렸음을 인지해야 함 → 버그 인지 전제
+- **Buggy 파라미터가 후속 computation에 미반영**: `ltvBPS`는 require 체크에서만 사용되고 이후 금액 계산(`totalShare`, `openFeeShare`, `protocolFeeShare`)은 모두 `params.valuation` 기반 → ltvBPS 불일치가 state variable에 반영되지 않음
+- **부가 blocker (L2a)**: `feesEarnedShare += protocolFeeShare`에서 `bentoBox.toShare()` interface call → TOP
+- ltvBPS의 실질적 효과는 별도 함수 `removeCollateral()`의 청산 threshold에서 나타남 (별도 트랜잭션)
+
+---
+
+## web3bugs_61_H_02
+
+- **Contract**: SavingsAccountUtil (library)
+- **Function**: savingsAccountTransfer
+- **Bug Lines (original)**: 75, 77, 79
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`savingsAccountTransfer()`이 `_savingsAccount.transfer()`/`transferFrom()`의 실제 반환값(shares)을 무시하고 입력 파라미터 `_amount`를 그대로 반환. price per share ≠ 1일 때 실제 shares와 _amount가 다르므로, 호출측에서 잘못된 shares 수량이 기록되어 자금 손실 발생 (cancelPool 실패, 청산 실패 등).
+
+### Not Detectable 사유
+- `_savingsAccount`는 `ISavingsAccount` interface → `transfer()`/`transferFrom()` 반환값 = TOP (L2a)
+- 올바른 return 값은 interface call 반환값이므로 annotation으로 비교 불가
+- 부가적으로 `SavingsAccountUtil`은 library로 자체 storage variable 부재
+
+---
+
+## web3bugs_110_H_01
+
+- **Contract**: StakedCitadel
+- **Function**: balance
+- **Bug Lines (original)**: 293, 294
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`balance()`가 `token.balanceOf(address(this))`(vault 잔액)만 반환하고 `IStrategy(strategy).balanceOf()`(strategy 잔액)을 누락. 올바른 구현은 vault + strategy 합산. 이 값이 `_depositFor`, `_withdraw`, `_handleFees` 등 전체 accounting에 사용되어 shares mint/burn 계산이 심각하게 왜곡됨.
+
+### Not Detectable 사유
+- `token.balanceOf(address(this))` — `IERC20Upgradeable` interface call → TOP (L2a)
+- 누락된 `IStrategy(strategy).balanceOf()` — `IStrategy` interface call → TOP (L2a)
+- 양쪽 모두 TOP이므로 buggy/correct 구분 불가
+- `balance()` → TOP이 `_depositFor`, `_withdraw`, `_handleFees`에 전파되어 모든 shares 계산이 TOP
+
+---
+
+## web3bugs_58_H_04
+
+- **Contract**: AaveVault
+- **Function**: tvl (line 47), _push, _pull
+- **Bug Line (original)**: 47
+- **Status**: `not_detectable,interface-call-return-top`
+
+### 버그 설명
+`tvl()`이 cached `_tvls` 배열을 반환. `_push()`에서 `updateTvls()`가 Aave lending pool deposit **후에** 호출되어, 호출측(LPIssuer)이 old tvl 기준으로 shares를 계산. Aave의 rebasing aToken 이자가 반영되기 전의 tvl로 과다한 shares 발행 → attacker가 이자 탈취 가능.
+
+### Not Detectable 사유
+- `updateTvls()` 내부: `_tvls[i] = IERC20(_aTokens[i]).balanceOf(address(this))` — interface call → TOP (L2a)
+- `_lendingPool().deposit(...)` — `ILendingPool` interface call → TOP
+- `_tvls` 값이 모두 TOP → stale/fresh tvl 구분 불가
+- 버그의 본질은 operation ordering (tvl read → deposit → tvl update)이며, cross-function/cross-contract 시나리오로 single-function annotation 범위 밖
+
+---
+
+## web3bugs_47_H_02
+
+- **Contract**: WrappedIbbtcEth
+- **Function**: transferFrom
+- **Bug Line (original)**: 111
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated`
+
+### 버그 설명
+`transferFrom()`에서 `amount`를 `amountInShares`로 변환 후 `_transfer`에 전달하는 것은 정상이나, `_approve` 호출 시 allowance 차감도 `amountInShares`로 수행. allowance는 balance 단위(rebalanced amount)인데 shares 단위로 차감하므로, `pricePerShare > 1e18`일 때 차감량이 적어져 spender가 승인량 이상을 전송 가능.
+
+### Annotation 계획
+
+**Contraction**: `target_contracts_contraction/web3bugs_47_H_02.sol` (29 lines)
+- `balanceToShares()` + `transferFrom()` 포함
+
+**Dependencies**:
+- `47_ERC20Upgradeable.sol`: `_transfer`, `_approve`, `_allowances`, `_balances`
+- `47_SafeMathUpgradeable.sol`: `.mul()`, `.div()`, `.sub()`, `.add()`
+- `47_ContextUpgradeable.sol`: `_msgSender()` → `msg.sender`
+- `47_Initializable.sol`, `47_IERC20Upgradeable.sol`, `47_AddressUpgradeable.sol`, `ICore.sol`
+
+**Debug annotations (line 22, transferFrom 시작)**:
+- `// @LocalVar sender = symbolicAddress 1`
+- `// @LocalVar recipient = symbolicAddress 2`
+- `// @LocalVar amount = [100, 100]`
+- `// @StateVar _allowances[1][101] = [1000, 1000]`
+- `// @StateVar pricePerShare = [2000000000000000000, 2000000000000000000]`
+- `// @StateVar _balances[1] = [500, 500]`
+
+**Intent annotation**:
+- `@Post _allowances[1][101] == 900` (또는 line 26 이후 `@During`)
+- 버그 코드: 1000 - 50(amountInShares) = 950 → **violated**
+- 정상 코드: 1000 - 100(amount) = 900 → **satisfied**
+
+**Rationale**: 47.md H-02 — approve가 override 안 되어 allowance는 balance 단위인데 transferFrom에서 shares 단위로 차감. ERC20 표준상 allowance 차감은 사용자가 지정한 amount 단위여야 함.

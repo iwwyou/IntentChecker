@@ -1,12 +1,10 @@
 pragma solidity =0.8.9;
 
-contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
+contract VaderRouter is IVaderRouter, ProtocolConstants, Ownable {
 
     using SafeERC20 for IERC20;
 
-    IVaderPoolV2 public immutable pool;
-
-    IERC20 public immutable nativeAsset;
+    IVaderPoolFactory public immutable factory;
 
     IVaderReserve public reserve;
 
@@ -19,7 +17,15 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
         uint256,
         address to,
         uint256 deadline
-    ) external override returns (uint256 liquidity) {
+    )
+        external
+        override
+        returns (
+            uint256 amountA,
+            uint256 amountB,
+            uint256 liquidity
+        )
+    {
         return
             addLiquidity(
                 tokenA,
@@ -38,36 +44,26 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
         uint256 amountBDesired,
         address to,
         uint256 deadline
-    ) public override ensure(deadline) returns (uint256 liquidity) {
-        IERC20 foreignAsset;
-        uint256 nativeDeposit;
-        uint256 foreignDeposit;
-
-        if (tokenA == nativeAsset) {
-            require(
-                pool.supported(tokenB),
-                "VaderRouterV2::addLiquidity: Unsupported Assets Specified"
-            );
-            foreignAsset = tokenB;
-            foreignDeposit = amountBDesired;
-            nativeDeposit = amountADesired;
-        } else {
-            require(
-                tokenB == nativeAsset && pool.supported(tokenA),
-                "VaderRouterV2::addLiquidity: Unsupported Assets Specified"
-            );
-            foreignAsset = tokenA;
-            foreignDeposit = amountADesired;
-            nativeDeposit = amountBDesired;
-        }
-
-        liquidity = pool.mint(
-            foreignAsset,
-            nativeDeposit,
-            foreignDeposit,
-            msg.sender,
-            to
+    )
+        public
+        override
+        ensure(deadline)
+        returns (
+            uint256 amountA,
+            uint256 amountB,
+            uint256 liquidity
+        )
+    {
+        IVaderPool pool;
+        (pool, amountA, amountB) = _addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            amountADesired,
+            amountBDesired
         );
+        tokenA.safeTransferFrom(msg.sender, address(pool), amountA);
+        tokenB.safeTransferFrom(msg.sender, address(pool), amountB);
+        liquidity = pool.mint(to);
     }
 
     function removeLiquidity(
@@ -84,23 +80,7 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
         ensure(deadline)
         returns (uint256 amountA, uint256 amountB)
     {
-        IERC20 _foreignAsset = pool.positionForeignAsset(id);
-        IERC20 _nativeAsset = nativeAsset;
-
-        bool isNativeA = _nativeAsset == IERC20(tokenA);
-
-        if (isNativeA) {
-            require(
-                IERC20(tokenB) == _foreignAsset,
-                "VaderRouterV2::removeLiquidity: Incorrect Addresses Specified"
-            );
-        } else {
-            require(
-                IERC20(tokenA) == _foreignAsset &&
-                    IERC20(tokenB) == _nativeAsset,
-                "VaderRouterV2::removeLiquidity: Incorrect Addresses Specified"
-            );
-        }
+        IVaderPool pool = factory.getPool(tokenA, tokenB);
 
         pool.transferFrom(msg.sender, address(pool), id);
 
@@ -110,17 +90,17 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
             uint256 coveredLoss
         ) = pool.burn(id, to);
 
-        (amountA, amountB) = isNativeA
+        (amountA, amountB) = tokenA == factory.nativeAsset()
             ? (amountNative, amountForeign)
             : (amountForeign, amountNative);
 
         require(
             amountA >= amountAMin,
-            "VaderRouterV2: INSUFFICIENT_A_AMOUNT"
+            "UniswapV2Router: INSUFFICIENT_A_AMOUNT"
         );
         require(
             amountB >= amountBMin,
-            "VaderRouterV2: INSUFFICIENT_B_AMOUNT"
+            "UniswapV2Router: INSUFFICIENT_B_AMOUNT"
         );
 
         reserve.reimburseImpermanentLoss(msg.sender, coveredLoss);
@@ -129,7 +109,7 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
-        IERC20[] calldata path,
+        address[] calldata path,
         address to,
         uint256 deadline
     ) external virtual override ensure(deadline) returns (uint256 amountOut) {
@@ -137,14 +117,31 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
 
         require(
             amountOut >= amountOutMin,
-            "VaderRouterV2::swapExactTokensForTokens: Insufficient Trade Output"
+            "VaderRouter::swapExactTokensForTokens: Insufficient Trade Output"
         );
+    }
+
+    function swapTokensForExactTokens(
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external virtual ensure(deadline) returns (uint256 amountIn) {
+        amountIn = calculateInGivenOut(amountOut, path);
+
+        require(
+            amountInMax >= amountIn,
+            "VaderRouter::swapTokensForExactTokens: Large Trade Input"
+        );
+
+        _swap(amountIn, path, to);
     }
 
     function initialize(IVaderReserve _reserve) external onlyOwner {
         require(
             _reserve != IVaderReserve(_ZERO_ADDRESS),
-            "VaderRouterV2::initialize: Incorrect Reserve Specified"
+            "VaderRouter::initialize: Incorrect Reserve Specified"
         );
 
         reserve = _reserve;
@@ -154,43 +151,168 @@ contract VaderRouterV2 is IVaderRouterV2, ProtocolConstants, Ownable {
 
     function _swap(
         uint256 amountIn,
-        IERC20[] calldata path,
+        address[] calldata path,
         address to
     ) private returns (uint256 amountOut) {
         if (path.length == 3) {
             require(
                 path[0] != path[1] &&
-                    path[1] == pool.nativeAsset() &&
+                    path[1] == factory.nativeAsset() &&
                     path[2] != path[1],
-                "VaderRouterV2::_swap: Incorrect Path"
+                "VaderRouter::_swap: Incorrect Path"
             );
 
-            path[0].safeTransferFrom(msg.sender, address(pool), amountIn);
+            IVaderPool pool0 = factory.getPool(path[0], path[1]);
+            IVaderPool pool1 = factory.getPool(path[1], path[2]);
 
-            return pool.doubleSwap(path[0], path[2], amountIn, to);
+            IERC20(path[0]).safeTransferFrom(
+                msg.sender,
+                address(pool0),
+                amountIn
+            );
+
+            return pool1.swap(0, pool0.swap(amountIn, 0, address(pool1)), to);
         } else {
             require(
                 path.length == 2,
-                "VaderRouterV2::_swap: Incorrect Path Length"
+                "VaderRouter::_swap: Incorrect Path Length"
             );
-            IERC20 _nativeAsset = nativeAsset;
-            require(path[0] != path[1], "VaderRouterV2::_swap: Incorrect Path");
+            address nativeAsset = factory.nativeAsset();
+            require(path[0] != path[1], "VaderRouter::_swap: Incorrect Path");
 
-            path[0].safeTransferFrom(msg.sender, address(pool), amountIn);
-            if (path[0] == _nativeAsset) {
-                return pool.swap(path[1], amountIn, 0, to);
+            IVaderPool pool = factory.getPool(path[0], path[1]);
+            IERC20(path[0]).safeTransferFrom(
+                msg.sender,
+                address(pool),
+                amountIn
+            );
+            if (path[0] == nativeAsset) {
+                return pool.swap(amountIn, 0, to);
             } else {
                 require(
-                    path[1] == _nativeAsset,
-                    "VaderRouterV2::_swap: Incorrect Path"
+                    path[1] == nativeAsset,
+                    "VaderRouter::_swap: Incorrect Path"
                 );
-                return pool.swap(path[0], 0, amountIn, to);
+                return pool.swap(0, amountIn, to);
             }
         }
     }
 
+    function _addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired
+    )
+        private
+        returns (
+            IVaderPool pool,
+            uint256 amountA,
+            uint256 amountB
+        )
+    {
+        pool = factory.getPool(tokenA, tokenB);
+        if (pool == IVaderPool(_ZERO_ADDRESS)) {
+            pool = factory.createPool(tokenA, tokenB);
+        }
+
+        (amountA, amountB) = (amountADesired, amountBDesired);
+    }
+
+    function calculateInGivenOut(uint256 amountOut, address[] calldata path)
+        public
+        view
+        returns (uint256 amountIn)
+    {
+        if (path.length == 2) {
+            address nativeAsset = factory.nativeAsset();
+            IVaderPool pool = factory.getPool(path[0], path[1]);
+            (uint256 nativeReserve, uint256 foreignReserve, ) = pool
+                .getReserves();
+            if (path[0] == nativeAsset) {
+                return
+                    VaderMath.calculateSwapReverse(
+                        amountOut,
+                        nativeReserve,
+                        foreignReserve
+                    );
+            } else {
+                return
+                    VaderMath.calculateSwapReverse(
+                        amountOut,
+                        foreignReserve,
+                        nativeReserve
+                    );
+            }
+        } else {
+            IVaderPool pool0 = factory.getPool(path[0], path[1]);
+            IVaderPool pool1 = factory.getPool(path[1], path[2]);
+            (uint256 nativeReserve0, uint256 foreignReserve0, ) = pool0
+                .getReserves();
+            (uint256 nativeReserve1, uint256 foreignReserve1, ) = pool1
+                .getReserves();
+
+            return
+                VaderMath.calculateSwapReverse(
+                    VaderMath.calculateSwapReverse(
+                        amountOut,
+                        nativeReserve1,
+                        foreignReserve1
+                    ),
+                    foreignReserve0,
+                    nativeReserve0
+                );
+        }
+    }
+
+    function calculateOutGivenIn(uint256 amountIn, address[] calldata path)
+        external
+        view
+        returns (uint256 amountOut)
+    {
+        if (path.length == 2) {
+            address nativeAsset = factory.nativeAsset();
+            IVaderPool pool = factory.getPool(path[0], path[1]);
+            (uint256 nativeReserve, uint256 foreignReserve, ) = pool
+                .getReserves();
+            if (path[0] == nativeAsset) {
+                return
+                    VaderMath.calculateSwap(
+                        amountIn,
+                        nativeReserve,
+                        foreignReserve
+                    );
+            } else {
+                return
+                    VaderMath.calculateSwap(
+                        amountIn,
+                        foreignReserve,
+                        nativeReserve
+                    );
+            }
+        } else {
+            IVaderPool pool0 = factory.getPool(path[0], path[1]);
+            IVaderPool pool1 = factory.getPool(path[1], path[2]);
+            (uint256 nativeReserve0, uint256 foreignReserve0, ) = pool0
+                .getReserves();
+            (uint256 nativeReserve1, uint256 foreignReserve1, ) = pool1
+                .getReserves();
+
+            return
+                VaderMath.calculateSwap(
+                    VaderMath.calculateSwap(
+                        amountIn,
+                        nativeReserve1,
+                        foreignReserve1
+                    ),
+                    foreignReserve0,
+                    nativeReserve0
+                );
+        }
+    }
+
     modifier ensure(uint256 deadline) {
-        require(deadline >= block.timestamp, "VaderRouterV2::ensure: Expired");
+        require(deadline >= block.timestamp, "VaderRouter::ensure: Expired");
         _;
     }
 }
