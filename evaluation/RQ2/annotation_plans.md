@@ -18,7 +18,7 @@
 `mint()`에서 `liquidity`를 변경(line 176)하지만 `secondsPerLiquidity`를 업데이트하지 않음. `swap()`에서는 `secondsPerLiquidity += uint160((diff << 128) / liquidity)`로 올바르게 갱신하지만, `mint()`에서 동일한 갱신이 누락됨.
 
 ### Not Detectable 사유
-- `Changed(secondsPerLiquidity)` annotation으로 표현 가능하나, "liquidity가 변경될 때 secondsPerLiquidity도 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+- `Changed(secondsPerLiquidity)` annotation으로 표현 가능하나, "liquidity가 변경될 때 secondsPerLiquidity도 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
 - `swap()`과의 일관성을 놓친 것이 버그 원인 — annotation 시점에서 그 일관성을 챙길 수 있었다면 코드에서도 챙겼을 것
 - 부가적으로, `abi.decode`로 파라미터가 전달되어 debugging annotation으로 concrete 값 설정 불가
 
@@ -184,7 +184,7 @@ for (uint256 i = 0; i < array.length; i++) {
 - **Function**: add
 - **Bug lines (original)**: 89 (totalAllocPoint 변경 전 massUpdatePools() 호출 누락)
 - **Pattern**: inconsistent_state_updates
-- **Status**: not_detectable (L4a: missing-call-no-effect)
+- **Status**: not_detectable (L5a: missing-call-no-effect)
 
 ### Bug Description
 `add()` 함수에서 `totalAllocPoint`을 증가시키기 전에 `massUpdatePools()`를 호출하지 않음. 기존 풀들의 `accConcurPerShare`가 이전의 `totalAllocPoint`로 갱신되지 않은 채 새로운 (더 큰) `totalAllocPoint`가 적용되어, 기존 staker들의 reward가 소급적으로 희석됨.
@@ -203,7 +203,7 @@ for (uint256 i = 0; i < array.length; i++) {
 - **Function**: deposit
 - **Bug lines (original)**: 170; 171; 172
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L3b: no-target-storage)
+- **Status**: not_detectable (L4b: no-target-storage)
 
 ### Bug Description
 `deposit()`에서 `depositFeeBP > 0`일 때 fee를 계산하여 `user.amount`에서 차감하지만, 그 fee를 받을 수신자(feeRecipient)의 `amount`를 증가시키는 코드가 없음. 결과적으로 deposit fee 만큼의 토큰이 컨트랙트에 영구 lock됨.
@@ -880,7 +880,7 @@ if (aNew == a){     // We have used the correct A
 
 ### 탐지 불가 사유
 
-**본질: inexpressible-expected-value (L3a)**
+**본질: inexpressible-expected-value (L4a)**
 
 **1. 질적 차이 없음**
 
@@ -952,7 +952,7 @@ imbalanced liquidity 추가로 토큰 비율이 역전되면 (`xp[0] < xp[1]` �
 
 ### 탐지 불가 사유
 
-**본질: inexpressible-expected-value (L3a)**
+**본질: inexpressible-expected-value (L4a)**
 
 **1. 질적 차이 없음**
 
@@ -1414,7 +1414,7 @@ function transfer(address account, uint256 amount) external override notPaused r
 ### Bug Description
 `_nonOptimalMintFee`에서 optimal deposit ratio를 `(_amount0 * _reserve1) / _reserve0`으로 계산하는데, 이는 constant-product AMM 공식. HybridPool은 stableswap 방식이므로 optimal ratio가 reserve 비율과 다름 (amplification parameter A에 의해 커브가 flat). 결과적으로 fee가 과대/과소 계산됨.
 
-### Not Detectable 사유 (L3a)
+### Not Detectable 사유 (L4a)
 - 올바른 optimal ratio는 stableswap invariant D에 의존하며, D는 Newton's method 반복(loop)으로 계산됨
 - 올바른 fee 값을 프로그램 내 기존 변수의 산술 조합으로 표현할 수 없음
 - fee의 크기 자체는 정상 범위(0 ~ swapFee) 내에 있어 단순 bound annotation으로 구분 불가
@@ -1939,7 +1939,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - 버기 값: `decimals_ = 18` (하드코딩된 상수)
 - 올바른 값: `18 - 8 + underlyingTokenDecimals` — `underlyingTokenDecimals`는 코드 내에 존재하지 않는 변수
 - 올바른 값을 구하려면 `CToken.underlying()` → `IERC20.decimals()` 같은 현재 코드에 없는 새로운 중간 계산이 필요
-- 프로그램 내 기존 변수들의 산술 조합으로 올바른 decimals를 표현할 수 없음 (L3a)
+- 프로그램 내 기존 변수들의 산술 조합으로 올바른 decimals를 표현할 수 없음 (L4a)
 
 ---
 
@@ -2066,7 +2066,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - `extendLock()` 내에 잘못된 numeric 연산이 아니라, 있어야 할 `totalLocked[_asset] += _amount` 코드가 누락됨
 - `totalLocked[_asset] Changed` 또는 `Before < After` post-condition으로 표현 가능하나, 이 annotation을 쓰려면 "totalLocked가 업데이트되어야 한다"는 사실을 이미 인지해야 함
-- `lock()`에서는 올바르게 `totalLocked += _amount`를 수행하지만, 개발자가 `extendLock()`에서 동일 업데이트가 필요하다는 일관성을 놓친 것이 버그의 원인 → 버그 인지 전제 (L4c)
+- `lock()`에서는 올바르게 `totalLocked += _amount`를 수행하지만, 개발자가 `extendLock()`에서 동일 업데이트가 필요하다는 일관성을 놓친 것이 버그의 원인 → 버그 인지 전제 (L5c)
 
 ---
 
@@ -2083,7 +2083,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - `auctionBurn()` 내 `_burn()` 연산 자체는 올바름. 누락된 것은 burn 후 `ibRatio` 업데이트 코드
 - `handleFees()`가 이미 `ibRatio`를 변경하므로 단순 `Changed` annotation은 만족됨. burn에 의한 추가 업데이트가 필요하다는 것을 알아야 더 정밀한 annotation 작성 가능
-- `burn()`에서는 `handleFees()` → `pushUnderlying()` → `_burn()` 순서로 ibRatio 반영이 자연스럽지만, `auctionBurn()`에서는 별도 업데이트가 필요하다는 일관성을 놓친 것 → 버그 인지 전제 (L4c)
+- `burn()`에서는 `handleFees()` → `pushUnderlying()` → `_burn()` 순서로 ibRatio 반영이 자연스럽지만, `auctionBurn()`에서는 별도 업데이트가 필요하다는 일관성을 놓친 것 → 버그 인지 전제 (L5c)
 
 ---
 
@@ -2099,7 +2099,7 @@ currentFundingIndex = currentFundingIndex + 1;
 
 ### Not Detectable 사유
 - `handleFees()`의 3개 분기 중 2개(`lastFee == 0`, 정상 `else`)는 `lastFee = block.timestamp`를 수행하지만, `startSupply == 0` 분기에서만 누락
-- `lastFee Changed` post-condition으로 표현 가능하나, "supply가 0이어도 lastFee는 항상 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+- `lastFee Changed` post-condition으로 표현 가능하나, "supply가 0이어도 lastFee는 항상 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
 
 ---
 
@@ -2115,7 +2115,7 @@ currentFundingIndex = currentFundingIndex + 1;
 
 ### Not Detectable 사유
 - Root cause는 `claimReward()`에서 `rewardTokenAmount -= rewardAmt` 누락 (missing state update)
-- `rewardTokenAmount Changed` 또는 `Before > After` post-condition으로 표현 가능하나, "reward 전송 시 rewardTokenAmount를 감소시켜야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L4c)
+- `rewardTokenAmount Changed` 또는 `Before > After` post-condition으로 표현 가능하나, "reward 전송 시 rewardTokenAmount를 감소시켜야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
 - Bug line 672 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
 
 ---
@@ -2133,7 +2133,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - Root cause는 `creatorClaimSoldTokens()`에서 `redeemedDepositTokens = depositTokenAmount` 또는 `depositTokenAmount = 0` 누락 (missing state update)
 - 62_H_03과 동일 패턴: 토큰 전송 함수에서 tracking variable 미업데이트
-- Annotation 표현 가능하나 버그 인지 전제 (L4c)
+- Annotation 표현 가능하나 버그 인지 전제 (L5c)
 - Bug line 654 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
 
 ---
@@ -2149,7 +2149,7 @@ currentFundingIndex = currentFundingIndex + 1;
 `burn()`에서 position을 제거할 때 `reserve0 -= amount0fees` / `reserve1 -= amount1fees`로 fee 금액만 차감하고 실제 liquidity 제거 금액(`amount0`, `amount1`)을 차감하지 않음. 이후 `reserve` 기반 계산이 부풀려진 reserve 값을 사용하여 가격/유동성 왜곡 발생.
 
 ### Not Detectable 사유
-- `reserve0 -= amount0` 코드가 누락된 missing state update (L4c)
+- `reserve0 -= amount0` 코드가 누락된 missing state update (L5c)
 - `@Post reserve0 == Before(reserve0) - amount0` annotation으로 표현 가능하나, "burn 시 amount0만큼 reserve를 차감해야 한다"는 것을 알아야 작성 가능 → 버그 인지 전제
 - 부가적으로, `abi.decode`로 파라미터(`lower`, `upper`, `amount`, `recipient`, `unwrapBento`)가 전달되어 debugging annotation으로 concrete 값 설정 불가 → 모든 decoded 변수가 TOP
 
@@ -2166,7 +2166,7 @@ currentFundingIndex = currentFundingIndex + 1;
 `mint()`과 `burn()`에서 liquidity 업데이트 조건이 `priceLower < currentPrice && currentPrice < priceUpper`로 strict inequality를 사용. `priceLower == currentPrice` (현재 가격이 position 하한과 정확히 일치)일 때 liquidity가 업데이트되지 않아 swap 금액 왜곡. 올바른 조건은 `priceLower <= currentPrice`.
 
 ### Not Detectable 사유
-- **Primary blocker: abi.decode → TOP (L8)**
+- **Primary blocker: abi.decode → TOP (L3)**
   - `mint()` line 142: `abi.decode(data, (MintParams))` → 모든 mint 파라미터 TOP
   - `burn()` line 232-235: `abi.decode(data, ...)` → 모든 burn 파라미터 TOP
   - `priceLower = TickMath.getSqrtRatioAtTick(TOP)` → TOP
@@ -2187,7 +2187,7 @@ currentFundingIndex = currentFundingIndex + 1;
 `_lend()`의 require 조건에서 `params.ltvBPS >= accepted.ltvBPS`로 검사하지만, lender 입장에서 낮은 LTV가 유리하므로 `params.ltvBPS <= accepted.ltvBPS`가 올바름. 예: borrower가 86% LTV를 요청하고 lender가 80%까지만 수용했는데, buggy 코드는 86%로 대출 실행 → lender에게 불리.
 
 ### Not Detectable 사유
-- **Require 조건의 wrong operator (L4d)**: `>=` 대신 `<=`여야 하지만, require 자체가 직관적 검증문이라 annotation 대상이 아님. 올바른 조건을 During annotation으로 별도 표현 가능하나, 이미 작성된 require를 redundant하게 재검증하는 것은 해당 require가 틀렸음을 인지해야 함 → 버그 인지 전제
+- **Require 조건의 wrong operator (L5d)**: `>=` 대신 `<=`여야 하지만, require 자체가 직관적 검증문이라 annotation 대상이 아님. 올바른 조건을 During annotation으로 별도 표현 가능하나, 이미 작성된 require를 redundant하게 재검증하는 것은 해당 require가 틀렸음을 인지해야 함 → 버그 인지 전제
 - **Buggy 파라미터가 후속 computation에 미반영**: `ltvBPS`는 require 체크에서만 사용되고 이후 금액 계산(`totalShare`, `openFeeShare`, `protocolFeeShare`)은 모두 `params.valuation` 기반 → ltvBPS 불일치가 state variable에 반영되지 않음
 - **부가 blocker (L2a)**: `feesEarnedShare += protocolFeeShare`에서 `bentoBox.toShare()` interface call → TOP
 - ltvBPS의 실질적 효과는 별도 함수 `removeCollateral()`의 청산 threshold에서 나타남 (별도 트랜잭션)
@@ -2283,3 +2283,241 @@ currentFundingIndex = currentFundingIndex + 1;
 - 정상 코드: 1000 - 100(amount) = 900 → **satisfied**
 
 **Rationale**: 47.md H-02 — approve가 override 안 되어 allowance는 balance 단위인데 transferFrom에서 shares 단위로 차감. ERC20 표준상 allowance 차감은 사용자가 지정한 amount 단위여야 함.
+
+---
+
+## web3bugs_62_H_08
+
+- **Contract**: Stream
+- **Function**: updateStreamInternal
+- **Bug Lines (original)**: 226;229;230
+- **Pattern**: inconsistent_state_updates
+- **Status**: `annotated`
+
+### 버그 설명
+`updateStreamInternal()`에서 `ts.lastUpdate`가 `if (acctTimeDelta > 0 && ts.tokens > 0)` 블록 안에서만 갱신됨. 사용자가 전액 withdraw 후(`ts.tokens == 0`) 다시 stake하면, updateStream 호출 시 `ts.tokens == 0`이므로 if 블록이 skip되어 `ts.lastUpdate`가 갱신되지 않음. 이후 withdraw 시 stale `ts.lastUpdate`로 `ts.tokens` decay가 잘못 계산되어 실제보다 많은 토큰을 인출 가능.
+
+### Annotation 계획
+
+**Contraction**: `target_contracts_contraction/web3bugs_62_H_08.sol` (183 lines)
+- `lastApplicableTime()`, `rewardPerToken()`, `earned()`, `updateStreamInternal()` 포함
+
+**Dependencies**: 없음 (모든 호출 함수가 같은 contract 내부)
+
+**Debug annotations (line 146, updateStreamInternal 시작)**:
+
+Global:
+- `// @GlobalVar block.timestamp = [1000, 1000]`
+
+Immutable state variables:
+- `// @StateVar endStream = [2000, 2000]`
+- `// @StateVar startTime = [500, 500]`
+- `// @StateVar streamDuration = [1500, 1500]`
+- `// @StateVar depositDecimalsOne = [1000000000000000000, 1000000000000000000]`
+
+Mutable state variables:
+- `// @StateVar lastUpdate = [1000, 1000]`
+- `// @StateVar cumulativeRewardPerToken = [100, 100]`
+- `// @StateVar totalVirtualBalance = [0, 0]`
+- `// @StateVar unstreamed = [0, 0]`
+
+Mapping struct fields (msg.sender = 101):
+- `// @StateVar tokensNotYetStreamed[101].tokens = [0, 0]`
+- `// @StateVar tokensNotYetStreamed[101].lastUpdate = [800, 800]`
+- `// @StateVar tokensNotYetStreamed[101].rewards = [0, 0]`
+- `// @StateVar tokensNotYetStreamed[101].lastCumulativeRewardPerToken = [100, 100]`
+- `// @StateVar tokensNotYetStreamed[101].virtualBalance = [0, 0]`
+
+**Intent annotation (line 182, updateStreamInternal 종료 직전)**:
+- `// @Post tokensNotYetStreamed[101].lastUpdate == [1000, 1000]`
+
+**검증 시나리오** (ts.tokens == 0, block.timestamp >= startTime):
+1. `rewardPerToken()`: totalVirtualBalance==0 → return 100 (unchanged)
+2. `earned()`: 0 * (100-100) / 1e18 + 0 = 0
+3. `acctTimeDelta = 1000 - 800 = 200`
+4. `200 > 0 && 0 > 0` → FALSE → ts.lastUpdate 갱신 skip
+5. Buggy: `tokensNotYetStreamed[101].lastUpdate == 800` ≠ 1000 → **VIOLATION**
+6. Correct (ts.lastUpdate를 if 블록 밖에서 갱신): `tokensNotYetStreamed[101].lastUpdate == 1000` → **SATISFIED**
+
+**Rationale**: `updateStreamInternal`은 stream 상태 갱신 함수로, 호출 시 `ts.lastUpdate`가 현재 timestamp로 갱신되는 것은 자연스러운 invariant. bug-awareness 없이도 "update 함수 호출 후 lastUpdate == block.timestamp" 라는 intent를 작성할 수 있음.
+
+---
+
+## web3bugs_51_H_02
+
+- **Contract**: SwapUtils (library)
+- **Function**: rampTargetPrice
+- **Bug Lines (original)**: 1573;1578
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated`
+
+### 버그 설명
+`rampTargetPrice()`의 sanity check에서 `MAX_RELATIVE_PRICE_CHANGE` (10^16, 1% delta)를 배수로 사용하여 require 조건이 항상 false.
+- decrease: `future * 10^16 / 10^18 = future * 0.01 >= initial` → future < initial이므로 항상 false
+- increase: `future <= initial * 10^16 / 10^18 = initial * 0.01` → future >= initial이므로 항상 false
+
+올바른 공식: `MAX_RELATIVE_PRICE_CHANGE + WEI_UNIT` (= 1.01 배수)를 사용해야 함. 결과적으로 target price를 절대 업데이트할 수 없음.
+
+### Annotation 계획
+
+**Contraction**: `target_contracts_contraction/web3bugs_51_H_02.sol` (125 lines)
+- `_getTargetPricePrecise()` (L80-98), `rampTargetPrice()` (L100-124)
+
+**Dependencies**: `_getTargetPricePrecise` — 같은 library 내부 함수, 외부 호출 없음
+
+**Debug annotations (line 105, rampTargetPrice 시작, 8개)**:
+
+Global:
+- `// @GlobalVar block.timestamp = [2000000, 2000000]`
+
+TargetPrice storage self 필드 (state variables, 5개):
+- `// @StateVar self.initialTargetPriceTime = [1000000, 1000000]`
+- `// @StateVar self.futureTargetPriceTime = [1500000, 1500000]`
+- `// @StateVar self.futureTargetPrice = [1000000000000000000, 1000000000000000000]`
+- `// @StateVar self.initialTargetPrice = [1000000000000000000, 1000000000000000000]`
+- `// @StateVar self.originalPrecisionMultipliers[0] = [1000000000000000000, 1000000000000000000]`
+
+함수 파라미터 (local variables, 2개):
+- `// @LocalVar futureTargetPrice_ = [990000000000000000, 990000000000000000]`
+- `// @LocalVar futureTime_ = [3209600, 3209600]`
+
+**Intent annotation (line 113, buggy require)**:
+- `// @During require passable`
+
+**검증 시나리오** (target price 1% 감소 시도):
+1. L105: `2000000 >= 1000000 + 86400` → ✓ (1 day 경과)
+2. L106: `3209600 >= 2000000 + 1209600` → ✓ (MIN_RAMP_TIME 충족)
+3. L107: `990000000000000000 >= 0` → ✓
+4. L109: `_getTargetPricePrecise(self)` → `block.timestamp(2M) >= futureTargetPriceTime(1.5M)` → else → returns `10^18`
+5. L110: `futureTargetPricePrecise = 990000000000000000 * 1 = 990000000000000000`
+6. L112: `990000000000000000 < 10^18` → true (decrease 브랜치)
+7. L113: `990000000000000000 * 10^16 / 10^18 = 9900000000000000` → `9900000000000000 >= 10^18` → **FALSE → REVERT**
+8. `@During require passable` → **VIOLATED** ✓
+
+**Correct code 검증** (`MAX_RELATIVE_PRICE_CHANGE + WEI_UNIT` 사용 시):
+- `990000000000000000 * (10^16 + 10^18) / 10^18 = 990000000000000000 * 1.01 = 999900000000000000`
+- `999900000000000000 >= 10^18` → FALSE (0.1% 차이) — 하지만 이건 1% 감소가 1% 한도 내이므로 통과해야 함
+- 실제로는 `futureTargetPricePrecise.mul(MAX_RELATIVE_PRICE_CHANGE.add(WEI_UNIT)).div(WEI_UNIT) >= initialTargetPricePrecise`
+- `990000000000000000 * 1010000000000000000 / 1000000000000000000 = 999900000000000000`
+- `999900000000000000 >= 1000000000000000000` → FALSE → 1% 정확히가 아니라 약간 부족
+- 0.99% 감소로 재시도: `futureTargetPrice_ = 991000000000000000` → `991 * 1.01 = 1000.91 * 10^15 = 1000910000000000000 >= 10^18` → TRUE ✓
+- 정상적인 범위 내 가격 변경이 가능해짐 → `@During require passable` → **SATISFIED**
+
+**Rationale**: `rampTargetPrice`는 target price 업데이트 함수로, 합리적인 입력(1% 이내 가격 변경)으로 호출 시 require를 통과해야 한다는 것은 자연스러운 기대. `@During require passable`은 bug-awareness 없이 "이 함수가 정상 동작해야 한다"는 intent를 표현.
+
+**참고**: `@During require passable` annotation은 Issue 6 (code_modification_issues.md) 구현 필요.
+
+---
+
+## numscout_BoostToken_indivisible
+
+- **Contract**: BoostToken
+- **Function**: sendETHToTeam
+- **Bug Lines (original)**: 933;934;935;936
+- **Pattern**: indivisible_amount
+- **Status**: `annotated`
+
+### 버그 설명
+`sendETHToTeam(amount)`에서 4개 지갑으로 ETH를 분배할 때 `amount.div(4)`, `amount.div(12)`, `amount.div(9)` 등 정수 나눗셈을 사용. `amount`가 LCM(4,12,9)=36 미만인 소액일 때 모든 나눗셈 결과가 0이 되어, 어떤 지갑도 ETH를 받지 못하고 컨트랙트에 잔류.
+
+### Annotation 계획
+
+**Contraction**: `Dataset/Numscout/contraction/indivisible_amount/BoostToken_contraction.sol`
+- `sendETHToTeam(uint256 amount)` (L135-140)
+
+**Dependencies**: 없음 (transfer는 native ETH 전송)
+
+**Debug annotations (line 135, sendETHToTeam 시작, 1개)**:
+
+- `// @LocalVar amount = [3, 3]`
+  - amount=3: div(4)=0, div(12)=0, div(9)=0 → 모든 transfer 금액 0
+
+**Intent annotations (L136-L139, 각 transfer 라인, 4개)**:
+
+- L136: `// @During transfer.arg[0] > 0`
+  - amount.div(4) = 0 → 0 > 0 → **VIOLATED** ✓
+- L137: `// @During transfer.arg[0] > 0`
+  - amount.div(12).mul(5) = 0*5 = 0 → 0 > 0 → **VIOLATED** ✓
+- L138: `// @During transfer.arg[0] > 0`
+  - amount.div(9).mul(2) = 0*2 = 0 → 0 > 0 → **VIOLATED** ✓
+- L139: `// @During transfer.arg[0] > 0`
+  - amount.div(9) = 0 → 0 > 0 → **VIOLATED** ✓
+
+**검증 시나리오** (amount=3 wei):
+1. L136: `3.div(4) = 0` → `_devWalletAddress.transfer(0)` → transfer.arg[0] = 0 → `0 > 0` → **VIOLATED**
+2. L137: `3.div(12) = 0`, `0.mul(5) = 0` → transfer.arg[0] = 0 → **VIOLATED**
+3. L138: `3.div(9) = 0`, `0.mul(2) = 0` → transfer.arg[0] = 0 → **VIOLATED**
+4. L139: `3.div(9) = 0` → transfer.arg[0] = 0 → **VIOLATED**
+
+**Correct code 검증** (최소 금액 검증 추가: `require(amount >= 36)`):
+- amount=3 → require 실패 → revert → intent 미도달 → vacuously satisfied
+- amount=36 → div(4)=9, div(12).mul(5)=15, div(9).mul(2)=8, div(9)=4 → 모두 > 0 → **SATISFIED**
+
+**Rationale**: "각 지정 수령자에게 양수 금액이 전송되어야 한다"는 자금 분배 함수의 자연스러운 기대. bug-awareness 불필요.
+
+---
+
+## numscout_HIT
+
+- **Contract**: HIT
+- **Function**: getTokens
+- **Bug Lines (original)**: 126;144
+- **Pattern**: profit_opportunity
+- **Status**: `annotated`
+
+### 버그 설명
+`getTokens()` 함수에서 `toGive = value + msg.value * 10000000` (L63)으로 배포량 계산. `msg.value = 0`(ETH 미지불)이어도 `toGive = value`(5000e18, 5000 토큰)이 무료로 배포됨. `payable` 함수이나 `require(msg.value > 0)` 검증 없음 → 무제한 무료 토큰 취득 가능.
+
+### Annotation 계획
+
+**Contraction**: `Dataset/Numscout/contraction/profit_opportunity/HIT_contraction.sol`
+- `getTokens()` (L54-80), `distr()` (L41-52)
+
+**Dependencies**: `distr()` — 같은 컨트랙트 내부 함수
+
+**Debug annotations (line 54, getTokens 시작, 7개)**:
+
+Global:
+- `// @GlobalVar msg.value = [0, 0]`
+  - msg.sender는 101로 사전 지정 (설정 불필요)
+
+State:
+- `// @StateVar value = [5000000000000000000000, 5000000000000000000000]`
+  - 5000e18 (초기값)
+- `// @StateVar totalRemaining = [800000000000000000000000000, 800000000000000000000000000]`
+  - 800Me18
+- `// @StateVar totalDistributed = [200000000000000000000000000, 200000000000000000000000000]`
+  - 200Me18
+- `// @StateVar totalSupply = [1000000000000000000000000000, 1000000000000000000000000000]`
+  - 1Be18
+- `// @StateVar distributionFinished = false`
+  - canDistr modifier 통과용
+- `// @StateVar blacklist[msg.sender] = false`
+  - onlyWhitelist modifier 통과용
+
+**Intent annotation (line 69, distr 호출, 1개)**:
+
+- `// @During toGive => msg.value`
+  - Implication: "토큰이 배포되려면(toGive > 0), 대가 지불이 있어야 함(msg.value > 0)"
+  - antecedent: toGive = [5000e18, 5000e18] → non-zero → satisfied (true)
+  - consequent: msg.value = [0, 0] → zero → violated (false)
+  - true ⇒ false → **VIOLATED** ✓
+
+**검증 시나리오** (msg.value=0, ETH 미지불):
+1. canDistr: `!false` → pass
+2. onlyWhitelist: `blacklist[101] == false` → pass
+3. L55: `5000e18 > 800Me18` → false, skip
+4. L59: `require(5000e18 <= 800Me18)` → pass
+5. L63: `toGive = 5000e18 + 0 * 10000000 = 5000e18`
+6. L65: `800Me18 <= 200Me18` → false, skip
+7. L69: `distr(101, 5000e18)` → 5000 토큰 무료 배포
+8. `@During toGive => msg.value` → [5000e18] ⇒ [0] → **VIOLATED** ✓
+
+**Correct code 검증** (`require(msg.value > 0)` 추가 시):
+- msg.value=0 → require 실패 → revert → intent 미도달 → vacuously satisfied
+
+**대안 correct code** (`toGive = msg.value * 10000000`, free value 제거):
+- toGive = 0 * 10000000 = 0
+- `@During toGive => msg.value`: antecedent `0 != 0` → violated (false) → vacuously true → **SATISFIED** ✓
+
+**Rationale**: "토큰 배포(toGive > 0)는 대가 지불(msg.value > 0)을 전제해야 한다"는 exchange 함수의 자연스러운 invariant. bug-awareness 불필요.

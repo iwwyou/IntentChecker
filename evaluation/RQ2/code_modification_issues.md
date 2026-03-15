@@ -65,3 +65,29 @@
 - **해당 케이스**:
   - web3bugs_60_H_01: `type Fixed18 is int256;`, `type UFixed18 is uint256;` (OptimisticLedgerLib에서 사용)
 - **영향 범위**: Parser (type 선언 파싱), Analyzer (타입 resolution — user-defined type을 underlying type으로 매핑), Interpreter (wrap/unwrap 처리)
+
+## Issue 6: `@During require passable` annotation
+- **현재**: require/assert 조건이 항상 false일 때, 함수가 revert되어 @Post에 도달 불가 → post-condition이 vacuously true → 버그 미탐지
+- **필요**: require/assert의 통과 가능성을 검증하는 annotation 지원
+- **Syntax**: `// @During require passable` (require/assert 라인 직전에 배치)
+- **Validation logic**:
+  - require 조건식의 abstract value 기준:
+  - `[1, 1]` (항상 true) → **satisfied**
+  - `[0, 1]` (true 가능) → **satisfied**
+  - `[0, 0]` (항상 false, 절대 통과 불가) → **violated**
+- **Bug-awareness 불필요**: "이 함수가 정상 동작하면 이 require는 통과해야 한다"는 자연스러운 기대
+- **Motivation case (web3bugs_51_H_02)**:
+  - `rampTargetPrice`에서 `MAX_RELATIVE_PRICE_CHANGE` (10^16)를 배수가 아닌 delta로 써야 하는데 배수로 사용
+  - `future * 0.01 >= initial` (decrease 시) → future < initial이므로 항상 false → 항상 revert
+  - `@Post self.futureTargetPrice Changed`로는 탐지 불가 (revert → vacuously true)
+  - `@During require passable`로 require 조건이 항상 false임을 탐지
+- **영향 범위**: Parser (require passable 구문 파싱), Interpreter (require 조건식 평가 후 passable validation)
+
+## Issue 7: `address(this).balance` GlobalVar 지원
+- **현재**: `@GlobalVar`는 `identifier ('.' identifier)?` 형식만 지원 (e.g., `block.timestamp`, `msg.value`). `address(this).balance`는 이 패턴에 맞지 않아 debug annotation으로 설정 불가 (추정)
+- **필요**: 컨트랙트의 ETH 잔액 `address(this).balance`를 debug annotation으로 설정할 수 있도록 지원
+- **구현 방향**: `address(this).balance`를 특수 GlobalVar로 인식하거나, 별도 syntax 추가 (e.g., `@GlobalVar selfBalance = [100, 100]`)
+- **해당 케이스**:
+  - numscout_HippoHotel: `withdraw()` 함수에서 `address(this).balance` 읽어서 분배
+  - numscout_EthereumGod: `swapAndLiquify()` 함수에서 `address(this).balance` 사용 (단, 이 케이스는 interface call이 주 blocker)
+- **영향 범위**: Parser (GlobalVar 문법 확장), Interpreter (address(this).balance 값 주입)

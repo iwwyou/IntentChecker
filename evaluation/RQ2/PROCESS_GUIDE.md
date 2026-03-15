@@ -47,9 +47,9 @@
 2. 버그 이해 (bug description, bug report)
 3. Blocker 분석:
    - **Loop 분석**: 누적 연산(`+=`, `*=`) → widening → Top. 단, min-finding 등 monotonically non-increasing 루프는 widening 대상 아님. 또한 widening 되더라도 annotation 대상 변수가 widened 변수와 독립적이면 blocker 아님
-   - **External call 분석**: interface call → Top (L5a), 외부 contract call → state unknown → Top (L5b). 단, interface에서 상속받은 struct/enum **타입 정의**는 compile-time 정보이므로 L5 아님 (target contract 자체 storage에 있는 데이터는 annotatable)
-   - **대상 변수 존재 여부**: storage variable 없음 (L4a), 누락된 함수 호출의 효과가 scope 밖 (L4b)
-   - **값 표현 가능성**: 올바른 값을 기존 변수의 산술 조합으로 표현 불가 (L6)
+   - **External call 분석**: interface call → Top (L2a), 외부 contract call → state unknown → Top (L2b). 단, interface에서 상속받은 struct/enum **타입 정의**는 compile-time 정보이므로 L2 아님 (target contract 자체 storage에 있는 데이터는 annotatable)
+   - **Annotation 표현 한계**: storage variable 없음 (L3b), 올바른 값을 기존 변수의 산술 조합으로 표현 불가 (L3a)
+   - **Bug awareness 전제**: 누락된 함수 호출의 효과가 scope 밖 (L4a), 인자 순서 오류 (L4b), 누락된 state update (L4c)
 4. detectable/not_detectable 판정
 5. Three-file update (dataset.csv + annotation_plans.md + limitation_types.md)
 6. detectable인 경우: annotation 계획 수립 (아래 상세)
