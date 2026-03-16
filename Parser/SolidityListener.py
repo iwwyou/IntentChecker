@@ -1,4 +1,4 @@
-# Generated from Solidity.g4 by ANTLR 4.13.2
+# Generated from Solidity.g4 by ANTLR 4.13.1
 from antlr4 import *
 if "." in __name__:
     from .SolidityParser import SolidityParser
@@ -536,6 +536,24 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#debugLocalVar.
     def exitDebugLocalVar(self, ctx:SolidityParser.DebugLocalVarContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IReturnSingle.
+    def enterIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnSingle.
+    def exitIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IReturnIndex.
+    def enterIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnIndex.
+    def exitIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
         pass
 
 

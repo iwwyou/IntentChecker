@@ -297,6 +297,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             var_obj = Variables(var_name, scope="state")
             var_obj.typeInfo = type_info
 
+        # ── ②-1 interface type이면 var_interface_map에 기록 ────────────
+        raw_type_name = type_ctx.getText()
+        if raw_type_name in self.contract_analyzer.interface_names:
+            self.contract_analyzer.var_interface_map[var_name] = raw_type_name
+
         # ── ③ 초기화식 (있을 수도, 없을 수도) ────────────────────────
         init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
 
@@ -441,7 +446,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         rets = self.visitParameterList(returns_ctx) if returns_ctx else []
 
         # ------------------------------------------------------------
-        # ④ modifierInvocation(override/virtual 제외) 수집
+        # ④ stateMutability 추출
+        # ------------------------------------------------------------
+        mutability = None
+        for ch in ctx.getChildren():
+            if isinstance(ch, SolidityParser.StateMutabilityContext):
+                mutability = ch.getText()  # "view", "pure", "payable"
+                break
+
+        # ------------------------------------------------------------
+        # ⑤ modifierInvocation(override/virtual 제외) 수집
         # ------------------------------------------------------------
         mods = []
         for m in ctx.getChildren():
@@ -451,13 +465,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     mods.append(name)
 
         # ------------------------------------------------------------
-        # ⑤ ContractAnalyzer 로 전달
+        # ⑥ ContractAnalyzer 로 전달
         # ------------------------------------------------------------
         self.contract_analyzer.process_function_definition(
             function_name=fname,
             parameters=params,
             modifiers=mods,
-            returns=rets
+            returns=rets,
+            mutability=mutability
         )
 
     # Visit a parse tree produced by SolidityParser#eventDefinition.
@@ -783,6 +798,21 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         lhs = self.visitVarRef(ctx.varRef())
         rhs = self._parse_debug_value(ctx.debugValue())
         self.contract_analyzer.process_local_var_for_debug(lhs, rhs)
+        return None
+
+    def visitIReturnSingle(self, ctx):
+        contract_var = ctx.identifier(0).getText()
+        func_name = ctx.identifier(1).getText()
+        value = self._parse_debug_value(ctx.debugValue())
+        self.contract_analyzer.process_ireturn(contract_var, func_name, None, value)
+        return None
+
+    def visitIReturnIndex(self, ctx):
+        contract_var = ctx.identifier(0).getText()
+        func_name = ctx.identifier(1).getText()
+        index = int(ctx.numberLiteral().getText())
+        value = self._parse_debug_value(ctx.debugValue())
+        self.contract_analyzer.process_ireturn(contract_var, func_name, index, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#duringIntent.

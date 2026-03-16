@@ -1493,6 +1493,32 @@ class Evaluation :
         if expr.context == "IdentifierExpContext":
             function_name = expr.identifier
         elif expr.function.context == "MemberAccessContext":  # dynamic array에 대한 push, pop
+            # ★ @IReturn: interface call이면 registry에서 값 조회 (evaluate 전에 short-circuit)
+            base_expr = expr.function.base
+            member_name = expr.function.member
+            if hasattr(base_expr, 'identifier'):
+                contract_var = base_expr.identifier
+                fcfg = self.an.current_target_function_cfg
+                if fcfg and hasattr(self.an, 'var_interface_map') and contract_var in self.an.var_interface_map:
+                    # 1) IReturnSingle 조회: (contract_var, func_name, None)
+                    single_key = (contract_var, member_name, None)
+                    if single_key in fcfg.ireturn_registry:
+                        return self._mapping_lookup_if_needed(
+                            fcfg.ireturn_registry[single_key], callerObject)
+
+                    # 2) IReturnIndex 조회: 등록된 index별 값을 모아 리스트로 반환
+                    indexed = {k[2]: v for k, v in fcfg.ireturn_registry.items()
+                               if k[0] == contract_var and k[1] == member_name and k[2] is not None}
+                    if indexed:
+                        interface_name = self.an.var_interface_map[contract_var]
+                        icfg = self.an.contract_cfgs.get(interface_name)
+                        if icfg and member_name in icfg.functions:
+                            ret_count = len(icfg.functions[member_name].return_types)
+                            result = []
+                            for i in range(ret_count):
+                                result.append(indexed.get(i, UnsignedIntegerInterval.top()))
+                            return result
+
             # member access를 평가하여 라이브러리 함수인지 확인
             function_result = self.evaluate_expression(expr.function, variables, None, "functionCallContext")
             

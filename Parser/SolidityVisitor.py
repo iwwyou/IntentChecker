@@ -1,4 +1,4 @@
-# Generated from Solidity.g4 by ANTLR 4.13.2
+# Generated from Solidity.g4 by ANTLR 4.13.1
 from antlr4 import *
 if "." in __name__:
     from .SolidityParser import SolidityParser
@@ -301,6 +301,16 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#debugLocalVar.
     def visitDebugLocalVar(self, ctx:SolidityParser.DebugLocalVarContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IReturnSingle.
+    def visitIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IReturnIndex.
+    def visitIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
         return self.visitChildren(ctx)
 
 

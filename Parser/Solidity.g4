@@ -260,6 +260,7 @@ debugInput
     : debugGlobalVar
     | debugStateVar
     | debugLocalVar
+    | debugIReturn
     ;
 
 debugGlobalVar
@@ -272,6 +273,11 @@ debugStateVar
 
 debugLocalVar
     : '//' '@LocalVar' varRef '=' debugValue
+    ;
+
+debugIReturn
+    : '//' '@IReturn' identifier '.' identifier '(' ')' '=' debugValue                          # IReturnSingle
+    | '//' '@IReturn' identifier '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue    # IReturnIndex
     ;
 
 duringIntent

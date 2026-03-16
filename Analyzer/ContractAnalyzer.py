@@ -52,6 +52,7 @@ class ContractAnalyzer:
         self.contract_cfgs = {} # name -> CFG
         self.library_cfgs = {} # name -> LibraryCFG
         self.interface_names: set[str] = set()  # interface 이름 등록 (타입 인식용)
+        self.var_interface_map: dict[str, str] = {}  # state variable → interface type 매핑 (e.g., {"lbt": "ILiquidityBasedTWAP"})
         self._interface_ranges: list[tuple[int, int]] = []  # (start, end) 라인 범위
 
         # ★ 함수 호출 순서 문제 해결용
@@ -1080,6 +1081,7 @@ class ContractAnalyzer:
             parameters: list[tuple[SolType, str]],
             modifiers: list[str],
             returns: list[Variables] | None,
+            mutability: str | None = None,
     ):
         # ★ 이전 함수 분석 완료 처리 - pending_calls 재분석
         if self.current_target_function and self.current_target_function in self.pending_calls:
@@ -1095,6 +1097,7 @@ class ContractAnalyzer:
         # Interface 함수: body 없이 entry→exit + return_types만 등록
         if getattr(contract_cfg, 'is_interface', False):
             fcfg = FunctionCFG(function_type="function", function_name=function_name)
+            fcfg.mutability = mutability
             for r_type, r_name in (returns or []):
                 fcfg.return_types.append(r_type)
             contract_cfg.functions[function_name] = fcfg
@@ -1103,6 +1106,7 @@ class ContractAnalyzer:
             return
 
         fcfg = StaticCFGFactory.make_function_cfg(self, function_name, parameters, modifiers, returns)
+        fcfg.mutability = mutability
 
         contract_cfg.functions[function_name] = fcfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -2748,6 +2752,60 @@ class ContractAnalyzer:
             edit_event=self.current_edit_event,
         )
 
+        self._batch_targets.add(self.current_target_function_cfg)
+
+    # ------------------------------------------------------------------
+    #  @IReturn   debug 주석
+    # ------------------------------------------------------------------
+    def process_ireturn(self, contract_var: str, func_name: str, index: int | None, value):
+        """
+        @IReturn annotation 처리.
+        interface call의 return value를 FunctionCFG.ireturn_registry에 저장.
+        Evaluation.py에서 interface call 시 TOP 대신 이 값을 사용.
+        """
+        # 1) contract_var가 interface type state variable인지 검증
+        interface_name = self.var_interface_map.get(contract_var)
+        if interface_name is None:
+            raise ValueError(
+                f"@IReturn: '{contract_var}' is not an interface-typed state variable. "
+                f"Known interface vars: {list(self.var_interface_map.keys())}"
+            )
+
+        # 2) 해당 interface에 func_name 함수가 존재하는지 검증
+        interface_cfg = self.contract_cfgs.get(interface_name)
+        if interface_cfg is None or func_name not in interface_cfg.functions:
+            available = list(interface_cfg.functions.keys()) if interface_cfg else []
+            raise ValueError(
+                f"@IReturn: function '{func_name}' not found in interface '{interface_name}'. "
+                f"Available: {available}"
+            )
+
+        # 3) view/pure 함수인지 검증
+        fcfg = interface_cfg.functions[func_name]
+        if fcfg.mutability not in ("view", "pure"):
+            raise ValueError(
+                f"@IReturn: '{interface_name}.{func_name}' is not view/pure "
+                f"(mutability={fcfg.mutability}). "
+                f"@IReturn only supports view/pure interface functions."
+            )
+
+        # 4) index 지정 시 return type 개수 범위 검증
+        if index is not None and index >= len(fcfg.return_types):
+            raise ValueError(
+                f"@IReturn: index [{index}] out of range "
+                f"('{interface_name}.{func_name}' has {len(fcfg.return_types)} return types)"
+            )
+
+        # 5) FunctionCFG의 ireturn_registry에 저장
+        ccf = self.contract_cfgs[self.current_target_contract]
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        if self.current_target_function_cfg is None:
+            raise ValueError("@IReturn must be inside a function.")
+
+        key = (contract_var, func_name, index)
+        self.current_target_function_cfg.ireturn_registry[key] = value
+
+        # 6) 재해석 배치
         self._batch_targets.add(self.current_target_function_cfg)
 
     # ContractAnalyzer.py (일부)
