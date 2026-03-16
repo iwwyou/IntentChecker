@@ -276,8 +276,10 @@ debugLocalVar
     ;
 
 debugIReturn
-    : '//' '@IReturn' identifier '.' identifier '(' ')' '=' debugValue                          # IReturnSingle
-    | '//' '@IReturn' identifier '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue    # IReturnIndex
+    : '//' '@IReturn' identifier '.' identifier '(' ')' '=' debugValue                                              # IReturnSingle
+    | '//' '@IReturn' identifier '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue                        # IReturnIndex
+    | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' '=' debugValue                           # IReturnCastSingle
+    | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue     # IReturnCastIndex
     ;
 
 duringIntent

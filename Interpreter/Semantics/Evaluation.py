@@ -36,6 +36,28 @@ class Evaluation :
 
     # ──────────────────── Helper functions ───────────────────────────
 
+    def _get_interface_name_of_var(self, var_name: str, variables: dict) -> str | None:
+        """
+        변수(function parameter 또는 state variable)의 typeInfo에서
+        interface 이름을 반환. interface 타입이 아니면 None.
+        """
+        # 1) 현재 함수의 variables (parameter 포함)
+        if var_name in variables:
+            var = variables[var_name]
+            if hasattr(var, 'typeInfo') and var.typeInfo and var.typeInfo.typeCategory == "interface":
+                return var.typeInfo.interfaceName
+
+        # 2) state variable
+        current_contract = self.an.current_target_contract
+        if current_contract and current_contract in self.an.contract_cfgs:
+            ccf = self.an.contract_cfgs[current_contract]
+            if hasattr(ccf, 'state_variables') and var_name in ccf.state_variables:
+                var = ccf.state_variables[var_name]
+                if hasattr(var, 'typeInfo') and var.typeInfo and var.typeInfo.typeCategory == "interface":
+                    return var.typeInfo.interfaceName
+
+        return None
+
     def _mapping_lookup_if_needed(self, result, callerObject):
         """
         callerObject가 MappingVariable이면 result를 key로 mapping lookup 수행.
@@ -1499,7 +1521,9 @@ class Evaluation :
             if hasattr(base_expr, 'identifier'):
                 contract_var = base_expr.identifier
                 fcfg = self.an.current_target_function_cfg
-                if fcfg and hasattr(self.an, 'var_interface_map') and contract_var in self.an.var_interface_map:
+                # 변수의 typeInfo에서 interface 여부 확인 (state var + parameter)
+                interface_name = self._get_interface_name_of_var(contract_var, variables)
+                if fcfg and interface_name:
                     # 1) IReturnSingle 조회: (contract_var, func_name, None)
                     single_key = (contract_var, member_name, None)
                     if single_key in fcfg.ireturn_registry:
@@ -1510,7 +1534,6 @@ class Evaluation :
                     indexed = {k[2]: v for k, v in fcfg.ireturn_registry.items()
                                if k[0] == contract_var and k[1] == member_name and k[2] is not None}
                     if indexed:
-                        interface_name = self.an.var_interface_map[contract_var]
                         icfg = self.an.contract_cfgs.get(interface_name)
                         if icfg and member_name in icfg.functions:
                             ret_count = len(icfg.functions[member_name].return_types)
@@ -1518,6 +1541,39 @@ class Evaluation :
                             for i in range(ret_count):
                                 result.append(indexed.get(i, UnsignedIntegerInterval.top()))
                             return result
+
+            # ★ @IReturn Pattern B: explicit cast — IERC20(want).balanceOf() 등
+            #   base_expr가 FunctionCall이고, 그 callee가 interface name인 경우
+            if (hasattr(base_expr, 'context') and base_expr.context == 'FunctionCallContext'
+                    and hasattr(base_expr, 'function') and hasattr(base_expr.function, 'identifier')):
+                cast_interface = base_expr.function.identifier
+                fcfg = self.an.current_target_function_cfg
+                if fcfg and cast_interface in self.an.interface_names:
+                    # addr_var 추출: IERC20(want) → want
+                    addr_var = None
+                    if base_expr.arguments and len(base_expr.arguments) == 1:
+                        arg = base_expr.arguments[0]
+                        if hasattr(arg, 'identifier'):
+                            addr_var = arg.identifier
+                    if addr_var:
+                        # 1) CastSingle 조회: (interface_name, addr_var, func_name, None)
+                        single_key = (cast_interface, addr_var, member_name, None)
+                        if single_key in fcfg.ireturn_registry:
+                            return self._mapping_lookup_if_needed(
+                                fcfg.ireturn_registry[single_key], callerObject)
+
+                        # 2) CastIndex 조회
+                        indexed = {k[3]: v for k, v in fcfg.ireturn_registry.items()
+                                   if len(k) == 4 and k[0] == cast_interface
+                                   and k[1] == addr_var and k[2] == member_name and k[3] is not None}
+                        if indexed:
+                            icfg = self.an.contract_cfgs.get(cast_interface)
+                            if icfg and member_name in icfg.functions:
+                                ret_count = len(icfg.functions[member_name].return_types)
+                                result = []
+                                for i in range(ret_count):
+                                    result.append(indexed.get(i, UnsignedIntegerInterval.top()))
+                                return result
 
             # member access를 평가하여 라이브러리 함수인지 확인
             function_result = self.evaluate_expression(expr.function, variables, None, "functionCallContext")

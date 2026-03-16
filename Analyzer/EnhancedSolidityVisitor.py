@@ -297,11 +297,6 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             var_obj = Variables(var_name, scope="state")
             var_obj.typeInfo = type_info
 
-        # ── ②-1 interface type이면 var_interface_map에 기록 ────────────
-        raw_type_name = type_ctx.getText()
-        if raw_type_name in self.contract_analyzer.interface_names:
-            self.contract_analyzer.var_interface_map[var_name] = raw_type_name
-
         # ── ③ 초기화식 (있을 수도, 없을 수도) ────────────────────────
         init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
 
@@ -673,8 +668,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             type_obj.typeCategory = "struct"
             type_obj.structTypeName = type_name
         elif type_name in self.contract_analyzer.interface_names:
-            # Interface 타입 → Solidity에서 본질적으로 address
-            type_obj.typeCategory = "elementary"
+            # Interface 타입: 원본 이름 보존 + address 하위 호환
+            type_obj.typeCategory = "interface"
+            type_obj.interfaceName = type_name
             type_obj.elementaryTypeName = "address"
             type_obj.intTypeLength = 160
         else:
@@ -813,6 +809,23 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         index = int(ctx.numberLiteral().getText())
         value = self._parse_debug_value(ctx.debugValue())
         self.contract_analyzer.process_ireturn(contract_var, func_name, index, value)
+        return None
+
+    def visitIReturnCastSingle(self, ctx):
+        interface_name = ctx.identifier(0).getText()
+        addr_var = ctx.identifier(1).getText()
+        func_name = ctx.identifier(2).getText()
+        value = self._parse_debug_value(ctx.debugValue())
+        self.contract_analyzer.process_ireturn_cast(interface_name, addr_var, func_name, None, value)
+        return None
+
+    def visitIReturnCastIndex(self, ctx):
+        interface_name = ctx.identifier(0).getText()
+        addr_var = ctx.identifier(1).getText()
+        func_name = ctx.identifier(2).getText()
+        index = int(ctx.numberLiteral().getText())
+        value = self._parse_debug_value(ctx.debugValue())
+        self.contract_analyzer.process_ireturn_cast(interface_name, addr_var, func_name, index, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#duringIntent.

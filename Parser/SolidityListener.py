@@ -557,6 +557,24 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#IReturnCastSingle.
+    def enterIReturnCastSingle(self, ctx:SolidityParser.IReturnCastSingleContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnCastSingle.
+    def exitIReturnCastSingle(self, ctx:SolidityParser.IReturnCastSingleContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IReturnCastIndex.
+    def enterIReturnCastIndex(self, ctx:SolidityParser.IReturnCastIndexContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnCastIndex.
+    def exitIReturnCastIndex(self, ctx:SolidityParser.IReturnCastIndexContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#duringIntent.
     def enterDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         pass
