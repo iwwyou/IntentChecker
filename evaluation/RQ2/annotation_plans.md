@@ -351,38 +351,17 @@ accumulatorFP = (acc * hourlyYield * secondsDelta) / (FP32 * 3600);
 - **Function**: _peek; _get
 - **Bug lines (original)**: 116; 126
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `not_detectable (L4a: inexpressible-expected-value)`
 
 ### Bug Description
-`_peek()`/`_get()`에서 `priceOut`을 계산할 때 `10 ** source.decimals` (토큰 decimals)로 나누지만, 올바른 구현은 `10 ** IOracle(source.source).decimals()` (오라클 decimals)로 나눠야 함. 체인된 oracle path에서 가격 스케일이 누적적으로 잘못되어 inflated된 값을 반환.
+`_peek()`/`_get()`에서 `priceOut`을 계산할 때 `10 ** source.decimals` (토큰 decimals)로 나누지만, 올바른 구현은 `10 ** IOracle(source.source).decimals()` (오라클 출력 decimals, 항상 18)로 나눠야 함. 체인된 oracle path에서 가격 스케일이 누적적으로 잘못되어 inflated된 값을 반환. (예: USDC→DAI→USDT 경로에서 `1e30`으로 inflate)
 
-### 탐지 불가 사유
-버그가 있는 계산식:
-```solidity
-(priceOut, updateTimeOut) = IOracle(source.source).peek(base, quote, 10 ** source.decimals);
-priceOut = priceIn * priceOut / (10 ** source.decimals);  // BUG: should be IOracle(source.source).decimals()
-```
-
-`IOracle(source.source).peek()`은 **interface 호출**이므로 구현 body가 없어 리턴값이 **⊤ (Top)**:
-- `priceOut` = ⊤ (interface call return)
-- `priceIn * ⊤ / (10 ** source.decimals)` = **⊤**
-- 수정 버전 `priceIn * ⊤ / (10 ** IOracle(...).decimals())` = **⊤** (decimals()도 interface call → ⊤)
-- buggy와 correct 모두 ⊤이므로 구분 불가
-
-`peek()`/`get()` 함수에 for loop이 있어 `_peek`/`_get`을 반복 호출하지만, loop은 부차적 문제. Loop 밖의 단일 호출(line 86/106)에서도 interface call로 인해 이미 ⊤.
-
-### 버그 코드
-```solidity
-function _peek(bytes6 base, bytes6 quote, uint256 priceIn, uint256 updateTimeIn)
-    private view returns (uint priceOut, uint updateTimeOut)
-{
-    Source memory source = sources[base][quote];
-    require (source.source != address(0), "Source not found");
-    (priceOut, updateTimeOut) = IOracle(source.source).peek(base, quote, 10 ** source.decimals);   // return Top
-    priceOut = priceIn * priceOut / (10 ** source.decimals);   // BUG: Top * anything = Top
-    updateTimeOut = (updateTimeOut < updateTimeIn) ? updateTimeOut : updateTimeIn;
-}
-```
+### Not Detectable 사유
+- Interface call은 이제 지원되어 `IOracle(source.source).peek()` 반환값은 TOP이 아님
+- 그러나 올바른 denominator는 `10 ** IOracle(source.source).decimals()` (오라클 출력 precision)
+- `IOracle(source.source).decimals()`는 buggy 코드에서 **호출되지 않는 함수** → 값을 담는 변수가 scope에 없음
+- annotation grammar에서 함수 호출 불가 (intentValue = 변수/상수/산술 조합만)
+- 따라서 올바른 expected value를 annotation으로 표현할 수 없음 (L4a)
 
 ---
 
@@ -1329,12 +1308,20 @@ function transfer(address account, uint256 amount) external override notPaused r
 - **Function**: mintSynth
 - **Bug lines (original)**: 161
 - **Pattern**: erroneous_accounting
-- **Status**: excluded (missing-dependency)
+- **Status**: not_detectable (L5a: missing-code)
 
-### Notes
-- 버그: `mintSynth`에서 synth 발행 후 `_update` 호출 시 `reserveForeign`을 차감하지 않아 synth가 과다 발행됨
-- VaderPoolV2는 BasePoolV2를 상속하나, dependency에 BasePoolV2.sol이 존재하지 않음 (BasePool V1만 있음)
-- BasePoolV2의 `_update` 함수, `pairInfo` mapping 등 핵심 로직이 없어 contraction/분석 불가 → excluded
+### Bug Description
+`mintSynth`에서 synth 발행 후 `_update` 호출 시 `reserveForeign`을 차감하지 않아 synth가 과다 발행됨:
+- Buggy (line 158-164): `_update(foreignAsset, reserveNative + nativeDeposit, reserveForeign, ...)`
+- Correct: `_update(foreignAsset, reserveNative + nativeDeposit, reserveForeign - amountSynth, ...)`
+
+### Dependency 현황
+BasePoolV2.sol, VaderMath.sol 등 모든 dependency 확보 완료 (Web3Bugs 원본에서 복사). VaderMath.calculateSwap은 pure 함수, inline assembly 없음 → 분석 가능.
+
+### Not Detectable 사유 (L5a: missing-code)
+`_update` 호출 시 `reserveForeign`에서 `amountSynth`를 빼는 코드가 **누락**됨. `@Intent`로 "synth 발행 후 foreign reserve가 줄어야 한다"고 표현은 가능하나, 이 intent를 작성하려면 `- amountSynth` 누락을 이미 인지하고 있어야 함 → bug awareness 전제.
+
+annotated 케이스(5_H_07: 주석이 spec, 5_H_12: 변수 의미론에서 자연스러운 intent 도출)와 달리, 이 케이스는 synth 발행의 회계 규칙에 대한 도메인 지식 + 버그 인지가 있어야 intent 작성 가능.
 
 ---
 
@@ -1565,22 +1552,22 @@ Single asset entry 시 LP 토큰 수량(ΔRo) 계산을 위한 gamma(γ) 공식�
 - **Function**: manualRebalance
 - **Bug lines (original)**: 469; 471; 477
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L2a: interface-call-return-top)
+- **Status**: `not_detectable (L5b: wrong-code)`
 
 ### Bug Description
 `manualRebalance()`에서 두 변수의 단위가 다른데 비교함:
 - Line 469: `currentLockRatio = balanceInLock * 1e18 / totalCVXBalance` → **비율** (percentage, max 1e18)
 - Line 471: `newLockRatio = totalCVXBalance * toLock / MAX_BPS` → **절대 CVX 수량** (token amount)
 - Line 477: `if (newLockRatio <= currentLockRatio)` → 비율과 수량을 비교 → 잘못된 분기
-- 결과: totalCVXBalance가 클수록 거의 모든 것을 lock하게 됨
+- Report의 권장 수정: `currentLockRatio`를 `balanceInLock` (amount)으로 변경. `cvxToLock = newLockRatio.sub(currentLockRatio)`의 사용처에서 역추론.
 - Report: sponsor(GalloDaSballo) confirmed, mitigated by rewriting
 
-### Not Detectable 사유
-핵심 변수들이 전부 외부 interface 호출에 의존:
-- `IERC20(want).balanceOf()`, `IERC20(CVX).balanceOf()` → TOP
-- `LOCKER.balanceOf()` → TOP (ICvxLocker interface)
-- `wantToCVX()` → `CVX_VAULT.getPricePerFullShare()` → TOP (ISettV3 interface)
-- `totalCVXBalance`, `currentLockRatio`, `newLockRatio` 모두 TOP → line 477 비교 평가 불가
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원되어 `balanceOf()`, `getPricePerFullShare()` 등 반환값은 TOP이 아님
+- 그러나 버그는 `currentLockRatio` 계산식의 dimensional mismatch: percentage(1e18 precision)로 계산했으나 실제로는 amount여야 함
+- 올바른 식(`currentLockRatio = balanceInLock`)을 알려면 하류 코드(line 488: `cvxToLock = newLockRatio.sub(currentLockRatio)` → CVX 수량으로 사용)의 차원 분석이 필요
+- 감사자(cmichel)도 "Judging from the `cvxToLock = ...`"로 하류 사용처에서 올바른 의미를 역추론
+- 어떤 annotation이든 두 변수의 단위가 같아야 한다는 전제 필요 → dimensional mismatch 인지 = bug awareness
 
 ---
 
@@ -1590,7 +1577,7 @@ Single asset entry 시 LP 토큰 수량(ΔRo) 계산을 위한 gamma(γ) 공식�
 - **Function**: applyTrade
 - **Bug lines (original)**: 187
 - **Pattern**: erroneous_accounting
-- **Status**: excluded (E5: missing-dependency)
+- **Status**: not_detectable (L3: unsupported-construct-top)
 
 ### Bug Description
 `applyTrade()`에서 Long 포지션의 fee 부호가 반대:
@@ -1599,8 +1586,11 @@ Single asset entry 시 LP 토큰 수량(ΔRo) 계산을 위한 gamma(γ) 공식�
 - Short 포지션(line 190)은 올바르게 `- fee` 처리
 - Report: sponsor(raymogg) confirmed
 
-### Excluded 사유
-PRBMathSD59x18.sol, PRBMathUD60x18.sol이 npm 패키지(`prb-math ^1.0.5`)로만 선언되어 있고 실제 .sol 파일이 Web3Bugs 저장소에 포함되지 않음. `using PRBMathSD59x18 for int256`, `using PRBMathUD60x18 for uint256` resolve 불가 → dependency pre-analysis 불가.
+### Not Detectable 사유
+PRBMath dependency 확보 완료 (npm에서 설치 후 복사). 그러나 PRBMath 라이브러리 내부 핵심 함수(`mulDivFixedPoint`, `mulDiv`)가 inline assembly를 사용하여 분석 불가:
+- `quoteChange = PRBMathSD59x18.mul(signedAmount, signedPrice)` → assembly 내부 → TOP
+- `fee = getFee(...)` → `PRBMathUD60x18.mul` → assembly 내부 → TOP
+- `newQuote = position.quote - TOP + TOP` → TOP → buggy/correct 구분 불가
 
 ---
 
@@ -1627,7 +1617,7 @@ PRBMathSD59x18.sol, PRBMathUD60x18.sol이 npm 패키지(`prb-math ^1.0.5`)로만
 ---
 
 ## web3bugs_44_H_02
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
 - **Contract**: Swap
 - **Function**: fillZrxQuote()
 - **Bug lines**: 210 (originalETHBalance), 215 (ethDelta)
@@ -1640,11 +1630,11 @@ PRBMathSD59x18.sol, PRBMathUD60x18.sol이 npm 패키지(`prb-math ^1.0.5`)로만
 - Correct: `originalETHBalance = address(this).balance - msg.value`로 보정 필요
 - Report: sponsor(Shadowfiend) confirmed
 
-### Not Detectable 사유
-- `address(this).balance` — EVM 내장 글로벌, IntentChecker가 모델링하지 않음 → TOP
-- `zrxBuyTokenAddress.balanceOf(address(this))` — interface 호출 → TOP
-- `zrxTo.call{value: ethAmount}(zrxData)` — 외부 호출, side effect 불명
-- `ethDelta = TOP.subOrZero(TOP)` → TOP, `erc20Delta = TOP.subOrZero(TOP)` → TOP
+### Not Detectable 사유 (L3: unsupported-construct-top)
+- `address(this).balance` → L3 unsupported construct (항상 TOP). Interface 지원과 무관
+- `zrxTo.call{value: ethAmount}(zrxData)` → low-level `.call()`, interface 아님 → side effect 불명
+- `zrxBuyTokenAddress.balanceOf()` → interface call이나 low-level call 이후 재호출로 state 변화 추적 불가
+- `ethDelta = TOP.subOrZero(TOP)` → TOP, `erc20Delta` 계산도 불확실
 - 모든 delta 값이 TOP이므로 intent annotation 검증 불가
 
 ---
@@ -1682,33 +1672,72 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 ---
 
 ## web3bugs_42_H_01
-- **Status**: not_detectable (interface-call-return-top)
 - **Contract**: MochiVault
 - **Function**: borrow()
-- **Bug line**: 248 (original), 105 (contraction)
+- **Bug line (original)**: 248
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
 
-### Bug 설명
-`borrow()`에서 0.5% fee를 포함한 `increasingDebt = (_amount * 1005) / 1000`으로 개별 debt를 증가시키지만, global `debts`는 fee 미포함 `_amount`로만 증가 → 개별 debt 합계와 global debts 불일치. 또한 debtIndex 계산(line 100-102)에서도 `_amount` 사용 (올바른 값: `increasingDebt`).
-- Buggy (line 105): `debts += _amount`
+### Bug Description
+`borrow()`에서 0.5% fee를 포함한 `increasingDebt = (_amount * 1005) / 1000`으로 개별 debt(`details[_id].debt`)를 증가시키지만, global `debts`는 fee 미포함 `_amount`로만 증가 → 개별 debt 합계와 global debts 불일치. `repay()`/`liquidate()`에서는 fee 포함 값으로 debts를 차감하므로 결국 debts가 underflow.
+- Buggy (line 248): `debts += _amount`
 - Correct: `debts += increasingDebt`
 - Report: sponsor(jonah1005) confirmed
 
 ### Dependencies
-- `Float` library: `using Float for uint256` — `.multiply()`, `.divide()` 사용
-- `CheapERC20` library: `using CheapERC20 for IERC20`
-- `IMochiEngine` interface: `engine.cssr()`, `engine.mochiProfile()`, `engine.nft()`, `engine.minter()`, `engine.discountProfile()`
-- `Detail` struct: file-level struct (IMochiVault.sol) — Issue 3 해당
+**Libraries (사전 분석 필요):**
+- `Float.sol` (`42_Float.sol`): `using Float for uint256`, `float` struct, `.multiply()`, `.divide()` — pure, assembly 없음 → 분석 가능
+- `CheapERC20.sol` (`42_CheapERC20.sol`): `using CheapERC20 for IERC20` — borrow() 직접 경로 미사용, contraction에서 제거 시 불필요
+
+**Interfaces:**
+- `IMochiVault.sol`: `Detail` struct, `Status` enum (file-level 정의)
+- `IMochiEngine.sol`: `engine.cssr()`, `engine.mochiProfile()`, `engine.nft()`, `engine.minter()`, `engine.discountProfile()`
+- `IMochiProfile.sol`: `calculateFeeIndex()`, `maxCollateralFactor()`, `creditCap()`, `minimumDebt()`, `liquidationFactor()`
+- `IDiscountProfile.sol`: `discount()`
+- `IMochiNFT.sol`: `ownerOf()`, `asset()`
+- `IMinter.sol`: `mint()`
+- `ICSSRRouter.sol` (`42_ICSSRRouter.sol`): `update()`, `getPrice()`
+- `IReferralFeePool.sol`: `addReward()`
+- `IERC3156FlashLender.sol`, `IERC3156FlashBorrower.sol`: 상속
 
 ### 추가 구현 사항
-- Issue 3: file-level struct 지원 (`struct Detail` — contract 밖 interface 파일에 정의)
-- Issue 4: `using Float for uint256`, `using CheapERC20 for IERC20` 커스텀 라이브러리 지원
+- Issue 3: file-level struct 지원 (`struct Detail`, `enum Status` — contract 밖 interface 파일에 정의)
+- Issue 4: `using Float for uint256` 커스텀 라이브러리 지원
 
-### Not Detectable 사유
-- `updateDebt` modifier → `accrueDebt(_id)` 호출 → `liveDebtIndex()` → `engine.mochiProfile().calculateFeeIndex(...)` interface 호출 → TOP
-- `accrueDebt` 내에서 `debts += TOP`, `details[_id].debt += TOP` → borrow() 진입 시 이미 TOP
-- borrow() 내 `engine.cssr().update()`, `engine.mochiProfile().maxCollateralFactor()` 등도 interface → TOP
-- `_amount`이 조건문(line 89-93)에서 TOP 기반 값으로 재할당 가능 → TOP
-- 모든 핵심 변수가 TOP이므로 `debts += _amount` vs `debts += increasingDebt` 차이 검증 불가
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | debts | [800, 800] | 29 | 초기 global debt = 500+300+0, invariant 유지 |
+| StateVar | debtIndex | [1000000000000000000, 1000000000000000000] | 29 | 1e18, 이자 없는 초기 상태 |
+| StateVar | lastAccrued | [현재timestamp, 현재timestamp] | 29 | accrueDebt에서 이자 0 |
+| StateVar | details[0].debt | [500, 500] | 29 | 기존 position 0 |
+| StateVar | details[0].debtIndex | [1000000000000000000, 1000000000000000000] | 29 | 1e18 |
+| StateVar | details[0].status | Status.Active | 29 | active |
+| StateVar | details[1].debt | [300, 300] | 29 | 기존 position 1 |
+| StateVar | details[1].debtIndex | [1000000000000000000, 1000000000000000000] | 29 | 1e18 |
+| StateVar | details[1].status | Status.Active | 29 | active |
+| StateVar | details[2].debt | [0, 0] | 29 | borrow 대상, 초기 debt 0 |
+| StateVar | details[2].debtIndex | [1000000000000000000, 1000000000000000000] | 29 | 1e18 |
+| StateVar | details[2].collateral | [10000000, 10000000] | 29 | 충분한 담보 |
+| StateVar | details[2].status | Status.Collaterized | 29 | 담보만 있는 상태 |
+| IReturn | engine.mochiProfile().calculateFeeIndex() | [1000000000000000000, 1000000000000000000] | 29 | debtIndex 그대로 반환 (이자 0) |
+| IReturn | engine.cssr().update() | float{1e18, 1e18} | 29 | price = 1.0 |
+| IReturn | engine.mochiProfile().maxCollateralFactor() | float{8e17, 1e18} | 29 | cf = 0.8 |
+| IReturn | engine.mochiProfile().creditCap() | [100000000, 100000000] | 29 | 충분히 큰 cap |
+| IReturn | engine.mochiProfile().minimumDebt() | [0, 0] | 29 | 최소 debt 없음 |
+| LocalVar | _amount | [1000, 1000] | 29 | borrow 금액 |
+
+- 초기 invariant: debts(800) == details[0].debt(500) + details[1].debt(300) + details[2].debt(0) ✓
+- accrueDebt: currentIndex == debtIndex → increased = 0, 변화 없음
+- increasingDebt = 1000 * 1005 / 1000 = 1005
+- details[2].debt = 0 + 1005 = 1005
+- Buggy: debts = 800 + 1000 = 1800
+- Correct: debts = 800 + 1005 = 1805
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 52 | debts == details[0].debt + details[1].debt + details[2].debt | violated | Accounting invariant: global debts = Σ individual debts. debts=800+1000=1800 ≠ 500+300+1005=1805 → violated |
 
 ---
 
@@ -1721,22 +1750,23 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 ---
 
 ## web3bugs_52_H_16
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `not_detectable (L5b: wrong-code)`
 - **Contract**: VaderRouter
 - **Function**: calculateOutGivenIn()
 - **Bug lines**: 488-491
 
-### Bug 설명
+### Bug Description
 3-path swap에서 pool0과 pool1의 reserve 파라미터 순서가 뒤바뀜. inner calculateSwap이 pool1 reserve를 사용하고 outer가 pool0 reserve를 사용하지만, 올바르게는 inner=pool0(foreign→native), outer=pool1(native→foreign)이어야 함.
 - Buggy: `calculateSwap(calculateSwap(amountIn, nativeReserve1, foreignReserve1), foreignReserve0, nativeReserve0)`
 - Correct: `calculateSwap(calculateSwap(amountIn, foreignReserve0, nativeReserve0), nativeReserve1, foreignReserve1)`
-- Report: sponsor(SamSteinGG) confirmed
+- Report: sponsor(SamSteinGG) confirmed. 52_H_15와 동일한 wrong-arg-order 패턴.
 
-### Not Detectable 사유
-- `pool0.getReserves()` → `IVaderPool` interface 호출 → nativeReserve0, foreignReserve0 = TOP
-- `pool1.getReserves()` → interface 호출 → nativeReserve1, foreignReserve1 = TOP
-- VaderMath.calculateSwap 소스는 존재하지만 입력이 모두 TOP → `calculateSwap(TOP, TOP, TOP)` = TOP
-- reserve 순서가 바뀌든 안 바뀌든 결과가 동일하게 TOP → 검증 불가
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원되어 `pool0.getReserves()`, `pool1.getReserves()` 반환값은 symbolic (TOP 아님)
+- `VaderMath.calculateSwap()`은 library pure 함수로 분석 가능 → 계산 추적 가능
+- 그러나 올바른 reserve 순서(pool0 first: foreign→native, pool1 second: native→foreign)를 annotation하려면 swap 방향 이해 필요
+- annotation grammar에서 `VaderMath.calculateSwap()` 함수 호출 불가 → 올바른 expected value 표현도 불가
+- 52_H_15 (wrong swap arg order)와 동일한 패턴 → bug awareness (L5b)
 
 ---
 
@@ -1744,20 +1774,26 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 
 - **Contract**: Router
 - **Function**: swapWithSynthsWithLimit
-- **Bug line**: 142 (contraction 기준)
+- **Bug line**: 170 (original 기준)
+- **Status**: `not_detectable,interface-call-return-top`
 - **Bug**: Token→Token 스왑 시 두 번째 slippage check에서 첫 스왑의 base output 대신 원래 `inputAmount`를 사용
-- Buggy (line 142): `iUTILS(UTILS()).calcSwapSlip(inputAmount, iPOOLS(POOLS).getBaseAmount(outputToken))`
+- Buggy (line 170): `iUTILS(UTILS()).calcSwapSlip(inputAmount, iPOOLS(POOLS).getBaseAmount(outputToken))`
 - Correct: `iUTILS(UTILS()).calcSwapSlip(firstSwapOutput, iPOOLS(POOLS).getBaseAmount(outputToken))`
-- 첫 번째 스왑(line 138)의 return value가 미사용됨
+- 첫 번째 스왑(line 166)의 return value가 미사용됨
 - Report: sponsor(strictly-scarce) confirmed
 
+### @IReturn 재검토
+- `iUTILS.calcSwapSlip()` → **pure** → @IReturn 가능
+- `iPOOLS.getBaseAmount()` → **view** → @IReturn 가능
+- `iPOOLS.getTokenAmount()` → **view** → @IReturn 가능
+- `iPOOLS.isAnchor()` → **view** → @IReturn 가능
+- `iPOOLS.swap()` → **state-modifying (mutability 없음)** → @IReturn **불가**
+
 ### Not Detectable 사유
-- `iPOOLS(POOLS).isAnchor(...)` → interface call → 분기 조건 TOP
-- `iPOOLS(POOLS).getTokenAmount(...)` → interface call → TOP
-- `iPOOLS(POOLS).swap(...)` → interface call → 첫 스왑 결과 TOP
-- `iUTILS(UTILS()).calcSwapSlip(...)` → interface call → slippage 계산 결과 TOP
-- `iPOOLS(POOLS).getBaseAmount(...)` → interface call → TOP
-- 파라미터(`inputAmount`, `slipLimit`)는 LocalVar로 알 수 있으나, `calcSwapSlip` 자체가 interface call이라 결과 TOP → `require(TOP <= slipLimit)` 판정 불가
+- 버그 탐지에 필요한 핵심 값: 첫 스왑 output (`iPOOLS(POOLS).swap()` 반환값)
+- `swap()`은 state-modifying 함수이므로 @IReturn 적용 불가
+- 첫 스왑 output을 concrete하게 만들 수 없으므로, `inputAmount`와 `firstSwapOutput`의 차이를 검증할 방법 없음
+- view/pure 함수들(@IReturn 가능)만으로는 버그의 핵심인 "잘못된 변수 사용"을 탐지할 수 없음
 
 ---
 
@@ -1784,16 +1820,12 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - **Contract**: IdleYieldSource
 - **Function**: redeemToken
 - **Bug line**: 131 (original 기준)
+- **Status**: `excluded,missing-dependency`
 - **Bug**: `redeemIdleToken(redeemedShare)` — `redeemedShare` 대신 `redeemAmount`를 전달해야 함
-- `redeemedShare = _tokenToShares(redeemAmount)` = `(redeemAmount * ONE_IDLE_TOKEN) / _price()`
-- `_price()` > `ONE_IDLE_TOKEN`이면 `redeemedShare < redeemAmount` → 사용자가 더 적은 토큰 수령
-- Report: sponsor(PierrickGT) confirmed and patched
 
-### Not Detectable 사유
-- `_price()` = `IIdleToken(idleToken).tokenPriceWithFee(...)` → interface call → TOP
-- `redeemedShare = (redeemAmount * ONE_IDLE_TOKEN) / TOP` → TOP
-- `redeemIdleToken(TOP)` → interface call → `redeemedUnderlyingAsset` = TOP
-- `DuringFunctionArg`로 `redeemIdleToken.arg[0] == redeemAmount` 검증 시도해도, 실제 전달값 `redeemedShare`가 이미 TOP → `TOP == redeemAmount` → 위반 감지 불가
+### Excluded 사유
+- `IIdleToken` interface 정의 파일이 repository에 존재하지 않음
+- dependency가 없으면 IntentChecker가 interface를 인식할 수 없어 분석 자체 불가
 
 ---
 
@@ -1808,13 +1840,13 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - `burn` 후에는 reserve가 balance로 업데이트되므로 balance 기준이 맞음
 - Report: sponsor(maxsam4) confirmed, severity bumped to High
 
-### Not Detectable 사유
-- `balance0`, `balance1` → `_balance()` → `bento.staticcall(...)` → raw staticcall to 외부 컨트랙트 → TOP
-- `amount0 = (liquidity * TOP) / _totalSupply` → TOP
-- `amount1 = (liquidity * TOP) / _totalSupply` → TOP
-- `_getAmountOut(TOP, _reserve0 - TOP, _reserve1 - TOP)` → 입력 TOP → 결과 TOP
-- `_getAmountOut`은 내부 함수(분석 가능)이지만 입력이 모두 TOP이라 결과도 TOP
-- `_reserve`를 쓰든 `balance`를 쓰든 동일하게 TOP → 구분 불가
+### Not Detectable 사유 (L3: unsupported-construct-top)
+- Interface call이 아닌 low-level `staticcall` + `abi.decode` 패턴 (29_H_08과 동일):
+  - `_balance()`: `bento.staticcall(abi.encodeWithSelector(0xf7888aec, ...))` → `abi.decode`
+- `staticcall`은 low-level external call로 추적 불가, `abi.decode`는 L3 unsupported construct → 반환값 TOP
+- `balance0`, `balance1` → TOP → `amount0 = (liquidity * TOP) / _totalSupply` → TOP
+- `_getAmountOut(TOP, _reserve0 - TOP, _reserve1 - TOP)` → TOP
+- Interface 지원과 무관하게 `staticcall` + `abi.decode`가 blocker (L3)
 
 ---
 
@@ -1875,17 +1907,35 @@ currentFundingIndex = currentFundingIndex + 1;
 
 - **Contract**: Pools
 - **Function**: getAddedAmount (internal)
-- **Bug Line**: 201
-- **Status**: `not_detectable,interface-call-return-top`
+- **Bug line (original)**: 201
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
 
-### 버그 설명
-`getAddedAmount(address _token, address _pool)`의 else branch에서 `addedAmount = _balance - mapToken_tokenAmount[_pool]` 수행. `_token != _pool`일 때 `_token`의 balance에서 다른 풀(`_pool`)의 저장량을 빼므로 잘못된 결과 반환. `sync(token1, token2)` 등으로 악용하여 accounting 파괴 가능.
+### Bug Description
+`getAddedAmount(address _token, address _pool)`의 else branch에서 `addedAmount = _balance - mapToken_tokenAmount[_pool]` 수행. `_token`의 추가량을 구해야 하므로 올바른 key는 `_token`이나 잘못된 key `_pool`을 사용. `_token != _pool`일 때 잘못된 결과 반환. `sync(token1, token2)` 등으로 악용하여 accounting 파괴 가능.
 
-### Not Detectable 사유
-- `_balance = iERC20(_token).balanceOf(address(this))` → interface call → TOP
-- `addedAmount = TOP - mapToken_tokenAmount[_pool]` → TOP
-- 올바른 값(`balance - mapToken_tokenAmount[_token]`)과 잘못된 값(`balance - mapToken_tokenAmount[_pool]`) 모두 TOP → 구분 불가
-- 호출자(`sync`, `swap`, `addLiquidity`, `mintSynth`)에서의 state 변경도 TOP에 기반하여 모두 TOP
+### Dependencies
+- iERC20 interface (balanceOf)
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| SymAddress | address(this) | addr0 | 24 | 컨트랙트 자신 |
+| SymAddress | _token | addr1 | 24 | 함수 파라미터 |
+| SymAddress | _pool | addr2 | 24 | 함수 파라미터, ≠ _token |
+| SymAddress | VADER | addr3 | 24 | state variable, ≠ _token (if 분기 스킵) |
+| SymAddress | USDV | addr4 | 24 | state variable, ≠ _token (else if 분기 스킵) |
+| IReturn | iERC20(_token).balanceOf(address(this)) | [200, 200] | 24 | 현재 잔액 |
+| StateVar | mapToken_tokenAmount[_token] | [100, 100] | 24 | _token의 저장량 |
+| StateVar | mapToken_tokenAmount[_pool] | [50, 50] | 24 | _pool의 저장량, ≠ _token's |
+
+- else 분기 진입 조건: _token ≠ VADER, _token ≠ USDV (SymAddress로 모두 distinct)
+- underflow 검증: _balance(200) >= mapToken_tokenAmount[_pool](50) ✓, _balance(200) >= mapToken_tokenAmount[_token](100) ✓
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 34 | returnExpression == _balance - mapToken_tokenAmount[_token] | violated | 5.md H-12: 함수 이름(getAddedAmount) + mapping 이름(mapToken_tokenAmount) + 파라미터(_token) semantics에서 자연스럽게 도출 가능한 함수 계약. 올바른 결과 100(200-100) vs 버그 결과 150(200-50) → violated |
 
 ---
 
@@ -1894,16 +1944,16 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: GasOracle
 - **Function**: latestAnswer
 - **Bug Line**: 32, 33, 35
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
 
 ### 버그 설명
 `latestAnswer()`에서 `gasOracle.latestAnswer()`(line 32)와 `priceOracle.latestAnswer()`(line 33)의 raw 값을 `toWad()`으로 18 decimals 변환 없이 바로 `PRBMathUD60x18.mul()`(line 35)에 전달. Chainlink oracle의 decimals가 18이 아닐 경우 결과값 스케일이 잘못됨. `toWad()` 함수가 존재하지만 호출되지 않음.
 
 ### Not Detectable 사유
-- `gasOracle.latestAnswer()` → `IChainlinkOracle` interface call → TOP
-- `priceOracle.latestAnswer()` → `IChainlinkOracle` interface call → TOP
-- `PRBMathUD60x18.mul(TOP, TOP)` → TOP
-- result가 TOP이므로 스케일 오류 여부를 annotation으로 검증 불가
+- Interface call은 이제 지원되어 `gasOracle.latestAnswer()`, `priceOracle.latestAnswer()` 반환값은 TOP이 아님
+- 그러나 `PRBMathUD60x18.mul(gasPrice, ethPrice)` (line 35) → PRBMath 라이브러리 내부에 inline assembly 사용 → result가 TOP (L3)
+- result가 TOP이므로 annotation으로 스케일 오류 여부를 검증 불가
+- 부차적으로 버그 자체도 `toWad()` 미호출 (missing-code 패턴)이나, L3이 주된 blocker
 
 ---
 
@@ -1912,16 +1962,14 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: BadgerYieldSource
 - **Function**: balanceOfToken
 - **Bug Line**: 36
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `excluded,missing-dependency`
 
 ### 버그 설명
-`balanceOfToken()`에서 `badger.balanceOf(address(badgerSett))`(line 36)는 Sett 컨트랙트에 물리적으로 보유된 badger만 반환하여 strategy에 deploy된 자금을 미포함. 올바른 구현은 `badgerSett.balance()`로 전체 잔액(Sett + Controller + Strategy)을 사용해야 함. 결과적으로 사용자의 실제 잔액을 과소 보고.
+`balanceOfToken()`에서 `badger.balanceOf(address(badgerSett))`(line 36)는 Sett 컨트랙트에 물리적으로 보유된 badger만 반환하여 strategy에 deploy된 자금을 미포함. 올바른 구현은 `badgerSett.balance()`로 전체 잔액(Sett + Controller + Strategy)을 사용해야 함.
 
-### Not Detectable 사유
-- `badgerSett.totalSupply()` → `IBadgerSett` interface call → TOP
-- `badger.balanceOf(address(badgerSett))` → `IBadger` interface call → TOP
-- `balances[addr].mul(TOP).div(TOP)` → TOP
-- 올바른 구현(`badgerSett.balance()`)도 interface call → TOP → 두 값 구분 불가
+### Excluded 사유
+- `IBadgerSett`, `IBadger` interface 정의 파일이 repository에 존재하지 않음
+- dependency가 없으면 IntentChecker가 interface를 인식할 수 없어 분석 자체 불가
 
 ---
 
@@ -1983,17 +2031,19 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: HybridPool
 - **Function**: _getReserves
 - **Bug Line**: 255, 256
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
 
 ### 버그 설명
 `_updateReserves()`에서 `_balance()`가 이미 BentoBox shares→amounts 변환한 값을 `reserve0`/`reserve1`에 저장. 그런데 `_getReserves()`(lines 255-256)에서 이미 amounts인 reserves를 `_toAmount()`으로 다시 변환 (double conversion). 모든 swap/mint/burn에서 잘못된 reserve 사용.
 
 ### Not Detectable 사유
-- `_toAmount()` → `bento.staticcall(...)` (low-level external call) → TOP
-- `_balance()` → `__balance()` + `_toAmount()` → 둘 다 `bento.staticcall` → TOP
-- `_updateReserves()`: `reserve0 = uint128(TOP)` → storage에 TOP
+- Interface call이 아닌 low-level `staticcall` + `abi.decode` 패턴:
+  - `__balance()`: `bento.staticcall(abi.encodeWithSelector(...))` → `abi.decode(___balance, (uint256))`
+  - `_toAmount()`: `bento.staticcall(abi.encodeWithSelector(...))` → `abi.decode(_output, (uint256))`
+- `staticcall`은 low-level external call로 추적 불가, `abi.decode`는 L3 unsupported construct → 반환값 TOP
+- `_balance()` → TOP, `_updateReserves()`: `reserve0 = uint128(TOP)` → storage에 TOP
 - `_getReserves()`: `_toAmount(token0, TOP)` → TOP
-- 모든 경로에서 external call이 TOP 반환 → "한 번 변환"과 "두 번 변환" 구분 불가 (L2a)
+- Interface 지원과 무관하게 `staticcall` + `abi.decode`가 blocker (L3)
 
 ---
 

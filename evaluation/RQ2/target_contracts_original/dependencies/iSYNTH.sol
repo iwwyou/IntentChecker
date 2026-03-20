@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.3;
+// SPDX-License-Identifier: Unlicense
 
-interface iSYNTH {
-    function mint(address account, uint amount) external;
-    function TOKEN() external view returns(address);
+pragma solidity =0.8.9;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+interface ISynth is IERC20 {
+    function mint(address to, uint256 amount) external;
+
+    function burn(uint256 amount) external;
 }
