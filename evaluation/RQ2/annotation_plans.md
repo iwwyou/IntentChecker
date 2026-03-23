@@ -688,7 +688,7 @@ return (totalUSD * 1 ether) / totalUSDV;  // Top / Top = Top
 - **Function**: resume
 - **Bug lines (original)**: 709; 710; 711
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `not_detectable (L1c: loop-body-granularity)`
 
 ### Bug Description
 `resume()`에서 각 index pool의 상환액(`_redeemAmount`)을 계산할 때 나눗셈(`_divCeil`)을 사용하지만, 올바른 계산은 곱셈이어야 함.
@@ -701,9 +701,11 @@ return (totalUSD * 1 ether) / totalUSDV;  // Top / Top = Top
 
 Index가 1개면 shareOfIndex = 1e6이라 나눠도 동일. 2개 이상이면 각 index가 과다 상환.
 
-### 탐지 불가 사유
+### 탐지 불가 사유 (L1c: loop-body-granularity)
 
-**본질: interface-call-return-top**
+**Interface call은 이제 지원됨**: `vault.debts()`, `totalLiquidity()` → @IReturn으로 concrete 가능. L2a blocker 해소.
+
+**새로운 blocker: L1c**
 
 ```solidity
 uint256 _debt = vault.debts(address(this));  // vault = IVault → interface call → Top
@@ -1064,58 +1066,61 @@ debug annotation 값 결정 시 다음 제약 조건을 Z3로 풀어야 함:
 - **Contract**: LpIssuer
 - **Function**: _chargeFees
 - **Bug line (original)**: 270
+- **Bug line (contraction)**: 85
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
 
 ### Bug Description
-
 Performance fee 계산 공식이 잘못됨. `toMint = (baseSupply * minLpPriceFactor) / DENOMINATOR`에서:
 1. `minLpPriceFactor = lpPrice * DENOMINATOR / hwm` → lpPrice > hwm이면 항상 > DENOMINATOR
 2. 따라서 `toMint > baseSupply` — 매번 전체 supply보다 많은 LP를 mint
 3. `performanceFee` 비율이 계산에 아예 사용되지 않음 (> 0 체크만 하고 끝)
+- Correct: `toMint = baseSupply * (minLpPriceFactor - DENOMINATOR) * performanceFee / (DENOMINATOR²)`
+- Report: sponsor(MihanixA) confirmed
 
-올바른 공식: `toMint = baseSupply * (minLpPriceFactor - DENOMINATOR) * performanceFee / (DENOMINATOR²)`
+### Dependencies
+**Libraries (사전 분석 필요):**
+- `CommonLibrary.sol`: `DENOMINATOR = 10^9`, `PRICE_DENOMINATOR = 10^18`, `YEAR = 31536000` — constant, 인라인됨
 
-### 루프 분석 (lines 253-265)
+**Interfaces:**
+- `ILpIssuerGovernance`: `delayedProtocolParams()`, `delayedStrategyParams()`, `delayedProtocolPerVaultParams()`, `internalParams()`
+- ERC20 상속: `_mint()` — totalSupply/balanceOf 변경
 
-```solidity
-uint256 minLpPriceFactor = type(uint256).max;
-for (uint256 i = 0; i < baseTvls.length; i++) {
-    // ...
-    if (delta < minLpPriceFactor) {
-        minLpPriceFactor = delta;  // 항상 감소 방향 → 수렴
-    }
-}
-```
+### 루프 분석
+min-finding 패턴. accumulation(`+=`)이 아니고 monotonically non-increasing → widening 대상 아님. 배열 길이 concrete(=2) → 정확히 2회 unroll. **루프는 blocker가 아님.**
 
-min-finding 패턴으로 accumulation(`+=`)이 아님. monotonically non-increasing → widening 대상 아님. **루프는 blocker가 아님.**
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | lastFeeCharge | [0, 0] | 23 | elapsed 충분히 크도록 |
+| StateVar | _lpPriceHighWaterMarks[0] | [1900000000000000000, 1900000000000000000] | 23 | 1.9e18, lpPrice(2e18)보다 작음 |
+| StateVar | _lpPriceHighWaterMarks[1] | [2900000000000000000, 2900000000000000000] | 23 | 2.9e18, lpPrice(3e18)보다 작음 |
+| LocalVar | thisNft | [1, 1] | 23 | NFT id |
+| LocalVar | tvls[0] | [2000000000000000000000, 2000000000000000000000] | 23 | 2000e18 |
+| LocalVar | tvls[1] | [3000000000000000000000, 3000000000000000000000] | 23 | 3000e18 |
+| LocalVar | supply | [1000000000000000000000, 1000000000000000000000] | 23 | 1000e18 |
+| LocalVar | deltaTvls[0] | [100000000000000000000, 100000000000000000000] | 23 | 100e18 (isWithdraw=false, 미사용) |
+| LocalVar | deltaTvls[1] | [150000000000000000000, 150000000000000000000] | 23 | 150e18 |
+| LocalVar | deltaSupply | [100000000000000000000, 100000000000000000000] | 23 | 100e18 |
+| LocalVar | isWithdraw | false | 23 | baseSupply = supply |
+| IReturn | vg.delayedProtocolParams().managementFeeChargeDelay | [0, 0] | 23 | delay=0, early return 방지 |
+| IReturn | vg.delayedStrategyParams().managementFee | [0, 0] | 23 | skip management fee |
+| IReturn | vg.delayedStrategyParams().performanceFee | [100000000, 100000000] | 23 | 10^8 = 10% (> 0) |
+| IReturn | vg.delayedStrategyParams().strategyPerformanceTreasury | symbolicAddress 1 | 23 | mint 대상 |
+| IReturn | vg.delayedProtocolPerVaultParams().protocolFee | [0, 0] | 23 | skip protocol fee |
 
-### Not Detectable 사유: interface-call-return-top (L2a)
+- isWithdraw=false → baseSupply = supply = 1000e18
+- baseTvls[0] = 2000e18, baseTvls[1] = 3000e18
+- lpPrice[0] = 2e18 > hwm(1.9e18) ✓, lpPrice[1] = 3e18 > hwm(2.9e18) ✓
+- delta[0] ≈ 1052631578, delta[1] ≈ 1034482758 (둘 다 > DENOMINATOR)
+- minLpPriceFactor = 1034482758
+- Buggy: toMint = 1000e18 * 1034482758 / 10^9 ≈ 1034.48e18 > baseSupply(1000e18)
+- Correct: toMint ≈ 3.45e18 << baseSupply
 
-`_chargeFees`에 전달되는 핵심 데이터가 모두 interface call에서 유래:
-
-| 데이터 | 출처 | 결과 |
-|--------|------|------|
-| `tvls` (→ baseTvls) | `subvault.tvl()` — IVault interface | Top |
-| `strategyParams.performanceFee` | `ILpIssuerGovernance.delayedStrategyParams()` | Top |
-| `strategyParams.strategyPerformanceTreasury` | 동일 | Top |
-| `managementFee`, `protocolFee` | `ILpIssuerGovernance.*()` | Top |
-| `managementFeeChargeDelay` | `ILpIssuerGovernance.delayedProtocolParams()` | Top |
-
-Top 전파 경로:
-- `baseTvls[i]` = Top → `lpPrice` = Top → `minLpPriceFactor` = Top → `toMint` = Top
-- `_totalSupply` after mint = concrete + Top = Top
-
-`baseSupply`는 LpIssuer 자체의 `_totalSupply`에서 유래하므로 concrete이지만, tvl과 fee 파라미터가 전부 interface call에서 오기 때문에 연산 결과가 Top.
-
-### Annotation 실패 분석
-
-| 접근 | 실패 사유 |
-|------|----------|
-| `_totalSupply: Changed` | buggy/correct 모두 Changed (둘 다 mint 발생) |
-| `Before(_totalSupply) < After(_totalSupply)` | buggy/correct 모두 true (둘 다 증가) |
-| `After(_totalSupply) == Before + expr` | `minLpPriceFactor`, `performanceFee` 등이 Top → 올바른 값 계산 불가 |
-| early return 조건으로 구분 | `managementFeeChargeDelay`도 Top → 조건 자체가 Top → 양 분기 모두 가능 |
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 85 | toMint < baseSupply | violated | Performance fee는 이익의 일부 → totalSupply 초과 mint 불가. Buggy: 1034e18 > 1000e18 → violated |
 
 ---
 
@@ -1608,11 +1613,12 @@ PRBMath dependency 확보 완료 (npm에서 설치 후 복사). 그러나 PRBMat
 - Correct: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount`
 - Report: sponsor(brockelmore) confirmed
 
-### Not Detectable 사유
-- `ERC20(token).balanceOf(address(this))` → interface 호출 → TOP
-- `excess = TOP - (storage - storage)` → TOP
-- 함수 내 storage variable 수정 없음 → @Post annotation 대상 없음
-- excess가 TOP이므로 누락된 `depositTokenFlashloanFeeAmount` 차감을 검증할 수 없음
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `balanceOf()` 반환값은 TOP이 아님
+- 그러나 `- depositTokenFlashloanFeeAmount` 차감이 누락된 missing-code 패턴 (L5a)
+- 올바른 formula에서 `balanceOf()` 결과가 named variable로 저장되지 않아 annotation에서 참조 불가
+- `recoverTokens()`는 storage variable 수정 없음 (safeTransfer만) → @Post 대상 제한
+- 누락된 차감을 annotation하려면 "flashloan fee가 excess에서 제외되어야 한다" 인지 필요 → bug awareness
 
 ---
 
@@ -1663,11 +1669,12 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - Correct: `amount * 1e18 / usdvPrice`, `amount * vaderPrice / 1e18`
 - Report: sponsor 미확인 (judge resolved)
 
-### Not Detectable 사유
-- `lbt.getUSDVPrice()` → `ILiquidityBasedTWAP` interface 호출 → TOP
-- `lbt.getVaderPrice()` → interface 호출 → TOP
-- `amount / TOP` → TOP, `amount * TOP` → TOP
-- 스케일링 오류(1e18 팩터 누락)를 검증할 수 없음
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `getUSDVPrice()`, `getVaderPrice()` 반환값은 TOP이 아님
+- 그러나 `* 1e18` / `/ 1e18` 스케일링 팩터가 누락된 missing-code 패턴 (L5a)
+- `amount` 파라미터가 line 98/102에서 overwrite → 원본 값 참조 불가 → 올바른 expected value 표현 제한
+- line 98: `@During amount > 0`으로 truncation-to-zero 탐지 가능하나, line 102 (inflation)는 탐지 불가
+- 두 branch 모두 커버하는 annotation 구성 불가 → L5a
 
 ---
 
@@ -1808,10 +1815,13 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - collateral를 borrow token으로 환산하려면 collateral/borrow 비율이 필요
 - Report: sponsor(ritik99) confirmed
 
-### Not Detectable 사유
-- `IPriceOracle(priceOracle).getLatestPrice(...)` → interface call → `_ratioOfPrices`, `_decimals` = TOP
-- `_borrowTokens = _totalCollateralTokens * ... * TOP / TOP` → TOP
-- 인자 순서가 바뀌든 안 바뀌든 interface call 결과는 동일하게 TOP → 검증 불가
+### Not Detectable 사유 (L4a: inexpressible-expected-value)
+- Interface call은 이제 지원되어 `getLatestPrice()` 반환값은 TOP이 아님
+- 그러나 구조적으로 올바른 expected value를 표현 불가:
+  1. @IReturn이 인자를 구분하지 않음: `getLatestPrice(A, B)`든 `getLatestPrice(B, A)`든 동일 concrete 반환 → buggy/correct 동일 결과
+  2. annotation grammar에서 함수 호출 불가 → `_ratioOfPrices == getLatestPrice(_collateralAsset, _borrowAsset)` 표현 불가
+  3. 올바른 `_ratioOfPrices`는 oracle 반환값이므로 프로그램 내 기존 변수의 산술 조합으로도 표현 불가
+- 버그를 인지하더라도 올바른 값을 annotation으로 구분할 수 없음 → L4a
 
 ---
 
@@ -2001,11 +2011,13 @@ currentFundingIndex = currentFundingIndex + 1;
 ### 버그 설명
 `getTokensForShares()`(line 180)에서 `IyVault.getPricePerFullShare()`의 결과를 `1e18`로 나누지만, Yearn의 `getPricePerFullShare()`는 `vault.decimals()` precision(= underlying token decimals)으로 반환. 올바른 구현은 `div(10 ** vault.decimals())`. 18 decimals가 아닌 토큰(e.g. USDC=6)에서 변환 오류 발생.
 
-### Not Detectable 사유
-- `IyVault(liquidityToken[asset]).getPricePerFullShare()` → `IyVault` interface call → TOP
-- `TOP.mul(shares).div(1e18)` → TOP
-- 올바른 구현(`TOP.mul(shares).div(10 ** vault.decimals())`)도 TOP (`vault.decimals()`도 interface call)
-- 버그 라인 자체에 interface call이 있어 결과가 직접 TOP (L2a)
+### Not Detectable 사유 (L4a: inexpressible-expected-value)
+- Interface call은 이제 지원되어 `getPricePerFullShare()` 반환값은 TOP이 아님
+- 그러나 올바른 divisor `10 ** vault.decimals()`:
+  1. `vault.decimals()`가 buggy 코드에서 호출되지 않음 → 값을 담는 변수가 scope에 없음
+  2. annotation grammar에서 함수 호출 불가 → `10 ** IyVault(...).decimals()` 표현 불가
+  3. 올바른 divisor를 기존 변수의 산술 조합으로 표현 불가
+- 25_H_01과 동일 패턴: 올바른 denominator가 코드에 없는 함수 호출 반환값에 의존 → L4a
 
 ---
 
@@ -2014,15 +2026,16 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: LaunchEvent
 - **Function**: createPair
 - **Bug Line**: 398
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L5b: wrong-code)`
 
 ### 버그 설명
 `createPair()`(line 398)에서 floor price 미달 시 `tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice`로 계산. `floorPrice`는 1e18 스케일이므로 올바른 계산은 `wavaxReserve * 1e18 / floorPrice`. 18 decimals 아닌 토큰(e.g. WBTC=8)에서 심각한 오류 발생.
 
-### Not Detectable 사유
-- `token.decimals()` → `IERC20Metadata` interface call → TOP
-- `10 ** TOP` → TOP → `wavaxReserve * TOP / floorPrice` → TOP
-- `tokenAllocated = TOP`이므로 올바른 값(`wavaxReserve * 1e18 / floorPrice`, 표현 가능)과 비교 불가 (L2a)
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원되어 `token.decimals()` 반환값은 TOP이 아님
+- 그러나 annotation `tokenAllocated == wavaxReserve * 1e18 / floorPrice`는 fix code 그 자체
+- natspec "scaled to 1e18"이 scaling factor를 제공하지만, 이를 formula에 적용하는 것 = 버그를 고치는 것
+- 5_H_07(주석에 완전한 수식 제공)과 달리 natspec은 scaling factor만 제공 → formula 구성에 bug awareness 필요 → L5b
 
 ---
 
@@ -2051,18 +2064,40 @@ currentFundingIndex = currentFundingIndex + 1;
 
 - **Contract**: RebaseProxy
 - **Function**: mint
-- **Bug Line**: 36
-- **Status**: `not_detectable,interface-call-return-top`
+- **Bug line (original)**: 36
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
 
-### 버그 설명
+### Bug Description
 `mint()`(line 36)에서 `proxy = (baseBalance * ONE) / _redeemRate`로 계산하지만, `baseBalance`는 transfer 후의 전체 잔액(기존 잔액 포함). 올바른 구현은 `(amount * ONE) / _redeemRate` (입금한 금액 기준). 기존 잔액이 있으면 과다 mint 발생.
+- Report: sponsor(gititGoro) confirmed
 
-### Not Detectable 사유
-- `redeemRate()` 내부 `IERC20(baseToken).balanceOf(address(this))` → interface call → TOP → `_redeemRate = TOP`
-- `baseBalance = IERC20(baseToken).balanceOf(address(this))` → interface call → TOP
-- `proxy = (TOP * ONE) / TOP` → TOP
-- 올바른 구현도 `(amount * ONE) / TOP` → TOP (`_redeemRate`가 TOP이므로)
-- 두 계산 모두 interface call로 인해 TOP → 구분 불가 (L2a)
+### Dependencies
+- `TokenProxyLike.sol` (dependencies/에 존재): `ONE = 1 ether` (constant, 인라인됨), `baseToken` (internal state variable)
+- ERC20 (OpenZeppelin 상속): `_mint()`, `_balances`, `_totalSupply` — **Issue 8 (피상속 private state variable 접근) 필요**
+
+### 추가 구현 사항
+- **Issue 8**: 피상속 ERC20의 `_balances[to]`, `_totalSupply` private state variable 접근 필요
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | _totalSupply | [1000000000000000000000, 1000000000000000000000] | 19 | 1000e18, ERC20 상속 (Issue 8) |
+| StateVar | _balances[to] | [0, 0] | 19 | 수신자 초기 잔액 0, ERC20 상속 (Issue 8) |
+| IReturn | IERC20(baseToken).balanceOf(address(this)) | [1500000000000000000000, 1500000000000000000000] | 19 | 1500e18 |
+| IReturn | IERC20(baseToken).transferFrom() | true | 19 | require 통과 |
+| LocalVar | amount | [500000000000000000000, 500000000000000000000] | 19 | 500e18 입금액 |
+
+- ONE = 1e18 (TokenProxyLike constant, 사전 분석 시 인라인)
+- @IReturn은 pre/post transfer 구분 못함 → 둘 다 1500e18 반환
+- redeemRate = 1500e18 * 1e18 / 1000e18 = 1.5e18
+- Buggy: proxy = 1500e18 * 1e18 / 1.5e18 = 1000e18 → _balances[to] = 1000e18 > 500e18
+- Correct: proxy = 500e18 * 1e18 / 1.5e18 ≈ 333e18 → _balances[to] = 333e18 < 500e18
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 24 | _balances[to] <= amount | violated | Vault share ≤ deposit amount (redeemRate ≥ ONE). Buggy: 1000e18 > 500e18 → violated |
 
 ---
 
@@ -2070,17 +2105,50 @@ currentFundingIndex = currentFundingIndex + 1;
 
 - **Contract**: LenderPool
 - **Function**: _calculatePrincipalWithdrawable
-- **Bug Line**: 678, 679, 680
-- **Status**: `not_detectable,interface-call-return-top`
+- **Bug line (original)**: 678, 679, 680
+- **Bug line (contraction)**: 43, 44, 45
+- **Pattern**: erroneous_accounting
+- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
 
-### 버그 설명
-`_calculatePrincipalWithdrawable()`에서 `borrowLimit`(line 678)와 `totalSupply[_id]`가 다를 수 있음. `start()`에 non-zero start fee 적용 시 `borrowLimit = totalSupply - fee`로 설정됨. `_principalWithdrawable = (borrowLimit - principal) * lenderBalance / borrowLimit`에서 `lenderBalance > borrowLimit`이면 실제 가용량 초과하여 withdrawal 실패.
+### Bug Description
+`_calculatePrincipalWithdrawable()`에서 `borrowLimit`(line 43)를 denominator로 사용하지만, start fee 적용 시 `borrowLimit < totalSupply[_id]`. 함수 주석: "total lent amount - principal borrowed) * lenders lp balance / total lent amount" — denominator는 `totalSupply`여야 함. `balanceOf > borrowLimit`이면 가용량 초과 인출 → revert.
+- Report: sponsor 확인 (judge resolved)
 
-### Not Detectable 사유
-- `POOLED_CREDIT_LINE.getPrincipal(_id)` → `IPooledCreditLine` interface call → TOP
-- `_totalLiquidityWithdrawable = _borrowedTokens.sub(TOP)` → TOP
-- `_principalWithdrawable = TOP.mul(balanceOf).div(_borrowedTokens)` → TOP
-- interface call로 인해 결과 TOP → 올바른 값과 비교 불가 (L2a)
+### Dependencies
+**상속:**
+- `ERC1155Upgradeable`: `balanceOf()` 제공 (Issue 8: 피상속 private state variable)
+- `ReentrancyGuardUpgradeable`
+- `IPooledCreditLineEnums`: enum 정의
+- `ILenderPool`: interface
+
+**using:**
+- `SafeMath` for uint256
+- `SafeERC20` for IERC20
+
+**state variable 타입 (interface):**
+- `ISavingsAccount` (`101_ISavingsAccount.sol` 존재)
+- `IPooledCreditLine`: `getPrincipal()` 호출
+- `IVerification`
+- `IERC20`
+
+### Debug Annotations
+| Type | Variable | Value | Line | Comment |
+|------|----------|-------|------|---------|
+| StateVar | pooledCLConstants[_id].borrowLimit | [99000, 99000] | 43 | fee 차감된 borrowLimit |
+| IReturn | POOLED_CREDIT_LINE.getPrincipal(_id) | [0, 0] | 43 | 미차입 |
+| IReturn | balanceOf(_lender, _id) | [100000, 100000] | 43 | sole lender = totalSupply |
+| LocalVar | _id | [1, 1] | 43 | pool id |
+
+- _borrowedTokens = 99000
+- _totalLiquidityWithdrawable = 99000 - 0 = 99000
+- _principalWithdrawable = 99000 * 100000 / 99000 = 100000
+- Buggy: 100000 > 99000 (가용량 초과)
+- Correct (totalSupply 사용 시): 99000 * 100000 / 100000 = 99000
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 45 | _principalWithdrawable <= _totalLiquidityWithdrawable | violated | 개별 인출액 ≤ 총 가용액. 기본 accounting invariant. Buggy: 100000 > 99000 → violated |
 
 ---
 
@@ -2094,12 +2162,11 @@ currentFundingIndex = currentFundingIndex + 1;
 ### 버그 설명
 `terminate()`에서 `_actualNotBorrowedInShares`(line 389)를 token/share 혼합 계산으로 구하고, `_totalInterestInShares`와 합쳐 `withdrawShares`(line 400)에 전달. token amount와 share를 혼합하여 잘못된 값 산출. 올바른 구현은 단순히 `_sharesHeld`를 직접 사용하여 전체 shares를 출금하는 것.
 
-### Not Detectable 사유
-- `POOLED_CREDIT_LINE.getPrincipal(_id)` → `IPooledCreditLine` interface call → TOP
-- `IYield(_strategy).getSharesForTokens(TOP, _borrowAsset)` → `IYield` interface call → TOP
-- `_totalInterestInShares = _sharesHeld.sub(TOP)` → TOP
-- `_actualNotBorrowedInShares = TOP * totalSupply / _borrowedTokens` → TOP
-- 다수의 interface call로 인해 모든 중간 계산이 TOP → 올바른 값(`_sharesHeld`)과 비교 불가 (L2a)
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원되어 `getPrincipal()`, `getSharesForTokens()` 반환값은 TOP이 아님
+- 그러나 올바른 값은 단순히 `_sharesHeld` (terminate = 전체 shares 출금)
+- buggy 코드는 복잡한 token/share 혼합 계산으로 `_totalBorrowAsset`을 구하지만, 올바른 구현은 `_sharesHeld` 직접 사용
+- `_sharesHeld`가 정답이라는 것을 알면 복잡한 계산이 불필요하다는 것을 아는 것 = bug awareness → L5b
 
 ---
 
@@ -2254,10 +2321,12 @@ currentFundingIndex = currentFundingIndex + 1;
 ### 버그 설명
 `savingsAccountTransfer()`이 `_savingsAccount.transfer()`/`transferFrom()`의 실제 반환값(shares)을 무시하고 입력 파라미터 `_amount`를 그대로 반환. price per share ≠ 1일 때 실제 shares와 _amount가 다르므로, 호출측에서 잘못된 shares 수량이 기록되어 자금 손실 발생 (cancelPool 실패, 청산 실패 등).
 
-### Not Detectable 사유
-- `_savingsAccount`는 `ISavingsAccount` interface → `transfer()`/`transferFrom()` 반환값 = TOP (L2a)
-- 올바른 return 값은 interface call 반환값이므로 annotation으로 비교 불가
-- 부가적으로 `SavingsAccountUtil`은 library로 자체 storage variable 부재
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `_savingsAccount.transfer()` 반환값은 TOP이 아님
+- 그러나 buggy 코드에서 반환값이 **변수에 저장되지 않음** (무시됨) → annotation에서 참조 불가
+- 올바른 fix: `return _savingsAccount.transfer(...)` — 반환값 capture assignment가 누락 (L5a)
+- annotation grammar에서 함수 호출 불가 → `returnExpression == _savingsAccount.transfer(...)` 표현도 불가
+- 누락된 return value 캡처를 알려면 "transfer()가 shares를 반환한다" 인지 필요 → bug awareness
 
 ---
 
@@ -2271,11 +2340,96 @@ currentFundingIndex = currentFundingIndex + 1;
 ### 버그 설명
 `balance()`가 `token.balanceOf(address(this))`(vault 잔액)만 반환하고 `IStrategy(strategy).balanceOf()`(strategy 잔액)을 누락. 올바른 구현은 vault + strategy 합산. 이 값이 `_depositFor`, `_withdraw`, `_handleFees` 등 전체 accounting에 사용되어 shares mint/burn 계산이 심각하게 왜곡됨.
 
-### Not Detectable 사유
-- `token.balanceOf(address(this))` — `IERC20Upgradeable` interface call → TOP (L2a)
-- 누락된 `IStrategy(strategy).balanceOf()` — `IStrategy` interface call → TOP (L2a)
-- 양쪽 모두 TOP이므로 buggy/correct 구분 불가
-- `balance()` → TOP이 `_depositFor`, `_withdraw`, `_handleFees`에 전파되어 모든 shares 계산이 TOP
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `token.balanceOf()` 반환값은 TOP이 아님
+- 그러나 `IStrategy(strategy).balanceOf()` 호출 자체가 코드에 없음 → missing-code (L5a)
+- annotation grammar에서 함수 호출 불가 → `returnExpression == balanceOf(this) + strategy.balanceOf()` 표현 불가
+- 코드 주석에 "vault + strategy balance"라고 명시되어 있지만, 구현은 vault만 반환
+- 누락된 strategy balance 합산을 알려면 vault 아키텍처 이해 필요 → bug awareness
+
+---
+
+## web3bugs_17_H_02
+
+- **Contract**: Buoy3Pool
+- **Function**: safetyCheck
+- **Bug line (original)**: 88
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L5a: missing-code)`
+
+### Bug Description
+`safetyCheck()`에서 stablecoin 가격 비율 체크가 불완전:
+1. `a/b`, `a/c` ratio만 체크, `b/c` 미체크 → transitivity로 `b/c`는 `2 * BASIS_POINTS` 범위만 보장
+2. `a/b` in range ≠ `b/a` in range (비대칭)
+3. NatSpec에 "Curve + external oracle" 체크라고 명시했으나 oracle 호출 없음
+- Report: sponsor(kristian-gro) confirmed, b/c check 추가
+
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `curvePool.get_dy()` 반환값은 TOP이 아님
+- 그러나 버그는 기존 코드의 잘못된 계산이 아니라 **누락된 체크**: `b/c` ratio 체크 미수행, external oracle 비교 미수행
+- 기존 loop의 `a/b`, `a/c` 계산은 정확 — 추가 코드가 필요한 missing-code 패턴 → L5a
+
+---
+
+## web3bugs_59_H_05
+
+- **Contract**: AuctionEscapeHatch
+- **Function**: exitEarly
+- **Bug lines (original)**: 83, 87
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L5b: wrong-code)`
+
+### Bug Description
+`exitEarly()`에서 `auction.amendAccountParticipation(msg.sender, _auctionId, amount, maltQuantity)` 호출 시, `maltQuantity`는 profit penalty가 적용된 값(실제보다 적음). `amount`(전체 commitment)는 그대로 차감되지만 `maltQuantity`(penalty 적용)만 차감되므로 `userMaltPurchased / userCommitment` 비율이 점점 높아짐. 반복 호출로 과다 수익 가능.
+- Report: sponsor(0xScotch) confirmed
+
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원됨 (`dexHandler.sellMalt()` 등 @IReturn 가능)
+- 그러나 `amendAccountParticipation`은 state-modifying external call → 외부 컨트랙트 state 변화 검증 불가
+- 버그의 본질: penalty 적용된 `maltQuantity` 대신 원본 값을 전달해야 함 → wrong argument
+- 올바른 인자를 알려면 "penalty가 accounting에 어떻게 반영되어야 하는지" 이해 필요 → bug awareness → L5b
+
+---
+
+## web3bugs_70_H_09
+
+- **Contract**: USDV
+- **Function**: mint, burn
+- **Bug lines (original)**: 76 (mint), 109 (burn)
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L5b: wrong-code)`
+
+### Bug Description
+`mint()`: `uAmount = (vPrice * vAmount) / 1e18` — `vPrice`가 USD/Vader 단위면 결과는 USD 금액이지 USDV 금액이 아님.
+`burn()`: `vAmount = (uPrice * uAmount) / 1e18` — 동일 패턴. oracle 가격의 의미에 따라 공식이 달라져야 함.
+- Report: sponsor 미확인 (judge resolved)
+
+### Not Detectable 사유 (L5b: wrong-code)
+- Interface call은 이제 지원되어 `lbt.getVaderPrice()`, `lbt.getUSDVPrice()` 반환값은 TOP이 아님
+- 그러나 올바른 price conversion formula는 oracle이 반환하는 가격의 단위/의미에 의존
+- `vPrice * vAmount / 1e18`이 맞는지 `vAmount * 1e18 / vPrice`가 맞는지는 oracle 스펙 이해 필요
+- domain knowledge / bug awareness → L5b
+
+---
+
+## numscout_EthereumGod
+
+- **Contract**: EthereumGod
+- **Function**: swapAndLiquify
+- **Bug lines (original)**: 937, 941, 942, 956
+- **Pattern**: precision_loss_trend
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
+
+### Bug Description
+`swapAndLiquify()`에서 fee splitting의 chained div/mul 연산으로 precision loss 누적. marketing fee와 liquidity fee 분배 시 여러 단계의 나눗셈/곱셈이 중간 값을 truncate하여 최종 분배 금액에 오차 발생.
+
+### Not Detectable 사유 (L3: unsupported-construct-top)
+- `address(this).balance` → L3 unsupported construct (항상 TOP)
+- `initialBalance = address(this).balance` → TOP
+- `fromSwap = address(this).balance.sub(initialBalance)` → TOP - TOP = TOP
+- `newBalance = TOP.mul(half).div(toSwapForEth)` → TOP
+- Interface call(`uniswapV2Router`) 지원과 무관하게 `address(this).balance`가 blocker
+- code_modification_issues Issue 7 해당
 
 ---
 
@@ -2284,16 +2438,17 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: AaveVault
 - **Function**: tvl (line 47), _push, _pull
 - **Bug Line (original)**: 47
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L5a: missing-code)`
 
 ### 버그 설명
 `tvl()`이 cached `_tvls` 배열을 반환. `_push()`에서 `updateTvls()`가 Aave lending pool deposit **후에** 호출되어, 호출측(LPIssuer)이 old tvl 기준으로 shares를 계산. Aave의 rebasing aToken 이자가 반영되기 전의 tvl로 과다한 shares 발행 → attacker가 이자 탈취 가능.
 
-### Not Detectable 사유
-- `updateTvls()` 내부: `_tvls[i] = IERC20(_aTokens[i]).balanceOf(address(this))` — interface call → TOP (L2a)
-- `_lendingPool().deposit(...)` — `ILendingPool` interface call → TOP
-- `_tvls` 값이 모두 TOP → stale/fresh tvl 구분 불가
-- 버그의 본질은 operation ordering (tvl read → deposit → tvl update)이며, cross-function/cross-contract 시나리오로 single-function annotation 범위 밖
+### Not Detectable 사유 (L5a: missing-code)
+- Interface call은 이제 지원되어 `balanceOf()`, `deposit()` 등 반환값은 TOP이 아님
+- 그러나 버그의 본질은 **operation ordering**: `_push()` 시작에 `updateTvls()` 호출이 누락됨
+- 각 함수 개별적으로는 정상: `tvl()` → `return _tvls` (OK), `_push()` → deposit 후 updateTvls (OK), `updateTvls()` → balanceOf로 갱신 (OK)
+- fix: `_push()` 시작에 `updateTvls()` 추가 → missing-code (L5a)
+- `updateTvls()`가 deposit 전에 필요하다는 것을 알려면 stale-cache 취약점 인지 필요 → bug awareness
 
 ---
 

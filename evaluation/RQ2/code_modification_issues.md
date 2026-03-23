@@ -91,3 +91,11 @@
   - numscout_HippoHotel: `withdraw()` 함수에서 `address(this).balance` 읽어서 분배
   - numscout_EthereumGod: `swapAndLiquify()` 함수에서 `address(this).balance` 사용 (단, 이 케이스는 interface call이 주 blocker)
 - **영향 범위**: Parser (GlobalVar 문법 확장), Interpreter (address(this).balance 값 주입)
+
+## Issue 8: 피상속 컨트랙트의 private state variable 접근 지원
+- **현재**: target contract 자체의 state variable만 @StateVar / @Post로 접근 가능 (추정)
+- **필요**: 상속받은 부모 컨트랙트(e.g., OpenZeppelin ERC20)의 private state variable (`_balances`, `_totalSupply`)에 대해 @StateVar 설정 및 @Post 검증 가능하도록 지원
+- **구현 방향**: 상속 체인을 따라 부모 컨트랙트의 state variable을 target contract의 scope에 포함. `_mint()`, `_burn()` 등 부모 함수 호출 시 부모의 state variable 변화 추적
+- **해당 annotated 케이스**:
+  - web3bugs_78_H_02: `RebaseProxy is ERC20` — `_mint(to, proxy)` 후 `_balances[to]` 검증 필요. `@Post _balances[to] <= amount`로 과다 mint 탐지
+- **영향 범위**: Analyzer (상속 체인 state variable resolution), Interpreter (부모 state variable 값 설정/검증)

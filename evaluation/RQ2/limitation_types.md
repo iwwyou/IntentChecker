@@ -17,30 +17,29 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 
 | ID | Limitation Type | 설명 | 해당 케이스 |
 |----|----------------|------|------------|
-| L1 | `loop-widening` | 루프 내 `+=` 등 누적 연산에 fixpoint iteration 시 widening 적용 → Top/∞. 버기 값과 정상 값이 모두 widened range에 포함되어 구분 불가 | web3bugs_34_H_01, web3bugs_52_H_04, web3bugs_52_H_34, web3bugs_59_H_04, web3bugs_70_H_03, web3bugs_70_H_04, web3bugs_70_H_05 |
-| L1b | `loop-widening-precision-loss` | L1의 변형. loop-widening + precision loss가 결합된 케이스. 루프 내 누적 연산이 widening되어 precision loss 차이를 감지할 수 없음 | web3bugs_3_H_04 |
-| L1c | `loop-body-granularity` | L1의 변형. intent annotation이 루프 바디 단위로만 배치 가능하나, 버그 탐지에 루프 내부의 더 세밀한 분석이 필요 | web3bugs_45_H_02 |
+| L1a | `loop-widening` | 루프 내 `+=` 등 누적 연산에 fixpoint iteration 시 widening 적용 → Top/∞. 버기 값과 정상 값이 모두 widened range에 포함되어 구분 불가. precision loss가 루프 내 누적 연산에서 발생하는 경우도 포함 | web3bugs_34_H_01, web3bugs_52_H_04, web3bugs_52_H_34, web3bugs_59_H_04, web3bugs_70_H_03, web3bugs_70_H_04, web3bugs_70_H_05, web3bugs_3_H_04 |
+| L1b | `loop-body-granularity` | IntentChecker가 루프 내부를 line-by-line 분석하지 않고 fixpoint만 계산. 루프 바디 내 특정 지점에 annotation을 배치해야 탐지 가능하나, 현재 구조에서는 불가 | web3bugs_45_H_02, web3bugs_71_H_11 |
 | L2 | `cross-deployment-call-top` | 별도 deployment된 외부 컨트랙트에 대한 호출 시, callee의 storage state가 annotation scope 밖 → 반환값 Top. 아래 두 하위 유형으로 구분 | - |
-| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_5_H_15, web3bugs_58_H_02, web3bugs_58_H_04, web3bugs_61_H_01, web3bugs_61_H_02, web3bugs_61_H_04, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_71_H_11, web3bugs_78_H_02, web3bugs_79_H_02, web3bugs_101_H_01, web3bugs_101_H_02, web3bugs_110_H_01, web3bugs_17_H_02, web3bugs_59_H_05, web3bugs_70_H_09, numscout_EthereumGod |
+| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_5_H_15 |
 | L2b | `external-call-state-unknown` | L2의 하위 유형. 구현 코드는 import로 존재하나, 외부 컨트랙트의 런타임 state를 모름 → 반환값 Top | web3bugs_3_H_05 |
-| L3 | `unsupported-construct-top` | 분석 엔진이 지원하지 않는 언어 구조(abi.decode, inline assembly, keccak256, address(this).balance 등)로 인해 관련 변수가 Top이 되어 buggy/correct 구분 불가. L1(loop), L2(cross-deployment)와 독립적인 별도 Top 발생 원인 | web3bugs_35_H_08, web3bugs_8_H_03, numscout_HippoHotel, web3bugs_16_H_04, web3bugs_16_H_06, web3bugs_29_H_08, web3bugs_29_H_11, web3bugs_44_H_02 |
+| L3 | `unsupported-construct-top` | 분석 엔진이 지원하지 않는 언어 구조(abi.decode, inline assembly, keccak256, address(this).balance 등)로 인해 관련 변수가 Top이 되어 buggy/correct 구분 불가. L1(loop), L2(cross-deployment)와 독립적인 별도 Top 발생 원인 | web3bugs_35_H_08, web3bugs_8_H_03, numscout_HippoHotel, web3bugs_16_H_04, web3bugs_16_H_06, web3bugs_29_H_08, web3bugs_29_H_11, web3bugs_44_H_02, numscout_EthereumGod |
 
 #### B. Annotation 한계 (Annotation Limitation)
 
 | ID | Limitation Type | 설명 | 해당 케이스 |
 |----|----------------|------|------------|
 | L4 | `annotation-inexpressible` | annotation을 구조적으로 표현할 수 없는 케이스. 아래 하위 유형으로 구분 | - |
-| L4a | `inexpressible-expected-value` | L4의 하위 유형. 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값을 구하려면 현재 코드에 존재하지 않는 새로운 중간 계산이 필요 | web3bugs_25_H_05, web3bugs_29_H_05, web3bugs_39_H_02, web3bugs_51_H_04, web3bugs_51_H_06, web3bugs_25_H_01 |
+| L4a | `inexpressible-expected-value` | L4의 하위 유형. 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값을 구하려면 현재 코드에 존재하지 않는 새로운 중간 계산이 필요 | web3bugs_25_H_05, web3bugs_29_H_05, web3bugs_39_H_02, web3bugs_51_H_04, web3bugs_51_H_06, web3bugs_25_H_01, web3bugs_61_H_01, web3bugs_61_H_04 |
 | L4b | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
 | L5 | `bug-awareness-required` | annotation 표현은 가능하나, 올바른 annotation을 구성하려면 버그를 이미 인지하고 있어야 함. 아래 두 하위 유형으로 구분 | - |
-| L5a | `missing-code` | L5의 하위 유형. 있어야 할 코드(함수 호출, state update 등)가 누락됨. Post-condition으로 표현 가능하나, 무엇이 누락되었는지 아는 것 자체가 버그 인지를 전제 | web3bugs_83_H_01, web3bugs_35_H_10, web3bugs_35_H_12, web3bugs_36_H_02, web3bugs_62_H_03, web3bugs_62_H_10, web3bugs_65_H_01, web3bugs_192_H_01, web3bugs_52_H_23 |
-| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_52_H_15, web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_52_H_16 |
+| L5a | `missing-code` | L5의 하위 유형. 있어야 할 코드(함수 호출, state update 등)가 누락됨. Post-condition으로 표현 가능하나, 무엇이 누락되었는지 아는 것 자체가 버그 인지를 전제 | web3bugs_83_H_01, web3bugs_35_H_10, web3bugs_35_H_12, web3bugs_36_H_02, web3bugs_62_H_03, web3bugs_62_H_10, web3bugs_65_H_01, web3bugs_192_H_01, web3bugs_52_H_23, web3bugs_58_H_04, web3bugs_61_H_02, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_110_H_01, web3bugs_17_H_02 |
+| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_52_H_15, web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_52_H_16, web3bugs_79_H_02, web3bugs_101_H_02, web3bugs_59_H_05, web3bugs_70_H_09 |
 
 ---
 
 ## Limitation Type 상세 설명
 
-### L1: loop-widening
+### L1a: loop-widening
 
 IntentChecker는 루프를 fixpoint iteration으로 분석한다. 루프 내에서 `+=`, `*=` 등 누적(accumulation) 연산이 있을 경우, iteration 간 값이 수렴하지 않으면 widening이 적용되어 값이 Top(∞)으로 확장된다.
 
@@ -48,7 +47,7 @@ IntentChecker는 루프를 fixpoint iteration으로 분석한다. 루프 내에�
 - `*=` 연산: widening → [0, +∞)
 - `-=` 연산: widening → 0 방향
 
-widening된 범위는 **sound over-approximation**으로, 모든 가능한 concrete 값을 포함한다. 따라서 버기 값과 정상 값이 모두 widened range 안에 들어가면, intent annotation으로 둘을 구분할 수 없다.
+widening된 범위는 **sound over-approximation**으로, 모든 가능한 concrete 값을 포함한다. 따라서 버기 값과 정상 값이 모두 widened range 안에 들어가면, intent annotation으로 둘을 구분할 수 없다. precision loss가 루프 내 누적 연산에서 발생하는 경우도 이에 해당한다.
 
 **주의**: 루프 내 모든 변수가 widening 대상은 아님. 매 iteration마다 새로 선언/할당되는 변수(declaration)는 fixpoint iteration에서 수렴 가능. 누적 변수(accumulator)만 widening 대상.
 
@@ -61,13 +60,9 @@ for (uint256 i = 0; i < pairCount; i++) {
 result = sumUSD / sumNative;               // Top / Top → Top
 ```
 
-#### L1b: loop-widening-precision-loss
+### L1b: loop-body-granularity
 
-L1(loop-widening)과 precision loss가 결합된 케이스. 버그 자체는 precision loss(나눗셈 먼저 수행으로 인한 정밀도 손실)이지만, 해당 연산이 루프 내 누적 변수에서 발생하여 widening → Top이 되면 precision loss 차이를 감지할 수 없다.
-
-#### L1c: loop-body-granularity
-
-IntentChecker의 intent annotation은 루프 바디 단위(iteration 전체)로만 배치 가능하다. 버그가 루프 바디 내부의 특정 지점에서 발생하며, 해당 지점 전후의 중간 상태를 구분해야 탐지 가능한 경우, 현재 annotation 체계로는 표현할 수 없다.
+IntentChecker는 루프 내부를 line-by-line 분석하지 않고 fixpoint만 계산한다. 버그가 루프 바디 내부의 특정 지점에서 발생하며, 해당 지점에 annotation을 배치해야 탐지 가능한 경우, 현재 분석 구조에서는 불가능하다.
 
 ### L2: cross-deployment-call-top
 
