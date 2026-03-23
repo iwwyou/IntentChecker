@@ -25,14 +25,13 @@ import re
 
 class ContractAnalyzer:
 
-    def __init__(self):
+    def __init__(self, solidity_analyzer):
+        # SolidityAnalyzer 참조 — 소스 저장소(full_code_lines, full_code, line_info)는 sa가 소유
+        self.sa = solidity_analyzer
+
         self.addr_mgr = address_manager  # 싱글톤 AddressManager
         self.snapman = SnapshotManager()
         self._batch_targets: set[FunctionCFG] = set()  # 🔹추가
-
-        self.full_code = None
-        self.full_code_lines = {} # 라인별 코드를 저장하는 딕셔너리
-        self.line_info = {} # 각 라인에서 `{`와 `}`의 개수를 저장하는 딕셔너리
 
         self.current_start_line = None
         self.current_end_line = None
@@ -102,15 +101,15 @@ class ContractAnalyzer:
         line_info / recorder.ledger / Statement.src_line / CFGNode.src_line 동기화
         """
         # ① line_info에 등록된 cfg_nodes들의 src_line 보정 (먼저 수행)
-        if old_ln in self.line_info:
-            info = self.line_info[old_ln]
+        if old_ln in self.sa.line_info:
+            info = self.sa.line_info[old_ln]
             if isinstance(info.get("cfg_nodes"), list):
                 for node in info["cfg_nodes"]:
                     if hasattr(node, "src_line") and node.src_line == old_ln:
                         node.src_line = new_ln
 
         # ② line_info & recorder.ledger 이동
-        dicts_to_shift = (self.line_info, self.recorder.ledger)
+        dicts_to_shift = (self.sa.line_info, self.recorder.ledger)
         for d in dicts_to_shift:
             if old_ln in d:
                 # (간단버전) 덮어쓰기. 이미 new_ln 에 값이 있으면 합치고 싶다면 merge 로직을 쓰세요.
@@ -143,8 +142,8 @@ class ContractAnalyzer:
             offset = len(new_lines)
         # start 라인에 control flow 노드가 있고, 새 코드가 연속되는 control flow인지 체크
         skip_shift_at_start = False
-        if start in self.line_info:
-            cfg_nodes = self.line_info[start].get('cfg_nodes', [])
+        if start in self.sa.line_info:
+            cfg_nodes = self.sa.line_info[start].get('cfg_nodes', [])
             first_new_line = new_lines[0].strip() if new_lines else ""
 
             # 같은 control flow의 연속인 경우:
@@ -174,8 +173,8 @@ class ContractAnalyzer:
         # 뒤 라인 밀기 (skip_shift_at_start이면 start+1부터)
         shift_from = start + 1 if skip_shift_at_start else start
 
-        for old_ln in sorted([ln for ln in self.full_code_lines if ln >= shift_from], reverse=True):
-            self.full_code_lines[old_ln + offset] = self.full_code_lines.pop(old_ln)
+        for old_ln in sorted([ln for ln in self.sa.full_code_lines if ln >= shift_from], reverse=True):
+            self.sa.full_code_lines[old_ln + offset] = self.sa.full_code_lines.pop(old_ln)
             self._shift_meta(old_ln, old_ln + offset)
 
         # 삽입 - 실제 코드 줄은 스팬 끝에, 빈 슬롯은 앞에 채운다
@@ -186,16 +185,16 @@ class ContractAnalyzer:
         # 앞쪽 빈 슬롯 채우기 (full_code_lines + line_info 모두)
         for i in range(write_start - start):
             ln = start + i
-            if ln not in self.full_code_lines:
-                self.full_code_lines[ln] = ""
-            if ln not in self.line_info:
-                self.line_info[ln] = {"open": 0, "close": 0, "cfg_nodes": []}
+            if ln not in self.sa.full_code_lines:
+                self.sa.full_code_lines[ln] = ""
+            if ln not in self.sa.line_info:
+                self.sa.line_info[ln] = {"open": 0, "close": 0, "cfg_nodes": []}
 
         # 실제 코드 줄 쓰기
         for i in range(write_count):
             ln = write_start + i
             line = new_lines[i]
-            self.full_code_lines[ln] = line
+            self.sa.full_code_lines[ln] = line
             self.update_brace_count(ln, line)  # ★ 항상 카운트
             if self._should_trigger_analysis(line):  # ★ 트리거 라인만 분석
                 self.analyze_context(ln, line)
@@ -234,6 +233,10 @@ class ContractAnalyzer:
 
         if event == "add":
             lines = new_code.split("\n")
+            # During annotation inline: 기존 코드가 있는 라인에 붙는 경우 밀기 불필요
+            if self._is_during_inline(new_code, start_line):
+                self.analyze_context(start_line, new_code)
+                return
             self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
 
 
@@ -248,7 +251,7 @@ class ContractAnalyzer:
 
             ln = start_line
             for line in norm_lines:
-                self.full_code_lines[ln] = line
+                self.sa.full_code_lines[ln] = line
                 self.update_brace_count(ln, line)  # ★ 추가
                 if self._should_trigger_analysis(line):  # ★ 추가
                     self.analyze_context(ln, line)
@@ -259,19 +262,19 @@ class ContractAnalyzer:
 
             # 기존 라인 제거
             for ln in range(start_line, end_line + 1):
-                self.full_code_lines.pop(ln, None)
-                self.line_info.pop(ln, None)
+                self.sa.full_code_lines.pop(ln, None)
+                self.sa.line_info.pop(ln, None)
                 self.recorder.ledger.pop(ln, None)  # ← recorder 같이 비움
 
             # 뒤쪽 라인 당기기
-            keys_to_shift = sorted([ln for ln in self.full_code_lines if ln > end_line])
+            keys_to_shift = sorted([ln for ln in self.sa.full_code_lines if ln > end_line])
             for old_ln in keys_to_shift:
                 new_ln = old_ln - offset
-                self.full_code_lines[new_ln] = self.full_code_lines.pop(old_ln)
+                self.sa.full_code_lines[new_ln] = self.sa.full_code_lines.pop(old_ln)
                 self._shift_meta(old_ln, new_ln)
 
         # full-code 재조합
-        self.full_code = "\n".join(self.full_code_lines[ln] for ln in sorted(self.full_code_lines))
+        self.sa.full_code = "\n".join(self.sa.full_code_lines[ln] for ln in sorted(self.sa.full_code_lines))
 
         # add/modify 후 전체 블록의 컨텍스트 설정
         # 여러 줄짜리 정의(함수/constructor/modifier 등)의 경우,
@@ -317,7 +320,7 @@ class ContractAnalyzer:
 
         # ③ 실제 컴파일
         try:
-            compile_source(self.full_code)
+            compile_source(self.sa.full_code)
             print("[ok] solidity compiled successfully")
         except SolcError as e:
             print("[err] Solidity compiler reported:\n", e)
@@ -328,9 +331,9 @@ class ContractAnalyzer:
         open_braces = code.count('{')
         close_braces = code.count('}')
         # 기존 정보 보존하면서 업데이트
-        if line_number not in self.line_info:
-            self.line_info[line_number] = {"open": 0, "close": 0, "cfg_nodes": []}
-        info = self.line_info[line_number]
+        if line_number not in self.sa.line_info:
+            self.sa.line_info[line_number] = {"open": 0, "close": 0, "cfg_nodes": []}
+        info = self.sa.line_info[line_number]
         info['open'] = open_braces
         info['close'] = close_braces
 
@@ -384,9 +387,16 @@ class ContractAnalyzer:
                         self.current_context_type = "stateVariableDeclaration"
                     self.current_target_contract = self.find_contract_context(start_line)
             elif parent_context == "struct":  # 시작 규칙 : interactiveStructUnit
-                self.current_context_type = "structMember"
                 self.current_target_contract = self.find_contract_context(start_line)
+                if self.current_target_contract:
+                    self.current_context_type = "structMember"
+                else:
+                    self.current_context_type = "fileLevelStructMember"
                 self.current_target_struct = self.find_struct_context(start_line)
+            elif parent_context == "unknown" and stripped_code.startswith("type ") and " is " in stripped_code:
+                # file-level type alias: type Fixed18 is int256;
+                self.current_context_type = "fileLevelTypeAlias"
+                return
             else:  # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
@@ -413,7 +423,7 @@ class ContractAnalyzer:
             if ')' in stripped_code and not stripped_code.startswith(('function', 'constructor', 'modifier', 'contract', 'struct', 'enum', 'if', 'for', 'while', 'else')):
                 # 위로 올라가서 function/modifier/constructor 키워드 찾기
                 for check_line in range(start_line - 1, 0, -1):
-                    check_code = self.full_code_lines.get(check_line, '').strip()
+                    check_code = self.sa.full_code_lines.get(check_line, '').strip()
                     if check_code.startswith('function'):
                         self.current_context_type = 'functionDefinition'
                         self.current_target_contract = self.find_contract_context(start_line)
@@ -454,12 +464,20 @@ class ContractAnalyzer:
             if self.current_context_type in ["contract", "library", "interface", "abstract contract"]:
                 return
 
+            # file-level struct: contract 밖의 struct 정의
+            if self.current_context_type == "struct" and not self.current_target_contract:
+                self.current_context_type = "fileLevelStruct"
+                return
+
             self.current_target_function = self.find_function_context(start_line)
 
 
         # 최종적으로 context가 제대로 파악되지 않은 경우
         # 여러 줄짜리 정의문의 중간 줄이거나, 컨텍스트 분석이 불필요한 줄은 조용히 넘어감
         if not self.current_target_contract and self.current_context_type:
+            # file-level context는 contract 없이 허용
+            if self.current_context_type in ("fileLevelStruct", "fileLevelStructMember", "fileLevelTypeAlias"):
+                return
             # context_type은 설정되었는데 contract를 찾지 못한 경우에만 오류
             raise ValueError(f"Contract context not found for line {start_line}")
         if self.current_context_type == "simpleStatement" and not self.current_target_function:
@@ -470,7 +488,7 @@ class ContractAnalyzer:
 
         # 위로 거슬러 올라가면서 `{`와 `}`의 짝을 찾기
         for line in range(line_number - 1, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            brace_info = self.sa.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
             open_braces = brace_info['open']
             close_braces = brace_info['close']
 
@@ -480,7 +498,7 @@ class ContractAnalyzer:
                     close_brace_count = 0
             else:
                 if open_braces > 0:
-                    return self.determine_top_level_context(self.full_code_lines[line])
+                    return self.determine_top_level_context(self.sa.full_code_lines[line])
                 close_brace_count += close_braces
 
         return "unknown"
@@ -490,7 +508,7 @@ class ContractAnalyzer:
         close_brace_count = 0
 
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            brace_info = self.sa.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
             open_braces = brace_info['open']
             close_braces = brace_info['close']
 
@@ -502,7 +520,7 @@ class ContractAnalyzer:
             else:
                 # '{' 발견: 이 라인이 컨트랙트 선언인지 확인
                 if open_braces > 0:
-                    code_line = self.full_code_lines.get(line, '').strip()
+                    code_line = self.sa.full_code_lines.get(line, '').strip()
                     context_type = self.determine_top_level_context(code_line)
                     if context_type in ["contract", "library", "interface", "abstract contract"]:
                         # contract 이름 추출
@@ -537,7 +555,7 @@ class ContractAnalyzer:
         close_brace_count = 0
 
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            brace_info = self.sa.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
             open_braces = brace_info['open']
             close_braces = brace_info['close']
 
@@ -556,7 +574,7 @@ class ContractAnalyzer:
 
         # '{' 문자가 있는 라인부터 위로 올라가면서 function/constructor/modifier 키워드를 찾기
         for line in range(open_brace_line, 0, -1):
-            code_line = self.full_code_lines.get(line, "").strip()
+            code_line = self.sa.full_code_lines.get(line, "").strip()
             if not code_line:
                 continue
 
@@ -588,12 +606,12 @@ class ContractAnalyzer:
     def find_struct_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
         for line in range(line_number, 0, -1):
-            brace_info = self.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
+            brace_info = self.sa.line_info.get(line, {'open': 0, 'close': 0, 'cfg_nodes': []})
             cfg_nodes = brace_info.get('cfg_nodes', [])
             if brace_info['open'] > 0 and cfg_nodes:
-                context_type = self.determine_top_level_context(self.full_code_lines[line])
+                context_type = self.determine_top_level_context(self.sa.full_code_lines[line])
                 if context_type == "struct":
-                    return self.full_code_lines[line].split()[1]
+                    return self.sa.full_code_lines[line].split()[1]
 
     def determine_top_level_context(self, code_line):
         try:
@@ -656,7 +674,7 @@ class ContractAnalyzer:
             return "unknown"
 
     def get_full_code(self):
-        return self.full_code
+        return self.sa.full_code
 
     def get_current_context_type(self):
         return self.current_context_type
@@ -681,8 +699,8 @@ class ContractAnalyzer:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
 
-        if self.current_start_line and self.current_start_line in self.line_info:
-            self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+        if self.current_start_line and self.current_start_line in self.sa.line_info:
+            self.sa.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
 
     def make_abstract_contract_cfg(self, contract_name: str, parent_contracts: list = None):
         """
@@ -698,8 +716,8 @@ class ContractAnalyzer:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
 
-        if self.current_start_line and self.current_start_line in self.line_info:
-            self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+        if self.current_start_line and self.current_start_line in self.sa.line_info:
+            self.sa.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
 
     def make_library_cfg(self, library_name: str):
         """
@@ -715,8 +733,8 @@ class ContractAnalyzer:
         self.library_cfgs[library_name] = library_cfg
         self.contract_cfgs[library_name] = library_cfg  # 호환성을 위해 contract_cfgs에도 저장
 
-        if self.current_start_line and self.current_start_line in self.line_info:
-            self.line_info[self.current_start_line]['cfg_nodes'] = [library_cfg]
+        if self.current_start_line and self.current_start_line in self.sa.line_info:
+            self.sa.line_info[self.current_start_line]['cfg_nodes'] = [library_cfg]
 
     def make_interface_cfg(self, interface_name: str, parent_interfaces: list = None):
         """
@@ -738,8 +756,8 @@ class ContractAnalyzer:
                 if p in self.contract_cfgs:
                     cfg.parent_cfgs[p] = self.contract_cfgs[p]
 
-        if self.current_start_line and self.current_start_line in self.line_info:
-            self.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+        if self.current_start_line and self.current_start_line in self.sa.line_info:
+            self.sa.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
 
 
     # for interactiveEnumDefinition in Solidity.g4
@@ -754,7 +772,7 @@ class ContractAnalyzer:
         contract_cfg.define_enum(enum_name, enum_def)
 
         # brace_count 업데이트
-        self.line_info[self.current_start_line]['cfg_nodes'] = [enum_def]
+        self.sa.line_info[self.current_start_line]['cfg_nodes'] = [enum_def]
 
     def process_enum_item(self, items):
         # 현재 타겟 컨트랙트의 CFG 가져오기
@@ -766,7 +784,7 @@ class ContractAnalyzer:
         # brace_count에서 가장 최근의 enum 정의를 찾습니다.
         enum_def = None
         for line in reversed(range(self.current_start_line + 1)):
-            context = self.line_info.get(line)
+            context = self.sa.line_info.get(line)
             if context:
                 cfg_nodes = context.get('cfg_nodes', [])
                 if cfg_nodes and isinstance(cfg_nodes[0], EnumDefinition):
@@ -836,7 +854,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # brace_count 업데이트
-        self.line_info[self.current_start_line]['cfg_nodes'] = [contract_cfg.structDefs]
+        self.sa.line_info[self.current_start_line]['cfg_nodes'] = [contract_cfg.structDefs]
 
     def process_struct_member(self, var_name, type_obj):
         # 1. 현재 타겟 컨트랙트의 CFG를 가져옴
@@ -878,11 +896,15 @@ class ContractAnalyzer:
                         variable_obj.initialize_not_abstracted_type()
                 # struct, enum 등 다른 타입의 배열은 동적으로 초기화됨 (필요 시)
             elif isinstance(variable_obj, StructVariable) :
-                if variable_obj.typeInfo.structTypeName in contract_cfg.structDefs.keys():
-                    struct_def = contract_cfg.structDefs[variable_obj.typeInfo.structTypeName]
+                struct_name = variable_obj.typeInfo.structTypeName
+                if struct_name in contract_cfg.structDefs:
+                    struct_def = contract_cfg.structDefs[struct_name]
                     variable_obj.initialize_struct(struct_def)
+                elif self.sa.get_file_level_struct(struct_name) is not None:
+                    # file-level struct fallback
+                    variable_obj.initialize_struct(self.sa.file_level_structs[struct_name])
                 else :
-                    ValueError(f"This struct def {variable_obj.typeInfo.structTypeName} is undefined")
+                    raise ValueError(f"This struct def {struct_name} is undefined")
             elif isinstance(variable_obj, MappingVariable) :
                 pass
             elif isinstance(variable_obj,EnumVariable) :
@@ -935,7 +957,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 7. brace_count 업데이트
-        self.line_info[self.current_start_line]['cfg_nodes'] = [contract_cfg.state_variable_node]
+        self.sa.line_info[self.current_start_line]['cfg_nodes'] = [contract_cfg.state_variable_node]
 
     # ---------------------------------------------------------------------------
     # ② constant 변수 처리 (CFG·심볼 테이블 반영)
@@ -999,7 +1021,7 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = contract_cfg
 
         # 6. brace_count 갱신 → IDE/커서 매핑
-        self.line_info[self.current_start_line]["cfg_nodes"] = [contract_cfg.state_variable_node]
+        self.sa.line_info[self.current_start_line]["cfg_nodes"] = [contract_cfg.state_variable_node]
 
     def process_modifier_definition(self,
                                     modifier_name: str,
@@ -1015,8 +1037,8 @@ class ContractAnalyzer:
         mod_cfg = StaticCFGFactory.make_modifier_cfg(self, contract_cfg, modifier_name, parameters)
 
         # 3) CFG 저장
-        self.line_info[self.current_start_line]['cfg_nodes'] = [mod_cfg.get_entry_node()]
-        self.line_info[self.current_end_line]['cfg_nodes'] = [mod_cfg.get_exit_node()]
+        self.sa.line_info[self.current_start_line]['cfg_nodes'] = [mod_cfg.get_entry_node()]
+        self.sa.line_info[self.current_end_line]['cfg_nodes'] = [mod_cfg.get_exit_node()]
 
     # ContractAnalyzer.py  ----------------------------------------------
 
@@ -1063,14 +1085,14 @@ class ContractAnalyzer:
         self.contract_cfgs[self.current_target_contract] = ccf
 
         # brace_count - 디폴트 entry 등록
-        self.line_info[self.current_start_line]["cfg_nodes"] = [ctor_cfg.get_entry_node()]
+        self.sa.line_info[self.current_start_line]["cfg_nodes"] = [ctor_cfg.get_entry_node()]
 
         # EXIT 노드를 end line에 등록 (body 문장이 forward 검색 시 찾을 수 있도록)
-        if self.current_end_line not in self.line_info:
-            self.line_info[self.current_end_line] = {"open": 0, "close": 0, "cfg_nodes": []}
+        if self.current_end_line not in self.sa.line_info:
+            self.sa.line_info[self.current_end_line] = {"open": 0, "close": 0, "cfg_nodes": []}
         exit_node = ctor_cfg.get_exit_node()
-        if exit_node not in self.line_info[self.current_end_line]["cfg_nodes"]:
-            self.line_info[self.current_end_line]["cfg_nodes"].append(exit_node)
+        if exit_node not in self.sa.line_info[self.current_end_line]["cfg_nodes"]:
+            self.sa.line_info[self.current_end_line]["cfg_nodes"].append(exit_node)
 
     # ContractAnalyzer.py  ─ process_function_definition  (address-symb ✚ 최신 Array/Struct 초기화 반영)
 
@@ -1100,8 +1122,8 @@ class ContractAnalyzer:
             for r_type, r_name in (returns or []):
                 fcfg.return_types.append(r_type)
             contract_cfg.functions[function_name] = fcfg
-            if self.current_start_line in self.line_info:
-                self.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
+            if self.current_start_line in self.sa.line_info:
+                self.sa.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
             return
 
         fcfg = StaticCFGFactory.make_function_cfg(self, function_name, parameters, modifiers, returns)
@@ -1109,13 +1131,13 @@ class ContractAnalyzer:
 
         contract_cfg.functions[function_name] = fcfg
         self.contract_cfgs[self.current_target_contract] = contract_cfg
-        self.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
+        self.sa.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
         # Don't overwrite existing nodes in line_info for end_line, just add EXIT if not present
-        if self.current_end_line not in self.line_info:
-            self.line_info[self.current_end_line] = {"open": 0, "close": 0, "cfg_nodes": []}
+        if self.current_end_line not in self.sa.line_info:
+            self.sa.line_info[self.current_end_line] = {"open": 0, "close": 0, "cfg_nodes": []}
         exit_node = fcfg.get_exit_node()
-        if exit_node not in self.line_info[self.current_end_line]["cfg_nodes"]:
-            self.line_info[self.current_end_line]["cfg_nodes"].append(exit_node)
+        if exit_node not in self.sa.line_info[self.current_end_line]["cfg_nodes"]:
+            self.sa.line_info[self.current_end_line]["cfg_nodes"].append(exit_node)
 
     def _create_variable_object(
             self,
@@ -1205,9 +1227,13 @@ class ContractAnalyzer:
 
             # ── 구조체 기본
             elif isinstance(v, StructVariable):
-                if v.typeInfo.structTypeName not in ccf.structDefs:
-                    raise ValueError(f"Undefined struct {v.typeInfo.structTypeName}")
-                v.initialize_struct(ccf.structDefs[v.typeInfo.structTypeName])
+                struct_name = v.typeInfo.structTypeName
+                if struct_name in ccf.structDefs:
+                    v.initialize_struct(ccf.structDefs[struct_name])
+                elif self.sa.get_file_level_struct(struct_name) is not None:
+                    v.initialize_struct(self.sa.file_level_structs[struct_name])
+                else:
+                    raise ValueError(f"Undefined struct {struct_name}")
 
             # ── enum 기본 (첫 멤버)
             elif isinstance(v, EnumVariable):
@@ -1285,7 +1311,7 @@ class ContractAnalyzer:
             init_expr=init_expr,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,  # ← builder가 필요하다면 전달
+            line_info=self.sa.line_info,  # ← builder가 필요하다면 전달
         )
         if stmt_blk.is_loop_body :
             self.recorder.record_variable_declaration(
@@ -1390,7 +1416,7 @@ class ContractAnalyzer:
             init_expr=init_expr,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # 레코더 기록 (loop body인 경우)
@@ -1509,7 +1535,7 @@ class ContractAnalyzer:
             expr=expr,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         self.engine.reinterpret_from(fcfg, stmt_blk)
@@ -1557,7 +1583,7 @@ class ContractAnalyzer:
             op_token=stmt_kind,  # 기록용 토큰 – 원하면 '++' 등으로
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         self.engine.reinterpret_from(fcfg, stmt_blk)
@@ -1618,7 +1644,7 @@ class ContractAnalyzer:
             op_token="delete",
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         self.engine.reinterpret_from(fcfg, stmt_blk)
@@ -1687,7 +1713,7 @@ class ContractAnalyzer:
             expr=expr,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         self.engine.reinterpret_from(fcfg, stmt_blk)
@@ -1711,9 +1737,26 @@ class ContractAnalyzer:
 
     def _cfg_node_at(self, line_no: int):
         """해당 라인의 CFG 노드 반환"""
-        info = self.line_info.get(line_no, {})
+        info = self.sa.line_info.get(line_no, {})
         nodes = info.get("cfg_nodes", [])
         return nodes[0] if nodes else None
+
+    def _is_during_inline(self, code: str, start_line: int) -> bool:
+        """During annotation이 기존 코드 라인에 있어 밀기가 불필요한 inline인지 확인.
+        During만 해당 — 다른 annotation(@GlobalVar, @StateVar, @Post 등)은 항상 standalone."""
+        stripped = code.strip()
+        if not stripped.startswith("// @During"):
+            return False
+        return (start_line in self.sa.full_code_lines and
+                self.sa.full_code_lines[start_line].strip() != "")
+
+    def _find_prev_cfg_node(self, line_no: int):
+        """Standalone annotation용: 이전 코드 라인의 CFG 노드 반환"""
+        for ln in range(line_no - 1, 0, -1):
+            node = self._cfg_node_at(ln)
+            if node is not None:
+                return node
+        return None
 
     def process_during(self, clauses: list[dict], logic_ops: list[str]) -> dict:
         """
@@ -1730,6 +1773,10 @@ class ContractAnalyzer:
         if line_no not in self.during_annotations:
             self.during_annotations[line_no] = []
         self.during_annotations[line_no].append({"clauses": clauses, "logic_ops": logic_ops})
+
+        # Standalone annotation: 해당 라인에 CFG 노드가 없으면 이전 코드 라인의 노드 탐색
+        if cfg_node is None:
+            cfg_node = self._find_prev_cfg_node(line_no)
 
         # CFG 노드에 intent 저장 (해석 시 검증용)
         if cfg_node is not None:
@@ -1972,7 +2019,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
             end_line=self.current_end_line,
         )
 
@@ -2020,7 +2067,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
             end_line=end_line,
         )
 
@@ -2072,7 +2119,7 @@ class ContractAnalyzer:
             else_env=else_env,
             line_no=self.current_start_line,
             fcfg=fcfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
             end_line=self.current_end_line,
         )
 
@@ -2110,7 +2157,7 @@ class ContractAnalyzer:
             false_env=false_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
             end_line=getattr(self, "current_end_line", None),  # ★ 추가
         )
 
@@ -2241,7 +2288,7 @@ class ContractAnalyzer:
             incr_node=incr_node,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
             end_line=getattr(self, "current_end_line", None),  # ★ 추가
         )
 
@@ -2268,7 +2315,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ★ reinterpret seed = loop-exit
@@ -2292,7 +2339,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ★ reinterpret seed = loop-exit
@@ -2326,7 +2373,7 @@ class ContractAnalyzer:
             return_val=r_val,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ── 4. 기록 ---------------------------------------------------------
@@ -2381,7 +2428,7 @@ class ContractAnalyzer:
             call_args=call_argument_list,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ★ reinterpret seed = 연결하기 ‘전’ succ(들)
@@ -2421,7 +2468,7 @@ class ContractAnalyzer:
             true_env=true_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ★ reinterpret seed = true-분기 succ(들)
@@ -2461,7 +2508,7 @@ class ContractAnalyzer:
             true_env=true_env,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ★ reinterpret seed = true-분기 succ(들)
@@ -2495,7 +2542,7 @@ class ContractAnalyzer:
                 cur_block=cur_blk,
                 fcfg=self.current_target_function_cfg,
                 line_no=self.current_start_line,
-                line_info=self.line_info,
+                line_info=self.sa.line_info,
             )
             return  # 값-해석 없음
 
@@ -2516,7 +2563,7 @@ class ContractAnalyzer:
             cur_block=cur_blk,
             line_no=self.current_start_line,
             fcfg=self.current_target_function_cfg,
-            line_info=self.line_info,
+            line_info=self.sa.line_info,
         )
 
         # ── 3. 저장 ------------------------------------------------------
@@ -2535,7 +2582,7 @@ class ContractAnalyzer:
         pred = self.builder.get_current_block()  # prev 앵커
         self.builder.build_do_statement(
             cur_block=pred, line_no=self.current_start_line,
-            fcfg=fcfg, line_info = self.line_info
+            fcfg=fcfg, line_info = self.sa.line_info
         )
 
     def process_do_while_statement(self, condition_expr):
@@ -2565,7 +2612,7 @@ class ContractAnalyzer:
             do_entry=do_entry, while_line=self.current_start_line,
             fcfg=fcfg,
             condition_expr = condition_expr,
-            line_info = self.line_info
+            line_info = self.sa.line_info
         )
 
         # ★ seed = loop exit
@@ -2584,7 +2631,7 @@ class ContractAnalyzer:
         # returns 로컬 생성(⊥) 후 true 블록 env 에 심기
         cond, true_blk, false_stub, join = self.builder.build_try_skeleton(
             cur_block=pred, function_expr=function_expr,
-            line_no=self.current_start_line, fcfg=fcfg, line_info=self.line_info
+            line_no=self.current_start_line, fcfg=fcfg, line_info=self.sa.line_info
         )
 
         for i, (ty, nm) in enumerate(returns or []):
@@ -2648,7 +2695,7 @@ class ContractAnalyzer:
 
         c_entry, c_end = self.builder.attach_catch_clause(
             cond=cond, false_stub=false_stub, join=join,
-            line_no=self.current_start_line, fcfg=fcfg, line_info=self.line_info
+            line_no=self.current_start_line, fcfg=fcfg, line_info=self.sa.line_info
         )
 
         # catch 파라미터 로컬

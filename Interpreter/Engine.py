@@ -1292,7 +1292,7 @@ class Engine:
         Args:
             node: CFGNode (intents 리스트 포함)
             cur_vars: 현재 변수 환경
-            line_no: 현재 라인 번호
+            line_no: 현재 라인 번호 (코드 라인)
         """
         if not hasattr(node, 'intents') or not node.intents:
             return
@@ -1303,8 +1303,8 @@ class Engine:
             if intent.get("type") != "during":
                 continue
 
-            # 노드에 연결된 모든 during intent 처리 (라인 번호는 참고용)
-            intent_line = intent.get("line_no")
+            # standalone annotation은 자체 라인 번호 사용, inline은 코드 라인 번호 사용
+            report_line = intent.get("line_no", line_no)
 
             clauses = intent.get("clauses", [])
             logic_ops = intent.get("logic_ops", [])
@@ -1319,36 +1319,36 @@ class Engine:
                 # 논리 연산자로 조합
                 combined_result = self._combine_logic_results(results, logic_ops)
 
-                # 결과 출력
+                # 결과 출력 (annotation 라인 번호로 표시)
                 status = combined_result.get("status", "unknown")
                 risk = combined_result.get("risk_score", "")
                 risk_str = f" [risk={risk}]" if risk != "" else ""
                 if status == "violated":
-                    print(f"[INTENT VIOLATED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
+                    print(f"[INTENT VIOLATED] Line {report_line}: {combined_result.get('message', '')}{risk_str}")
                 elif status == "satisfied":
-                    print(f"[INTENT SATISFIED] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
+                    print(f"[INTENT SATISFIED] Line {report_line}: {combined_result.get('message', '')}{risk_str}")
                 else:
-                    print(f"[INTENT {status.upper()}] Line {line_no}: {combined_result.get('message', '')}{risk_str}")
+                    print(f"[INTENT {status.upper()}] Line {report_line}: {combined_result.get('message', '')}{risk_str}")
 
                 detail_str = self._format_violation_detail(results, clauses)
                 if detail_str:
                     print(detail_str)
 
-                # analysis_per_line에 기록
-                if line_no not in self.an.analysis_per_line:
-                    self.an.analysis_per_line[line_no] = []
+                # analysis_per_line에 기록 (annotation 라인 번호 기준)
+                if report_line not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[report_line] = []
 
-                self.an.analysis_per_line[line_no].append({
+                self.an.analysis_per_line[report_line].append({
                     'type': 'during_intent',
                     'clauses': clauses,
                     'result': combined_result
                 })
 
             except Exception as e:
-                print(f"[INTENT ERROR] Line {line_no}: {str(e)}")
-                if line_no not in self.an.analysis_per_line:
-                    self.an.analysis_per_line[line_no] = []
-                self.an.analysis_per_line[line_no].append({
+                print(f"[INTENT ERROR] Line {report_line}: {str(e)}")
+                if report_line not in self.an.analysis_per_line:
+                    self.an.analysis_per_line[report_line] = []
+                self.an.analysis_per_line[report_line].append({
                     'type': 'during_intent',
                     'result': {'status': 'error', 'message': str(e)}
                 })

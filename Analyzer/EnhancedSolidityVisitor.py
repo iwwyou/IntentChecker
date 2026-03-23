@@ -349,22 +349,25 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#structDefinition.
     def visitStructDefinition(self, ctx:SolidityParser.StructDefinitionContext):
+        if self.contract_analyzer.current_context_type == "fileLevelStruct":
+            struct_name = ctx.identifier().getText()
+            self.contract_analyzer.sa.process_file_level_struct_definition(struct_name)
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by SolidityParser#structMember.
     def visitStructMember(self, ctx: SolidityParser.StructMemberContext):
         var_name = ctx.identifier().getText()
 
-        # 1. 기본 Variables 객체 생성 (초기에는 타입을 모름)
-        variable_obj = None
-
-        # 2. 타입 분석
+        # 1. 타입 분석
         type_ctx = ctx.typeName()
         type_obj = SolType()
         type_obj = self.visitTypeName(type_ctx, type_obj)  # SolType 객체 반환
 
-        # 2. ContractAnalyzer로 전달하여 처리
-        self.contract_analyzer.process_struct_member(var_name, type_obj)
+        # 2. context에 따라 라우팅
+        if self.contract_analyzer.current_context_type == "fileLevelStructMember":
+            self.contract_analyzer.sa.process_file_level_struct_member(var_name, type_obj)
+        else:
+            self.contract_analyzer.process_struct_member(var_name, type_obj)
 
     # Visit a parse tree produced by SolidityParser#modifierDefinition.
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
@@ -674,8 +677,24 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             type_obj.elementaryTypeName = "address"
             type_obj.intTypeLength = 160
         else:
-            # 정의되지 않은 타입인 경우 예외 처리 또는 기본값 설정
-            raise ValueError(f"Type '{type_name}' is not defined as struct or enum in contract '{contract_name}'.")
+            # file-level struct 확인
+            file_struct = self.contract_analyzer.sa.get_file_level_struct(type_name)
+            if file_struct is not None:
+                type_obj.typeCategory = "struct"
+                type_obj.structTypeName = type_name
+            else:
+                # type alias 확인 (user-defined value type)
+                underlying = self.contract_analyzer.sa.resolve_type(type_name)
+                if underlying is not None:
+                    type_obj.typeCategory = "elementary"
+                    type_obj.elementaryTypeName = underlying
+                    # int/uint 비트 길이 설정
+                    if underlying.startswith("int"):
+                        type_obj.intTypeLength = int(underlying[3:]) if len(underlying) > 3 else 256
+                    elif underlying.startswith("uint"):
+                        type_obj.intTypeLength = int(underlying[4:]) if len(underlying) > 4 else 256
+                else:
+                    raise ValueError(f"Type '{type_name}' is not defined as struct, enum, or type alias in contract '{contract_name}'.")
 
         return type_obj
 
@@ -2658,7 +2677,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#userDefinedValueTypeDefinition.
     def visitUserDefinedValueTypeDefinition(self, ctx:SolidityParser.UserDefinedValueTypeDefinitionContext):
-        return self.visitChildren(ctx)
+        # type Fixed18 is int256; → alias_name="Fixed18", underlying="int256"
+        alias_name = ctx.identifier().getText()
+        underlying_type = ctx.elementaryTypeName().getText()
+        self.contract_analyzer.sa.process_type_alias(alias_name, underlying_type)
+        return None
 
     # Visit a parse tree produced by SolidityParser#booleanLiteral.
     def visitBooleanLiteral(self, ctx:SolidityParser.BooleanLiteralContext):

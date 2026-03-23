@@ -2,11 +2,31 @@
 
 ## Issue 1: During standalone 라인 지원
 - **현재**: During annotation은 반드시 코드 옆에 붙어야 함 (코드가 처리될 때 같이 평가)
-- **필요**: DuringChanged, DuringAssignCurrent, CommonClause 등은 특정 코드와 무관 → 코드 없이 annotation만 있는 standalone 라인 지원 필요
+- **필요**: During annotation 중 특정 statement에 바인딩되지 않는 유형은 standalone 라인(코드 없이 annotation만)으로 배치 가능해야 함
 - **예시**: web3bugs_35_H_12.sol mint() 함수
   - line 229: `// @During Changed(secondsPerLiquidity)` (standalone annotation line)
   - line 230-242: `nearestTick = Ticks.insert(...)` (기존 코드가 한 줄 밀림)
-- **영향 범위**: Interpreter에서 During annotation 파싱/평가 로직, soltotestjson.py에서 annotation-only 라인 처리
+
+### Standalone 가능/불가 분류
+- **Standalone 불가**: `Before`, `After` — 해당 statement 실행 전/후 값 비교이므로 반드시 코드 라인에 바인딩 필요
+- **Standalone 가능**: `Changed`/`Unchanged`, 값 비교(`x < 100`, `x == y + z`), `ASSIGN`/`CURRENT` — 특정 시점의 상태를 확인하므로 standalone 배치 가능
+
+### 입력 분기 로직 (During만 해당)
+- During annotation이 들어올 때, 해당 라인 번호에 **기존 코드가 있는지** 확인하여 분기:
+  - **코드 있음** → inline annotation (코드 밀기 X, 해당 라인의 CFG 노드에 attach)
+  - **코드 없음** → standalone annotation (코드 밀기 O, 이전 코드 라인의 CFG 노드에 attach)
+- 다른 annotation(`@GlobalVar`, `@StateVar`, `@Post`, `@IReturn` 등)은 항상 standalone이므로 기존 add 로직 유지
+
+### Standalone annotation의 CFG 노드 매핑
+- standalone annotation은 "이 시점까지의 상태"를 검증하므로, **이전 코드 라인의 CFG 노드**에 연결
+- 예: line 228 코드 실행 후 → line 229 standalone annotation 검증 → line 230 코드 실행
+- `process_during`에서 `_cfg_node_at(line_no)` → None일 때, 위로 스캔하여 이전 CFG 노드 탐색
+
+### 주요 수정 지점
+1. **ContractAnalyzer.py (99-662)**: `update_code`/`_insert_lines`에서 During 입력 시 해당 라인 코드 유무 확인 → inline/standalone 분기
+2. **ContractAnalyzer.py (1718-1752)**: `process_during`에서 CFG 노드 없을 때 이전 코드 라인의 노드 탐색 로직 추가
+3. **Engine.py (_process_during_annotations)**: standalone annotation 라인의 검증 처리
+4. **soltotestjson.py**: annotation-only 라인 처리
 
 ## Issue 2: Changed/Unchanged annotation 신규 구현
 - **배경**: `Assign != Current`는 값 기반 비교 → 중간에 바뀌었다가 원래값 복귀 시 감지 불가 (false negative)

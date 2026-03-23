@@ -1,11 +1,12 @@
 import json
 from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
-from Analyzer.ContractAnalyzer import ContractAnalyzer
+from Analyzer.SolidityAnalyzer import SolidityAnalyzer
 from Analyzer.DebugUnitAnalyzer import DebugBatchManager
 from Utils.Helper                        import ParserHelpers     # ★ here
 import time
 
-contract_analyzer = ContractAnalyzer()
+sa                = SolidityAnalyzer()
+contract_analyzer = sa.contract_analyzer
 snapman           = contract_analyzer.snapman
 batch_mgr         = DebugBatchManager(contract_analyzer, snapman)
 
@@ -18,7 +19,7 @@ def simulate_inputs(records, silent=False):
             rec["code"], rec["startLine"], rec["endLine"], rec["event"]
 
         # ───── Solidity 소스 반영 (add/modify/delete) ─────
-        contract_analyzer.update_code(s, e, code, ev)
+        sa.update_code(s, e, code, ev)
 
         stripped = code.lstrip()
 
