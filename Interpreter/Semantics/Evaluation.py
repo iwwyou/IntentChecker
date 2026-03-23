@@ -105,7 +105,7 @@ class Evaluation :
         """
         # 1. 현재 컨트랙트에서 검색
         if function_name in contract_cfg.functions:
-            return contract_cfg.functions[function_name]
+            return contract_cfg.get_function_cfg(function_name)
 
         # 2. 부모 컨트랙트 체인 검색 (MRO 순서)
         parent_contracts = getattr(contract_cfg, 'parent_contracts', [])
@@ -834,9 +834,10 @@ class Evaluation :
                 # 함수를 찾지 못함 → Top 반환
                 return UnsignedIntegerInterval.top()
 
-            # this.balance → 컨트랙트 잔액 (uint256 Top)
+            # this.balance → GlobalVar에 값이 있으면 사용, 없으면 Top
             if member == "balance":
-                return UnsignedIntegerInterval.top()
+                gv_val = self._get_address_this_balance(variables)
+                return gv_val if gv_val is not None else UnsignedIntegerInterval.top()
 
             # 기타 this 멤버 접근은 심볼릭으로 처리
             return f"this.{member}"
@@ -1024,9 +1025,10 @@ class Evaluation :
         # 3-A. AddressSet  (address.balance, address.transfer(), address.send())
         # ──────────────────────────────────────────────────────────────
         if isinstance(baseVal, AddressSet):
-            # address.balance → uint256 Top (balance can be any value)
+            # address.balance → GlobalVar에 address(this).balance가 있으면 사용
             if member == "balance":
-                return UnsignedIntegerInterval.top()
+                gv_val = self._get_address_this_balance(variables)
+                return gv_val if gv_val is not None else UnsignedIntegerInterval.top()
 
             # address.code → bytes Top
             if member == "code":
@@ -1536,7 +1538,7 @@ class Evaluation :
                     if indexed:
                         icfg = self.an.contract_cfgs.get(interface_name)
                         if icfg and member_name in icfg.functions:
-                            ret_count = len(icfg.functions[member_name].return_types)
+                            ret_count = len(icfg.get_function_cfg(member_name).return_types)
                             result = []
                             for i in range(ret_count):
                                 result.append(indexed.get(i, UnsignedIntegerInterval.top()))
@@ -1569,7 +1571,7 @@ class Evaluation :
                         if indexed:
                             icfg = self.an.contract_cfgs.get(cast_interface)
                             if icfg and member_name in icfg.functions:
-                                ret_count = len(icfg.functions[member_name].return_types)
+                                ret_count = len(icfg.get_function_cfg(member_name).return_types)
                                 result = []
                                 for i in range(ret_count):
                                     result.append(indexed.get(i, UnsignedIntegerInterval.top()))
@@ -1796,7 +1798,7 @@ class Evaluation :
             # library_function_cfg가 속한 LibraryCFG 찾기
             library_cfg = None
             for lib_name, lib_cfg in self.an.library_cfgs.items():
-                if library_function_cfg in lib_cfg.functions.values():
+                if library_function_cfg in [f for _, f in lib_cfg.iter_all_functions()]:
                     library_cfg = lib_cfg
                     break
             
@@ -2080,6 +2082,22 @@ class Evaluation :
             return IntegerInterval(v, v, bits)
         except (ValueError, TypeError):
             return f"symbolicInt{bits}({sub_val})"
+
+    def _get_address_this_balance(self, variables):
+        """GlobalVar에서 address(this).balance 값을 조회. 없으면 None."""
+        gv_name = "address(this).balance"
+        # 1) variables(함수 env)에 있는지
+        if gv_name in variables:
+            v = variables[gv_name]
+            return v.value if hasattr(v, "value") else v
+        # 2) contract globals에 있는지
+        contract_name = self.an.current_target_contract
+        if contract_name and contract_name in self.an.contract_cfgs:
+            cfg = self.an.contract_cfgs[contract_name]
+            if gv_name in cfg.globals:
+                g = cfg.globals[gv_name]
+                return g.value
+        return None
 
     def convert_to_bool(self, sub_val):
         """

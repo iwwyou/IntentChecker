@@ -289,8 +289,13 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#debugGlobalVar.
-    def visitDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
+    # Visit a parse tree produced by SolidityParser#GlobalVarSimple.
+    def visitGlobalVarSimple(self, ctx:SolidityParser.GlobalVarSimpleContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#GlobalVarAddressBalance.
+    def visitGlobalVarAddressBalance(self, ctx:SolidityParser.GlobalVarAddressBalanceContext):
         return self.visitChildren(ctx)
 
 
@@ -339,6 +344,11 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#DuringFeasible.
+    def visitDuringFeasible(self, ctx:SolidityParser.DuringFeasibleContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#DuringFunctionArg.
     def visitDuringFunctionArg(self, ctx:SolidityParser.DuringFunctionArgContext):
         return self.visitChildren(ctx)
@@ -356,11 +366,6 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#PostEntryExit.
     def visitPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#UnchangedVar.
-    def visitUnchangedVar(self, ctx:SolidityParser.UnchangedVarContext):
         return self.visitChildren(ctx)
 
 
@@ -406,6 +411,11 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#Implication.
     def visitImplication(self, ctx:SolidityParser.ImplicationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#VarChangedEval.
+    def visitVarChangedEval(self, ctx:SolidityParser.VarChangedEvalContext):
         return self.visitChildren(ctx)
 
 

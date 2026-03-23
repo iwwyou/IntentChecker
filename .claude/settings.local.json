@@ -54,7 +54,12 @@
       "Read(//c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/**)",
       "Bash(cp /c/Users/isjeon/Web3Bugs/contracts/42/projects/mochi-library/contracts/Float.sol \"/c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/target_contracts_original/dependencies/42_Float.sol\")",
       "Bash(cp /c/Users/isjeon/Web3Bugs/contracts/42/projects/mochi-library/contracts/CheapERC20.sol \"/c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/target_contracts_original/dependencies/42_CheapERC20.sol\")",
-      "Bash(cp /c/Users/isjeon/Web3Bugs/contracts/42/projects/mochi-cssr/contracts/interfaces/ICSSRRouter.sol \"/c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/target_contracts_original/dependencies/42_ICSSRRouter.sol\")"
+      "Bash(cp /c/Users/isjeon/Web3Bugs/contracts/42/projects/mochi-cssr/contracts/interfaces/ICSSRRouter.sol \"/c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/target_contracts_original/dependencies/42_ICSSRRouter.sol\")",
+      "Bash(while read:*)",
+      "Read(//c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/target_contracts_contraction/dependencies/**)",
+      "Bash(do)",
+      "Bash(cd \"C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2\" for case in \"HippoHotel\" \"29_H_11\" \"8_H_03\" \"16_H_04\" \"16_H_06\" \"29_H_08\" \"35_H_08\" \"44_H_02\")",
+      "Bash(__NEW_LINE_04af87e798348472__ echo:*)"
     ],
     "deny": [],
     "ask": []

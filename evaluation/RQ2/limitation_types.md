@@ -20,9 +20,9 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 | L1a | `loop-widening` | 루프 내 `+=` 등 누적 연산에 fixpoint iteration 시 widening 적용 → Top/∞. 버기 값과 정상 값이 모두 widened range에 포함되어 구분 불가. precision loss가 루프 내 누적 연산에서 발생하는 경우도 포함 | web3bugs_34_H_01, web3bugs_52_H_04, web3bugs_52_H_34, web3bugs_59_H_04, web3bugs_70_H_03, web3bugs_70_H_04, web3bugs_70_H_05, web3bugs_3_H_04 |
 | L1b | `loop-body-granularity` | IntentChecker가 루프 내부를 line-by-line 분석하지 않고 fixpoint만 계산. 루프 바디 내 특정 지점에 annotation을 배치해야 탐지 가능하나, 현재 구조에서는 불가 | web3bugs_45_H_02, web3bugs_71_H_11 |
 | L2 | `cross-deployment-call-top` | 별도 deployment된 외부 컨트랙트에 대한 호출 시, callee의 storage state가 annotation scope 밖 → 반환값 Top. 아래 두 하위 유형으로 구분 | - |
-| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top | web3bugs_5_H_15 |
+| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top. state-modifying interface call은 @IReturn 적용 불가 | web3bugs_5_H_15, numscout_EthereumGod |
 | L2b | `external-call-state-unknown` | L2의 하위 유형. 구현 코드는 import로 존재하나, 외부 컨트랙트의 런타임 state를 모름 → 반환값 Top | web3bugs_3_H_05 |
-| L3 | `unsupported-construct-top` | 분석 엔진이 지원하지 않는 언어 구조(abi.decode, inline assembly, keccak256, address(this).balance 등)로 인해 관련 변수가 Top이 되어 buggy/correct 구분 불가. L1(loop), L2(cross-deployment)와 독립적인 별도 Top 발생 원인 | web3bugs_35_H_08, web3bugs_8_H_03, numscout_HippoHotel, web3bugs_16_H_04, web3bugs_16_H_06, web3bugs_29_H_08, web3bugs_29_H_11, web3bugs_44_H_02, numscout_EthereumGod |
+| L3 | `unsupported-construct-top` | 분석 엔진이 지원하지 않는 언어 구조(abi.decode, inline assembly, keccak256 등)로 인해 관련 변수가 Top이 되어 buggy/correct 구분 불가. L1(loop), L2(cross-deployment)와 독립적인 별도 Top 발생 원인 | web3bugs_35_H_08, web3bugs_8_H_03, web3bugs_16_H_04, web3bugs_16_H_06, web3bugs_29_H_08, web3bugs_29_H_11, web3bugs_44_H_02 |
 
 #### B. Annotation 한계 (Annotation Limitation)
 

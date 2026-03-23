@@ -264,7 +264,8 @@ debugInput
     ;
 
 debugGlobalVar
-    : '//' '@GlobalVar' identifier ('.' identifier)? '=' debugValue
+    : '//' '@GlobalVar' identifier ('.' identifier)? '=' debugValue                          # GlobalVarSimple
+    | '//' '@GlobalVar' 'address' '(' identifier ')' '.' 'balance' '=' debugValue            # GlobalVarAddressBalance
     ;
 
 debugStateVar
@@ -289,6 +290,7 @@ duringIntent
 duringClause
     : intentValue '(' BEFORE  relOp AFTER   ')'                             # DuringBeforeAfter
     | intentValue '(' ASSIGN  relOp CURRENT ')'                             # DuringAssignCurrent
+    | ('require feasible' | 'assert feasible')                              # DuringFeasible
     | identifier '.' 'arg' '[' numberLiteral ']' relOp intentValue          # DuringFunctionArg
     | commonClause                                                          # DuringCommon
     ;
@@ -299,7 +301,6 @@ postIntent
 
 postClause
     : intentValue '(' ENTRY relOp EXIT ')'                                # PostEntryExit
-    | UNCHANGED '(' intentValue ')'                                       # UnchangedVar
     | commonClause                                                        # PostCommon
     ;
 
@@ -312,6 +313,7 @@ commonClause
     | intentValue relOp 'floor' '(' intentValue ',' numberLiteral ')'       # Floor
     | intentValue relOp intentValue                                         # RelationalCmp
     | intentValue '=>' intentValue                                          # Implication
+    | 'changed' '(' intentValue ',' ('true'|'false') ')'                    # VarChangedEval
     ;
 
 debugValue

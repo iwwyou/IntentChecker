@@ -233,6 +233,14 @@ class StaticCFGFactory:
         fcfg = FunctionCFG(function_type="function", function_name=name)
 
         for p_type, p_name in params:
+            # parameter_types에 타입 기록 (overloading signature용)
+            type_str = getattr(p_type, 'elementaryTypeName', None) or \
+                       getattr(p_type, 'structTypeName', None) or \
+                       getattr(p_type, 'enumTypeName', None) or \
+                       getattr(p_type, 'interfaceName', None) or \
+                       str(p_type.typeCategory or "unknown")
+            fcfg.parameter_types.append(type_str)
+
             if p_name:  # 이름이 있는 것만 변수화
                 var = StaticCFGFactory.make_param_variable(
                     an,  # 🔑

@@ -1,14 +1,8 @@
 # SolidityGuardian/Analyzers/ContractAnalyzer.py
 from Utils.CFG import *
-from solcx import (
-    install_solc,
-    set_solc_version,
-    compile_source,
-    get_installed_solc_versions
-)
-from solcx.exceptions import SolcError
 from Domain.AddressSet import address_manager, AddressSet
 from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
+from Domain.Type import SolType
 from Utils.Helper import *
 from Utils.Snapshot import *
 from Analyzer.DynamicCFGBuilder import DynamicCFGBuilder
@@ -95,12 +89,13 @@ class ContractAnalyzer:
     # ────────────────────────────────────────────────────────────────
     #  ContractAnalyzer   (class body 안)
     # ----------------------------------------------------------------
-    def _shift_meta(self, old_ln: int, new_ln: int):
+    def _shift_cfg_meta(self, old_ln: int, new_ln: int):
         """
         소스 라인 이동(old_ln → new_ln)에 맞춰
-        line_info / recorder.ledger / Statement.src_line / CFGNode.src_line 동기화
+        recorder.ledger / CFGNode.src_line / Statement.src_line 동기화.
+        (line_info key 이동은 SolidityAnalyzer._shift_source_meta가 담당)
         """
-        # ① line_info에 등록된 cfg_nodes들의 src_line 보정 (먼저 수행)
+        # ① line_info에 등록된 cfg_nodes들의 src_line 보정
         if old_ln in self.sa.line_info:
             info = self.sa.line_info[old_ln]
             if isinstance(info.get("cfg_nodes"), list):
@@ -108,234 +103,19 @@ class ContractAnalyzer:
                     if hasattr(node, "src_line") and node.src_line == old_ln:
                         node.src_line = new_ln
 
-        # ② line_info & recorder.ledger 이동
-        dicts_to_shift = (self.sa.line_info, self.recorder.ledger)
-        for d in dicts_to_shift:
-            if old_ln in d:
-                # (간단버전) 덮어쓰기. 이미 new_ln 에 값이 있으면 합치고 싶다면 merge 로직을 쓰세요.
-                d[new_ln] = d.pop(old_ln)
+        # ② recorder.ledger 이동
+        if old_ln in self.recorder.ledger:
+            self.recorder.ledger[new_ln] = self.recorder.ledger.pop(old_ln)
 
         # ③ 이미 생성된 CFG-Statement 들의 src_line 보정
-        stmt_count = 0
         for ccf in self.contract_cfgs.values():
-            for fcfg in ccf.functions.values():
+            for _, fcfg in ccf.iter_all_functions():
                 for blk in fcfg.graph.nodes:
-                    # CFGNode 자체의 src_line도 업데이트
                     if getattr(blk, "src_line", None) == old_ln:
                         blk.src_line = new_ln
-                    # Statement들의 src_line 업데이트
                     for st in blk.statements:
                         if getattr(st, "src_line", None) == old_ln:
                             st.src_line = new_ln
-                            stmt_count += 1
-        if stmt_count > 0:
-            pass
-            # print(f"DEBUG _shift_meta: Shifted {stmt_count} statements from line {old_ln} to {new_ln}")
-
-    def _insert_lines(self, start: int, new_lines: list[str]):
-        new_lines = self.normalize_compound_control_lines(new_lines)
-        # offset = 소스 스팬 (endLine - startLine + 1)
-        # 다중 라인이 머지된 경우에도 원본 소스 줄 수만큼 밀어야 한다
-        if self.current_end_line is not None and self.current_end_line >= start:
-            offset = self.current_end_line - start + 1
-        else:
-            offset = len(new_lines)
-        # start 라인에 control flow 노드가 있고, 새 코드가 연속되는 control flow인지 체크
-        skip_shift_at_start = False
-        if start in self.sa.line_info:
-            cfg_nodes = self.sa.line_info[start].get('cfg_nodes', [])
-            first_new_line = new_lines[0].strip() if new_lines else ""
-
-            # 같은 control flow의 연속인 경우:
-            # 1. if/else-if의 join + else/else-if
-            # 2. do의 끝 + while
-            # 3. try의 stub + catch
-            for node in cfg_nodes:
-                # if/else-if join + else/else-if  (같은 줄 '} else' 일 때만 skip)
-                if (getattr(node, 'join_point_node', False) and
-                    (first_new_line.startswith('else if') or first_new_line.startswith('else')) and
-                    self.current_close_before):
-                    skip_shift_at_start = True
-                    break
-                # do end + while  (같은 줄 '} while' 일 때만 skip)
-                if (getattr(node, 'is_do_end', False) and
-                    first_new_line.startswith('while') and
-                    self.current_close_before):
-                    skip_shift_at_start = True
-                    break
-                # try false_stub + catch  (같은 줄 '} catch' 일 때만 skip)
-                if (node.name.startswith('try_false_stub') and
-                    first_new_line.startswith('catch') and
-                    self.current_close_before):
-                    skip_shift_at_start = True
-                    break
-
-        # 뒤 라인 밀기 (skip_shift_at_start이면 start+1부터)
-        shift_from = start + 1 if skip_shift_at_start else start
-
-        for old_ln in sorted([ln for ln in self.sa.full_code_lines if ln >= shift_from], reverse=True):
-            self.sa.full_code_lines[old_ln + offset] = self.sa.full_code_lines.pop(old_ln)
-            self._shift_meta(old_ln, old_ln + offset)
-
-        # 삽입 - 실제 코드 줄은 스팬 끝에, 빈 슬롯은 앞에 채운다
-        # 예: startLine=225, endLine=230, code="header {\n}" → 229에 header, 230에 }
-        write_count = min(len(new_lines), offset)
-        write_start = start + offset - write_count  # 코드 줄을 스팬 끝에 배치
-
-        # 앞쪽 빈 슬롯 채우기 (full_code_lines + line_info 모두)
-        for i in range(write_start - start):
-            ln = start + i
-            if ln not in self.sa.full_code_lines:
-                self.sa.full_code_lines[ln] = ""
-            if ln not in self.sa.line_info:
-                self.sa.line_info[ln] = {"open": 0, "close": 0, "cfg_nodes": []}
-
-        # 실제 코드 줄 쓰기
-        for i in range(write_count):
-            ln = write_start + i
-            line = new_lines[i]
-            self.sa.full_code_lines[ln] = line
-            self.update_brace_count(ln, line)  # ★ 항상 카운트
-            if self._should_trigger_analysis(line):  # ★ 트리거 라인만 분석
-                self.analyze_context(ln, line)
-
-    # ContractAnalyzer.py (클래스 내부)
-    def _should_trigger_analysis(self, code_line: str) -> bool:
-        s = (code_line or "").strip()
-        if not s:
-            return False
-        if s == "}":  # 단독 '}'는 분석 스킵(괄호 카운트만)
-            return False
-        if s.startswith("pragma ") or s.startswith("import "):  # contract 밖 코드는 분석 스킵
-            return False
-        if s.startswith("//"):
-            return s.startswith("// @")  # 디버그 주석만 분석
-        if s.endswith(";"):
-            return True  # 일반 문장
-        # 여러 줄짜리 함수/modifier/constructor 정의의 끝 부분
-        # 예: "    ) external isAllowed {"
-        if ')' in s and '{' in s and not s.startswith(('if', 'for', 'while', 'else')):
-            return True
-        # 블록 헤더 키워드
-        return bool(re.match(
-            r"^(abstract\s+contract|contract|library|interface|function|constructor|modifier|"
-            r"struct|enum|event|if|else(\s+if)?\b|for|while|do\b|try|catch|unchecked|assembly)\b", s))
-
-    def update_code(self, start_line: int, end_line: int, new_code: str, event: str,
-                    close_before: bool = False):
-        self.current_start_line = start_line
-        self.current_end_line = end_line
-        self.current_edit_event = event
-        self.current_close_before = close_before
-
-        if event not in {"add", "modify", "delete"}:
-            raise ValueError(f"unknown event '{event}'")
-
-        if event == "add":
-            lines = new_code.split("\n")
-            # During annotation inline: 기존 코드가 있는 라인에 붙는 경우 밀기 불필요
-            if self._is_during_inline(new_code, start_line):
-                self.analyze_context(start_line, new_code)
-                return
-            self._insert_lines(start_line, lines)  # _insert_lines 내부에서 정규화
-
-
-        elif event == "modify":
-            raw_lines = new_code.split("\n")
-            norm_lines = self.normalize_compound_control_lines(raw_lines)
-            if (end_line - start_line + 1) != len(norm_lines):
-                self.update_code(start_line, end_line, "", event="delete")
-                self.update_code(start_line, start_line + len(norm_lines) - 1,
-                                 "\n".join(norm_lines), event="add")
-                return
-
-            ln = start_line
-            for line in norm_lines:
-                self.sa.full_code_lines[ln] = line
-                self.update_brace_count(ln, line)  # ★ 추가
-                if self._should_trigger_analysis(line):  # ★ 추가
-                    self.analyze_context(ln, line)
-                ln += 1
-
-        elif event == "delete":
-            offset = end_line - start_line + 1
-
-            # 기존 라인 제거
-            for ln in range(start_line, end_line + 1):
-                self.sa.full_code_lines.pop(ln, None)
-                self.sa.line_info.pop(ln, None)
-                self.recorder.ledger.pop(ln, None)  # ← recorder 같이 비움
-
-            # 뒤쪽 라인 당기기
-            keys_to_shift = sorted([ln for ln in self.sa.full_code_lines if ln > end_line])
-            for old_ln in keys_to_shift:
-                new_ln = old_ln - offset
-                self.sa.full_code_lines[new_ln] = self.sa.full_code_lines.pop(old_ln)
-                self._shift_meta(old_ln, new_ln)
-
-        # full-code 재조합
-        self.sa.full_code = "\n".join(self.sa.full_code_lines[ln] for ln in sorted(self.sa.full_code_lines))
-
-        # add/modify 후 전체 블록의 컨텍스트 설정
-        # 여러 줄짜리 정의(함수/constructor/modifier 등)의 경우,
-        # 마지막 라인('}')이 분석을 스킵하므로 컨텍스트가 설정되지 않음
-        # 따라서 전체 코드 블록을 대상으로 한 번 더 analyze_context 호출
-        if event in {"add", "modify"} and new_code.strip():
-            self.analyze_context(start_line, new_code)
-
-    def normalize_compound_control_lines(self, lines: list[str]) -> list[str]:
-        """
-        한 물리 라인에 '} else if', '} else', '} while' 이 붙어있는 경우
-        '}' 과 그 뒤 토큰을 서로 다른 라인으로 나눠
-        [논리] 라인 배열로 정규화한다.
-        """
-        out: list[str] = []
-        # '}' 바로 뒤에 else/while 이 오는 모든 케이스를 split
-        pat = re.compile(r'}\s*(?=else\b|while\b)')
-
-        for s in lines:
-            rest = s
-            while True:
-                m = pat.search(rest)
-                if not m:
-                    out.append(rest)
-                    break
-                # '}' 까지를 앞라인, 그 뒤(else|while...)를 다음 라인으로
-                left = rest[:m.start()] + "}"
-                right = rest[m.end():].lstrip()
-                out.append(left)
-                rest = right
-        return out
-
-    def compile_check(self) -> None:
-        wanted = '0.8.0'
-
-        # ① 아직 안 깔려 있으면 다운로드
-        if wanted not in get_installed_solc_versions():
-            print(f"[info] installing solc {wanted} …")
-            install_solc(wanted)  # 네트워크·권한 오류나면 여기서 예외 발생
-
-        # ② 방금(또는 이전에) 받은 버전을 active 로 지정
-        set_solc_version(wanted)
-
-        # ③ 실제 컴파일
-        try:
-            compile_source(self.sa.full_code)
-            print("[ok] solidity compiled successfully")
-        except SolcError as e:
-            print("[err] Solidity compiler reported:\n", e)
-        except Exception as e:
-            print("[err] unexpected:", e)
-
-    def update_brace_count(self, line_number, code):
-        open_braces = code.count('{')
-        close_braces = code.count('}')
-        # 기존 정보 보존하면서 업데이트
-        if line_number not in self.sa.line_info:
-            self.sa.line_info[line_number] = {"open": 0, "close": 0, "cfg_nodes": []}
-        info = self.sa.line_info[line_number]
-        info['open'] = open_braces
-        info['close'] = close_braces
 
     def analyze_context(self, start_line, new_code):
         stripped_code = (new_code or "").strip()
@@ -387,16 +167,9 @@ class ContractAnalyzer:
                         self.current_context_type = "stateVariableDeclaration"
                     self.current_target_contract = self.find_contract_context(start_line)
             elif parent_context == "struct":  # 시작 규칙 : interactiveStructUnit
+                self.current_context_type = "structMember"
                 self.current_target_contract = self.find_contract_context(start_line)
-                if self.current_target_contract:
-                    self.current_context_type = "structMember"
-                else:
-                    self.current_context_type = "fileLevelStructMember"
                 self.current_target_struct = self.find_struct_context(start_line)
-            elif parent_context == "unknown" and stripped_code.startswith("type ") and " is " in stripped_code:
-                # file-level type alias: type Fixed18 is int256;
-                self.current_context_type = "fileLevelTypeAlias"
-                return
             else:  # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
@@ -464,20 +237,12 @@ class ContractAnalyzer:
             if self.current_context_type in ["contract", "library", "interface", "abstract contract"]:
                 return
 
-            # file-level struct: contract 밖의 struct 정의
-            if self.current_context_type == "struct" and not self.current_target_contract:
-                self.current_context_type = "fileLevelStruct"
-                return
-
             self.current_target_function = self.find_function_context(start_line)
 
 
         # 최종적으로 context가 제대로 파악되지 않은 경우
         # 여러 줄짜리 정의문의 중간 줄이거나, 컨텍스트 분석이 불필요한 줄은 조용히 넘어감
         if not self.current_target_contract and self.current_context_type:
-            # file-level context는 contract 없이 허용
-            if self.current_context_type in ("fileLevelStruct", "fileLevelStructMember", "fileLevelTypeAlias"):
-                return
             # context_type은 설정되었는데 contract를 찾지 못한 경우에만 오류
             raise ValueError(f"Contract context not found for line {start_line}")
         if self.current_context_type == "simpleStatement" and not self.current_target_function:
@@ -672,9 +437,6 @@ class ContractAnalyzer:
         except ValueError as e:
             print(f"Error: {e}")
             return "unknown"
-
-    def get_full_code(self):
-        return self.sa.full_code
 
     def get_current_context_type(self):
         return self.current_context_type
@@ -950,7 +712,7 @@ class ContractAnalyzer:
         contract_cfg.add_state_variable(variable_obj, expr=init_expr, line_no=self.current_start_line)
 
         # 5. ContractCFG에 있는 모든 FunctionCFG에 상태 변수 추가
-        for function_cfg in contract_cfg.functions.values():
+        for _, function_cfg in contract_cfg.iter_all_functions():
             function_cfg.add_related_variable(variable_obj.identifier, variable_obj)
 
         # 6. contract_cfg를 contract_cfgs에 반영
@@ -1014,7 +776,7 @@ class ContractAnalyzer:
         contract_cfg.add_state_variable(variable_obj, expr=init_expr, line_no=self.current_start_line)
 
         # 4. 이미 생성된 모든 FunctionCFG 에 read-only 변수로 연동
-        for fn_cfg in contract_cfg.functions.values():
+        for _, fn_cfg in contract_cfg.iter_all_functions():
             fn_cfg.add_related_variable(variable_obj.identifier, variable_obj)
 
         # 5. 전역 map 업데이트
@@ -1060,15 +822,15 @@ class ContractAnalyzer:
         mod_cfg: FunctionCFG | None = None
 
         # 현재 컨트랙트에서 찾기
-        if modifier_name in contract_cfg.functions:
-            mod_cfg = contract_cfg.functions[modifier_name]
-        else:
+        mod_cfg = contract_cfg.get_function_cfg(modifier_name)
+        if mod_cfg is None:
             # 부모 컨트랙트에서 찾기
             for parent_name in getattr(contract_cfg, 'parent_contracts', []):
                 parent_cfg = self.contract_cfgs.get(parent_name)
-                if parent_cfg and modifier_name in parent_cfg.functions:
-                    mod_cfg = parent_cfg.functions[modifier_name]
-                    break
+                if parent_cfg:
+                    mod_cfg = parent_cfg.get_function_cfg(modifier_name)
+                    if mod_cfg is not None:
+                        break
 
         if mod_cfg is None:
             raise ValueError(f"Modifier '{modifier_name}' is not defined.")
@@ -1121,7 +883,7 @@ class ContractAnalyzer:
             fcfg.mutability = mutability
             for r_type, r_name in (returns or []):
                 fcfg.return_types.append(r_type)
-            contract_cfg.functions[function_name] = fcfg
+            contract_cfg.add_function_cfg(function_name, fcfg)
             if self.current_start_line in self.sa.line_info:
                 self.sa.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
             return
@@ -1129,7 +891,7 @@ class ContractAnalyzer:
         fcfg = StaticCFGFactory.make_function_cfg(self, function_name, parameters, modifiers, returns)
         fcfg.mutability = mutability
 
-        contract_cfg.functions[function_name] = fcfg
+        contract_cfg.add_function_cfg(function_name, fcfg)
         self.contract_cfgs[self.current_target_contract] = contract_cfg
         self.sa.line_info[self.current_start_line]["cfg_nodes"] = [fcfg.get_entry_node()]
         # Don't overwrite existing nodes in line_info for end_line, just add EXIT if not present
@@ -1324,7 +1086,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
         # ────────────────── ④ 저장 & 정리 ────────────────────
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
         self.current_target_function_cfg = None
 
@@ -1433,7 +1195,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
         # 저장 & 정리
-        ccf.functions[self.current_target_function] = fcfg
+        ccf.update_function_cfg(self.current_target_function, fcfg)
         self.contract_cfgs[self.current_target_contract] = ccf
         self.current_target_function_cfg = None
 
@@ -1506,6 +1268,67 @@ class ContractAnalyzer:
                 sv_node.variables[name].value = block_vars[name].value
 
     # Analyzer/ContractAnalyzer.py
+    def process_yul_assignment(self, lhs: Expression, rhs: Expression) -> None:
+        """Yul assembly 내 대입문: 기존 Solidity 변수에 대입 (prod0 := ...)"""
+        ccf = self.contract_cfgs[self.current_target_contract]
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        if self.current_target_function_cfg is None:
+            return
+        fcfg = self.current_target_function_cfg
+        cur_blk = self.builder.get_current_block()
+
+        # 미지원 Yul built-in → TOP
+        if getattr(rhs, 'context', '') == 'YulUnsupportedContext':
+            r_val = UnsignedIntegerInterval.top()
+        else:
+            r_val = self.evaluator.evaluate_expression(rhs, cur_blk.variables, None, None)
+
+        self.updater.update_left_var(lhs, r_val, '=', cur_blk.variables, None, None, True)
+
+        stmt_blk = self.builder.build_assignment_statement(
+            cur_block=cur_blk,
+            expr=Expression(left=lhs, operator='=', right=rhs, context="YulAssignmentContext"),
+            line_no=self.current_start_line, fcfg=fcfg, line_info=self.sa.line_info,
+        )
+        self.engine.reinterpret_from(fcfg, stmt_blk)
+        self._sync_constructor_state(fcfg, ccf, stmt_blk)
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
+        self.contract_cfgs[self.current_target_contract] = ccf
+
+    def process_yul_variable_declaration(self, var_name: str, rhs: Expression | None) -> None:
+        """Yul let 선언: 새 uint256 변수 생성 (let mm := ...)"""
+        ccf = self.contract_cfgs[self.current_target_contract]
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        if self.current_target_function_cfg is None:
+            return
+        fcfg = self.current_target_function_cfg
+        cur_blk = self.builder.get_current_block()
+
+        # Yul 변수는 항상 uint256
+        t = SolType()
+        t.typeCategory = "elementary"
+        t.elementaryTypeName = "uint256"
+        t.intTypeLength = 256
+
+        v = Variables(identifier=var_name, scope="local")
+        v.typeInfo = t
+
+        if rhs is None or getattr(rhs, 'context', '') == 'YulUnsupportedContext':
+            v.value = UnsignedIntegerInterval.top()
+        else:
+            v.value = self.evaluator.evaluate_expression(rhs, cur_blk.variables, None, None)
+
+        cur_blk.variables[var_name] = v
+
+        stmt_blk = self.builder.build_variable_declaration(
+            cur_block=cur_blk, var_obj=v, type_obj=t, init_expr=rhs,
+            line_no=self.current_start_line, fcfg=fcfg, line_info=self.sa.line_info,
+        )
+        self.engine.reinterpret_from(fcfg, stmt_blk)
+        self._sync_constructor_state(fcfg, ccf, stmt_blk)
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
+        self.contract_cfgs[self.current_target_contract] = ccf
+
     def process_assignment_expression(self, expr: Expression) -> None:
         # 1. CFG 컨텍스트 --------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
@@ -1541,7 +1364,7 @@ class ContractAnalyzer:
         self.engine.reinterpret_from(fcfg, stmt_blk)
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # --------------------------------------------------------------
@@ -1590,7 +1413,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
         self.current_target_function_cfg.update_block(cur_blk)
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # --------------------------------------------------------------
@@ -1651,7 +1474,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
         self.current_target_function_cfg.update_block(cur_blk)
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # ───────────────────────────────────────────────────────────
@@ -1720,7 +1543,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, stmt_blk)
 
         # ⑤ CFG 저장  ---------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_payable_function_call(self, expr):
@@ -1740,15 +1563,6 @@ class ContractAnalyzer:
         info = self.sa.line_info.get(line_no, {})
         nodes = info.get("cfg_nodes", [])
         return nodes[0] if nodes else None
-
-    def _is_during_inline(self, code: str, start_line: int) -> bool:
-        """During annotation이 기존 코드 라인에 있어 밀기가 불필요한 inline인지 확인.
-        During만 해당 — 다른 annotation(@GlobalVar, @StateVar, @Post 등)은 항상 standalone."""
-        stripped = code.strip()
-        if not stripped.startswith("// @During"):
-            return False
-        return (start_line in self.sa.full_code_lines and
-                self.sa.full_code_lines[start_line].strip() != "")
 
     def _find_prev_cfg_node(self, line_no: int):
         """Standalone annotation용: 이전 코드 라인의 CFG 노드 반환"""
@@ -2027,7 +1841,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, join)
 
         # ── 4. 저장 & 마무리 ───────────────────────────────────────────
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_else_if_statement(self, condition_expr: Expression) -> None:
@@ -2079,7 +1893,7 @@ class ContractAnalyzer:
         self.engine.reinterpret_from(fcfg, seed)
         self._sync_constructor_state(fcfg, ccf, seed)
 
-        ccf.functions[self.current_target_function] = fcfg
+        ccf.update_function_cfg(self.current_target_function, fcfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_else_statement(self) -> None:
@@ -2127,7 +1941,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(fcfg, ccf, join)
 
         # ── 5. 저장 ----------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_while_statement(self, condition_expr: Expression) -> None:
@@ -2166,7 +1980,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(self.current_target_function_cfg, ccf, exit_node)
 
         # 4. 저장 ----------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_for_statement(
@@ -2297,7 +2111,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(self.current_target_function_cfg, ccf, exit_node)
 
         # 6. 저장 ---------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_continue_statement(self) -> None:
@@ -2323,7 +2137,7 @@ class ContractAnalyzer:
         self._sync_constructor_state(self.current_target_function_cfg, ccf, exit_node)
 
         # 5) 저장
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     def process_break_statement(self) -> None:
@@ -2346,7 +2160,7 @@ class ContractAnalyzer:
         self.engine.reinterpret_from(self.current_target_function_cfg, exit_node)
         self._sync_constructor_state(self.current_target_function_cfg, ccf, exit_node)
 
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # Analyzer/ContractAnalyzer.py
@@ -2390,7 +2204,7 @@ class ContractAnalyzer:
             self._sync_constructor_state(self.current_target_function_cfg, ccf, succ_before)
 
         # ── 5. CFG 저장 -----------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # ──────────────────────────────────────────────────────────────────────
@@ -2437,7 +2251,7 @@ class ContractAnalyzer:
             self._sync_constructor_state(self.current_target_function_cfg, ccf, succ_before)
 
         # ── 4. save CFG ------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # Analyzer/ContractAnalyzer.py
@@ -2477,7 +2291,7 @@ class ContractAnalyzer:
             self._sync_constructor_state(self.current_target_function_cfg, ccf, true_succs)
 
         # 5) 저장 ------------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # Analyzer/ContractAnalyzer.py
@@ -2517,7 +2331,7 @@ class ContractAnalyzer:
             self._sync_constructor_state(self.current_target_function_cfg, ccf, true_succs)
 
         # 5) 저장 -------------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # ContractAnalyzer.py  (추가/수정)
@@ -2567,7 +2381,7 @@ class ContractAnalyzer:
         )
 
         # ── 3. 저장 ------------------------------------------------------
-        ccf.functions[self.current_target_function] = self.current_target_function_cfg
+        ccf.update_function_cfg(self.current_target_function, self.current_target_function_cfg)
         self.contract_cfgs[self.current_target_contract] = ccf
 
     # Analyzer/ContractAnalyzer.py  내부 메소드들 추가/교체
@@ -2850,7 +2664,7 @@ class ContractAnalyzer:
             )
 
         # 3) view/pure 함수인지 검증
-        fcfg = interface_cfg.functions[func_name]
+        fcfg = interface_cfg.get_function_cfg(func_name)
         if fcfg.mutability not in ("view", "pure"):
             raise ValueError(
                 f"@IReturn: '{interface_name}.{func_name}' is not view/pure "
@@ -2902,7 +2716,7 @@ class ContractAnalyzer:
             )
 
         # 3) view/pure 함수인지 검증
-        fcfg = interface_cfg.functions[func_name]
+        fcfg = interface_cfg.get_function_cfg(func_name)
         if fcfg.mutability not in ("view", "pure"):
             raise ValueError(
                 f"@IReturn: '{interface_name}.{func_name}' is not view/pure "

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
 from Domain.IR import Expression
-from Domain.Interval import IntegerInterval, UnsignedIntegerInterval
+from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
 
@@ -836,14 +836,31 @@ class GuardianVerificationEngine:
         except Exception as e:
             return self._err("postDirectCmp", f"internal error: {e}", line_no)
 
-    def verify_post_unchanged(self, *, var_ref, line_no: int, fn_cfg):
+    def verify_post_changed(self, *, var_ref, expect_changed: bool, line_no: int, fn_cfg):
+        """
+        @Post changed(x, true/false) 검증.
+        Entry 값과 Exit 값을 비교하여 변경 여부 판정.
+        expect_changed=True: 변경되었어야 함 (Entry != Exit → satisfied)
+        expect_changed=False: 변경 안 되었어야 함 (Entry == Exit → satisfied)
+        """
         try:
             entry_env = getattr(fn_cfg, "entry_env", fn_cfg.related_variables)
             entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
-
             exit_val = self._eval_on_exit_value(var_ref, fn_cfg, normal_only=True)
 
-            cmp = self._compare_values(entry_val, '==', exit_val)
+            # Entry != Exit 판정
+            cmp_neq = self._compare_values(entry_val, '!=', exit_val)
+            cmp_eq = self._compare_values(entry_val, '==', exit_val)
+
+            if expect_changed:
+                # changed(x, true): Entry != Exit → satisfied
+                cmp = cmp_neq
+                label = "changed"
+            else:
+                # changed(x, false): Entry == Exit → satisfied
+                cmp = cmp_eq
+                label = "unchanged"
+
             status = self._status_from_cmp(cmp)
             if status == "warning" and "false_regions" in cmp:
                 fr = cmp["false_regions"]
@@ -852,18 +869,63 @@ class GuardianVerificationEngine:
                 msg_tail = ""
             return {
                 "status": status,
-                "kind": "postUnchanged",
+                "kind": "postChanged",
                 "line": line_no,
                 "details": {
                     "variable": self._pretty_expr(var_ref),
                     "entry_value": str(entry_val),
                     "exit_value": str(exit_val),
+                    "expect_changed": expect_changed,
                     **cmp
                 },
-                "message": f'Unchanged({self._pretty_expr(var_ref)}) → {cmp["message"]}{msg_tail}',
+                "message": f'changed({self._pretty_expr(var_ref)}, {str(expect_changed).lower()}) → {label}: {cmp["message"]}{msg_tail}',
             }
         except Exception as e:
-            return self._err("postUnchanged", f"internal error: {e}", line_no)
+            return self._err("postChanged", f"internal error: {e}", line_no)
+
+    def verify_during_changed(self, *, var_ref, expect_changed: bool, line_no: int, cfg_node, cur_vars=None):
+        """
+        @During changed(x, true/false) 검증.
+        Entry 값(함수 진입 시)과 현재 값(이 program point)을 비교.
+        expect_changed=True: 변경되었어야 함 (Entry != Current → satisfied)
+        expect_changed=False: 변경 안 되었어야 함 (Entry == Current → satisfied)
+        """
+        try:
+            fcfg = self.analyzer.current_target_function_cfg
+            if fcfg is None:
+                return self._err("duringChanged", "No active FunctionCFG", line_no)
+
+            # Entry 값 (함수 진입 시 환경)
+            entry_env = getattr(fcfg, "entry_env", fcfg.related_variables)
+            entry_val = self._materialize(self.evaluate_guardian_expression(var_ref, entry_env, None, None))
+
+            # Current 값 (현재 program point의 환경, cur_vars 우선)
+            cur_env = cur_vars if cur_vars is not None else cfg_node.variables
+            cur_val = self._materialize(self.evaluate_guardian_expression(var_ref, cur_env, None, None))
+
+            if expect_changed:
+                cmp = self._compare_values(entry_val, '!=', cur_val)
+                label = "changed"
+            else:
+                cmp = self._compare_values(entry_val, '==', cur_val)
+                label = "unchanged"
+
+            status = self._status_from_cmp(cmp)
+            return {
+                "status": status,
+                "kind": "duringChanged",
+                "line": line_no,
+                "details": {
+                    "variable": self._pretty_expr(var_ref),
+                    "entry_value": str(entry_val),
+                    "current_value": str(cur_val),
+                    "expect_changed": expect_changed,
+                    **cmp
+                },
+                "message": f'changed({self._pretty_expr(var_ref)}, {str(expect_changed).lower()}) → {label}: {cmp["message"]}',
+            }
+        except Exception as e:
+            return self._err("duringChanged", f"internal error: {e}", line_no)
 
     def verify_post_implication(self, *, antecedent: dict, consequent: dict, line_no: int, fn_cfg) -> dict:
         try:
@@ -905,6 +967,77 @@ class GuardianVerificationEngine:
     # ----------------------------------------------------------------
     # helper: uniform ok / error payloads
     # ----------------------------------------------------------------
+    # ───────── require/assert feasible ─────────────────────────
+    def verify_during_feasible(
+            self, *, target: str, line_no: int, cfg_node, cur_vars
+    ) -> dict[str, Any]:
+        """
+        @During require feasible / assert feasible 검증.
+        다음 라인의 require/assert 조건식을 evaluate하여
+        항상 false([0,0])이면 violated (절대 통과 불가).
+        """
+        try:
+            # ① 현재 노드 또는 successor에서 require/assert condition 노드 찾기
+            condition_expr = None
+            fcfg = self.analyzer.current_target_function_cfg
+
+            if fcfg is None:
+                return self._err("duringFeasible",
+                    "No active FunctionCFG", line_no)
+
+            # CFG에서 require/assert condition 노드 탐색
+            for node in fcfg.graph.nodes:
+                if (getattr(node, "condition_node", False) and
+                    getattr(node, "condition_node_type", "") == target and
+                    getattr(node, "src_line", None) is not None and
+                    node.src_line >= line_no):
+                    condition_expr = getattr(node, "condition_expr", None)
+                    break
+
+            if condition_expr is None:
+                return self._err("duringFeasible",
+                    f"'{target}' statement를 찾을 수 없음 (line {line_no} 이후)", line_no)
+
+            # ② 조건식 evaluate → BoolInterval
+            cond_val = self.analyzer.evaluator.evaluate_expression(
+                condition_expr, cur_vars, None, None)
+
+            # BoolInterval이 아닌 경우 변환 시도
+            if not isinstance(cond_val, BoolInterval):
+                if VariableEnv.is_interval(cond_val):
+                    cond_val = VariableEnv.convert_int_to_bool_interval(cond_val)
+                else:
+                    return self._err("duringFeasible",
+                        f"조건식 평가 결과가 boolean이 아님: {cond_val}", line_no)
+
+            # ③ feasibility 판정
+            if cond_val.max_value == 0:
+                # [0,0] → 항상 false → 절대 통과 불가 → violated
+                status = "violated"
+                message = f"{target} condition is always false — never passable"
+            elif cond_val.min_value == 1:
+                # [1,1] → 항상 true → 항상 통과 → satisfied
+                status = "satisfied"
+                message = f"{target} condition is always true"
+            else:
+                # [0,1] → 통과 가능 → satisfied
+                status = "satisfied"
+                message = f"{target} condition is feasible (can be true or false)"
+
+            return {
+                "status": status,
+                "kind": "duringFeasible",
+                "line": line_no,
+                "details": {
+                    "target": target,
+                    "condition_value": str(cond_val),
+                },
+                "message": message,
+            }
+
+        except Exception as e:
+            return self._err("duringFeasible", f"internal error: {e}", line_no)
+
     def _err(self, kind: str, msg: str, ln: int) -> dict[str, Any]:
         return {"status": "error", "kind": kind, "line": ln, "message": msg}
 
@@ -1381,8 +1514,8 @@ class GuardianVerificationEngine:
         k = pred["kind"]
         if k == "entryExit":
             return self.verify_post_entry_exit(var_ref=pred["var"], comp_op=pred["op"], line_no=line_no, fn_cfg=fn_cfg)
-        if k == "unchanged":
-            return self.verify_post_unchanged(var_ref=pred["var"], line_no=line_no, fn_cfg=fn_cfg)
+        if k == "changed":
+            return self.verify_post_changed(var_ref=pred["var"], expect_changed=pred["expect_changed"], line_no=line_no, fn_cfg=fn_cfg)
         if k == "retExpr":
             return self.verify_post_return_expression(comp_op=pred["op"], value_expr=pred["rhs"], line_no=line_no,
                                                       fn_cfg=fn_cfg)

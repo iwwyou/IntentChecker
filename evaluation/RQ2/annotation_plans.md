@@ -1637,11 +1637,11 @@ PRBMath dependency 확보 완료 (npm에서 설치 후 복사). 그러나 PRBMat
 - Report: sponsor(Shadowfiend) confirmed
 
 ### Not Detectable 사유 (L3: unsupported-construct-top)
-- `address(this).balance` → L3 unsupported construct (항상 TOP). Interface 지원과 무관
-- `zrxTo.call{value: ethAmount}(zrxData)` → low-level `.call()`, interface 아님 → side effect 불명
-- `zrxBuyTokenAddress.balanceOf()` → interface call이나 low-level call 이후 재호출로 state 변화 추적 불가
-- `ethDelta = TOP.subOrZero(TOP)` → TOP, `erc20Delta` 계산도 불확실
-- 모든 delta 값이 TOP이므로 intent annotation 검증 불가
+- ~~`address(this).balance` → TOP~~ → Issue 7 구현으로 GlobalVar 제공 가능 ✅
+- **`zrxTo.call{value: ethAmount}(zrxData)`** → low-level `.call()`, 구현 코드 없음 → side effect 불명 (primary blocker)
+- `.call()` 후 `address(this).balance` 재읽기 → balance가 `.call()`에 의해 변했을 수 있으나 추적 불가
+- `zrxBuyTokenAddress.balanceOf()` → interface call이나 low-level call 이후 state 변화 추적 불가
+- low-level `.call()`의 side effect가 unsupported construct → L3 유지
 
 ---
 
@@ -2418,18 +2418,90 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Function**: swapAndLiquify
 - **Bug lines (original)**: 937, 941, 942, 956
 - **Pattern**: precision_loss_trend
-- **Status**: `not_detectable (L3: unsupported-construct-top)`
+- **Status**: `not_detectable (L2a: interface-call-return-top)`
 
 ### Bug Description
 `swapAndLiquify()`에서 fee splitting의 chained div/mul 연산으로 precision loss 누적. marketing fee와 liquidity fee 분배 시 여러 단계의 나눗셈/곱셈이 중간 값을 truncate하여 최종 분배 금액에 오차 발생.
 
-### Not Detectable 사유 (L3: unsupported-construct-top)
-- `address(this).balance` → L3 unsupported construct (항상 TOP)
-- `initialBalance = address(this).balance` → TOP
-- `fromSwap = address(this).balance.sub(initialBalance)` → TOP - TOP = TOP
-- `newBalance = TOP.mul(half).div(toSwapForEth)` → TOP
-- Interface call(`uniswapV2Router`) 지원과 무관하게 `address(this).balance`가 blocker
-- code_modification_issues Issue 7 해당
+### Not Detectable 사유 (L2a: interface-call-return-top)
+- ~~`address(this).balance` → L3 unsupported construct~~ → Issue 7 구현으로 GlobalVar 제공 가능
+- 그러나 `address(this).balance`가 **두 번** 읽힘:
+  1. `initialBalance = address(this).balance` (line 948, swap 전)
+  2. `address(this).balance.sub(initialBalance)` (line 955, swap 후)
+- 두 읽기 사이에 `swapTokensForEth(toSwapForEth)` (line 952)가 실행됨
+  - 내부적으로 `uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens()` 호출
+  - **state-modifying interface call** → @IReturn 적용 불가
+  - swap이 ETH를 컨트랙트로 전송 → balance 변화
+- Static GlobalVar는 하나의 값만 제공 → swap 전후 balance 차이를 표현 불가
+- `fromSwap = (swap후 balance) - initialBalance` → 두 시점 balance가 같으면 0이 되어 무의미
+- Primary blocker: state-modifying interface call로 인한 balance 변화 추적 불가 (5_H_15와 동일 패턴)
+
+---
+
+## numscout_HippoHotel
+
+- **Contract**: HippoHotel
+- **Function**: withdraw
+- **Bug line (original)**: 1937
+- **Pattern**: precision_loss_trend
+- **Status**: `annotated`
+
+### Bug Description
+`withdraw()`에서 `balance.mul(25).div(100)` — 25%를 계산할 때 `div(100)` truncation으로 인해 `wallet1`과 `wallet2`에 분배되는 총합이 원래 balance보다 작아질 수 있음. `balance.sub(balance2)`도 precision loss를 그대로 전파.
+
+### 원본 코드 (line 1935-1940)
+```solidity
+function withdraw() external onlyOwner {
+    uint256 balance = address(this).balance;         // L1936
+    uint256 balance2 = balance.mul(25).div(100);     // L1937 ← precision loss
+    payable(wallet2).transfer(balance2);              // L1938
+    payable(wallet1).transfer(balance.sub(balance2)); // L1939
+}
+```
+
+### Blocker 분석
+- ~~`address(this).balance` → TOP~~ → Issue 7 구현으로 `@GlobalVar address(this).balance = [value, value]` 제공 가능 ✅
+- ~~`using SafeMath for uint256`~~ → SafeMath는 내장 지원 ✅
+- **blocker 없음 → annotated**
+
+### Contraction 코드 (numscout_HippoHotel.sol)
+```solidity
+53: function withdraw() external onlyOwner {
+54:     uint256 balance = address(this).balance;
+55:     uint256 balance2 = balance.mul(25).div(100);    // ← bug line
+56:     payable(wallet2).transfer(balance2);
+57:     payable(wallet1).transfer(balance.sub(balance2));
+58: }
+```
+
+### Intent Annotations
+| Type | Line (contraction) | Expression | Expected | Comment |
+|------|-------------------|------------|----------|---------|
+| During | 55 | balance2 == balance * 25 / 100 | satisfied | precision loss 없으면 정확히 25%. SafeMath의 mul/div가 일반 */÷와 동일하므로 |
+| Post | 57 | balance2 + balance - balance2 == balance | satisfied | 분배 총합이 원래 balance와 같아야 함. precision loss로 balance2가 truncate되면 `balance.sub(balance2)` 보상으로 총합은 유지 |
+
+※ 이 케이스의 핵심은 `balance.mul(25).div(100)`에서 div truncation. balance가 100으로 나누어 떨어지지 않으면 손실 발생. 예: balance=1003 → 1003*25=25075 → 25075/100=250 (75 손실)
+
+### Debug Annotations
+**GlobalVar:**
+| # | Variable | Value (interval) | Comment |
+|---|----------|-------------------|---------|
+| 1 | address(this).balance | [1003, 1003] | 100으로 나누어 떨어지지 않는 값 (precision loss 발생) |
+
+**StateVar:**
+| # | Variable | Value (interval) | Comment |
+|---|----------|-------------------|---------|
+| 1 | wallet1 | symbolicAddress 1 | transfer 대상 |
+| 2 | wallet2 | symbolicAddress 2 | transfer 대상 |
+
+### Dependencies
+- **SafeMath library**: `using SafeMath for uint256` → Issue 4 필요
+- **Context, Ownable**: contraction에 포함됨 (별도 dependency 불필요)
+
+### 판정
+- address(this).balance: ✅ (Issue 7 해결)
+- SafeMath: ✅ (내장 지원)
+- **annotated**
 
 ---
 

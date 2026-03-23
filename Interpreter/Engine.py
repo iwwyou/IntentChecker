@@ -1506,6 +1506,23 @@ class Engine:
                 line_no=line_no,
                 cfg_node=node
             )
+        elif kind == "feasible":
+            # @During require feasible / assert feasible
+            return guardian.verify_during_feasible(
+                target=clause["target"],
+                line_no=line_no,
+                cfg_node=node,
+                cur_vars=cur_vars
+            )
+        elif kind == "changed":
+            # @During changed(x, true/false)
+            return guardian.verify_during_changed(
+                var_ref=clause["var"],
+                expect_changed=clause["expect_changed"],
+                line_no=line_no,
+                cfg_node=node,
+                cur_vars=cur_vars
+            )
         else:
             return {"status": "error", "message": f"Unknown clause kind: {kind}"}
 
@@ -1645,9 +1662,10 @@ class Engine:
                 line_no=line_no,
                 fn_cfg=fcfg
             )
-        elif kind == "unchanged":
-            return guardian.verify_post_unchanged(
+        elif kind == "changed":
+            return guardian.verify_post_changed(
                 var_ref=clause["var"],
+                expect_changed=clause["expect_changed"],
                 line_no=line_no,
                 fn_cfg=fcfg
             )
@@ -1719,9 +1737,10 @@ class Engine:
                 fn_cfg=fcfg
             )
 
-        elif atype == "unchanged":
-            return guardian.verify_post_unchanged(
+        elif atype == "changed":
+            return guardian.verify_post_changed(
                 var_ref=annot.var_ref,
+                expect_changed=getattr(annot, "expect_changed", False),
                 line_no=annot.line_no,
                 fn_cfg=fcfg
             )
@@ -1785,9 +1804,10 @@ class Engine:
                 line_no=line_no,
                 fn_cfg=fcfg
             )
-        elif kind == "unchanged":
-            return guardian.verify_post_unchanged(
+        elif kind == "changed":
+            return guardian.verify_post_changed(
                 var_ref=clause["var"],
+                expect_changed=clause["expect_changed"],
                 line_no=line_no,
                 fn_cfg=fcfg
             )
@@ -1960,7 +1980,7 @@ class Engine:
             elif kind == "duringBeforeAfter":
                 lines.append(f"{prefix}Before = {fv(details.get('before', '?'))}")
                 lines.append(f"{prefix}After  = {fv(details.get('after', '?'))}")
-            elif kind in ("postEntryExit", "postUnchanged"):
+            elif kind in ("postEntryExit", "postChanged"):
                 lines.append(f"{prefix}Entry = {fv(details.get('entry_value', '?'))}")
                 lines.append(f"{prefix}Exit  = {fv(details.get('exit_value', '?'))}")
             elif kind in ("duringDirectCmp", "postDirectCmp"):

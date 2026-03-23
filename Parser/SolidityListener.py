@@ -512,12 +512,21 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#debugGlobalVar.
-    def enterDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
+    # Enter a parse tree produced by SolidityParser#GlobalVarSimple.
+    def enterGlobalVarSimple(self, ctx:SolidityParser.GlobalVarSimpleContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#debugGlobalVar.
-    def exitDebugGlobalVar(self, ctx:SolidityParser.DebugGlobalVarContext):
+    # Exit a parse tree produced by SolidityParser#GlobalVarSimple.
+    def exitGlobalVarSimple(self, ctx:SolidityParser.GlobalVarSimpleContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#GlobalVarAddressBalance.
+    def enterGlobalVarAddressBalance(self, ctx:SolidityParser.GlobalVarAddressBalanceContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#GlobalVarAddressBalance.
+    def exitGlobalVarAddressBalance(self, ctx:SolidityParser.GlobalVarAddressBalanceContext):
         pass
 
 
@@ -602,6 +611,15 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#DuringFeasible.
+    def enterDuringFeasible(self, ctx:SolidityParser.DuringFeasibleContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#DuringFeasible.
+    def exitDuringFeasible(self, ctx:SolidityParser.DuringFeasibleContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#DuringFunctionArg.
     def enterDuringFunctionArg(self, ctx:SolidityParser.DuringFunctionArgContext):
         pass
@@ -635,15 +653,6 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#PostEntryExit.
     def exitPostEntryExit(self, ctx:SolidityParser.PostEntryExitContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#UnchangedVar.
-    def enterUnchangedVar(self, ctx:SolidityParser.UnchangedVarContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#UnchangedVar.
-    def exitUnchangedVar(self, ctx:SolidityParser.UnchangedVarContext):
         pass
 
 
@@ -725,6 +734,15 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#Implication.
     def exitImplication(self, ctx:SolidityParser.ImplicationContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#VarChangedEval.
+    def enterVarChangedEval(self, ctx:SolidityParser.VarChangedEvalContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#VarChangedEval.
+    def exitVarChangedEval(self, ctx:SolidityParser.VarChangedEvalContext):
         pass
 
 

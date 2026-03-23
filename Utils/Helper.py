@@ -28,6 +28,9 @@ class ParserHelpers:
         'usingDirective':'interactiveSourceUnit',
         'enumMember':'interactiveEnumUnit',
         'structMember':'interactiveStructUnit',
+        'fileLevelStruct':'interactiveSourceUnit',
+        'fileLevelStructMember':'interactiveStructUnit',
+        'fileLevelTypeAlias':'interactiveSourceUnit',
 
         'simpleStatement':'interactiveBlockUnit', 'if':'interactiveBlockUnit',
         'for':'interactiveBlockUnit',     'while':'interactiveBlockUnit',
