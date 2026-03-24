@@ -261,6 +261,15 @@ class SolidityAnalyzer:
             self.contract_analyzer.analyze_context(start_line, code)
             return
 
+        # assembly 내부 감지: parent가 assembly이면 context를 "assembly"로 설정
+        parent = self.contract_analyzer.find_parent_context(start_line)
+        if parent == "assembly":
+            ca = self.contract_analyzer
+            ca.current_context_type = "assembly"
+            ca.current_target_contract = ca.find_contract_context(start_line)
+            ca.current_target_function = ca.find_function_context(start_line)
+            return
+
         # file-level 판별: enclosing contract가 없으면 file level
         contract = self.contract_analyzer.find_contract_context(start_line)
         if contract is None:

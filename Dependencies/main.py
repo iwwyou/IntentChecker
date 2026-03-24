@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""
+Dependencies 사전분석 스크립트
+
+libraries/, interfaces/, contracts/ 폴더의 .sol 파일을 분석하여
+objectfile/ 에 pkl로 저장한다.
+
+분석 순서:
+1. interfaces/ → InterfaceCFG (ifc_*.pkl)
+2. libraries/  → LibraryCFG   (lib_*.pkl)
+3. contracts/  → ContractCFG  (con_*.pkl)
+
+Usage:
+    python Dependencies/main.py                    # 전체 분석
+    python Dependencies/main.py --type interfaces  # interface만
+    python Dependencies/main.py --type libraries   # library만
+    python Dependencies/main.py --file IERC20.sol  # 특정 파일만
+"""
+
+import re
+import sys
+import pathlib
+import pickle
+import argparse
+from typing import List, Dict
+
+# 상위 디렉토리를 sys.path에 추가
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+
+from Analyzer.SolidityAnalyzer import SolidityAnalyzer
+from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
+from Analyzer.EnhancedYulVisitor import EnhancedYulVisitor
+from Utils.Helper import ParserHelpers
+from Utils.YulHelper import YulParserHelpers
+
+# ── 디렉토리 설정 ──
+BASE_DIR    = pathlib.Path(__file__).parent
+LIB_DIR     = BASE_DIR / "libraries"
+IFC_DIR     = BASE_DIR / "interfaces"
+CON_DIR     = BASE_DIR / "contracts"
+OBJ_DIR     = BASE_DIR / "objectfile"
+
+
+# ── soltotestjson 패턴 (soltotestjson.py와 동일) ──
+_only_ws   = re.compile(r"^\s*$")
+_open_blk  = re.compile(r"\{\s*$")
+_empty_blk = re.compile(r"\{\s*\}\s*$")
+_one_liner = re.compile(r";\s*$")
+_only_clo  = re.compile(r"^\s*}\s*$")
+_comment   = re.compile(r"^\s*//")
+
+
+def slice_solidity(source: str) -> List[Dict]:
+    """Solidity 소스를 라인 단위 JSON records로 변환 (soltotestjson.py와 동일)"""
+    lines = source.splitlines()
+    inputs = []
+    cur_line = 1
+    i = 0
+    in_assembly = 0  # assembly brace depth 추적
+
+    while i < len(lines):
+        raw = lines[i]
+        txt = raw.strip()
+
+        # 0) assembly 내부: 줄 단위로 처리 (Yul은 ; 없으므로)
+        if in_assembly > 0:
+            if _only_ws.match(raw):
+                inputs.append({"code": "\n", "startLine": cur_line, "endLine": cur_line, "event": "add"})
+                cur_line += 1; i += 1; continue
+            if _only_clo.match(txt):
+                in_assembly -= 1
+                cur_line += 1; i += 1; continue
+            # assembly 내 nested { }
+            in_assembly += txt.count('{') - txt.count('}')
+            if in_assembly < 0:
+                in_assembly = 0
+            inputs.append({"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"})
+            cur_line += 1; i += 1; continue
+
+        # 1) 빈 줄
+        if _only_ws.match(raw):
+            inputs.append({"code": "\n", "startLine": cur_line, "endLine": cur_line, "event": "add"})
+            cur_line += 1; i += 1; continue
+
+        # 2) 단독 '}'
+        if _only_clo.match(txt):
+            cur_line += 1; i += 1; continue
+
+        # 2.3) '} else/catch/while ...' 패턴
+        close_before = False
+        if txt.startswith('}') and ('else' in txt or 'catch' in txt or 'while' in txt):
+            txt = txt[1:].strip()
+            close_before = True
+
+        # 2.5) 주석 라인
+        if _comment.match(raw):
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            cur_line += 1; i += 1; continue
+
+        # 3-pre) '{}' empty block
+        if _empty_blk.search(txt):
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            cur_line += 1; i += 1; continue
+
+        # 3) '{' 로 끝나는 헤더 줄
+        if _open_blk.search(txt):
+            block_code = f"{txt}\n}}"
+            rec = {"code": block_code, "startLine": cur_line, "endLine": cur_line + 1, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            # assembly { 진입 시 in_assembly 활성화
+            if txt.startswith('assembly'):
+                in_assembly = 1
+            cur_line += 1; i += 1; continue
+
+        # 4) 세미콜론으로 끝나는 한 줄 문장
+        if _one_liner.search(txt):
+            rec = {"code": txt, "startLine": cur_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            cur_line += 1; i += 1; continue
+
+        # 5) 다중 라인 문장
+        start_line = cur_line
+        accumulated = [txt]
+        cur_line += 1; i += 1
+        found_block_header = False
+
+        while i < len(lines):
+            next_raw = lines[i]
+            next_txt = next_raw.strip()
+
+            if _only_ws.match(next_raw):
+                cur_line += 1; i += 1; continue
+
+            accumulated.append(next_txt)
+            cur_line += 1; i += 1
+
+            if _empty_blk.search(next_txt):
+                break
+            if _open_blk.search(next_txt):
+                found_block_header = True
+                break
+            if _one_liner.search(next_txt):
+                break
+
+        if found_block_header:
+            merged_code = " ".join(accumulated)
+            block_code = f"{merged_code}\n}}"
+            rec = {"code": block_code, "startLine": start_line, "endLine": cur_line, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+            if merged_code.strip().startswith('assembly'):
+                in_assembly = 1
+        else:
+            merged_code = " ".join(accumulated)
+            rec = {"code": merged_code, "startLine": start_line, "endLine": cur_line - 1, "event": "add"}
+            if close_before: rec["closeBefore"] = True
+            inputs.append(rec)
+
+    return inputs
+
+
+def scan_type_aliases(directories: list[pathlib.Path]) -> dict[str, str]:
+    """모든 .sol 파일에서 type alias (type X is Y;) 사전 수집"""
+    aliases = {}
+    _type_re = re.compile(r'type\s+(\w+)\s+is\s+(\w+)\s*;')
+    for d in directories:
+        if not d.exists():
+            continue
+        for sol in d.glob("*.sol"):
+            source = sol.read_text(encoding='utf-8')
+            for alias, underlying in _type_re.findall(source):
+                aliases[alias] = underlying
+    return aliases
+
+
+def scan_interface_names(directories: list[pathlib.Path]) -> set[str]:
+    """모든 .sol 파일에서 interface 이름 사전 수집"""
+    names = set()
+    _ifc_re = re.compile(r'interface\s+(\w+)')
+    for d in directories:
+        if not d.exists():
+            continue
+        for sol in d.glob("*.sol"):
+            source = sol.read_text(encoding='utf-8')
+            for name in _ifc_re.findall(source):
+                names.add(name)
+    return names
+
+
+# 전역 사전 등록 (Phase 0에서 수집, analyze_file에서 주입)
+_global_type_aliases: dict[str, str] = {}
+_global_interface_names: set[str] = set()
+
+
+def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
+    """
+    .sol 파일 사전분석.
+    mode: 'library' | 'interface' | 'contract'
+    Returns: 저장된 이름 또는 None
+    """
+    print(f"\n{'='*60}")
+    print(f"[{mode}] 분석: {sol_path.name}")
+    print(f"{'='*60}")
+
+    source = sol_path.read_text(encoding='utf-8')
+    records = slice_solidity(source)
+    print(f"  청크: {len(records)}개")
+
+    sa = SolidityAnalyzer()
+    ca = sa.contract_analyzer
+
+    # Phase 0에서 수집한 type aliases + interface 이름 주입
+    if _global_type_aliases:
+        sa.type_aliases.update(_global_type_aliases)
+    if _global_interface_names:
+        ca.interface_names.update(_global_interface_names)
+
+    for rec in records:
+        code, s, e, ev = rec["code"], rec["startLine"], rec["endLine"], rec["event"]
+        try:
+            sa.update_code(s, e, code, ev)
+        except Exception:
+            pass  # context 분석 실패 시 무시
+
+        stripped = code.strip()
+        if stripped and not stripped.startswith("// @"):
+            ctx = ca.get_current_context_type()
+            try:
+                if ctx == "assembly":
+                    tree = YulParserHelpers.generate_parse_tree(code)
+                    EnhancedYulVisitor(ca).visit(tree)
+                else:
+                    tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+                    EnhancedSolidityVisitor(ca).visit(tree)
+            except Exception as ex:
+                pass  # pragma, 빈 줄 등 무시
+
+    # ── 결과 추출 + 저장 ──
+    OBJ_DIR.mkdir(exist_ok=True, parents=True)
+
+    if mode == "library":
+        if ca.library_cfgs:
+            name = list(ca.library_cfgs.keys())[0]
+            cfg = ca.library_cfgs[name]
+            parent = sol_path.parent.name
+            if parent not in ("libraries", "contracts") and parent.isdigit():
+                pkl_name = f"lib_{parent}_{name}.pkl"
+            else:
+                pkl_name = f"lib_{name}.pkl"
+            out = OBJ_DIR / pkl_name
+            with open(out, 'wb') as f:
+                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+            funcs = list(cfg.functions.keys())
+            print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
+            return name
+        else:
+            print(f"  [경고] library_cfgs 비어있음")
+            return None
+
+    elif mode == "interface":
+        if ca.contract_cfgs:
+            name = list(ca.contract_cfgs.keys())[0]
+            cfg = ca.contract_cfgs[name]
+            out = OBJ_DIR / f"ifc_{name}.pkl"
+            with open(out, 'wb') as f:
+                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+            funcs = list(cfg.functions.keys())
+            print(f"  → ifc_{name}.pkl ({len(funcs)} functions: {funcs})")
+            return name
+        else:
+            print(f"  [경고] contract_cfgs 비어있음")
+            return None
+
+    elif mode == "contract":
+        if ca.contract_cfgs:
+            name = list(ca.contract_cfgs.keys())[0]
+            cfg = ca.contract_cfgs[name]
+            # 서브폴더(타겟별)의 경우 prefix 추가: con_112_Controller.pkl
+            parent = sol_path.parent.name
+            if parent != "contracts" and parent.isdigit():
+                pkl_name = f"con_{parent}_{name}.pkl"
+            else:
+                pkl_name = f"con_{name}.pkl"
+            out = OBJ_DIR / pkl_name
+            with open(out, 'wb') as f:
+                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+            funcs = list(cfg.functions.keys())
+            print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
+            return name
+        else:
+            print(f"  [경고] contract_cfgs 비어있음")
+            return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Dependencies 사전분석")
+    parser.add_argument("--type", choices=["interfaces", "libraries", "contracts", "all"],
+                        default="all", help="분석 대상 타입")
+    parser.add_argument("--file", type=str, help="특정 파일만 분석")
+    args = parser.parse_args()
+
+    results = {"interfaces": [], "libraries": [], "contracts": []}
+
+    # 특정 파일만
+    if args.file:
+        target = pathlib.Path(args.file)
+        if not target.exists():
+            # 각 디렉토리에서 찾기
+            for d, mode in [(IFC_DIR, "interface"), (LIB_DIR, "library"), (CON_DIR, "contract")]:
+                candidate = d / args.file
+                if candidate.exists():
+                    target = candidate
+                    result = analyze_file(target, mode)
+                    if result:
+                        results[f"{mode}s" if mode != "library" else "libraries"].append(result)
+                    break
+            else:
+                print(f"파일 없음: {args.file}")
+                return
+        return
+
+    # ── Phase 0: type alias + interface 이름 사전 수집 ──
+    global _global_type_aliases, _global_interface_names
+    _global_type_aliases = scan_type_aliases([IFC_DIR, LIB_DIR, CON_DIR])
+    _global_interface_names = scan_interface_names([IFC_DIR, LIB_DIR, CON_DIR])
+    if _global_type_aliases:
+        print(f"\n[Phase 0] Type aliases: {_global_type_aliases}")
+    if _global_interface_names:
+        print(f"[Phase 0] Interfaces: {sorted(_global_interface_names)}")
+
+    # ── 분석 순서: interfaces → libraries → contracts ──
+
+    # 1) Interfaces
+    if args.type in ("interfaces", "all"):
+        ifc_files = sorted(IFC_DIR.glob("*.sol")) if IFC_DIR.exists() else []
+        print(f"\n[Phase 1] Interfaces: {len(ifc_files)}개")
+        for f in ifc_files:
+            name = analyze_file(f, "interface")
+            if name:
+                results["interfaces"].append(name)
+
+    # 2) Libraries
+    if args.type in ("libraries", "all"):
+        lib_files = sorted(LIB_DIR.glob("*.sol")) if LIB_DIR.exists() else []
+        print(f"\n[Phase 2] Libraries: {len(lib_files)}개")
+        for f in lib_files:
+            name = analyze_file(f, "library")
+            if name:
+                results["libraries"].append(name)
+
+    # 3) Contracts (서브폴더 포함 — rglob)
+    if args.type in ("contracts", "all"):
+        con_files = sorted(CON_DIR.rglob("*.sol")) if CON_DIR.exists() else []
+        print(f"\n[Phase 3] Contracts: {len(con_files)}개")
+        for f in con_files:
+            name = analyze_file(f, "contract")
+            if name:
+                results["contracts"].append(name)
+
+    # ── 결과 요약 ──
+    print(f"\n{'='*60}")
+    print(f"분석 완료")
+    print(f"{'='*60}")
+    print(f"  Interfaces: {len(results['interfaces'])} -{results['interfaces']}")
+    print(f"  Libraries:  {len(results['libraries'])} -{results['libraries']}")
+    print(f"  Contracts:  {len(results['contracts'])} -{results['contracts']}")
+
+    obj_files = list(OBJ_DIR.glob("*.pkl"))
+    print(f"\n  objectfile/: {len(obj_files)}개 pkl")
+    for p in sorted(obj_files):
+        size_kb = p.stat().st_size / 1024
+        print(f"    {p.name} ({size_kb:.1f} KB)")
+
+
+if __name__ == "__main__":
+    main()

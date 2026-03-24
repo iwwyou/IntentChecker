@@ -569,23 +569,30 @@ class ContractAnalyzer:
         import pickle
         import os
 
+        # ContractCFG 또는 LibraryCFG에서 using directive 등록
         contract_cfg = self.contract_cfgs.get(self.current_target_contract)
         if not contract_cfg:
-            return  # 컨트랙트 밖의 using directive는 무시
+            # library 내부의 using directive인지 확인
+            contract_cfg = self.library_cfgs.get(self.current_target_contract)
+        if not contract_cfg:
+            return  # 컨트랙트/라이브러리 밖의 using directive는 무시
 
-        # 라이브러리 CFG 로드
+        # 라이브러리 CFG 로드 — Dependencies/objectfile 우선, Libraries/objectfile fallback
         library_cfg = None
-        pkl_path = os.path.join(
-            os.path.dirname(__file__), "..", "Libraries", "objectfile", f"{library_name}.pkl"
-        )
+        base_dir = os.path.dirname(__file__)
+        search_paths = [
+            os.path.join(base_dir, "..", "Dependencies", "objectfile", f"lib_{library_name}.pkl"),
+            os.path.join(base_dir, "..", "Libraries", "objectfile", f"{library_name}.pkl"),
+        ]
 
-        if os.path.exists(pkl_path):
-            # pkl 파일에서 LibraryCFG 로드
-            try:
-                with open(pkl_path, "rb") as f:
-                    library_cfg = pickle.load(f)
-            except Exception:
-                pass  # 로드 실패 시 무시
+        for pkl_path in search_paths:
+            if os.path.exists(pkl_path):
+                try:
+                    with open(pkl_path, "rb") as f:
+                        library_cfg = pickle.load(f)
+                    break
+                except Exception:
+                    pass
 
         if library_cfg is None:
             # Address 등 pkl 파일이 없는 라이브러리는 stub 처리
@@ -593,13 +600,7 @@ class ContractAnalyzer:
             return
 
         # LibraryCFG를 using_libraries/using_all_libraries에 등록
-        if target_type is None:
-            # using Library for *;
-            if library_cfg not in contract_cfg.using_all_libraries:
-                contract_cfg.using_all_libraries.append(library_cfg)
-        else:
-            # using Library for TypeName;
-            contract_cfg.using_libraries[target_type] = library_cfg
+        contract_cfg.add_using_library(library_cfg, target_type)
 
     # for interactiveStructDefinition in Solidity.g4
     def process_struct_definition(self, struct_name):

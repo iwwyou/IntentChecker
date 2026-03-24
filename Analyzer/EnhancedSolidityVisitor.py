@@ -1546,22 +1546,38 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return array_expr
 
     # ═══════════════════════════════════════════════════════════
-    #  Assembly / Yul 처리
+    #  Assembly / Yul 처리 — 별도 Yul.g4 파서 + EnhancedYulVisitor 사용
     # ═══════════════════════════════════════════════════════════
 
-    # Yul built-in → Solidity 연산자 매핑
-    _YUL_BINARY_OPS = {
-        'add': '+', 'sub': '-', 'mul': '*', 'div': '/',
-        'mod': '%', 'exp': '**',
-        'lt': '<', 'gt': '>', 'eq': '==',
-        'and': '&', 'or': '|', 'xor': '^',
-        'shl': '<<', 'shr': '>>',
-    }
-
     def visitAssemblyStatement(self, ctx: SolidityParser.AssemblyStatementContext):
-        """Assembly 블록: 내부 yulStatement들을 순차 처리하여 IR로 변환"""
-        for yul_stmt in ctx.yulStatement():
-            self.visitYulStatement(yul_stmt)
+        """Assembly 블록: 내부 Yul 코드를 별도 Yul 파서로 재파싱하여 처리"""
+        from antlr4 import InputStream, CommonTokenStream
+        from Parser.YulLexer import YulLexer
+        from Parser.YulParser import YulParser as YP
+        from Analyzer.EnhancedYulVisitor import EnhancedYulVisitor
+
+        # assembly { ... } 에서 { } 내부 텍스트 추출
+        full_text = ctx.getText()
+        # 'assembly' + optional flags + '{' ... '}'
+        brace_start = full_text.index('{')
+        brace_end = full_text.rindex('}')
+        yul_body = full_text[brace_start + 1 : brace_end]
+
+        if not yul_body.strip():
+            return None
+
+        # Yul 파서로 파싱
+        inp = InputStream(yul_body)
+        lexer = YulLexer(inp)
+        tokens = CommonTokenStream(lexer)
+        parser = YP(tokens)
+        parser.removeErrorListeners()  # Yul 파싱 에러 억제
+
+        tree = parser.yulUnit()
+
+        # EnhancedYulVisitor로 처리
+        yul_visitor = EnhancedYulVisitor(self.contract_analyzer)
+        yul_visitor.visit(tree)
         return None
 
     def visitAssemblyFlags(self, ctx: SolidityParser.AssemblyFlagsContext):
@@ -1570,186 +1586,20 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitAssemblyFlagString(self, ctx: SolidityParser.AssemblyFlagStringContext):
         return None
 
-    def visitYulStatement(self, ctx: SolidityParser.YulStatementContext):
-        """yulStatement dispatcher"""
-        return self.visitChildren(ctx)
-
-    def visitYulBlock(self, ctx: SolidityParser.YulBlockContext):
-        for stmt in ctx.yulStatement():
-            self.visitYulStatement(stmt)
-        return None
-
-    def visitYulVariableDeclaration(self, ctx: SolidityParser.YulVariableDeclarationContext):
-        """let mm := mulmod(a, b, not(0)) → 새 uint256 변수 선언"""
-        identifiers = ctx.YulIdentifier()
-        if not identifiers:
-            return None
-        var_name = identifiers[0].getText()
-
-        # := 이후 expression (없을 수도 있음: let x;)
-        yul_expr = ctx.yulExpression()
-        yul_func = ctx.yulFunctionCall()
-
-        if yul_expr:
-            rhs = self._build_yul_expression(yul_expr)
-        elif yul_func:
-            rhs = self._build_yul_function_call(yul_func)
-        else:
-            rhs = None
-
-        self.contract_analyzer.process_yul_variable_declaration(var_name, rhs)
-        return None
-
-    def visitYulAssignment(self, ctx: SolidityParser.YulAssignmentContext):
-        """prod0 := mul(a, b) → 대입 Statement"""
-        yul_paths = ctx.yulPath()
-        if not yul_paths:
-            return None
-
-        # 단일 대입
-        if not isinstance(yul_paths, list):
-            yul_paths = [yul_paths]
-
-        rhs_expr = ctx.yulExpression()
-        rhs_func = ctx.yulFunctionCall()
-
-        if rhs_expr:
-            rhs = self._build_yul_expression(rhs_expr)
-        elif rhs_func:
-            rhs = self._build_yul_function_call(rhs_func)
-        else:
-            return None
-
-        for yul_path in yul_paths:
-            var_name = yul_path.getText().split('.')[0]
-            lhs = Expression(identifier=var_name, context="IdentifierExpContext")
-            self.contract_analyzer.process_yul_assignment(lhs, rhs)
-        return None
-
-    def visitYulIfStatement(self, ctx: SolidityParser.YulIfStatementContext):
-        # Yul if — 현재 미지원 (control flow), skip
-        return None
-
-    def visitYulForStatement(self, ctx: SolidityParser.YulForStatementContext):
-        return None
-
-    def visitYulSwitchStatement(self, ctx: SolidityParser.YulSwitchStatementContext):
-        return None
-
-    def visitYulFunctionDefinition(self, ctx: SolidityParser.YulFunctionDefinitionContext):
-        return None
-
-    def visitYulPath(self, ctx: SolidityParser.YulPathContext):
-        return Expression(identifier=ctx.getText(), context="IdentifierExpContext")
-
-    def visitYulFunctionCall(self, ctx: SolidityParser.YulFunctionCallContext):
-        return self._build_yul_function_call(ctx)
-
-    def visitYulBoolean(self, ctx: SolidityParser.YulBooleanContext):
-        text = ctx.getText()
-        return Expression(literal=1 if text == 'true' else 0, context="LiteralExpContext")
-
-    def visitYulLiteral(self, ctx: SolidityParser.YulLiteralContext):
-        return self._build_yul_literal(ctx)
-
-    def visitYulExpression(self, ctx: SolidityParser.YulExpressionContext):
-        return self._build_yul_expression(ctx)
-
-    # ── Yul IR 빌더 헬퍼들 ──────────────────────────────────
-
-    def _build_yul_expression(self, ctx) -> Expression:
-        """yulExpression → Expression IR"""
-        if ctx.yulPath():
-            name = ctx.yulPath().getText()
-            return Expression(identifier=name, context="IdentifierExpContext")
-        elif ctx.yulFunctionCall():
-            return self._build_yul_function_call(ctx.yulFunctionCall())
-        elif ctx.yulLiteral():
-            return self._build_yul_literal(ctx.yulLiteral())
-        return Expression(literal=0, context="LiteralExpContext")
-
-    def _build_yul_function_call(self, ctx) -> Expression:
-        """yulFunctionCall → Expression IR (산술 built-in은 binary op로 변환)"""
-        # 함수 이름 (YulIdentifier 또는 YulEvmBuiltin)
-        func_name = None
-        if ctx.YulIdentifier():
-            func_name = ctx.YulIdentifier().getText()
-        elif ctx.YulEvmBuiltin():
-            func_name = ctx.YulEvmBuiltin().getText()
-
-        if func_name is None:
-            return Expression(literal=0, context="LiteralExpContext")
-
-        # 인자들
-        args = [self._build_yul_expression(e) for e in ctx.yulExpression()]
-
-        # binary op로 변환 가능한 2인자 built-in
-        if func_name in self._YUL_BINARY_OPS and len(args) == 2:
-            return Expression(
-                left=args[0],
-                operator=self._YUL_BINARY_OPS[func_name],
-                right=args[1],
-                context="BinaryOperationContext"
-            )
-
-        # not(x) → bitwise NOT
-        if func_name == 'not' and len(args) == 1:
-            return Expression(
-                operator='~',
-                expression=args[0],
-                context="UnaryOperationContext"
-            )
-
-        # iszero(x) → x == 0
-        if func_name == 'iszero' and len(args) == 1:
-            return Expression(
-                left=args[0],
-                operator='==',
-                right=Expression(literal=0, context="LiteralExpContext"),
-                context="BinaryOperationContext"
-            )
-
-        # mulmod(a, b, n) → (a * b) % n
-        if func_name == 'mulmod' and len(args) == 3:
-            mul_expr = Expression(
-                left=args[0], operator='*', right=args[1],
-                context="BinaryOperationContext"
-            )
-            return Expression(
-                left=mul_expr, operator='%', right=args[2],
-                context="BinaryOperationContext"
-            )
-
-        # addmod(a, b, n) → (a + b) % n
-        if func_name == 'addmod' and len(args) == 3:
-            add_expr = Expression(
-                left=args[0], operator='+', right=args[1],
-                context="BinaryOperationContext"
-            )
-            return Expression(
-                left=add_expr, operator='%', right=args[2],
-                context="BinaryOperationContext"
-            )
-
-        # 미지원 built-in (sload, mload, call 등) → TOP placeholder
-        return Expression(identifier=f"__yul_{func_name}__", context="YulUnsupportedContext")
-
-    def _build_yul_literal(self, ctx) -> Expression:
-        """yulLiteral → Expression IR"""
-        if ctx.YulDecimalNumber():
-            val = int(ctx.YulDecimalNumber().getText())
-            return Expression(literal=val, context="LiteralExpContext")
-        elif ctx.YulHexNumber():
-            val = int(ctx.YulHexNumber().getText(), 16)
-            return Expression(literal=val, context="LiteralExpContext")
-        elif ctx.yulBoolean():
-            val = 1 if ctx.yulBoolean().getText() == 'true' else 0
-            return Expression(literal=val, context="LiteralExpContext")
-        elif ctx.YulStringLiteral():
-            return Expression(literal=ctx.YulStringLiteral().getText(), context="LiteralExpContext")
-        elif ctx.HexString():
-            return Expression(literal=ctx.HexString().getText(), context="LiteralExpContext")
-        return Expression(literal=0, context="LiteralExpContext")
+    # Solidity parser의 Yul visitor들은 사용하지 않음 (별도 Yul.g4 사용)
+    def visitYulStatement(self, ctx): return None
+    def visitYulBlock(self, ctx): return None
+    def visitYulVariableDeclaration(self, ctx): return None
+    def visitYulAssignment(self, ctx): return None
+    def visitYulIfStatement(self, ctx): return None
+    def visitYulForStatement(self, ctx): return None
+    def visitYulSwitchStatement(self, ctx): return None
+    def visitYulFunctionDefinition(self, ctx): return None
+    def visitYulPath(self, ctx): return None
+    def visitYulFunctionCall(self, ctx): return None
+    def visitYulBoolean(self, ctx): return None
+    def visitYulLiteral(self, ctx): return None
+    def visitYulExpression(self, ctx): return None
 
     # Visit a parse tree produced by SolidityParser#doWhileStatement.
     def visitDoWhileStatement(self, ctx:SolidityParser.DoWhileStatementContext):
@@ -2284,6 +2134,22 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # 2. 인자 목록 처리
         arguments, named_arguments = self.process_arguments(ctx.callArgumentList())
+
+        # 2.5. type alias wrap/unwrap 감지 (Fixed18.wrap(x), UFixed18.unwrap(a))
+        if (hasattr(function_expr, 'base') and hasattr(function_expr, 'member') and
+            function_expr.base is not None and function_expr.member in ('wrap', 'unwrap')):
+            base_name = getattr(function_expr.base, 'identifier', None)
+            if base_name and self.contract_analyzer.sa.resolve_type(base_name) is not None:
+                # type alias의 wrap/unwrap → 별도 경로
+                arg_expr = arguments[0] if arguments else None
+                return Expression(
+                    function=function_expr,
+                    arguments=arguments,
+                    operator='()',
+                    context='TypeWrapUnwrapContext',
+                    identifier=base_name,
+                    member=function_expr.member,
+                )
 
         # 3. Expression 객체 생성
         result_expr = Expression(

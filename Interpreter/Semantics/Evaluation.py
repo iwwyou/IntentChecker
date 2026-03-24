@@ -287,6 +287,8 @@ class Evaluation :
             return self.evaluate_conditional_expression_context(expr, variables, callerObject, callerContext)
         elif expr.context == "InlineArrayExpression":
             return self.evaluate_inline_array_expression_context(expr, variables, callerObject, callerContext)
+        elif expr.context == "TypeWrapUnwrapContext":
+            return self.evaluate_type_wrap_unwrap(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallContext":
             return self.evaluate_function_call_context(expr, variables, callerObject, callerContext)
         elif expr.context == "FunctionCallOptionContext":
@@ -1636,6 +1638,11 @@ class Evaluation :
         else:
             raise ValueError(f"There is no function name in function call context")
 
+        # 1-B) Solidity built-in 함수 처리
+        builtin_result = self._evaluate_builtin_function(function_name, expr, variables, callerObject)
+        if builtin_result is not None:
+            return builtin_result
+
         # 2) 현재 컨트랙트 CFG 가져오기
         contract_cfg = self.an.contract_cfgs.get(self.an.current_target_contract)
         if not contract_cfg:
@@ -2082,6 +2089,85 @@ class Evaluation :
             return IntegerInterval(v, v, bits)
         except (ValueError, TypeError):
             return f"symbolicInt{bits}({sub_val})"
+
+    def evaluate_type_wrap_unwrap(self, expr, variables, callerObject=None, callerContext=None):
+        """
+        user-defined value type의 wrap/unwrap 처리.
+        Fixed18.wrap(100) → int256 interval로 변환
+        Fixed18.unwrap(a) → underlying type interval로 변환
+        """
+        type_name = expr.identifier       # "Fixed18", "UFixed18"
+        method = expr.member               # "wrap" or "unwrap"
+        args = expr.arguments or []
+
+        if not args:
+            return UnsignedIntegerInterval.top()
+
+        # 인자 evaluate
+        arg_val = self.evaluate_expression(args[0], variables, None, None)
+
+        # underlying type 조회
+        underlying = self.an.sa.resolve_type(type_name)
+        if underlying is None:
+            return arg_val  # fallback
+
+        # underlying type에 맞는 interval로 변환
+        if underlying.startswith("int"):
+            bits = int(underlying[3:]) if len(underlying) > 3 else 256
+            if VariableEnv.is_interval(arg_val):
+                return IntegerInterval(arg_val.min_value, arg_val.max_value, bits)
+            elif isinstance(arg_val, (int, float)):
+                return IntegerInterval(int(arg_val), int(arg_val), bits)
+            return IntegerInterval.top(bits)
+        elif underlying.startswith("uint"):
+            bits = int(underlying[4:]) if len(underlying) > 4 else 256
+            if VariableEnv.is_interval(arg_val):
+                return UnsignedIntegerInterval(arg_val.min_value, arg_val.max_value, bits)
+            elif isinstance(arg_val, (int, float)):
+                return UnsignedIntegerInterval(int(arg_val), int(arg_val), bits)
+            return UnsignedIntegerInterval.top(bits)
+        elif underlying == "bool":
+            if isinstance(arg_val, BoolInterval):
+                return arg_val
+            return BoolInterval.top()
+
+        return arg_val  # 기타 타입은 그대로
+
+    def _evaluate_builtin_function(self, function_name, expr, variables, callerObject):
+        """Solidity built-in 함수 처리. 해당하면 결과 반환, 아니면 None."""
+        args = expr.arguments or []
+
+        # addmod(a, b, n) → (a + b) % n
+        if function_name == "addmod" and len(args) == 3:
+            a = self.evaluate_expression(args[0], variables, None, None)
+            b = self.evaluate_expression(args[1], variables, None, None)
+            n = self.evaluate_expression(args[2], variables, None, None)
+            if VariableEnv.is_interval(a) and VariableEnv.is_interval(b) and VariableEnv.is_interval(n):
+                return self._mapping_lookup_if_needed(a.add(b).modulo(n), callerObject)
+            return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
+
+        # mulmod(a, b, n) → (a * b) % n
+        if function_name == "mulmod" and len(args) == 3:
+            a = self.evaluate_expression(args[0], variables, None, None)
+            b = self.evaluate_expression(args[1], variables, None, None)
+            n = self.evaluate_expression(args[2], variables, None, None)
+            if VariableEnv.is_interval(a) and VariableEnv.is_interval(b) and VariableEnv.is_interval(n):
+                return self._mapping_lookup_if_needed(a.multiply(b).modulo(n), callerObject)
+            return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
+
+        # keccak256, sha256, ripemd160, blockhash → TOP (bytes32)
+        if function_name in ("keccak256", "sha256", "ripemd160", "blockhash"):
+            return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
+
+        # ecrecover → TOP (address)
+        if function_name == "ecrecover":
+            return self._mapping_lookup_if_needed(AddressSet.top(), callerObject)
+
+        # gasleft → TOP (uint256)
+        if function_name == "gasleft":
+            return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
+
+        return None  # built-in이 아님
 
     def _get_address_this_balance(self, variables):
         """GlobalVar에서 address(this).balance 값을 조회. 없으면 None."""

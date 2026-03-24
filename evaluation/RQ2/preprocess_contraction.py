@@ -212,6 +212,69 @@ def remove_bare_scoping_blocks(lines: list[str]) -> list[str]:
     return result
 
 
+# ── Solidity 예약어가 파라미터/변수명으로 쓰인 경우 치환 ──
+# ANTLR lexer가 'from' 등을 키워드로 인식하여 파서 오류 발생
+_RESERVED_AS_PARAM = {'from'}  # 필요 시 추가
+
+def rename_reserved_params(lines: list[str]) -> list[str]:
+    """예약어가 식별자(파라미터명, 변수명)로 쓰인 경우 _ prefix 추가.
+    1단계: 파라미터 선언에서 예약어 감지 → 치환 대상 확정
+    2단계: 전체 파일에서 해당 예약어의 모든 식별자 사용을 일괄 치환
+    """
+    source = "\n".join(lines)
+
+    for word in _RESERVED_AS_PARAM:
+        # 파라미터 선언에서 사용되는지 확인 (type [indexed] from, | type from))
+        param_pattern = re.compile(
+            rf'\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?{word}\s*[,);]'
+        )
+        if param_pattern.search(source):
+            # 단어 경계 기준으로 모든 식별자 위치의 from → _from
+            # 단, 문자열 리터럴 안이나 다른 단어의 일부(fromBalance 등)는 제외
+            source = re.sub(rf'\b{word}\b', f'_{word}', source)
+
+    return source.split("\n")
+
+
+def collapse_enum_members(lines: list[str]) -> list[str]:
+    """enum 멤버들을 한 줄로 합치기.
+    enum Paths {       →  enum Paths {
+        VADER,         →      VADER, USDV
+        USDV           →  }
+    }
+    """
+    result = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        # enum header 감지: "enum Name {"
+        if stripped.startswith('enum ') and stripped.endswith('{'):
+            indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+            result.append(lines[i])  # enum header 유지
+            i += 1
+            # 멤버들 수집
+            members = []
+            while i < len(lines):
+                mstrip = lines[i].strip()
+                if mstrip == '}':
+                    break
+                if mstrip and mstrip != '{':
+                    # trailing comma 제거 후 수집
+                    members.append(mstrip.rstrip(',').strip())
+                i += 1
+            # 한 줄로 합쳐서 추가
+            if members:
+                result.append(f"{indent}    {', '.join(members)}")
+            # 닫는 } 추가
+            if i < len(lines):
+                result.append(lines[i])  # }
+                i += 1
+        else:
+            result.append(lines[i])
+            i += 1
+    return result
+
+
 RE_SINGLE_IF = re.compile(
     r"^(\s*)"                    # (1) 들여쓰기
     r"(if\s*\(.*\))\s+"         # (2) if (조건)
@@ -319,13 +382,19 @@ def preprocess(source: str) -> str:
         # 빈 줄이 된 경우도 포함 (collapse에서 처리)
         result.append(processed)
 
-    # 4단계: bare scoping block 제거 + dedent
+    # 4단계: 예약어 파라미터명 치환 (from → _from 등)
+    result = rename_reserved_params(result)
+
+    # 5단계: enum 멤버 한 줄로 합치기
+    result = collapse_enum_members(result)
+
+    # 6단계: bare scoping block 제거 + dedent
     result = remove_bare_scoping_blocks(result)
 
-    # 5단계: single-line if/unchecked 확장 → multi-line
+    # 7단계: single-line if/unchecked 확장 → multi-line
     result = expand_single_line_blocks(result)
 
-    # 6단계: 빈 줄 정리
+    # 8단계: 빈 줄 정리
     result = collapse_empty_lines(result)
 
     return "\n".join(result) + "\n"

@@ -260,8 +260,8 @@ class ContractCFG(CFG):
 
         self.globals: dict[str, GlobalVariable] = {}
 
-        # Using directive 지원: type -> LibraryCFG
-        self.using_libraries: dict[str, 'LibraryCFG'] = {}  # "uint256" -> SafeMathLibrary
+        # Using directive 지원: type -> [LibraryCFG, ...]  (같은 타입에 여러 library 가능)
+        self.using_libraries: dict[str, list['LibraryCFG']] = {}
         self.using_all_libraries: list['LibraryCFG'] = []   # using Library for *;
 
         # 상속 지원: parent contracts
@@ -400,19 +400,22 @@ class ContractCFG(CFG):
         if target_type is None:
             self.using_all_libraries.append(library_cfg)
         else:
-            self.using_libraries[target_type] = library_cfg
-    
+            if target_type not in self.using_libraries:
+                self.using_libraries[target_type] = []
+            if library_cfg not in self.using_libraries[target_type]:
+                self.using_libraries[target_type].append(library_cfg)
+
     def find_library_function(self, target_type: str, function_name: str, param_types=None) -> 'FunctionCFG':
         """
         target_type에 대한 라이브러리 함수를 찾아 반환
         예: find_library_function("uint256", "mul") -> SafeMath.mul
         """
-        # 특정 타입에 대한 라이브러리 검색
+        # 특정 타입에 대한 라이브러리 검색 (리스트 순회)
         if target_type in self.using_libraries:
-            library_cfg = self.using_libraries[target_type]
-            result = library_cfg.get_function_cfg(function_name, param_types)
-            if result is not None:
-                return result
+            for library_cfg in self.using_libraries[target_type]:
+                result = library_cfg.get_function_cfg(function_name, param_types)
+                if result is not None:
+                    return result
 
         # using * 라이브러리들에서 검색
         for library_cfg in self.using_all_libraries:
@@ -446,11 +449,13 @@ class ContractCFG(CFG):
                 serialized_globals[var_name] = str(var_obj)
         
         serialized_using_libraries = {}
-        for target_type, lib_cfg in self.using_libraries.items():
-            if hasattr(lib_cfg, 'serialize_for_storage'):
-                serialized_using_libraries[target_type] = lib_cfg.serialize_for_storage()
-            else:
-                serialized_using_libraries[target_type] = str(lib_cfg)
+        for target_type, lib_list in self.using_libraries.items():
+            serialized_using_libraries[target_type] = []
+            for lib_cfg in lib_list:
+                if hasattr(lib_cfg, 'serialize_for_storage'):
+                    serialized_using_libraries[target_type].append(lib_cfg.serialize_for_storage())
+                else:
+                    serialized_using_libraries[target_type].append(str(lib_cfg))
         
         serialized_using_all_libraries = []
         for lib_cfg in self.using_all_libraries:
@@ -707,6 +712,10 @@ class LibraryCFG(CFG):
 
         self.structDefs = {}  # name -> StructDefinition 객체
         self.enumDefs = {}   # name -> EnumDefinition 객체
+
+        # Library 내부의 using directive 지원 (e.g., using Address for address;)
+        self.using_libraries: dict[str, list['LibraryCFG']] = {}
+        self.using_all_libraries: list['LibraryCFG'] = []
 
     def add_function_cfg(self, function_name, function_cfg):
         """라이브러리 함수 CFG 추가"""

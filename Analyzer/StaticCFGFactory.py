@@ -172,7 +172,7 @@ class StaticCFGFactory:
         # ❷  entry-env 스냅 + entry_node.variables 초기화
         # ───────────────────────────────────────────────────────────────
         # ────────── 3. 저장 & snapshot 등록 ──────────
-        contract_cfg.functions[modifier_name] = mod_cfg
+        contract_cfg.add_function_cfg(modifier_name, mod_cfg)
         an.snapman.register(mod_cfg, an.ser)
 
         entry_vars = VariableEnv.copy_variables(mod_cfg.related_variables)
@@ -363,7 +363,15 @@ class StaticCFGFactory:
             ev.valueIndex = 0  # 기본값 : 첫 멤버
             return ev
 
-        # ──────────────────────────── ④ elementary ───────────────────────
+        # ──────────────────────────── ④ interface (address로 취급) ────────
+        if sol_type.typeCategory == "interface":
+            v = Variables(identifier=ident, scope=scope)
+            v.typeInfo = sol_type
+            v.value = AddressSet.top()
+            an.register_var(v)
+            return v
+
+        # ──────────────────────────── ⑤ elementary ───────────────────────
         if sol_type.typeCategory == "elementary":
             v = Variables(identifier=ident, scope=scope)
             v.typeInfo = sol_type

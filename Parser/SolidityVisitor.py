@@ -664,68 +664,8 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#yulStatement.
-    def visitYulStatement(self, ctx:SolidityParser.YulStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulBlock.
-    def visitYulBlock(self, ctx:SolidityParser.YulBlockContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulVariableDeclaration.
-    def visitYulVariableDeclaration(self, ctx:SolidityParser.YulVariableDeclarationContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulAssignment.
-    def visitYulAssignment(self, ctx:SolidityParser.YulAssignmentContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulIfStatement.
-    def visitYulIfStatement(self, ctx:SolidityParser.YulIfStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulForStatement.
-    def visitYulForStatement(self, ctx:SolidityParser.YulForStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulSwitchStatement.
-    def visitYulSwitchStatement(self, ctx:SolidityParser.YulSwitchStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulFunctionDefinition.
-    def visitYulFunctionDefinition(self, ctx:SolidityParser.YulFunctionDefinitionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulPath.
-    def visitYulPath(self, ctx:SolidityParser.YulPathContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulFunctionCall.
-    def visitYulFunctionCall(self, ctx:SolidityParser.YulFunctionCallContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulBoolean.
-    def visitYulBoolean(self, ctx:SolidityParser.YulBooleanContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulLiteral.
-    def visitYulLiteral(self, ctx:SolidityParser.YulLiteralContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by SolidityParser#yulExpression.
-    def visitYulExpression(self, ctx:SolidityParser.YulExpressionContext):
+    # Visit a parse tree produced by SolidityParser#assemblyBlock.
+    def visitAssemblyBlock(self, ctx:SolidityParser.AssemblyBlockContext):
         return self.visitChildren(ctx)
 
 

@@ -129,7 +129,7 @@ class CFGSerializer:
         # 함수들 역직렬화
         for func_name, func_data in data.get("functions", {}).items():
             func_cfg = self._deserialize_function_cfg(func_data, library_cfg)
-            library_cfg.functions[func_name] = func_cfg
+            library_cfg.add_function_cfg(func_name, func_cfg)
             
         return library_cfg
 
@@ -233,7 +233,7 @@ class CFGSerializer:
         if "functions" in data:
             for func_name, func_data in data["functions"].items():
                 func_cfg = self._deserialize_function_cfg(func_data, contract_cfg)
-                contract_cfg.functions[func_name] = func_cfg
+                contract_cfg.add_function_cfg(func_name, func_cfg)
             
         return contract_cfg
 

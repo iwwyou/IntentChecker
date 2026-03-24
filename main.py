@@ -1,8 +1,10 @@
 import json
 from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
+from Analyzer.EnhancedYulVisitor import EnhancedYulVisitor
 from Analyzer.SolidityAnalyzer import SolidityAnalyzer
 from Analyzer.DebugUnitAnalyzer import DebugBatchManager
 from Utils.Helper                        import ParserHelpers     # ★ here
+from Utils.YulHelper                     import YulParserHelpers
 import time
 
 sa                = SolidityAnalyzer()
@@ -48,11 +50,16 @@ def simulate_inputs(records, silent=False):
                 batch_mgr.flush()
             continue
 
-        # ---------- 일반 Solidity 한 줄 ------------------------
+        # ---------- 일반 Solidity / Yul 한 줄 --------------------
         if code.strip():           # 공백 라인은 생략
             ctx = contract_analyzer.get_current_context_type()
-            tree = ParserHelpers.generate_parse_tree(code, ctx, True)
-            EnhancedSolidityVisitor(contract_analyzer).visit(tree)
+            if ctx == "assembly":
+                # Yul parser + visitor
+                tree = YulParserHelpers.generate_parse_tree(code)
+                EnhancedYulVisitor(contract_analyzer).visit(tree)
+            else:
+                tree = ParserHelpers.generate_parse_tree(code, ctx, True)
+                EnhancedSolidityVisitor(contract_analyzer).visit(tree)
 
             if not silent:
                 analysis = contract_analyzer.get_line_analysis(s, e)

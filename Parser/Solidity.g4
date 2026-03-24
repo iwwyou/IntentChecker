@@ -245,6 +245,8 @@ interactiveIfElseUnit
     interactiveElseStatement
   )* EOF;
 
+
+
 interactiveCatchClauseUnit
   : (
     interactiveCatchClause
@@ -265,7 +267,7 @@ debugInput
 
 debugGlobalVar
     : '//' '@GlobalVar' identifier ('.' identifier)? '=' debugValue                          # GlobalVarSimple
-    | '//' '@GlobalVar' 'address' '(' identifier ')' '.' 'balance' '=' debugValue            # GlobalVarAddressBalance
+    | '//' '@GlobalVar' 'address' '(' identifier ')' '.' identifier '=' debugValue            # GlobalVarAddressBalance
     ;
 
 debugStateVar
@@ -465,8 +467,10 @@ forStatement
 inlineArrayExpression
  : '[' (expression (',' expression)*) ']';
 
+// Assembly 블록: 내부 Yul 코드는 별도 Yul.g4 파서가 처리
+// Solidity parser는 balanced brace만 소비
 assemblyStatement
-  : 'assembly' 'evamasm'? assemblyFlags? '{' yulStatement* '}' ;
+  : 'assembly' assemblyFlags? assemblyBlock ;
 
 assemblyFlags
   : '(' (assemblyFlagString (',' assemblyFlagString)) ')';
@@ -474,65 +478,8 @@ assemblyFlags
 assemblyFlagString
  : stringLiteral ;
 
-yulStatement
-  : yulBlock
-  | yulVariableDeclaration
-  | yulAssignment
-  | yulFunctionCall
-  | yulIfStatement
-  | yulForStatement
-  | yulSwitchStatement
-  | LeaveKeyword
-  | BreakKeyword
-  | ContinueKeyword
-  | yulFunctionDefinition;
-
-yulBlock
-  : '{' yulStatement* '}';
-
-yulVariableDeclaration
-  : 'let' YulIdentifier (':=' yulExpression)?
-  | 'let' (YulIdentifier (',' YulIdentifier)) (':=' yulFunctionCall)?;
-
-yulAssignment
-  : yulPath ':=' yulExpression
-  | yulPath (',' yulPath)+ ':=' yulFunctionCall ;
-
-yulIfStatement
-  : 'if' yulExpression yulBlock;
-
-yulForStatement
-  : 'for' yulBlock yulExpression yulBlock yulBlock;
-
-yulSwitchStatement
- : 'switch' yulExpression
- ( ('case' yulLiteral yulBlock)+ ('default' yulBlock)?
- | 'default' yulBlock);
-
-yulFunctionDefinition
-  : 'function' YulIdentifier '(' (YulIdentifier (',' YulIdentifier)*)? ')'
-  ('->' (YulIdentifier (',' YulIdentifier)*))? yulBlock;
-
-yulPath
-  : YulIdentifier ('.' (YulIdentifier | YulEvmBuiltin))* ;
-
-yulFunctionCall
-  : (YulIdentifier | YulEvmBuiltin) '(' (yulExpression (',' yulExpression)*)? ')';
-
-yulBoolean
-  : 'true' | 'false';
-
-yulLiteral
-  : YulDecimalNumber
-  | YulStringLiteral
-  | YulHexNumber
-  | yulBoolean
-  | HexString;
-
-yulExpression
- : yulPath
- | yulFunctionCall
- | yulLiteral;
+assemblyBlock
+  : '{' (~('{' | '}') | assemblyBlock)* '}' ;
 
 doWhileStatement
   : 'do' statement 'while' '(' expression ')' ';' ;
@@ -805,29 +752,7 @@ VersionLiteral
 WS
   : [ \t\r\n\u000C]+ -> skip ;
 
-YulEvmBuiltin
- : 'stop' | 'add' | 'sub' | 'mul' | 'div' | 'sdiv' | 'mod' | 'smod' | 'exp' | 'not' | 'lt' | 'gt' | 'slt' | 'sgt'
- | 'eq' | 'iszero' | 'and' | 'or' | 'xor' | 'byte' | 'shl' | 'shr' | 'sar' | 'addmod' | 'mulmod' | 'signextend'
- | 'keccak256' | 'pop' | 'mload' | 'mstore' | 'mstore8' | 'sload' | 'sstore' | 'misze' | 'gas' | 'address'
- | 'balance' | 'selfbalance' | 'caller' | 'callvalue' | 'calldataload' | 'calldatasize' | 'calldatacopy'
- | 'extcodesize' | 'extcodecopy' | 'returndatasize' | 'returndatacopy' | 'extcodehash' | 'create' | 'create2'
- | 'call' | 'callcode' | 'delegatecall' | 'staticcall' | 'return' | 'revert' | 'selfdestruct' | 'invalid'
- | 'log0' | 'log1' | 'log2' | 'log3' | 'log4' | 'chainid' | 'origin' | 'gasprice' | 'blockhash' | 'coinbase'
- | 'timestamp' | 'number' | 'difficulty' | 'prevrandao' | 'gaslimit' | 'basefee' ;
-
-YulIdentifier
- : [a-zA-Z$_] [a-zA-Z0-9$_]* ;
-
-YulHexNumber
- : '0x' [0-9a-fA-F]+ ;
-
-YulDecimalNumber
- : '0'
- | [1-9] [0-9]* ;
-
-YulStringLiteral
-  : '"' (DoubleQuotedPrintable | EscapeSequence)+ '"'
-  | '\'' (SingleQuotedPrintable | EscapeSequence)+ '\'';
+// Yul lexer rules removed — Yul.g4가 별도 처리
 
 COMMENT
   : '/*' .*? '*/' -> channel(HIDDEN) ;

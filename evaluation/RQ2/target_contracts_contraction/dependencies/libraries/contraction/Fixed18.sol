@@ -10,7 +10,18 @@ library Fixed18Lib {
     Fixed18 public constant ONE = Fixed18.wrap(BASE);
     Fixed18 public constant NEG_ONE = Fixed18.wrap(-1 * BASE);
 
-    function from(UFixed18 a) internal pure returns (Fixed18) {
+    function compare(Fixed18 a, Fixed18 b) internal pure returns (uint256) {
+        (int256 au, int256 bu) = (Fixed18.unwrap(a), Fixed18.unwrap(b));
+        if (au > bu) {
+            return 2;
+        }
+        if (au < bu) {
+            return 0;
+        }
+        return 1;
+    }
+
+    function _from(UFixed18 a) internal pure returns (Fixed18) {
         uint256 value = UFixed18.unwrap(a);
         if (value > uint256(type(int256).max)) {
             revert Fixed18OverflowError(value);
@@ -18,17 +29,17 @@ library Fixed18Lib {
         return Fixed18.wrap(int256(value));
     }
 
-    function from(int256 s, UFixed18 m) internal pure returns (Fixed18) {
+    function _from(int256 s, UFixed18 m) internal pure returns (Fixed18) {
         if (s > 0) {
-            return from(m);
+            return _from(m);
         }
         if (s < 0) {
-            return mul(from(m), NEG_ONE);
+            return mul(_from(m), NEG_ONE);
         }
         return ZERO;
     }
 
-    function from(int256 a) internal pure returns (Fixed18) {
+    function _from(int256 a) internal pure returns (Fixed18) {
         return Fixed18.wrap(a * BASE);
     }
 
@@ -70,18 +81,7 @@ library Fixed18Lib {
 
     function lte(Fixed18 a, Fixed18 b) internal pure returns (bool) {
         return lt(a, b) || eq(a, b);
-    }
-
-    function compare(Fixed18 a, Fixed18 b) internal pure returns (uint256) {
-        (int256 au, int256 bu) = (Fixed18.unwrap(a), Fixed18.unwrap(b));
-        if (au > bu) {
-            return 2;
-        }
-        if (au < bu) {
-            return 0;
-        }
-        return 1;
-    }
+    }    
 
     function ratio(int256 a, int256 b) internal pure returns (Fixed18) {
         return Fixed18.wrap(a * BASE / b);
@@ -112,6 +112,6 @@ library Fixed18Lib {
     }
 
     function abs(Fixed18 a) internal pure returns (UFixed18) {
-        return sign(a) == -1 ? UFixed18Lib.from(mul(a, NEG_ONE)) : UFixed18Lib.from(a);
+        return sign(a) == -1 ? UFixed18Lib._from(mul(a, NEG_ONE)) : UFixed18Lib._from(a);
     }
 }

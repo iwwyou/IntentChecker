@@ -9,7 +9,18 @@ library UFixed18Lib {
     UFixed18 public constant ZERO = UFixed18.wrap(0);
     UFixed18 public constant ONE = UFixed18.wrap(BASE);
 
-    function from(Fixed18 a) internal pure returns (UFixed18) {
+    function compare(UFixed18 a, UFixed18 b) internal pure returns (uint256) {
+        (uint256 au, uint256 bu) = (UFixed18.unwrap(a), UFixed18.unwrap(b));
+        if (au > bu) {
+            return 2;
+        }
+        if (au < bu) {
+            return 0;
+        }
+        return 1;
+    }
+
+    function _from(Fixed18 a) internal pure returns (UFixed18) {
         int256 value = Fixed18.unwrap(a);
         if (value < 0) {
             revert UFixed18UnderflowError(value);
@@ -17,7 +28,7 @@ library UFixed18Lib {
         return UFixed18.wrap(uint256(value));
     }
 
-    function from(uint256 a) internal pure returns (UFixed18) {
+    function _from(uint256 a) internal pure returns (UFixed18) {
         return UFixed18.wrap(a * BASE);
     }
 
@@ -59,18 +70,7 @@ library UFixed18Lib {
 
     function lte(UFixed18 a, UFixed18 b) internal pure returns (bool) {
         return lt(a, b) || eq(a, b);
-    }
-
-    function compare(UFixed18 a, UFixed18 b) internal pure returns (uint256) {
-        (uint256 au, uint256 bu) = (UFixed18.unwrap(a), UFixed18.unwrap(b));
-        if (au > bu) {
-            return 2;
-        }
-        if (au < bu) {
-            return 0;
-        }
-        return 1;
-    }
+    }    
 
     function ratio(uint256 a, uint256 b) internal pure returns (UFixed18) {
         return UFixed18.wrap(a * BASE / b);
