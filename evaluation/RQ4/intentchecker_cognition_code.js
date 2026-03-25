@@ -1,4 +1,6 @@
-const jsPsych = initJsPsych();
+const jsPsych = initJsPsych({
+    show_progress_bar: true
+});
 
 // ============================================================
 // IntentChecker Developer Survey
@@ -13,22 +15,21 @@ var welcome = {
         '<p>Thank you for taking the time to participate in this survey.</p>' +
         '<p>We are building <strong>IntentChecker</strong>, a <strong>debugging assistant</strong> for Solidity smart contract development.</p>' +
         '<h3 style="margin-top: 20px;">Why this tool?</h3>' +
-        '<p>Smart contracts handle real funds, and numeric bugs (precision loss, overflow, rounding errors) ' +
+        '<p>Smart contracts handle real funds, and numeric bugs (precision loss, rounding errors) ' +
         'can lead to direct financial losses. Once deployed, contracts are difficult to modify, ' +
         'so catching these issues <strong>during development</strong> is critical.</p>' +
         '<p>Currently, developers rely on:</p>' +
         '<ul>' +
         '<li><code>require/assert</code> &mdash; only checks at runtime, cannot cover all possible inputs</li>' +
+        '<li><code>console.log</code> / event logging &mdash; useful for tracing values, but only for specific test inputs</li>' +
         '<li>Manual code review &mdash; time-consuming and error-prone</li>' +
         '<li>LLM-based review &mdash; helpful, but cannot guarantee correctness (hallucination risk)</li>' +
         '</ul>' +
         '<p><strong>IntentChecker</strong> takes a different approach. Developers write simple annotations ' +
-        'expressing their intended numeric behavior (e.g., "this fee should be greater than 0"), ' +
+        'expressing their intended numeric behavior (e.g., <code>// @During fee > 0</code> &mdash; "the fee should always be positive"), ' +
         'and the tool <strong>statically analyzes all possible numeric ranges through the code</strong> to check whether the intent holds.</p>' +
-        '<p>Think of it as a <strong>type checker for numeric intentions</strong> &mdash; ' +
-        'it does not replace testing or LLM tools, but adds a layer of assurance that they cannot provide.</p>' +
         '<p style="color: #666; font-size: 14px;">This tool is currently in the research stage. ' +
-        'Future plans include automatic annotation suggestions and intent-based automatic repair.</p>' +
+        'Future plans include LLM-based automatic annotation suggestion and intent-guided automatic repair.</p>' +
         '<h3 style="margin-top: 20px;">About this survey</h3>' +
         '<p>We want to know: <strong>Would this kind of annotation model actually be useful for you as a developer?</strong></p>' +
         '<p>You will see code examples with annotations and rate them on readability, intuitiveness, and usefulness. ' +
@@ -177,9 +178,7 @@ var analysisDemo = {
         // Note
         '<p style="color: #666; font-size: 13px; margin-top: 20px;">' +
         'Unlike runtime assertion tools that check specific test inputs, IntentChecker analyzes <strong>all values in the given range simultaneously</strong> ' +
-        'through abstract interpretation.<br>' +
-        'For more details on debug annotations, see: ' +
-        '<a href="https://www.researchsquare.com/article/rs-8077153/v1" target="_blank" style="color: #1976D2;">SolQDebug (preprint)</a>' +
+        'through abstract interpretation.' +
         '</p>' +
         '</div>',
     choices: ['Continue']
@@ -204,23 +203,19 @@ var syntaxReference = {
         '</tr>' +
         '<tr style="background: #f9f9f9;">' +
         '<td style="padding: 10px; font-family: monospace;">@During x(before > after)</td>' +
-        '<td style="padding: 10px;">x should decrease after this statement executes</td>' +
+        '<td style="padding: 10px;">x should decrease after this statement executes' +
+        '<br><span style="color: #888; font-size: 13px;">e.g., <code>balance -= fee;</code> &mdash; "before" = balance before subtraction, "after" = balance after</span></td>' +
         '</tr>' +
         '<tr>' +
         '<td style="padding: 10px; font-family: monospace;">@During x(assign > current)</td>' +
-        '<td style="padding: 10px;">The value being assigned should be greater than x\'s current value</td>' +
+        '<td style="padding: 10px;">The value being assigned should be greater than x\'s current value' +
+        '<br><span style="color: #888; font-size: 13px;">e.g., <code>price = newPrice;</code> &mdash; "assign" = newPrice, "current" = price before update</span></td>' +
         '</tr>' +
         '<tr style="background: #f9f9f9;">' +
         '<td style="padding: 10px; font-family: monospace;">@During func.arg[0] > 0</td>' +
-        '<td style="padding: 10px;">The first argument passed to func() should be greater than 0</td>' +
+        '<td style="padding: 10px;">The first argument passed to func() should be greater than 0' +
+        '<br><span style="color: #888; font-size: 13px;">e.g., <code>token.transfer(amount)</code> &mdash; checks that amount > 0</span></td>' +
         '</tr>' +
-        '<tr>' +
-        '<td style="padding: 10px; font-family: monospace;">@During Changed(x)</td>' +
-        '<td style="padding: 10px;">At this line, x should have been modified since the function started</td>' +
-        '</tr>' +
-        '<tr style="background: #f9f9f9;">' +
-        '<td style="padding: 10px; font-family: monospace;">@During Unchanged(x)</td>' +
-        '<td style="padding: 10px;">At this line, x should still equal its value from when the function started</td>' +
         '</tr>' +
         '</table>' +
         // @Post
@@ -232,15 +227,9 @@ var syntaxReference = {
         '</tr>' +
         '<tr style="background: #f9f9f9;">' +
         '<td style="padding: 10px; font-family: monospace;">@Post x(entry > exit)</td>' +
-        '<td style="padding: 10px;">After the function runs, x should be lower than it was before</td>' +
+        '<td style="padding: 10px;">After the function runs, x should be lower than it was before' +
+        '<br><span style="color: #888; font-size: 13px;">e.g., in withdraw(): "entry" = balance when function was called, "exit" = balance when function returns</span></td>' +
         '</tr>' +
-        '<tr>' +
-        '<td style="padding: 10px; font-family: monospace;">@Post Changed(x)</td>' +
-        '<td style="padding: 10px;">After the function runs, x should have been modified</td>' +
-        '</tr>' +
-        '<tr style="background: #f9f9f9;">' +
-        '<td style="padding: 10px; font-family: monospace;">@Post Unchanged(x)</td>' +
-        '<td style="padding: 10px;">After the function runs, x should remain the same as before</td>' +
         '</tr>' +
         '</table>' +
         // Common
@@ -269,6 +258,11 @@ var syntaxReference = {
         '<tr style="background: #f9f9f9;">' +
         '<td style="padding: 10px; font-family: monospace;">x > 0 => y > 0</td>' +
         '<td style="padding: 10px;">If x > 0, then y should also be > 0 (implication)</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding: 10px; font-family: monospace;">changed(x, true)</td>' +
+        '<td style="padding: 10px;">x should have been modified from its initial value' +
+        '<br><span style="color: #888; font-size: 13px;">Use <code>changed(x, false)</code> to assert x was NOT modified</span></td>' +
         '</tr>' +
         '</table>' +
         '<p>Supported operators: <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code> &nbsp; | &nbsp; ' +
@@ -316,7 +310,10 @@ var examples = [
             'IntentChecker would flag this as a <strong>Warning</strong>.'
     },
     {
-        code: '<span style="color: #569CD6;">function</span> <span style="color: #DCDCAA;">refund</span>(<span style="color: #569CD6;">address payable</span> user) <span style="color: #569CD6;">external</span> onlyOwner {\n' +
+        code: '<span style="color: #569CD6;">uint256</span> <span style="color: #569CD6;">public</span> totalDeposits;\n' +
+            '<span style="color: #569CD6;">mapping</span>(<span style="color: #569CD6;">address</span> => <span style="color: #569CD6;">uint256</span>) <span style="color: #569CD6;">public</span> deposits;\n' +
+            '\n' +
+            '<span style="color: #569CD6;">function</span> <span style="color: #DCDCAA;">refund</span>(<span style="color: #569CD6;">address payable</span> user) <span style="color: #569CD6;">external</span> onlyOwner {\n' +
             '    <span style="color: #569CD6;">uint256</span> amount = deposits[user];\n' +
             '    <span style="color: #C586C0;">if</span> (amount > 0 && user.<span style="color: #DCDCAA;">send</span>(amount)) {\n' +
             '        deposits[user] = 0;\n' +

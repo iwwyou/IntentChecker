@@ -24,18 +24,18 @@
     {
       "type": "StateVar",
       "var": "balances[1]",
-      "value": [0, 0],
+      "value": [2000000000000, 2000000000000],
       "line": 49,
-      "comment": "balances[address(this)] = 0 → calculateRate()가 250000 확정 리턴"
+      "comment": "balances[address(this)] = 2e12 → calculateRate()가 250000 리턴 + require(amountToBuy < dexBalance) 통과"
     }
   ],
   "intent_annotations": [
     {
       "type": "During",
       "line": 51,
-      "expr": "amountToBuy >= 1250000000012",
+      "expr": "amountToBuy * ethRateFix >= msg.value * 250000",
       "expected": "violated",
-      "comment": "msg.value*calculateRate()/ethRateFix=1250000000012 이지만 div-first로 1250000000000 → violated"
+      "comment": "mul-first면 등호 성립하지만 div-first로 amountToBuy=1250000000000 → 1.25e22 < 1.25e22+1.25e11 → violated"
     }
   ],
   "expected_results": {

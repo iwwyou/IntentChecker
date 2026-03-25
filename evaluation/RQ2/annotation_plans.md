@@ -1168,12 +1168,24 @@ Line 282에서 `(BASE - normalizedWeight) * _swapFee`로 raw `*`를 사용하나
 - **Bug lines (original)**: 112; 113; 117; 118
 - **Bug lines (contraction)**: 31; 32; 36; 37 (annotation 삽입 후: 31; 32; 37; 39)
 - **Pattern**: erroneous_accounting
-- **Status**: contraction 완료
+- **Status**: `not_detectable (L5b: wrong-code)`
 
 ### Bug Description
 `transfer()`에서 `balances` 업데이트(contraction line 31-32)가 `userCheckpoint()` 호출(contraction line 37, 39) **전에** 실행됨. `userCheckpoint()`는 내부적으로 `stakedAndActionLockedBalanceOf(user)` → `balances[user]`를 읽어 보상을 계산하므로, 이미 변경된 balance로 보상이 계산됨. 수신자가 반복적으로 자기 계정 간 transfer하면서 보상을 과다 청구 가능.
 
 대조: 같은 컨트랙트의 `transferFrom()`(original line 155-158)은 올바르게 **checkpoint → balance 변경** 순서.
+
+### Not Detectable 사유 (L5b: wrong-code — operation ordering)
+
+**유일하게 가능한 intent**: `@During changed(balances[msg.sender], false)` (standalone, checkpoint 호출 직전)
+
+**Bug awareness가 필요한 이유**:
+1. `balances[msg.sender] -= amount` (line 31)에서 이미 변경된 것이 같은 함수 내에서 **5줄 위에 보임**
+2. 그 아래에서 "unchanged여야 한다"고 쓰는 것은, "이 변경이 checkpoint 뒤에 와야 한다"는 ordering 지식을 전제
+3. 개발자가 코드를 읽으면서 "여기서 balance가 바뀌었으니 unchanged annotation을 달아야지"라고 자연스럽게 쓸 수 없음 — 이미 바뀐 변수에 "unchanged"를 쓰는 건 모순
+4. 올바른 순서(checkpoint → balance 변경)를 이미 알아야 annotation 작성 가능 → 그 지식이 있었으면 코드 순서를 직접 고쳤을 것
+
+**Report 원문**: "In every actionable function except `transfer()`, a call to `userCheckpoint()` is correctly made BEFORE the action effects." — 감사자도 다른 함수와의 일관성 비교로 버그 발견. 이 비교 자체가 bug awareness.
 
 ### Dependencies
 **Interfaces** (6):
@@ -2444,64 +2456,47 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Function**: withdraw
 - **Bug line (original)**: 1937
 - **Pattern**: precision_loss_trend
-- **Status**: `annotated`
+- **Status**: `excluded (E7: inherent-truncation)`
 
-### Bug Description
-`withdraw()`에서 `balance.mul(25).div(100)` — 25%를 계산할 때 `div(100)` truncation으로 인해 `wallet1`과 `wallet2`에 분배되는 총합이 원래 balance보다 작아질 수 있음. `balance.sub(balance2)`도 precision loss를 그대로 전파.
+### Numscout 감지 내용
+Numscout가 `balance.mul(25).div(100)` (line 1937)에서 `precision_loss_trend` 패턴을 감지. `mul().div()` 체인에서 truncation이 발생할 수 있다는 heuristic 매칭.
 
 ### 원본 코드 (line 1935-1940)
 ```solidity
 function withdraw() external onlyOwner {
     uint256 balance = address(this).balance;         // L1936
-    uint256 balance2 = balance.mul(25).div(100);     // L1937 ← precision loss
+    uint256 balance2 = balance.mul(25).div(100);     // L1937 ← Numscout 감지 지점
     payable(wallet2).transfer(balance2);              // L1938
     payable(wallet1).transfer(balance.sub(balance2)); // L1939
 }
 ```
 
-### Blocker 분석
-- ~~`address(this).balance` → TOP~~ → Issue 7 구현으로 `@GlobalVar address(this).balance = [value, value]` 제공 가능 ✅
-- ~~`using SafeMath for uint256`~~ → SafeMath는 내장 지원 ✅
-- **blocker 없음 → annotated**
+### Excluded 사유 (E7: inherent-truncation)
 
-### Contraction 코드 (numscout_HippoHotel.sol)
-```solidity
-53: function withdraw() external onlyOwner {
-54:     uint256 balance = address(this).balance;
-55:     uint256 balance2 = balance.mul(25).div(100);    // ← bug line
-56:     payable(wallet2).transfer(balance2);
-57:     payable(wallet1).transfer(balance.sub(balance2));
-58: }
-```
+**1. 코드가 이미 최적 연산 순서(mul-first)를 사용**
+- `balance.mul(25).div(100)` = `balance * 25 / 100` (mul-first)
+- div-first인 `balance.div(100).mul(25)`보다 같거나 나은 결과
 
-### Intent Annotations
-| Type | Line (contraction) | Expression | Expected | Comment |
-|------|-------------------|------------|----------|---------|
-| During | 55 | balance2 == balance * 25 / 100 | satisfied | precision loss 없으면 정확히 25%. SafeMath의 mul/div가 일반 */÷와 동일하므로 |
-| Post | 57 | balance2 + balance - balance2 == balance | satisfied | 분배 총합이 원래 balance와 같아야 함. precision loss로 balance2가 truncate되면 `balance.sub(balance2)` 보상으로 총합은 유지 |
+**2. 대안 구현도 동일 결과 — "correct code"가 존재하지 않음**
+- `floor(balance * 25 / 100)` = `floor(balance / 4)` (수학적 항등)
+- 검증: balance=1003 → `1003*25/100 = 250`, `1003/4 = 250` → 동일
+- 어떤 정수 연산 구현이든 `floor(balance * 0.25)`와 같은 결과
 
-※ 이 케이스의 핵심은 `balance.mul(25).div(100)`에서 div truncation. balance가 100으로 나누어 떨어지지 않으면 손실 발생. 예: balance=1003 → 1003*25=25075 → 25075/100=250 (75 손실)
+**3. 자금 유실 없음**
+- wallet2: `balance2 = 250`
+- wallet1: `balance - balance2 = 1003 - 250 = 753`
+- 총합: `250 + 753 = 1003 = balance` (완전 분배, remainder는 wallet1에 할당)
 
-### Debug Annotations
-**GlobalVar:**
-| # | Variable | Value (interval) | Comment |
-|---|----------|-------------------|---------|
-| 1 | address(this).balance | [1003, 1003] | 100으로 나누어 떨어지지 않는 값 (precision loss 발생) |
+**4. Intent annotation으로 buggy/correct 구분 불가**
+- `balance2 == balance * 25 / 100` → 코드가 하는 것 그대로라 항상 satisfied
+- `balance2 * 100 == balance * 25` (무손실 검증) → 어떤 구현이든 balance % 4 ≠ 0이면 violated
+- `balance2 == balance / 4` → 항상 satisfied (수학적 항등)
+- 모든 intent가 buggy와 correct에서 동일하게 평가됨
 
-**StateVar:**
-| # | Variable | Value (interval) | Comment |
-|---|----------|-------------------|---------|
-| 1 | wallet1 | symbolicAddress 1 | transfer 대상 |
-| 2 | wallet2 | symbolicAddress 2 | transfer 대상 |
-
-### Dependencies
-- **SafeMath library**: `using SafeMath for uint256` → Issue 4 필요
-- **Context, Ownable**: contraction에 포함됨 (별도 dependency 불필요)
-
-### 판정
-- address(this).balance: ✅ (Issue 7 해결)
-- SafeMath: ✅ (내장 지원)
-- **annotated**
+**5. Numscout false positive 분석**
+- Numscout의 `precision_loss_trend` 패턴은 `mul().div()` 체인의 truncation 가능성을 heuristic하게 감지
+- 이 케이스에서는 truncation이 실제로 발생하지만 (balance=1003일 때 75 wei 손실), 이는 정수 연산의 수학적 속성이지 코드 실수가 아님
+- 대안 코드가 다른 결과를 산출하지 않으므로 "수정 가능한 버그"에 해당하지 않음
 
 ---
 

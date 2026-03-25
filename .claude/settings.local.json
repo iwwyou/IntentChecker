@@ -62,7 +62,18 @@
       "Bash(__NEW_LINE_04af87e798348472__ echo:*)",
       "Bash(cd:*)",
       "Bash(__NEW_LINE_beef3eabc5e3765f__ echo:*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:old.reddit.com)",
+      "Read(//tmp/**)",
+      "Bash(\"$TEMP/solidity_hot.json\")",
+      "Read(//c/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/$TEMP/**)",
+      "WebFetch(domain:ethereum.stackexchange.com)",
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_101_H_01/web3bugs_101_H_01.sol\" -o \"evaluation/RQ2/cases/web3bugs_101_H_01/web3bugs_101_H_01.json\")",
+      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_47_H_02/web3bugs_47_H_02.sol\" -o \"evaluation/RQ2/cases/web3bugs_47_H_02/web3bugs_47_H_02.json\")",
+      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_5_H_07/web3bugs_5_H_07.sol\" -o \"evaluation/RQ2/cases/web3bugs_5_H_07/web3bugs_5_H_07.json\")",
+      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.sol\" -o \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.json\")"
     ],
     "deny": [],
     "ask": []

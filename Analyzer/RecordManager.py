@@ -130,10 +130,14 @@ class RecordManager:
     ) -> None:
 
         if return_expr and return_expr.context == "TupleExpressionContext":
-            flat = {
-                self._expr_to_str(e): self._serialize_val(v)
-                for e, v in zip(return_expr.elements, return_val)
-            }
+            # 단일 값이 괄호로 감싸진 경우 (return (expr)) → return_val이 iterable이 아닐 수 있음
+            if hasattr(return_val, '__iter__') and not isinstance(return_val, (str, dict)):
+                flat = {
+                    self._expr_to_str(e): self._serialize_val(v)
+                    for e, v in zip(return_expr.elements, return_val)
+                }
+            else:
+                flat = {self._expr_to_str(return_expr): self._serialize_val(return_val)}
             payload = {"kind": "return", "vars": flat}
 
         elif return_expr is None and fn_cfg.return_vars:

@@ -33,7 +33,7 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 | L4b | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
 | L5 | `bug-awareness-required` | annotation 표현은 가능하나, 올바른 annotation을 구성하려면 버그를 이미 인지하고 있어야 함. 아래 두 하위 유형으로 구분 | - |
 | L5a | `missing-code` | L5의 하위 유형. 있어야 할 코드(함수 호출, state update 등)가 누락됨. Post-condition으로 표현 가능하나, 무엇이 누락되었는지 아는 것 자체가 버그 인지를 전제 | web3bugs_83_H_01, web3bugs_35_H_10, web3bugs_35_H_12, web3bugs_36_H_02, web3bugs_62_H_03, web3bugs_62_H_10, web3bugs_65_H_01, web3bugs_192_H_01, web3bugs_52_H_23, web3bugs_58_H_04, web3bugs_61_H_02, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_110_H_01, web3bugs_17_H_02 |
-| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_52_H_15, web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_52_H_16, web3bugs_79_H_02, web3bugs_101_H_02, web3bugs_59_H_05, web3bugs_70_H_09 |
+| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드·순서 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_52_H_15, web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_52_H_16, web3bugs_79_H_02, web3bugs_101_H_02, web3bugs_59_H_05, web3bugs_70_H_09, web3bugs_112_H_01 |
 
 ---
 
@@ -249,6 +249,7 @@ Numeric logical error 정의에 해당하지 않거나 분석 대상에서 제�
 | E4 | `not-a-bug` | 감사 리포트에 보고되었으나 실제로는 버그가 아닌 케이스. Sponsor가 의도된 설계라고 dispute하거나, 코드가 의도대로 정확히 동작함 | web3bugs_52_H_25 |
 | E5 | `missing-dependency` | 분석에 필요한 외부 라이브러리(npm 패키지 등)의 소스코드가 제공되지 않아 dependency pre-analysis 불가 | web3bugs_52_H_23, web3bugs_16_H_04 |
 | E6 | `multi-transaction` | 버그 발현이 별도 트랜잭션 간 상태 변화에 의존. IntentChecker의 single-transaction 분석 범위 밖 | - |
+| E7 | `inherent-truncation` | 정수 나눗셈의 본질적 truncation으로, 대안 correct code가 존재하지 않음. 코드 실수가 아니라 정수 연산의 수학적 속성 | numscout_HippoHotel |
 
 ### Excluded Type 상세 설명
 
@@ -259,3 +260,14 @@ Numeric logical error 정의에 해당하지 않거나 분석 대상에서 제�
 #### E2: overflow-revert
 
 Solidity >=0.8.0의 checked arithmetic에 의해 integer overflow/underflow 발생 시 자동으로 revert됨. 프로그램이 잘못된 값을 "반환"하는 것이 아니라 실행 자체가 중단되므로, numeric logical error(compile 통과 후 잘못된 값 반환) 정의에 해당하지 않음.
+
+#### E7: inherent-truncation
+
+정수 나눗셈의 본질적 truncation으로 인한 precision loss이나, 대안 correct code가 존재하지 않는 케이스. Numscout 등 정적 분석 도구의 패턴 매칭(`mul(X).div(Y)` 체인)에는 감지되지만, 실제로는:
+
+1. **코드가 이미 최적 연산 순서(mul-first)를 사용** — `balance.mul(25).div(100)`은 mul-first이며, `balance.div(100).mul(25)` (div-first)보다 낫거나 같음
+2. **대안 구현도 동일 결과** — `balance / 4`, `balance * 25 / 100` 등 어떤 정수 연산도 `floor(balance * 0.25)`와 같음
+3. **자금 유실 없음** — 분배 총합이 원래 금액과 일치 (remainder는 다른 수신자에게 할당)
+4. **numeric logical error 정의 밖** — "올바른 코드가 다른 값을 반환하는" 상황이 아니라, 정수 연산의 수학적 속성
+
+Numscout의 `precision_loss_trend` 패턴은 `mul().div()` 체인에서 truncation 가능성을 heuristic하게 감지하나, 모든 감지가 실제 수정 가능한 버그는 아님 (false positive 가능).

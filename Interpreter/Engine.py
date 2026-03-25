@@ -827,11 +827,12 @@ class Engine:
 
                 for stmt in node.statements:
                     cur_vars = self.update_statement_with_variables(stmt, cur_vars, return_values, node=node)
-                    if "__STOP__" in return_values:
-                        break
 
                     # ═══ During Annotation 처리 ═══
                     self._process_during_annotations(stmt, node, cur_vars)
+
+                    if "__STOP__" in return_values:
+                        break
 
                 for nxt in list(G.successors(node)):
                     if _is_sink(nxt): continue
@@ -1115,21 +1116,21 @@ class Engine:
         if rng is None: return None
         body_start, body_end = rng
         for ln in range(body_end, body_start - 1, -1):
-            code = self.an.full_code_lines.get(ln, "").strip()
+            code = self.an.sa.full_code_lines.get(ln, "").strip()
             if not code or code == "}" or code.startswith("//"): continue
             return ln
         return None
 
     def _function_start_line(self, fcfg: FunctionCFG) -> int | None:
         entry = fcfg.get_entry_node()
-        for ln, info in (self.an.line_info or {}).items():
+        for ln, info in (self.an.sa.line_info or {}).items():
             nodes = []
             if isinstance(info.get("cfg_nodes"), list): nodes.extend(info["cfg_nodes"])
             if entry in nodes: return ln
         return None
 
     def _function_body_range(self, fcfg: FunctionCFG) -> tuple[int, int] | None:
-        li = self.an.line_info or {}
+        li = self.an.sa.line_info or {}
         fn_start_ln = self._function_start_line(fcfg)
         if fn_start_ln is None: return None
         def _oc(ln: int) -> tuple[int, int]:
@@ -1250,7 +1251,7 @@ class Engine:
         self._process_node_intents(node, cur_vars, line_no)
 
         # line_info에서 during_annotations 가져오기 (기존 메커니즘)
-        line_info = self.an.line_info.get(line_no, {})
+        line_info = self.an.sa.line_info.get(line_no, {})
         during_annotations = line_info.get('during_annotations', [])
 
         if not during_annotations:
@@ -1541,7 +1542,7 @@ class Engine:
 
         # 함수 내 모든 post annotations 수집 (기존 메커니즘)
         post_annotations = []
-        for line_no, line_info in self.an.line_info.items():
+        for line_no, line_info in self.an.sa.line_info.items():
             annots = line_info.get('post_annotations', [])
             post_annotations.extend(annots)
 

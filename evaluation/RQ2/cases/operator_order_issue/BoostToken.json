@@ -10,25 +10,25 @@
     {
       "type": "LocalVar",
       "var": "amount",
-      "value": [65, 65],
+      "value": [68, 68],
       "line": 140,
-      "comment": "amount=65일 때 precision loss 발생"
+      "comment": "amount=68일 때 line 141, 142 모두 precision loss 발생"
     }
   ],
   "intent_annotations": [
     {
       "type": "During",
       "line": 141,
-      "expr": "transfer.arg[0] > 27",
+      "expr": "transfer.arg[0] >= amount * 5 / 12",
       "expected": "violated",
-      "comment": "65*5/12=27 vs 65/12*5=25, 25 > 27 is FALSE"
+      "comment": "mul-first: 68*5/12=28, div-first: 68/12*5=25, 25 >= 28 FALSE → violated"
     },
     {
       "type": "During",
       "line": 142,
-      "expr": "transfer.arg[0] > 14",
+      "expr": "transfer.arg[0] >= amount * 2 / 9",
       "expected": "violated",
-      "comment": "65*2/9=14 vs 65/9*2=14, 14 > 14 is FALSE"
+      "comment": "mul-first: 68*2/9=15, div-first: 68/9*2=14, 14 >= 15 FALSE → violated"
     }
   ],
   "expected_results": {

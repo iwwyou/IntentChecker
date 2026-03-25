@@ -1266,14 +1266,14 @@ class DynamicCFGBuilder:
                 line: Line number to search
                 search_backward: If True and line has no nodes, search backward to previous lines
             """
-            info = an.line_info.get(line, None)
+            info = an.sa.line_info.get(line, None)
             cfg_nodes = info.get("cfg_nodes", []) if info else []
 
             # cfg_nodes가 비어있고 search_backward가 True이면 이전 라인 검색
             if not cfg_nodes and search_backward:
                 search_line = line - 1
                 while search_line >= 1:
-                    info = an.line_info.get(search_line, None)
+                    info = an.sa.line_info.get(search_line, None)
                     if info:
                         cfg_nodes = info.get("cfg_nodes", [])
                         if cfg_nodes:
@@ -1384,7 +1384,7 @@ class DynamicCFGBuilder:
         L_plus_1_node = None
 
         # Search forward until we find a line with CFG nodes or reach end
-        max_line = max(an.line_info.keys()) if an.line_info else L_end + 100
+        max_line = max(an.sa.line_info.keys()) if an.sa.line_info else L_end + 100
         while search_line <= max_line:
             L_plus_1_node = _line_first(search_line)
             if L_plus_1_node is not None:
@@ -1478,7 +1478,7 @@ class DynamicCFGBuilder:
         return None
 
     def _line_nodes_at(self, line_no: int, fcfg: FunctionCFG) -> list[CFGNode]:
-        info = self.an.line_info.get(line_no, None)
+        info = self.an.sa.line_info.get(line_no, None)
         if not info:
             return []
         G = fcfg.graph
@@ -1511,7 +1511,7 @@ class DynamicCFGBuilder:
         - direction: 기본 backward (위로 올라가며 탐색)
         - include_anchor=False면 anchor_line 자체는 건너뛴다.
         """
-        lines = list(self.an.line_info.keys())
+        lines = list(self.an.sa.line_info.keys())
         if not lines:
             return None
         lo, hi = 1, max(lines)
