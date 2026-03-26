@@ -774,18 +774,17 @@ class Evaluation :
                 if current_contract and current_contract in self.an.contract_cfgs:
                     contract_cfg = self.an.contract_cfgs[current_contract]
 
-                    # 라이브러리 함수 검색
+                    # 라이브러리 함수 존재 여부만 확인 (overload 해소는 function call 시점에서)
                     library_function = contract_cfg.find_library_function(base_type, member)
                     if library_function:
-                        # 라이브러리 함수가 발견되면 특별한 Expression 객체 반환
-                        # evaluate_function_call_context에서 이것을 인식하여 라이브러리 함수로 처리
                         result_expr = Expression(
                             function=Expression(identifier=member),
                             operator='library_call',
                             context='LibraryFunctionCallContext'
                         )
-                        # 라이브러리 함수 정보와 첫 번째 인자를 임시로 저장
-                        result_expr._library_function_cfg = library_function
+                        # overload 해소를 위한 정보 저장 (특정 FunctionCFG가 아닌 검색 키)
+                        result_expr._library_base_type = base_type
+                        result_expr._library_contract_cfg = contract_cfg
                         result_expr._implicit_first_arg = implicit_arg
                         return result_expr
         
@@ -1587,11 +1586,33 @@ class Evaluation :
                 hasattr(function_result, 'context') and
                 function_result.context == 'LibraryFunctionCallContext'):
 
-                # 라이브러리 함수 호출로 처리
+                # function call 시점에서 인자 개수로 overload resolution
+                implicit_arg = function_result._implicit_first_arg
+                n_args = 1 + (len(expr.arguments) if expr.arguments else 0)  # implicit + explicit
+                func_name = function_result.function.identifier
+                ccfg = function_result._library_contract_cfg
+                base_type = function_result._library_base_type
+                lib_fcfg = ccfg.find_library_function(base_type, func_name)
+
+                # 인자 개수가 맞지 않으면 다른 overload 검색
+                if lib_fcfg and len(lib_fcfg.parameters) != n_args:
+                    # 모든 using library에서 인자 개수 매칭
+                    found = None
+                    for libs in list(ccfg.using_libraries.values()) + [ccfg.using_all_libraries]:
+                        for lib in (libs if isinstance(libs, list) else [libs]):
+                            if func_name in lib.functions:
+                                for sig, fc in lib.functions[func_name].items():
+                                    if len(fc.parameters) == n_args:
+                                        found = fc
+                                        break
+                            if found: break
+                        if found: break
+                    if found:
+                        lib_fcfg = found
+
                 return self._mapping_lookup_if_needed(
                     self.evaluate_library_function_call_context(
-                        expr, variables, function_result._implicit_first_arg,
-                        function_result._library_function_cfg),
+                        expr, variables, implicit_arg, lib_fcfg),
                     callerObject)
 
             # super 함수 호출인 경우 (super.foo())

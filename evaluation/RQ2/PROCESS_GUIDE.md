@@ -213,3 +213,145 @@ python runner.py --case WANGMI            # 개별 케이스
 ## Discussion에 포함할 내용
 1. **Annotation 작성의 순환 논리**: annotation 작성에 버그 인지가 전제되는 한계 → LLM 기반 annotation suggestion 필요성 (future work: IntentKeeper)
 2. **Missing-operation 간접 탐지**: debug annotation 초기값 + `Assign != Current` 패턴으로 값 변경 여부를 간접 탐지 가능하지만, 업데이트 결과가 초기값과 동일한 edge case에서 false positive 발생 가능.
+
+---
+
+## 아키텍처 리팩토링 (2026-03-25)
+
+### SolidityAnalyzer / ContractAnalyzer 분리
+- **SolidityAnalyzer** (`Analyzer/SolidityAnalyzer.py`): 소스 관리 + context 분배 + file-level 처리
+  - `full_code_lines`, `full_code`, `line_info` 소유
+  - `update_code()` 진입점
+  - `_insert_lines()`, `_shift_source_meta()`, `update_brace_count()` 등 소스 관리
+  - `analyze_context()` dispatcher: file-level → 자체 처리, assembly → context 설정, 나머지 → CA 위임
+- **ContractAnalyzer** (`Analyzer/ContractAnalyzer.py`): contract-level 분석 전용
+  - `self.sa.xxx`로 소스 데이터 접근 (property 없이 직접 참조)
+  - `_shift_cfg_meta()`: recorder.ledger + CFGNode/Statement src_line shift
+  - `analyze_context()`: contract scope 전용
+  - 모든 `process_*`, CFG building, `make_*_cfg`
+- Entry point: `main.py → SolidityAnalyzer.update_code() → ContractAnalyzer (위임)`
+
+### Yul 파서 분리
+- **Yul.g4** (`Parser/Yul.g4`): 별도 lexer/parser (Solidity lexer 토큰 충돌 방지)
+- **EnhancedYulVisitor** (`Analyzer/EnhancedYulVisitor.py`): Yul parse tree → Expression IR
+- **Solidity.g4**: Yul rule 전부 삭제, `assemblyBlock: '{' (~('{' | '}') | assemblyBlock)* '}'` 로 simplified
+- 흐름: `visitAssemblyStatement` → 내부 텍스트 추출 → YulParser → EnhancedYulVisitor → ContractAnalyzer
+
+### Function Overloading
+- `CFG.py`: `functions = {name: {signature: FunctionCFG}}` (nested dict)
+- `add_function_cfg()`, `update_function_cfg()`, `get_function_cfg(name, param_types)`
+- `iter_all_functions()`, `_build_signature()`
+- `FunctionCFG.parameter_types: list[str]` 필드 추가
+
+---
+
+## Grammar 변경사항 (2026-03-25)
+
+### Solidity.g4
+| 변경 | 내용 |
+|------|------|
+| assemblyStatement | Yul rule 전부 제거, balanced brace 소비로 simplified |
+| Yul lexer rules | `YulEvmBuiltin`, `YulIdentifier` 등 삭제 (balance 토큰 충돌 해결) |
+| debugGlobalVar | `GlobalVarSimple` / `GlobalVarAddressBalance` 분리 |
+| DuringFeasible | `'require feasible' \| 'assert feasible'` |
+| VarChangedEval | `'changed' '(' intentValue ',' ('true'\|'false') ')'` in commonClause |
+| _CTX_MAP | `fileLevelStruct`, `fileLevelStructMember`, `fileLevelTypeAlias` 매핑 추가 |
+
+### Yul.g4 (신규)
+- 별도 lexer/parser, `antlr4 -Dlanguage=Python3 -visitor Yul.g4`
+
+---
+
+## 구현 완료된 Code Modification Issues (2026-03-25)
+
+### Issue 1: During standalone
+- `_is_during_inline()`, `_find_prev_cfg_node()`, Engine `report_line`
+
+### Issue 3: File-level struct
+- `_handle_file_level()`, visitor 라우팅, `sa.file_level_structs` fallback
+
+### Issue 5: User-defined value type
+- `process_type_alias()`, `visitUserDefinedValueTypeDefinition()`, `resolve_type()`
+- `wrap/unwrap`: `TypeWrapUnwrapContext` → `evaluate_type_wrap_unwrap()`
+
+### Issue 6: require feasible
+- `verify_during_feasible()`: CFG에서 require condition → BoolInterval `[0,0]` 이면 violated
+
+### Issue 2: Changed(x, true/false)
+- `verify_during_changed()`, `verify_post_changed()`: Entry vs Current/Exit 비교
+- 기존 `Unchanged` 제거
+
+### Issue 7: address(this).balance GlobalVar
+- `visitGlobalVarAddressBalance()`, `_get_address_this_balance()`
+- `this.balance` / `address(X).balance` 접근 시 GlobalVar 값 우선
+
+### Solidity Built-in 함수
+- `_evaluate_builtin_function()`: `addmod`, `mulmod` 계산, 나머지 TOP
+
+### Yul/Assembly
+- `EnhancedYulVisitor`: binary ops, mulmod/addmod, not, iszero → Expression IR
+- `process_yul_assignment()`, `process_yul_variable_declaration()` (미지원→TOP)
+
+### using 키워드 (Issue 4)
+- pkl 로드 경로: `Dependencies/objectfile/lib_*.pkl`
+- 같은 타입에 여러 library: `using_libraries[type] = list[LibraryCFG]`
+
+---
+
+## Dependencies 사전분석 파이프라인 (2026-03-25)
+
+### 디렉토리 구조
+```
+Dependencies/
+├── interfaces/     ← 44개 interface .sol
+├── libraries/      ← 17개 library .sol
+├── contracts/      ← 공통 + 타겟별 서브폴더 (45/, 47/, 58/, 101/, 112/)
+├── objectfile/     ← 79개 pkl (ifc_*, lib_*, con_*)
+├── main.py         ← 사전분석 스크립트
+└── ISSUES.md       ← 미해결 이슈 (FloatStruct 등)
+```
+
+### 실행
+```bash
+python Dependencies/main.py --type all    # 전체 분석
+python Dependencies/main.py --file X.sol  # 단일 파일
+```
+
+### Phase 0
+- type alias 사전 수집 (`type X is Y;` regex)
+- interface 이름 사전 수집 (`interface X` regex)
+- 각 파일 분석 시 `sa.type_aliases` / `ca.interface_names`에 주입
+
+### 전처리 스크립트
+- **preprocess_contraction.py**: import/주석/event 제거, `from→_from`, enum 한줄화
+- **rename_reserved_identifiers.py**: `float→FloatStruct`, `from→_from`
+- **slice_solidity**: assembly 내부 `in_assembly` depth 추적 → 줄 단위 chunk
+
+---
+
+## Dataset 변경 (2026-03-25)
+
+| 케이스 | 변경 전 | 변경 후 | 이유 |
+|--------|---------|---------|------|
+| numscout_HippoHotel | not_detectable (L3) | **annotated** | address(this).balance + SafeMath 해결 |
+| numscout_EthereumGod | not_detectable (L3) | not_detectable (**L2a**) | state-modifying interface call |
+
+### Limitation 분류 개편
+- L1 → L1a (8건, 기존 L1b 흡수), L1c → L1b (2건)
+- 상위 그룹: A. Analysis Imprecision / B. Annotation Limitation
+
+### 현재 통계
+- annotated: **23건**, not_detectable: **53건**, excluded: **13건**
+
+---
+
+## 분석 준비 상태 (2026-03-25)
+
+### 준비 완료: 22/23 annotated 케이스
+dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
+
+### 미준비: 1건
+- **web3bugs_42_H_01**: FloatStruct file-level struct 미등록 (Dependencies/ISSUES.md 참조)
+
+### 추가 구현 필요
+- **Issue 8** (78_H_02): 피상속 컨트랙트의 private state variable 접근

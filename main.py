@@ -26,10 +26,11 @@ def load_dependencies():
             name = pkl_path.stem
             if name.startswith("ifc_"):
                 contract_analyzer.interface_names.add(name[4:])
-    # 2) 입력 소스에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
+    # 2) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
     _ifc_re = re.compile(r'interface\s+(\w+)')
     scan_dirs = [
         base / "evaluation" / "RQ2" / "target_contracts_contraction",
+        base / "evaluation" / "RQ2" / "target_contracts_original" / "dependencies",
         base / "Dataset" / "Numscout" / "contraction",
     ]
     for d in scan_dirs:

@@ -88,3 +88,22 @@
 **prefix 충돌 문제**: `112_IVault`와 `58_IVault`가 다른 interface지만 같은 이름. 타겟별로 다른 dependency 세트를 로드해야 함.
 
 **우선순위**: annotated 타겟 분석 시 필요한 것만 개별 처리
+
+---
+
+### Issue E: web3bugs_70_H_10용 interface 사전분석 필요
+
+**영향 케이스**: web3bugs_70_H_10 (LiquidityBasedTWAP.syncVaderPrice)
+
+**필요한 interface**:
+- `IVaderPoolV2` — `70_IVaderPoolV2.sol` (evaluation/RQ2/target_contracts_original/dependencies/)
+- `IBasePoolV2` — IVaderPoolV2가 상속
+- `ExchangePair` struct, `Paths` enum — ILiquidityBasedTWAP에 정의 (이미 pkl 존재하나 struct/enum 전파 필요)
+
+**현재 상태**:
+- `IVaderPoolV2`가 Dependencies/interfaces/에 없음 → pkl 미생성 → interface_names 사전 스캔으로만 이름 등록
+- `ExchangePair` struct가 ILiquidityBasedTWAP.sol에 정의되어 있으나 다른 contract로 전파 안 됨
+
+**해결 방안**:
+1. `70_IVaderPoolV2.sol`을 Dependencies/interfaces/에 복사 후 사전분석
+2. `ExchangePair` struct를 file-level struct 사전 수집으로 전파 (Issue A와 동일 패턴)

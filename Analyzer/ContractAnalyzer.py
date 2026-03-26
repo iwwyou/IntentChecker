@@ -764,6 +764,15 @@ class ContractAnalyzer:
                 variable_obj.value = value
             else:
                 raise ValueError(f"Type '{et}' cannot be declared as constant: '{variable_obj.identifier}'")
+        elif variable_obj.typeInfo.typeCategory == "interface":
+            # interface 타입 constant (e.g., IUniswapV2Router02 public constant x = IUniswapV2Router02(addr))
+            # → address로 취급
+            value = self.evaluator.evaluate_expression(init_expr, state_vars, None, None)
+            if value is not None:
+                variable_obj.value = value
+            else:
+                from Domain.AddressSet import AddressSet
+                variable_obj.value = AddressSet.top()
         else:
             # 기타 지원되지 않는 타입
             raise ValueError(
