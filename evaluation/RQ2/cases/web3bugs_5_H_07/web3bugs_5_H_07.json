@@ -150,6 +150,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 18,
+    "endLine": 18,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar u = [100, 100]",
     "startLine": 18,
     "endLine": 18,
@@ -165,6 +171,12 @@
     "code": "// @LocalVar A = [5000, 5000]",
     "startLine": 20,
     "endLine": 20,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 18,
+    "endLine": 18,
     "event": "add"
   }
 ]

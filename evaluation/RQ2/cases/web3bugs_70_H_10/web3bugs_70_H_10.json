@@ -450,6 +450,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 85,
+    "endLine": 85,
+    "event": "add"
+  },
+  {
     "code": "// @GlobalVar block.timestamp = [10000, 10000]",
     "startLine": 85,
     "endLine": 85,
@@ -495,6 +501,12 @@
     "code": "// @StateVar twapData[1].nativeTokenPriceCumulative = [0, 0]",
     "startLine": 92,
     "endLine": 92,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 85,
+    "endLine": 85,
     "event": "add"
   }
 ]

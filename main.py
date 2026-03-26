@@ -44,6 +44,17 @@ def load_dependencies():
                     contract_analyzer.contract_cfgs[lib_name] = lib_cfg
                 except Exception:
                     pass
+            elif name.startswith("con_"):
+                # contract CFG 로드 → 상속 parent contract 해석에 사용
+                # prefix 제거: con_47_ERC20Upgradeable → ERC20Upgradeable
+                parts = name[4:].split("_", 1)
+                con_name = parts[1] if len(parts) > 1 and parts[0].isdigit() else name[4:]
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        con_cfg = pickle.load(f)
+                    contract_analyzer.contract_cfgs[con_name] = con_cfg
+                except Exception:
+                    pass
     # 2) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
     _ifc_re = re.compile(r'interface\s+(\w+)')
     scan_dirs = [

@@ -402,6 +402,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 76,
+    "endLine": 76,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar contributorList[_address].contributionAmount = [100, 100]",
     "startLine": 76,
     "endLine": 76,
@@ -411,6 +417,12 @@
     "code": "// @StateVar weiRaised = [1000, 1000]",
     "startLine": 77,
     "endLine": 77,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 76,
+    "endLine": 76,
     "event": "add"
   }
 ]

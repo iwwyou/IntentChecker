@@ -785,6 +785,13 @@ class ContractAnalyzer:
                 variable_obj.enum_defs = all_enums
             elif isinstance(variable_obj,EnumVariable) :
                 pass
+            elif variable_obj.typeInfo.typeCategory == "interface" or \
+                 (hasattr(variable_obj.typeInfo, 'interfaceName') and variable_obj.typeInfo.interfaceName):
+                # interface 타입 state variable → AddressSet.top() + _cast_interface
+                ifc_name = variable_obj.typeInfo.interfaceName or variable_obj.typeInfo.elementaryTypeName
+                if ifc_name:
+                    variable_obj.value = AddressSet.top()
+                    variable_obj.value._cast_interface = ifc_name
             elif variable_obj.typeInfo.typeCategory == "elementary":
                 et = variable_obj.typeInfo.elementaryTypeName
                 # ── ① int / uint / bool 은 종전 로직 유지
@@ -1137,6 +1144,15 @@ class ContractAnalyzer:
                 if enum_def:
                     v.valueIndex = 0
                     v.value = enum_def.members[0]
+
+            # ── interface 타입 기본
+            elif isinstance(v, Variables) and \
+                 (v.typeInfo.typeCategory == "interface" or
+                  (hasattr(v.typeInfo, 'interfaceName') and v.typeInfo.interfaceName)):
+                ifc_name = v.typeInfo.interfaceName
+                if ifc_name:
+                    v.value = AddressSet.top()
+                    v.value._cast_interface = ifc_name
 
             # ── elementary 기본
             elif isinstance(v, Variables):
@@ -2759,7 +2775,8 @@ class ContractAnalyzer:
         # 1) state variable 검색
         ccf = self.contract_cfgs.get(self.current_target_contract)
         if ccf:
-            for var in ccf.state_variables.values():
+            sv_node = getattr(ccf, 'state_variable_node', None)
+            for var in (sv_node.variables.values() if sv_node else []):
                 if var.identifier == var_name and hasattr(var, 'typeInfo') and var.typeInfo:
                     if var.typeInfo.typeCategory == "interface":
                         return var.typeInfo.interfaceName

@@ -336,6 +336,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 49,
+    "endLine": 49,
+    "event": "add"
+  },
+  {
     "code": "// @GlobalVar msg.value = [50000000000500000, 50000000000500000]",
     "startLine": 49,
     "endLine": 49,
@@ -351,6 +357,12 @@
     "code": "// @StateVar balances[1] = [2000000000000, 2000000000000]",
     "startLine": 51,
     "endLine": 51,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 49,
+    "endLine": 49,
     "event": "add"
   }
 ]

@@ -1597,6 +1597,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 384,
+    "endLine": 384,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar _from = symbolicAddress 1",
     "startLine": 384,
     "endLine": 384,
@@ -1720,6 +1726,12 @@
     "code": "// @StateVar launchBlock = [5, 5]",
     "startLine": 404,
     "endLine": 404,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 384,
+    "endLine": 384,
     "event": "add"
   }
 ]

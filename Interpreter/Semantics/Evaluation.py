@@ -713,7 +713,14 @@ class Evaluation :
         if callerContext is not None:
             if callerContext == "MemberAccessContext":  # base에 대한 접근
                 if ident_str in variables:
-                    return variables[ident_str]  # MappingVariable, StructVariable 자체를 리턴
+                    var = variables[ident_str]
+                    # interface 타입 변수: AddressSet with _cast_interface → value 반환
+                    if isinstance(var, Variables) and \
+                       not isinstance(var, (ArrayVariable, StructVariable, MappingVariable)) and \
+                       isinstance(getattr(var, 'value', None), AddressSet) and \
+                       getattr(var.value, '_cast_interface', None):
+                        return var.value
+                    return var  # MappingVariable, StructVariable 자체를 리턴
                 elif ident_str == "this":
                     # this 키워드: 현재 컨트랙트 자체를 반환
                     return "this"

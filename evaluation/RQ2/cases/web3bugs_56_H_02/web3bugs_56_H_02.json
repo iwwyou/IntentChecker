@@ -229,6 +229,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 37,
+    "endLine": 37,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar _self.totalCredit = [1000, 1000]",
     "startLine": 37,
     "endLine": 37,
@@ -256,6 +262,12 @@
     "code": "// @StateVar _ctx.accumulatedYieldWeight.x = [1200000000000000000, 1200000000000000000]",
     "startLine": 41,
     "endLine": 41,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 37,
+    "endLine": 37,
     "event": "add"
   }
 ]

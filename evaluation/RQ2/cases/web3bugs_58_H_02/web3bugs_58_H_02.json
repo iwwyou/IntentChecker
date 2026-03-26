@@ -398,6 +398,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 23,
+    "endLine": 23,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar lastFeeCharge = [0, 0]",
     "startLine": 23,
     "endLine": 23,
@@ -491,6 +497,12 @@
     "code": "// @IReturn vg.delayedProtocolPerVaultParams().protocolFee = [0, 0]",
     "startLine": 38,
     "endLine": 38,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 23,
+    "endLine": 23,
     "event": "add"
   }
 ]

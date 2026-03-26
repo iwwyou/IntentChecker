@@ -242,6 +242,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 33,
+    "endLine": 33,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar b = [100, 100]",
     "startLine": 33,
     "endLine": 33,
@@ -269,6 +275,12 @@
     "code": "// @LocalVar P = [500, 500]",
     "startLine": 37,
     "endLine": 37,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 33,
+    "endLine": 33,
     "event": "add"
   }
 ]

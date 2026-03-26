@@ -669,6 +669,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 105,
+    "endLine": 105,
+    "event": "add"
+  },
+  {
     "code": "// @GlobalVar block.timestamp = [2000000, 2000000]",
     "startLine": 105,
     "endLine": 105,
@@ -714,6 +720,12 @@
     "code": "// @LocalVar futureTime_ = [3209600, 3209600]",
     "startLine": 112,
     "endLine": 112,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 105,
+    "endLine": 105,
     "event": "add"
   }
 ]

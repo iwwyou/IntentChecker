@@ -268,6 +268,12 @@ class VariableEnv:
         def _should_widen(val):  # 작은 헬퍼
             return isinstance(val, (IntegerInterval, UnsignedIntegerInterval, BoolInterval))
 
+        # ⓪ None 방어: 한쪽이 None이면 다른 쪽 반환 (초기화 안 된 branch)
+        if v1 is None:
+            return v2
+        if v2 is None:
+            return v1
+
         # ① primitive -----------------------------------------------------
         if not isinstance(v1, (Variables, ArrayVariable, StructVariable,
                                MappingVariable, EnumVariable)):

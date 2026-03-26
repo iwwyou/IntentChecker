@@ -200,6 +200,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 24,
+    "endLine": 24,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar _token = symbolicAddress 1",
     "startLine": 24,
     "endLine": 24,
@@ -239,6 +245,12 @@
     "code": "// @IReturn IERC20(_token).balanceOf() = [200, 200]",
     "startLine": 30,
     "endLine": 30,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 24,
+    "endLine": 24,
     "event": "add"
   }
 ]

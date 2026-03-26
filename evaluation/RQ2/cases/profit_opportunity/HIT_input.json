@@ -426,6 +426,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 54,
+    "endLine": 54,
+    "event": "add"
+  },
+  {
     "code": "// @GlobalVar msg.value = [0, 0]",
     "startLine": 54,
     "endLine": 54,
@@ -465,6 +471,12 @@
     "code": "// @StateVar blacklist[msg.sender] = false",
     "startLine": 60,
     "endLine": 60,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 54,
+    "endLine": 54,
     "event": "add"
   }
 ]

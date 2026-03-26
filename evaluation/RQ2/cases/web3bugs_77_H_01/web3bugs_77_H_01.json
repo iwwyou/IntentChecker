@@ -168,6 +168,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 35,
+    "endLine": 35,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar _totalSupplyOfLiquidityTokens = [1000, 1000]",
     "startLine": 35,
     "endLine": 35,
@@ -195,6 +201,12 @@
     "code": "// @LocalVar _tokenBDecay = [9000, 9000]",
     "startLine": 39,
     "endLine": 39,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 35,
+    "endLine": 35,
     "event": "add"
   }
 ]

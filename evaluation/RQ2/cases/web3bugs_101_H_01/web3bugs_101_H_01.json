@@ -234,6 +234,42 @@
     "event": "add"
   },
   {
+    "code": "uint256 _borrowedTokens = pooledCLConstants[_id].borrowLimit;",
+    "startLine": 43,
+    "endLine": 43,
+    "event": "add"
+  },
+  {
+    "code": "uint256 _totalLiquidityWithdrawable = _borrowedTokens.sub(POOLED_CREDIT_LINE.getPrincipal(_id));",
+    "startLine": 44,
+    "endLine": 44,
+    "event": "add"
+  },
+  {
+    "code": "uint256 _principalWithdrawable = _totalLiquidityWithdrawable.mul(balanceOf(_lender, _id)).div(_borrowedTokens);",
+    "startLine": 45,
+    "endLine": 45,
+    "event": "add"
+  },
+  {
+    "code": "return _principalWithdrawable;",
+    "startLine": 46,
+    "endLine": 46,
+    "event": "add"
+  },
+  {
+    "code": "// @During _principalWithdrawable <= _totalLiquidityWithdrawable",
+    "startLine": 45,
+    "endLine": 45,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging BEGIN",
+    "startLine": 43,
+    "endLine": 43,
+    "event": "add"
+  },
+  {
     "code": "// @LocalVar _id = [1, 1]",
     "startLine": 43,
     "endLine": 43,
@@ -252,33 +288,9 @@
     "event": "add"
   },
   {
-    "code": "uint256 _borrowedTokens = pooledCLConstants[_id].borrowLimit;",
-    "startLine": 46,
-    "endLine": 46,
-    "event": "add"
-  },
-  {
-    "code": "uint256 _totalLiquidityWithdrawable = _borrowedTokens.sub(POOLED_CREDIT_LINE.getPrincipal(_id));",
-    "startLine": 47,
-    "endLine": 47,
-    "event": "add"
-  },
-  {
-    "code": "// @During _principalWithdrawable <= _totalLiquidityWithdrawable",
-    "startLine": 48,
-    "endLine": 48,
-    "event": "add"
-  },
-  {
-    "code": "uint256 _principalWithdrawable = _totalLiquidityWithdrawable.mul(balanceOf(_lender, _id)).div(_borrowedTokens);",
-    "startLine": 49,
-    "endLine": 49,
-    "event": "add"
-  },
-  {
-    "code": "return _principalWithdrawable;",
-    "startLine": 50,
-    "endLine": 50,
+    "code": "// @Debugging END",
+    "startLine": 43,
+    "endLine": 43,
     "event": "add"
   }
 ]

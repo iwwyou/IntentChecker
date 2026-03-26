@@ -926,6 +926,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 146,
+    "endLine": 146,
+    "event": "add"
+  },
+  {
     "code": "// @GlobalVar block.timestamp = [1000, 1000]",
     "startLine": 146,
     "endLine": 146,
@@ -1007,6 +1013,12 @@
     "code": "// @StateVar tokensNotYetStreamed[101].virtualBalance = [0, 0]",
     "startLine": 159,
     "endLine": 159,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 146,
+    "endLine": 146,
     "event": "add"
   }
 ]

@@ -144,6 +144,12 @@
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 15,
+    "endLine": 15,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar self.shortfall = [100, 100]",
     "startLine": 15,
     "endLine": 15,
@@ -159,6 +165,12 @@
     "code": "// @LocalVar amount = [-100, -100]",
     "startLine": 17,
     "endLine": 17,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 15,
+    "endLine": 15,
     "event": "add"
   }
 ]

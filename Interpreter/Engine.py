@@ -554,8 +554,9 @@ class Engine:
                     in_vars[succ] = VariableEnv.copy_variables(in_new)
                     WL.append(succ)
 
-        # narrowing
-        WL = deque(loop_nodes); N_MAX = 30
+        # narrowing — widening에서 도달한(reachable) node만 대상
+        reachable = [n for n in loop_nodes if out_vars.get(n) is not None]
+        WL = deque(reachable); N_MAX = 30
         while WL and N_MAX:
             N_MAX -= 1
             node = WL.popleft()
@@ -665,6 +666,8 @@ class Engine:
         # 기록 활성화 여부 설정
         self._record_enabled = record_enabled
         an._seen_stmt_ids.clear()
+        # ★ node variables 백업 (해석 후 definition-time 상태 복원용)
+        _saved_node_vars = {blk: dict(blk.variables) for blk in fcfg.graph.nodes}
         for blk in fcfg.graph.nodes:
             # ★ 노드의 variables 초기화 (이전 실행의 값 제거)
             blk.variables = {}
@@ -845,6 +848,10 @@ class Engine:
 
         # ═══ Post Annotation 처리 ═══
         self._process_post_annotations(fcfg)
+
+        # ★ node variables 복원 (definition-time 상태로)
+        for blk, saved_vars in _saved_node_vars.items():
+            blk.variables = saved_vars
 
         # 컨텍스트 복원
         an.current_target_function = _old_func
