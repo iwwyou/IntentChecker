@@ -157,11 +157,15 @@ class StaticCFGFactory:
         # 상태·글로벌 변수 복사
         ccf = an.contract_cfgs[an.current_target_contract]
 
-        # (1) state / constant variables  ─ 존재할 때만 주입
-        sv_node = getattr(ccf, "state_variable_node", None)
-        if sv_node and getattr(sv_node, "variables", None):
-            for v in sv_node.variables.values():
-                mod_cfg.add_related_variable(v)
+        # (1) state / constant variables  ─ 현재 contract + parent 체인 순회
+        def _inject_state_vars(cfg_obj):
+            sv_node = getattr(cfg_obj, "state_variable_node", None)
+            if sv_node and getattr(sv_node, "variables", None):
+                for v in sv_node.variables.values():
+                    mod_cfg.add_related_variable(v)
+            for parent_cfg in getattr(cfg_obj, "parent_cfgs", {}).values():
+                _inject_state_vars(parent_cfg)
+        _inject_state_vars(ccf)
 
         # (2) 글로벌 변수 (block.timestamp 등) ─ ContractCFG 만 가짐
         if getattr(ccf, "globals", None):
@@ -274,10 +278,16 @@ class StaticCFGFactory:
         ccf = an.contract_cfgs[an.current_target_contract]
 
         # (1) state / constant variables  ─ 존재할 때만 주입
-        sv_node = getattr(ccf, "state_variable_node", None)
-        if sv_node and getattr(sv_node, "variables", None):
-            for v in sv_node.variables.values():
-                fcfg.add_related_variable(v)
+        #     현재 contract + parent 체인 순회
+        def _inject_state_vars(cfg_obj):
+            sv_node = getattr(cfg_obj, "state_variable_node", None)
+            if sv_node and getattr(sv_node, "variables", None):
+                for v in sv_node.variables.values():
+                    fcfg.add_related_variable(v)
+            # parent 체인 재귀
+            for parent_cfg in getattr(cfg_obj, "parent_cfgs", {}).values():
+                _inject_state_vars(parent_cfg)
+        _inject_state_vars(ccf)
 
         # (2) 글로벌 변수 (block.timestamp 등) ─ ContractCFG 만 가짐
         if getattr(ccf, "globals", None):
@@ -347,10 +357,11 @@ class StaticCFGFactory:
         # ──────────────────────────── ② struct ───────────────────────────
         if sol_type.typeCategory == "struct":
             sname = sol_type.structTypeName
-            if sname not in ccf.structDefs:
+            struct_def = ccf.structDefs.get(sname) or an.sa.file_level_structs.get(sname)
+            if struct_def is None:
                 raise ValueError(f"Undefined struct '{sname}' used as parameter/return.")
             sv = StructVariable(identifier=ident, struct_type=sname, scope=scope)
-            sv.initialize_struct(ccf.structDefs[sname])
+            sv.initialize_struct(struct_def)
 
             an.register_var(sv)
             return sv

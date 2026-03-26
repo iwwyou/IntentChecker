@@ -26,8 +26,8 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
         uint256 _amount,
         bytes memory _data
     ) public override updateDebt(_id) {
-        float memory price = engine.cssr().update(address(asset), _data);
-        float memory cf = engine.mochiProfile().maxCollateralFactor(address(asset));
+        FloatStruct memory price = engine.cssr().update(address(asset), _data);
+        FloatStruct memory cf = engine.mochiProfile().maxCollateralFactor(address(asset));
         uint256 maxMinted = details[_id].collateral.multiply(cf).multiply(price);
         require(engine.nft().ownerOf(_id) == msg.sender, "!approved");
         require(engine.nft().asset(_id) == address(asset), "!asset");

@@ -743,7 +743,52 @@ class LibraryCFG(CFG):
     def define_struct(self, struct_def_obj):
         """라이브러리 내 구조체 정의 추가"""
         self.structDefs[struct_def_obj.struct_name] = struct_def_obj
-        
+
+    def add_struct_member(self, struct_def_name, var_name, var_obj):
+        """라이브러리 내 구조체 멤버 추가"""
+        if struct_def_name in self.structDefs:
+            self.structDefs[struct_def_name].add_member(var_name, var_obj)
+        else:
+            raise ValueError(f"Struct {struct_def_name} is not defined in library {self.library_name}.")
+
+    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):
+        """라이브러리 내 using directive 처리"""
+        if target_type is None:
+            self.using_all_libraries.append(library_cfg)
+        else:
+            if target_type not in self.using_libraries:
+                self.using_libraries[target_type] = []
+            if library_cfg not in self.using_libraries[target_type]:
+                self.using_libraries[target_type].append(library_cfg)
+
+    def update_function_cfg(self, function_name, function_cfg):
+        """기존에 등록된 함수의 CFG를 동일 signature로 업데이트"""
+        if function_name not in self.functions:
+            self.add_function_cfg(function_name, function_cfg)
+            return
+        sub = self.functions[function_name]
+        sig = ContractCFG._build_signature(function_cfg)
+        if sig in sub:
+            sub[sig] = function_cfg
+        elif len(sub) == 1:
+            key = next(iter(sub))
+            sub[key] = function_cfg
+        else:
+            sub[sig] = function_cfg
+
+    def find_library_function(self, target_type: str, function_name: str, param_types=None) -> 'FunctionCFG':
+        """라이브러리 내 using directive로 등록된 라이브러리 함수 검색"""
+        if target_type in self.using_libraries:
+            for lib in self.using_libraries[target_type]:
+                result = lib.get_function_cfg(function_name, param_types)
+                if result is not None:
+                    return result
+        for lib in self.using_all_libraries:
+            result = lib.get_function_cfg(function_name, param_types)
+            if result is not None:
+                return result
+        return None
+
     def define_enum(self, enum_name, enum_def):
         """라이브러리 내 열거형 정의 추가"""
         if enum_name not in self.enumDefs:

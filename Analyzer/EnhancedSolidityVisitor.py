@@ -691,6 +691,18 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                         type_obj.intTypeLength = int(underlying[3:]) if len(underlying) > 3 else 256
                     elif underlying.startswith("uint"):
                         type_obj.intTypeLength = int(underlying[4:]) if len(underlying) > 4 else 256
+                elif '.' in type_name:
+                    # Qualified name: Library.Struct (e.g., FixedPointMath.FixedDecimal)
+                    lib_name, member_name = type_name.split('.', 1)
+                    resolved = self.contract_analyzer.resolve_library_struct(lib_name, member_name)
+                    if resolved is not None:
+                        type_obj.typeCategory = "struct"
+                        type_obj.structTypeName = type_name
+                        # struct 정의를 현재 CFG에 등록 (qualified name으로, 이후 멤버 접근용)
+                        if contract_cfg and type_name not in contract_cfg.structDefs:
+                            contract_cfg.structDefs[type_name] = resolved
+                    else:
+                        raise ValueError(f"Qualified type '{type_name}': '{member_name}' not found in library '{lib_name}'.")
                 else:
                     scope = f"contract '{contract_name}'" if contract_name else "file level"
                     raise ValueError(f"Type '{type_name}' is not defined as struct, enum, or type alias in {scope}.")
@@ -1772,16 +1784,17 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 init_stmt = {'context': 'Expression',
                              'initExpr': self.visitExpression(init_ctx.expression())}
 
-        # condition -----------------------------------------------------------
+        # condition --- expressionStatement 안의 expression ----------------------
         cond_expr = None
-        exprs = ctx.expression()  # 최대 두 개
-        if len(exprs) >= 1:
-            cond_expr = self.visitExpression(exprs[0])
+        expr_stmt = ctx.expressionStatement()
+        if expr_stmt:
+            cond_expr = self.visitExpression(expr_stmt.expression())
 
-        # increment -----------------------------------------------------------
+        # increment --- for문의 expression? (update) ----------------------------
         inc_expr = None
-        if len(exprs) == 2:
-            inc_expr = self.visitExpression(exprs[1])
+        update_expr_ctx = ctx.expression()
+        if update_expr_ctx is not None:
+            inc_expr = self.visitExpression(update_expr_ctx)
 
         # ContractAnalyzer 로 전달 -------------------------------------------
         self.contract_analyzer.process_for_statement(
@@ -2072,10 +2085,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # ② Expression 생성
         #    identifier = 'type(uint256)'  로 두고
         #    context    = 'MetaTypeContext' 로 구분만 해둔다.
-        return Expression(
+        expr = Expression(
             identifier=f"type({type_name_txt})",
             context="MetaTypeContext"
         )
+        expr.typeName = type_name_txt  # evaluator가 type(T).max/min 처리 시 사용
+        return expr
 
     def visitFunctionCallOptions(self, ctx):
         # 1. 베이스 표현식 방문
@@ -2150,6 +2165,19 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     identifier=base_name,
                     member=function_expr.member,
                 )
+
+        # 2.7. interface/contract type cast 감지: IERC20(_token) 등
+        func_id = getattr(function_expr, 'identifier', None)
+        if func_id and (func_id in self.contract_analyzer.interface_names
+                        or func_id in self.contract_analyzer.contract_cfgs):
+            # user-defined type cast → TypeConversion과 동일 구조
+            arg_expr = arguments[0] if arguments else None
+            return Expression(
+                typeName=func_id,
+                expression=arg_expr,
+                operator='typecast',
+                context='TypeConversion',
+            )
 
         # 3. Expression 객체 생성
         result_expr = Expression(

@@ -56,7 +56,8 @@ class Refine:
             return self._update_comparison_condition(variables, condition_expr, is_true_branch)
 
         else:
-            raise ValueError(f"This operator '{op}' is not expected operator")
+            # 함수 호출, 타입 변환 등 refine 불가능한 연산은 스킵 (sound overapproximation)
+            return
 
     def _update_single_condition(self, vars_, cond_expr, is_true_branch):
         # bool literal인 경우는 영향 없음

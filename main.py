@@ -25,7 +25,25 @@ def load_dependencies():
         for pkl_path in sorted(obj_dir.glob("*.pkl")):
             name = pkl_path.stem
             if name.startswith("ifc_"):
-                contract_analyzer.interface_names.add(name[4:])
+                ifc_name = name[4:]
+                contract_analyzer.interface_names.add(ifc_name)
+                # interface CFG 로드 → IReturn, interface call return type 등에서 사용
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        ifc_cfg = pickle.load(f)
+                    contract_analyzer.contract_cfgs[ifc_name] = ifc_cfg
+                except Exception:
+                    pass
+            elif name.startswith("lib_"):
+                # library CFG 로드 → library 함수 호출 해석에 사용
+                lib_name = name[4:]
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        lib_cfg = pickle.load(f)
+                    contract_analyzer.library_cfgs[lib_name] = lib_cfg
+                    contract_analyzer.contract_cfgs[lib_name] = lib_cfg
+                except Exception:
+                    pass
     # 2) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
     _ifc_re = re.compile(r'interface\s+(\w+)')
     scan_dirs = [

@@ -230,6 +230,10 @@ class Update :
 
             entry = callerObject.mapping[key]
 
+            # struct/array/mapping이면 바로 반환 (외부 member access가 이어짐)
+            if isinstance(entry, (StructVariable, ArrayVariable, MappingVariable)):
+                return entry
+
             # (2-B) leaf 에 값 대입 중이면 여기서 patch
             if hasattr(entry, "value"):
                 entry.value = self.compound_assignment(entry.value, rVal, operator)

@@ -432,7 +432,7 @@
     "event": "add"
   },
   {
-    "code": "modifier lockTheSwap {\n}",
+    "code": "modifier lockTheSwap() {\n}",
     "startLine": 83,
     "endLine": 84,
     "event": "add"

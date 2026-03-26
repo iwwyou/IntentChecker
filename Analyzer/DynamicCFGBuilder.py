@@ -916,9 +916,10 @@ class DynamicCFGBuilder:
 
         cur_block ─▶ placeholder ─▶ (원래 succ …)
         """
-        # ① 새 노드
+        # ① 새 노드 (이전 block의 variables 상속)
         idx = len(getattr(fcfg, "placeholders", []))
         ph = CFGNode(f"MOD_PLACEHOLDER_{idx}")
+        ph.variables = dict(cur_block.variables)
 
         # ② 그래프 재배선
         G = fcfg.graph

@@ -33,6 +33,7 @@ class ContractAnalyzer:
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
+        self.current_target_function_param_types: list[str] | None = None
         self.current_target_function_cfg = None
         self.current_target_struct = None
 
@@ -131,13 +132,14 @@ class ContractAnalyzer:
         if stripped_code.startswith('// @'):
             self.current_context_type = "debugUnit"
             self.current_target_contract = self.find_contract_context(start_line)
-            self.current_target_function = self.find_function_context(start_line)
+            self.current_target_function, self.current_target_function_param_types = self.find_function_context(start_line)
             return  # 이 함수 종료
 
         # 매 분석마다 초기화
         self.current_context_type = None
         self.current_target_contract = None
         self.current_target_function = None
+        self.current_target_function_param_types = None
         self.current_target_struct = None
 
         # 새로 추가된 코드 블록의 컨텍스트를 분석
@@ -173,14 +175,14 @@ class ContractAnalyzer:
             else:  # constructor, function, --- # 시작 규칙 : interactiveBlockUnit
                 self.current_context_type = "simpleStatement"
                 self.current_target_contract = self.find_contract_context(start_line)
-                self.current_target_function = self.find_function_context(start_line)
+                self.current_target_function, self.current_target_function_param_types = self.find_function_context(start_line)
 
         elif ',' in stripped_code and '{' not in stripped_code:
             # 함수 정의인지 확인 (괄호 열고 닫힌 경우는 함수 파라미터로 가정)
             if '(' in stripped_code and ')' in stripped_code:
                 self.current_context_type = "functionDefinition"
                 self.current_target_contract = self.find_contract_context(start_line)
-                self.current_target_function = self.find_function_context(start_line)
+                self.current_target_function, self.current_target_function_param_types = self.find_function_context(start_line)
 
             # enum인지 확인
             else:
@@ -237,12 +239,16 @@ class ContractAnalyzer:
             if self.current_context_type in ["contract", "library", "interface", "abstract contract"]:
                 return
 
-            self.current_target_function = self.find_function_context(start_line)
+            self.current_target_function, self.current_target_function_param_types = self.find_function_context(start_line)
 
 
         # 최종적으로 context가 제대로 파악되지 않은 경우
         # 여러 줄짜리 정의문의 중간 줄이거나, 컨텍스트 분석이 불필요한 줄은 조용히 넘어감
         if not self.current_target_contract and self.current_context_type:
+            # file-level struct/enum은 contract 바깥 → 스킵 (Phase 0에서 별도 수집)
+            if self.current_context_type in ("struct", "structMember"):
+                self.current_context_type = None
+                return
             # context_type은 설정되었는데 contract를 찾지 못한 경우에만 오류
             raise ValueError(f"Contract context not found for line {start_line}")
         if self.current_context_type == "simpleStatement" and not self.current_target_function:
@@ -311,9 +317,43 @@ class ContractAnalyzer:
 
         return None
 
+    @staticmethod
+    def _extract_param_types(full_sig: str) -> list[str] | None:
+        """함수 시그니처 문자열에서 파라미터 타입 목록 추출.
+        예: 'function sub(uint256 a, uint256 b, string memory errorMessage) ...'
+            → ['uint256', 'uint256', 'string']
+        """
+        paren_start = full_sig.find('(')
+        if paren_start < 0:
+            return None
+        # 첫 번째 '(' ~ 매칭되는 ')' 범위 추출
+        depth = 0
+        paren_end = -1
+        for i in range(paren_start, len(full_sig)):
+            if full_sig[i] == '(':
+                depth += 1
+            elif full_sig[i] == ')':
+                depth -= 1
+                if depth == 0:
+                    paren_end = i
+                    break
+        if paren_end < 0:
+            return None
+        inner = full_sig[paren_start + 1:paren_end].strip()
+        if not inner:
+            return []
+        param_types = []
+        for param in inner.split(','):
+            tokens = param.strip().split()
+            if tokens:
+                # 첫 토큰이 타입 (memory/storage/calldata 제외)
+                param_types.append(tokens[0])
+        return param_types
+
     def find_function_context(self, line_number):
-        # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
-        # 방법 1: '{' 문자가 있는 라인을 찾고, 그 라인부터 위로 function 키워드를 찾는다
+        """위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾고,
+        (함수이름, 파라미터타입리스트) 튜플을 반환한다.
+        overload 구분을 위해 파라미터 타입 정보도 추출한다."""
 
         # 먼저 가장 가까운 '{' 문자가 있는 라인을 찾기
         open_brace_line = None
@@ -335,7 +375,7 @@ class ContractAnalyzer:
                 close_brace_count += close_braces
 
         if open_brace_line is None:
-            return None
+            return None, None
 
         # '{' 문자가 있는 라인부터 위로 올라가면서 function/constructor/modifier 키워드를 찾기
         for line in range(open_brace_line, 0, -1):
@@ -343,30 +383,50 @@ class ContractAnalyzer:
             if not code_line:
                 continue
 
-            # function, constructor, modifier 키워드를 찾으면 함수 이름 추출
+            # function, constructor, modifier 키워드를 찾으면 함수 이름 + 파라미터 추출
             if code_line.startswith("function "):
-                # 함수 이름 추출
                 parts = code_line.split()
                 if len(parts) >= 2:
                     function_name = parts[1].split('(')[0]
-                    return function_name
+                    # 파라미터 타입 추출 — multi-line 대응
+                    full_sig = code_line
+                    if '(' in full_sig and ')' not in full_sig:
+                        for next_ln in range(line + 1, open_brace_line + 1):
+                            full_sig += " " + self.sa.full_code_lines.get(next_ln, "").strip()
+                            if ')' in full_sig:
+                                break
+                    param_types = self._extract_param_types(full_sig)
+                    # type alias resolve (UFixed18 → uint256 등)
+                    if param_types:
+                        param_types = [self.sa.type_aliases.get(t, t) for t in param_types]
+                    return function_name, param_types
             elif code_line.startswith("constructor"):
-                return "constructor"
+                # constructor 파라미터도 추출
+                full_sig = code_line
+                if '(' in full_sig and ')' not in full_sig:
+                    for next_ln in range(line + 1, open_brace_line + 1):
+                        full_sig += " " + self.sa.full_code_lines.get(next_ln, "").strip()
+                        if ')' in full_sig:
+                            break
+                param_types = self._extract_param_types(full_sig)
+                if param_types:
+                    param_types = [self.sa.type_aliases.get(t, t) for t in param_types]
+                return "constructor", param_types
             elif code_line.startswith("modifier "):
                 parts = code_line.split()
                 if len(parts) >= 2:
                     modifier_name = parts[1].split('(')[0]
-                    return modifier_name
+                    return modifier_name, None
             elif code_line.startswith("fallback"):
-                return "fallback"
+                return "fallback", None
             elif code_line.startswith("receive"):
-                return "receive"
+                return "receive", None
 
             # contract/struct/interface 등을 만나면 함수가 아니므로 중단
             if any(code_line.startswith(kw) for kw in ["contract ", "library ", "interface ", "struct ", "enum "]):
                 break
 
-        return None
+        return None, None
 
     def find_struct_context(self, line_number):
         # 위로 거슬러 올라가면서 해당 라인이 속한 함수를 찾습니다.
@@ -602,6 +662,49 @@ class ContractAnalyzer:
         # LibraryCFG를 using_libraries/using_all_libraries에 등록
         contract_cfg.add_using_library(library_cfg, target_type)
 
+    def resolve_library_struct(self, library_name: str, member_name: str):
+        """
+        Library.Struct qualified name을 resolve.
+        using_libraries에 등록된 LibraryCFG들과 library_cfgs에서 검색.
+        """
+        # 1) 현재 contract/library의 using_libraries에서 검색
+        ccfg = self.contract_cfgs.get(self.current_target_contract) or \
+               self.library_cfgs.get(self.current_target_contract)
+        if ccfg:
+            all_libs = []
+            for libs in ccfg.using_libraries.values():
+                all_libs.extend(libs if isinstance(libs, list) else [libs])
+            all_libs.extend(ccfg.using_all_libraries)
+            for lib in all_libs:
+                if getattr(lib, 'library_name', None) == library_name:
+                    if member_name in lib.structDefs:
+                        return lib.structDefs[member_name]
+                    if member_name in lib.enumDefs:
+                        return lib.enumDefs[member_name]
+
+        # 2) library_cfgs에서 직접 검색 (현재 분석 중인 library)
+        lib = self.library_cfgs.get(library_name)
+        if lib:
+            if member_name in lib.structDefs:
+                return lib.structDefs[member_name]
+
+        # 3) pkl에서 직접 로드 (fallback)
+        import pickle, os
+        base_dir = os.path.dirname(__file__)
+        for pkl_path in [
+            os.path.join(base_dir, "..", "Dependencies", "objectfile", f"lib_{library_name}.pkl"),
+            os.path.join(base_dir, "..", "Libraries", "objectfile", f"{library_name}.pkl"),
+        ]:
+            if os.path.exists(pkl_path):
+                try:
+                    with open(pkl_path, "rb") as f:
+                        lib_cfg = pickle.load(f)
+                    if member_name in lib_cfg.structDefs:
+                        return lib_cfg.structDefs[member_name]
+                except Exception:
+                    pass
+        return None
+
     # for interactiveStructDefinition in Solidity.g4
     def process_struct_definition(self, struct_name):
         contract_cfg = self.contract_cfgs[self.current_target_contract]
@@ -669,7 +772,17 @@ class ContractAnalyzer:
                 else :
                     raise ValueError(f"This struct def {struct_name} is undefined")
             elif isinstance(variable_obj, MappingVariable) :
-                pass
+                # struct/enum value type 지원을 위해 정의 전달
+                # 현재 contract + file-level + parent 체인 합산
+                all_structs = dict(contract_cfg.structDefs)
+                all_enums = dict(contract_cfg.enumDefs)
+                if self.sa.file_level_structs:
+                    all_structs.update(self.sa.file_level_structs)
+                for pcfg in getattr(contract_cfg, 'parent_cfgs', {}).values():
+                    all_structs.update(getattr(pcfg, 'structDefs', {}))
+                    all_enums.update(getattr(pcfg, 'enumDefs', {}))
+                variable_obj.struct_defs = all_structs
+                variable_obj.enum_defs = all_enums
             elif isinstance(variable_obj,EnumVariable) :
                 pass
             elif variable_obj.typeInfo.typeCategory == "elementary":
@@ -946,11 +1059,22 @@ class ContractAnalyzer:
 
         # 2-D  매핑
         elif type_obj.typeCategory == "mapping":
+            ccf_local = self.contract_cfgs.get(self.current_target_contract)
+            all_structs = dict(ccf_local.structDefs) if ccf_local else {}
+            all_enums = dict(ccf_local.enumDefs) if ccf_local else {}
+            if self.sa.file_level_structs:
+                all_structs.update(self.sa.file_level_structs)
+            if ccf_local:
+                for pcfg in getattr(ccf_local, 'parent_cfgs', {}).values():
+                    all_structs.update(getattr(pcfg, 'structDefs', {}))
+                    all_enums.update(getattr(pcfg, 'enumDefs', {}))
             v = MappingVariable(
                 identifier=var_name,
                 key_type=type_obj.mappingKeyType,
                 value_type=type_obj.mappingValueType,
                 scope="local",
+                struct_defs=all_structs,
+                enum_defs=all_enums,
             )
 
         # 2-E  elementary
@@ -968,7 +1092,7 @@ class ContractAnalyzer:
     ):
 
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("variableDeclaration: active FunctionCFG not found")
         fcfg = self.current_target_function_cfg
@@ -1112,7 +1236,7 @@ class ContractAnalyzer:
         여러 변수를 한꺼번에 선언하므로, CFG 업데이트는 한 번만 수행
         """
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("variableDeclarationTuple: active FunctionCFG not found")
         fcfg = self.current_target_function_cfg
@@ -1281,7 +1405,7 @@ class ContractAnalyzer:
     def process_yul_assignment(self, lhs: Expression, rhs: Expression) -> None:
         """Yul assembly 내 대입문: 기존 Solidity 변수에 대입 (prod0 := ...)"""
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             return
         fcfg = self.current_target_function_cfg
@@ -1308,7 +1432,7 @@ class ContractAnalyzer:
     def process_yul_variable_declaration(self, var_name: str, rhs: Expression | None) -> None:
         """Yul let 선언: 새 uint256 변수 생성 (let mm := ...)"""
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             return
         fcfg = self.current_target_function_cfg
@@ -1342,7 +1466,7 @@ class ContractAnalyzer:
     def process_assignment_expression(self, expr: Expression) -> None:
         # 1. CFG 컨텍스트 --------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active function CFG.")
         fcfg = self.current_target_function_cfg
@@ -1384,7 +1508,7 @@ class ContractAnalyzer:
                              op_sign: str,  # "+=" | "-="
                              stmt_kind: str):  # "unary_prefix" | "unary_suffix"
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("active FunctionCFG not found")
         fcfg = self.current_target_function_cfg
@@ -1431,7 +1555,7 @@ class ContractAnalyzer:
     # --------------------------------------------------------------
     def handle_delete(self, target_expr: Expression):
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("active FunctionCFG not found")
         fcfg = self.current_target_function_cfg
@@ -1515,7 +1639,7 @@ class ContractAnalyzer:
     def process_function_call(self, expr: Expression) -> None:
         # ① CFG 컨텍스트 -------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active function CFG.")
         fcfg = self.current_target_function_cfg
@@ -1812,7 +1936,7 @@ class ContractAnalyzer:
     def process_if_statement(self, condition_expr: Expression) -> None:
         # ── 1. CFG 컨텍스트 ─────────────────────────────────────────────
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active function CFG.")
         fcfg = self.current_target_function_cfg
@@ -1856,7 +1980,7 @@ class ContractAnalyzer:
 
     def process_else_if_statement(self, condition_expr: Expression) -> None:
         ccf = self.contract_cfgs[self.current_target_contract]
-        fcfg = ccf.get_function_cfg(self.current_target_function)
+        fcfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if fcfg is None:
             raise ValueError("No active function CFG.")
         self.current_target_function_cfg = fcfg
@@ -1909,7 +2033,7 @@ class ContractAnalyzer:
     def process_else_statement(self) -> None:
         # ── 1. CFG 컨텍스트 --------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'else'.")
         fcfg = self.current_target_function_cfg
@@ -1957,7 +2081,7 @@ class ContractAnalyzer:
     def process_while_statement(self, condition_expr: Expression) -> None:
         # 1. CFG 컨텍스트 ---------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active function CFG.")
 
@@ -2001,7 +2125,7 @@ class ContractAnalyzer:
     ) -> None:
         # 1. CFG 컨텍스트 --------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active function CFG.")
 
@@ -2127,7 +2251,7 @@ class ContractAnalyzer:
     def process_continue_statement(self) -> None:
         # 1) CFG 컨텍스트
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'continue'.")
 
@@ -2152,7 +2276,7 @@ class ContractAnalyzer:
 
     def process_break_statement(self) -> None:
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'break'.")
 
@@ -2177,7 +2301,7 @@ class ContractAnalyzer:
     def process_return_statement(self, return_expr: Expression | None = None) -> None:
         # ── 1. CFG 컨텍스트 -------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'return'.")
 
@@ -2238,7 +2362,7 @@ class ContractAnalyzer:
     ) -> None:
         # ── 1. CFG context ---------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'revert'.")
 
@@ -2272,7 +2396,7 @@ class ContractAnalyzer:
     ) -> None:
         # 1) CFG context -----------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG.")
 
@@ -2312,7 +2436,7 @@ class ContractAnalyzer:
     ) -> None:
         # 1) CFG context -----------------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG.")
 
@@ -2354,7 +2478,7 @@ class ContractAnalyzer:
         """
         ident = ident_expr.identifier
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
 
         # ── modifier placeholder (‘_’) --------------------------------------
         if (ident == "_" and self.current_target_function_cfg
@@ -2376,7 +2500,7 @@ class ContractAnalyzer:
     def process_unchecked_indicator(self) -> None:
         # ── 1. CFG 컨텍스트 --------------------------------------------
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("No active FunctionCFG when processing 'unchecked'.")
 
@@ -2398,7 +2522,7 @@ class ContractAnalyzer:
 
     def process_do_statement(self):
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         fcfg = self.current_target_function_cfg
         if not fcfg:
             raise ValueError("No current target function to attach do-while.")
@@ -2411,7 +2535,7 @@ class ContractAnalyzer:
 
     def process_do_while_statement(self, condition_expr):
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         fcfg = self.current_target_function_cfg
         if not fcfg:
             raise ValueError("No current target function to attach do-while.")
@@ -2445,7 +2569,7 @@ class ContractAnalyzer:
 
     def process_try_statement(self, function_expr, returns):
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         fcfg = self.current_target_function_cfg
         if not fcfg:
             raise ValueError("No current target function for try.")
@@ -2486,7 +2610,7 @@ class ContractAnalyzer:
 
     def process_catch_clause(self, catch_ident, params):
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         fcfg = self.current_target_function_cfg
         if not fcfg:
             raise ValueError("No current target function for catch.")
@@ -2546,7 +2670,7 @@ class ContractAnalyzer:
         """
         ev = self.current_edit_event
         cfg = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = cfg.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = cfg.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
 
         # ── 등록이 처음이면 snapshot ⬇︎
         if gv_obj.identifier not in cfg.globals:
@@ -2586,7 +2710,7 @@ class ContractAnalyzer:
 
         try:
             ccf  = self.contract_cfgs[self.current_target_contract]
-            self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+            self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
             if self.current_target_function_cfg is None:
                 raise ValueError("@StateVar must be inside a function.")
 
@@ -2610,7 +2734,7 @@ class ContractAnalyzer:
     # ------------------------------------------------------------------
     def process_local_var_for_debug(self, lhs_expr: Expression, value):
         ccf  = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("@LocalVar must be inside a function.")
 
@@ -2642,7 +2766,7 @@ class ContractAnalyzer:
 
         # 2) 현재 함수의 parameter 검색
         if ccf:
-            func_cfg = ccf.get_function_cfg(self.current_target_function)
+            func_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
             if func_cfg:
                 for param_var in func_cfg.variables.values():
                     if param_var.identifier == var_name and hasattr(param_var, 'typeInfo') and param_var.typeInfo:
@@ -2691,7 +2815,7 @@ class ContractAnalyzer:
 
         # 5) FunctionCFG의 ireturn_registry에 저장
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("@IReturn must be inside a function.")
 
@@ -2744,7 +2868,7 @@ class ContractAnalyzer:
         # 5) FunctionCFG의 ireturn_registry에 저장
         #    key: (interface_name, addr_var, func_name, index) — 4-tuple로 Pattern A와 구분
         ccf = self.contract_cfgs[self.current_target_contract]
-        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function)
+        self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("@IReturn must be inside a function.")
 
@@ -2851,7 +2975,7 @@ class ContractAnalyzer:
             # 삽입 후 해당 라인은 annotation으로 채워짐
 
         # 1. 해당 라인의 함수 컨텍스트 찾기
-        func_name = self.find_function_context(line_no)
+        func_name, func_param_types = self.find_function_context(line_no)
         if not func_name:
             return {"status": "error", "message": f"No function context at line {line_no}"}
 
@@ -2859,10 +2983,11 @@ class ContractAnalyzer:
         self.current_start_line = line_no
         self.current_end_line = line_no
         self.current_target_function = func_name
+        self.current_target_function_param_types = func_param_types
 
         ccf = self.contract_cfgs.get(self.current_target_contract)
         if ccf:
-            self.current_target_function_cfg = ccf.get_function_cfg(func_name)
+            self.current_target_function_cfg = ccf.get_function_cfg(func_name, param_types=func_param_types)
 
         # 3. annotation 파싱 및 처리
         try:

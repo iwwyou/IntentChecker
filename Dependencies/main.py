@@ -193,9 +193,83 @@ def scan_interface_names(directories: list[pathlib.Path]) -> set[str]:
     return names
 
 
+def scan_file_level_structs(directories: list[pathlib.Path]) -> dict:
+    """모든 .sol 파일에서 file-level struct (contract/library/interface 바깥) 사전 수집.
+    반환: { struct_name: StructDefinition }"""
+    from Utils.CFG import StructDefinition
+    from Domain.Type import SolType
+
+    structs = {}
+    for d in directories:
+        if not d.exists():
+            continue
+        for sol in d.glob("*.sol"):
+            source = sol.read_text(encoding='utf-8')
+            lines = source.splitlines()
+            brace_depth = 0
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if brace_depth == 0 and re.match(r'struct\s+(\w+)\s*\{', line):
+                    m = re.match(r'struct\s+(\w+)\s*\{', line)
+                    struct_name = m.group(1)
+                    sd = StructDefinition(struct_name)
+                    i += 1
+                    while i < len(lines):
+                        mline = lines[i].strip()
+                        if mline.startswith('}'):
+                            break
+                        mm = re.match(r'(\w+)\s+(\w+)\s*;', mline)
+                        if mm:
+                            sol_type = SolType()
+                            type_str = mm.group(1)
+                            sol_type.typeCategory = "elementary"
+                            sol_type.elementaryTypeName = type_str
+                            if type_str.startswith("uint"):
+                                sol_type.intTypeLength = int(type_str[4:]) if len(type_str) > 4 else 256
+                            elif type_str.startswith("int"):
+                                sol_type.intTypeLength = int(type_str[3:]) if len(type_str) > 3 else 256
+                            sd.add_member(mm.group(2), sol_type)
+                        i += 1
+                    structs[struct_name] = sd
+                else:
+                    brace_depth += line.count('{') - line.count('}')
+                    if brace_depth < 0:
+                        brace_depth = 0
+                i += 1
+    return structs
+
+
 # 전역 사전 등록 (Phase 0에서 수집, analyze_file에서 주입)
 _global_type_aliases: dict[str, str] = {}
 _global_interface_names: set[str] = set()
+_global_library_cfgs: dict = {}  # 이전 분석된 library CFG 누적 (cross-library 호출용)
+_global_file_level_structs: dict = {}  # file-level struct 사전 수집
+
+# parent contract pkl 검색용 패턴
+_is_re = re.compile(r'(?:abstract\s+)?contract\s+\w+\s+is\s+([^{]+)')
+
+def _load_parent_pkls(source: str, ca) -> None:
+    """소스에서 'contract X is A, B, C' 파싱 → objectfile에서 parent pkl 로드"""
+    m = _is_re.search(source)
+    if not m:
+        return
+    parent_names = [p.strip().split('(')[0].strip() for p in m.group(1).split(',')]
+    for pname in parent_names:
+        if not pname or pname in ca.contract_cfgs:
+            continue
+        # pkl 검색: con_*.pkl 또는 ifc_*.pkl
+        for prefix in ('con_', 'ifc_'):
+            candidates = list(OBJ_DIR.glob(f'{prefix}*_{pname}.pkl')) + \
+                         list(OBJ_DIR.glob(f'{prefix}{pname}.pkl'))
+            for pkl_path in candidates:
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        parent_cfg = pickle.load(f)
+                    ca.contract_cfgs[pname] = parent_cfg
+                    break
+                except Exception:
+                    pass
 
 
 def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
@@ -215,16 +289,28 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
     sa = SolidityAnalyzer()
     ca = sa.contract_analyzer
 
-    # Phase 0에서 수집한 type aliases + interface 이름 주입
+    # Phase 0에서 수집한 type aliases + interface 이름 + file-level struct 주입
     if _global_type_aliases:
         sa.type_aliases.update(_global_type_aliases)
     if _global_interface_names:
         ca.interface_names.update(_global_interface_names)
+    if _global_file_level_structs:
+        sa.file_level_structs.update(_global_file_level_structs)
+    # 이전 분석된 library CFG 주입 (cross-library 호출 resolve용)
+    _pre_existing_libs = set(_global_library_cfgs.keys())
+    if _global_library_cfgs:
+        ca.library_cfgs.update(_global_library_cfgs)
+        ca.contract_cfgs.update(_global_library_cfgs)  # 호환성
+    # parent contract pkl 로드: 소스에서 'is Parent1, Parent2' 파싱 → pkl 있으면 로드
+    if mode in ("contract",):
+        _load_parent_pkls(source, ca)
+    _pre_existing_all = set(ca.contract_cfgs.keys()) | set(ca.library_cfgs.keys())
 
     for rec in records:
         code, s, e, ev = rec["code"], rec["startLine"], rec["endLine"], rec["event"]
+        close_before = rec.get("closeBefore", False)
         try:
-            sa.update_code(s, e, code, ev)
+            sa.update_code(s, e, code, ev, close_before)
         except Exception:
             pass  # context 분석 실패 시 무시
 
@@ -245,8 +331,10 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
     OBJ_DIR.mkdir(exist_ok=True, parents=True)
 
     if mode == "library":
-        if ca.library_cfgs:
-            name = list(ca.library_cfgs.keys())[0]
+        # 새로 분석된 library만 식별 (주입된 기존 library 제외)
+        new_libs = [k for k in ca.library_cfgs if k not in _pre_existing_all]
+        if new_libs:
+            name = new_libs[0]
             cfg = ca.library_cfgs[name]
             parent = sol_path.parent.name
             if parent not in ("libraries", "contracts") and parent.isdigit():
@@ -258,6 +346,8 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
                 pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
             funcs = list(cfg.functions.keys())
             print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
+            # cross-library 호출용: 분석 결과를 전역에 누적
+            _global_library_cfgs[name] = cfg
             return name
         else:
             print(f"  [경고] library_cfgs 비어있음")
@@ -278,8 +368,15 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
             return None
 
     elif mode == "contract":
-        if ca.contract_cfgs:
-            name = list(ca.contract_cfgs.keys())[0]
+        # 새로 분석된 contract만 식별 (주입된 기존 library/parent 제외)
+        new_cons = [k for k in ca.contract_cfgs if k not in _pre_existing_all]
+        if not new_cons:
+            # 이름 충돌로 감지 안 된 경우: 소스에서 contract 이름 직접 추출
+            m = re.search(r'(?:abstract\s+)?contract\s+(\w+)', source)
+            if m and m.group(1) in ca.contract_cfgs:
+                new_cons = [m.group(1)]
+        if new_cons:
+            name = new_cons[0]
             cfg = ca.contract_cfgs[name]
             # 서브폴더(타겟별)의 경우 prefix 추가: con_112_Controller.pkl
             parent = sol_path.parent.name
@@ -325,14 +422,17 @@ def main():
                 return
         return
 
-    # ── Phase 0: type alias + interface 이름 사전 수집 ──
-    global _global_type_aliases, _global_interface_names
+    # ── Phase 0: type alias + interface 이름 + file-level struct 사전 수집 ──
+    global _global_type_aliases, _global_interface_names, _global_file_level_structs
     _global_type_aliases = scan_type_aliases([IFC_DIR, LIB_DIR, CON_DIR])
     _global_interface_names = scan_interface_names([IFC_DIR, LIB_DIR, CON_DIR])
+    _global_file_level_structs = scan_file_level_structs([IFC_DIR, LIB_DIR, CON_DIR])
     if _global_type_aliases:
         print(f"\n[Phase 0] Type aliases: {_global_type_aliases}")
     if _global_interface_names:
         print(f"[Phase 0] Interfaces: {sorted(_global_interface_names)}")
+    if _global_file_level_structs:
+        print(f"[Phase 0] File-level structs: {list(_global_file_level_structs.keys())}")
 
     # ── 분석 순서: interfaces → libraries → contracts ──
 
@@ -345,11 +445,15 @@ def main():
             if name:
                 results["interfaces"].append(name)
 
-    # 2) Libraries
+    # 2) Libraries (의존 순서 고려: 다른 library를 호출하는 파일을 뒤로)
     if args.type in ("libraries", "all"):
         lib_files = sorted(LIB_DIR.glob("*.sol")) if LIB_DIR.exists() else []
-        print(f"\n[Phase 2] Libraries: {len(lib_files)}개")
-        for f in lib_files:
+        # cross-library 의존: UFixed18 → Fixed18, FullMath → FixedPoint
+        _late = {"Fixed18.sol", "FixedPoint.sol"}
+        lib_files_ordered = [f for f in lib_files if f.name not in _late] + \
+                            [f for f in lib_files if f.name in _late]
+        print(f"\n[Phase 2] Libraries: {len(lib_files_ordered)}개")
+        for f in lib_files_ordered:
             name = analyze_file(f, "library")
             if name:
                 results["libraries"].append(name)

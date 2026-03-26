@@ -723,6 +723,8 @@ class Evaluation :
                     return ident_str  # block, tx, msg를 리턴
                 elif ident_str in self.an.contract_cfgs[self.an.current_target_contract].enumDefs:  # EnumDef 리턴
                     return self.an.contract_cfgs[self.an.current_target_contract].enumDefs[ident_str]
+                elif ident_str in self.an.library_cfgs:
+                    return {"isLibrary": True, "libraryName": ident_str}
                 else:
                     raise ValueError(f"This '{ident_str}' is may be array or struct but may not be declared")
             elif callerContext == "IndexAccessContext":  # base에 대한 접근
@@ -733,9 +735,17 @@ class Evaluation :
         if ident_str == "this":
             return "this"
         if ident_str in variables:  # variables에 있으면
-            return variables[ident_str].value  # 해당 value 리턴
-        else:
-            raise ValueError(f"This '{ident_str}' is may be elementary variable but may not be declared")
+            var_obj = variables[ident_str]
+            # StructVariable은 .value가 None이므로 객체 자체를 반환
+            if hasattr(var_obj, 'members') and var_obj.members:
+                return var_obj
+            return var_obj.value  # 해당 value 리턴
+
+        # library 이름이면 qualified call marker 반환 (UFixed18Lib._from(x) 등)
+        if ident_str in self.an.library_cfgs:
+            return {"isLibrary": True, "libraryName": ident_str}
+
+        raise ValueError(f"This '{ident_str}' is may be elementary variable but may not be declared")
 
     def evaluate_member_access_context(
             self,
@@ -788,6 +798,28 @@ class Evaluation :
                         result_expr._implicit_first_arg = implicit_arg
                         return result_expr
         
+        # ──────────────────────────────────────────────────────────────
+        # 0-Q. Qualified library call (UFixed18Lib._from(x) 등)
+        # ──────────────────────────────────────────────────────────────
+        if isinstance(baseVal, dict) and baseVal.get("isLibrary"):
+            lib_name = baseVal["libraryName"]
+            lib_cfg = self.an.library_cfgs.get(lib_name)
+            if lib_cfg and callerContext == "functionCallContext":
+                result_expr = Expression(
+                    function=Expression(identifier=member),
+                    operator='library_call',
+                    context='LibraryFunctionCallContext'
+                )
+                result_expr._library_base_type = None  # qualified call은 implicit first arg 없음
+                result_expr._library_contract_cfg = lib_cfg
+                result_expr._implicit_first_arg = None
+                result_expr._qualified_library_call = True
+                return result_expr
+            # function call이 아닌 경우 (상수 등)
+            if lib_cfg and member in getattr(lib_cfg, 'globals', {}):
+                return lib_cfg.globals[member].value
+            return f"symbolic({lib_name}.{member})"
+
         # ──────────────────────────────────────────────────────────────
         # 0-1. super 키워드 처리 (super.foo() → 부모 컨트랙트 함수 호출)
         # ──────────────────────────────────────────────────────────────
@@ -920,6 +952,19 @@ class Evaluation :
 
             if member == "code":  # <addr>.code
                 return "code"  # 상위 계층에서 재귀적으로 처리
+
+            # interface cast된 address에서 interface 함수 호출 (IERC20(x).balanceOf())
+            cast_ifc = getattr(baseVal, '_cast_interface', None)
+            if cast_ifc and callerContext == "functionCallContext":
+                # interface function lookup → return type 기반 top 반환
+                result_expr = Expression(
+                    function=Expression(identifier=member),
+                    operator='interface_call',
+                    context='InterfaceFunctionCallContext'
+                )
+                result_expr._cast_interface = cast_ifc
+                result_expr._cast_address = baseVal
+                return result_expr
 
             raise ValueError(f"member '{member}' is not a recognised global-member.")
 
@@ -1061,6 +1106,18 @@ class Evaluation :
                 # address.delegatecall(), staticcall()
                 if member in ("delegatecall", "staticcall"):
                     return BoolInterval.top()
+
+            # interface cast된 address의 함수 호출 (IERC20(x).balanceOf())
+            cast_ifc = getattr(baseVal, '_cast_interface', None)
+            if cast_ifc and callerContext == "functionCallContext":
+                result_expr = Expression(
+                    function=Expression(identifier=member),
+                    operator='interface_call',
+                    context='InterfaceFunctionCallContext'
+                )
+                result_expr._cast_interface = cast_ifc
+                result_expr._cast_address = baseVal
+                return result_expr
 
             # 기타 address 멤버는 심볼릭 처리
             return f"address.{member}"
@@ -1293,6 +1350,17 @@ class Evaluation :
                     pass
             return BytesSet.top(byte_size)  # 기타 → symbolic TOP
 
+        # interface/contract type cast: IERC20(_token), IVault(addr) 등
+        elif type_name in self.an.interface_names or type_name in self.an.contract_cfgs:
+            if isinstance(sub_val, AddressSet):
+                result = sub_val
+            elif isinstance(sub_val, (UnsignedIntegerInterval, IntegerInterval)):
+                result = AddressSet.top()
+            else:
+                result = AddressSet.top()
+            result._cast_interface = type_name
+            return result
+
         else:
             # 그 외( string, etc. ) => 필요 시 구현
             return f"symbolicTypeConversion({type_name}, {sub_val})"
@@ -1505,6 +1573,11 @@ class Evaluation :
                     leftInterval, rightInterval, operator)
         # 논리 연산자 처리
         elif operator in ['&&', '||']:
+            # 피연산자가 BoolInterval이 아닌 경우 변환
+            if not isinstance(leftInterval, BoolInterval):
+                leftInterval = BoolInterval.top()
+            if not isinstance(rightInterval, BoolInterval):
+                rightInterval = BoolInterval.top()
             result = leftInterval.logical_op(rightInterval, operator)
         else:
             raise ValueError(f"Unsupported operator '{operator}' in expression: {expr}")
@@ -1588,32 +1661,85 @@ class Evaluation :
 
                 # function call 시점에서 인자 개수로 overload resolution
                 implicit_arg = function_result._implicit_first_arg
-                n_args = 1 + (len(expr.arguments) if expr.arguments else 0)  # implicit + explicit
+                is_qualified = getattr(function_result, '_qualified_library_call', False)
+                n_explicit = len(expr.arguments) if expr.arguments else 0
+                n_args = (n_explicit if is_qualified else 1 + n_explicit)  # qualified: implicit arg 없음
                 func_name = function_result.function.identifier
                 ccfg = function_result._library_contract_cfg
                 base_type = function_result._library_base_type
-                lib_fcfg = ccfg.find_library_function(base_type, func_name)
 
-                # 인자 개수가 맞지 않으면 다른 overload 검색
-                if lib_fcfg and len(lib_fcfg.parameters) != n_args:
-                    # 모든 using library에서 인자 개수 매칭
-                    found = None
-                    for libs in list(ccfg.using_libraries.values()) + [ccfg.using_all_libraries]:
-                        for lib in (libs if isinstance(libs, list) else [libs]):
-                            if func_name in lib.functions:
-                                for sig, fc in lib.functions[func_name].items():
-                                    if len(fc.parameters) == n_args:
-                                        found = fc
-                                        break
+                # qualified call: library CFG에서 직접 함수 검색
+                if is_qualified:
+                    lib_fcfg = ccfg.get_function_cfg(func_name)
+                    # overload: 인자 개수로 매칭
+                    if lib_fcfg and len(lib_fcfg.parameters) != n_args:
+                        if func_name in ccfg.functions:
+                            for sig, fc in ccfg.functions[func_name].items():
+                                if len(fc.parameters) == n_args:
+                                    lib_fcfg = fc
+                                    break
+                else:
+                    lib_fcfg = ccfg.find_library_function(base_type, func_name)
+                    # 인자 개수가 맞지 않으면 다른 overload 검색
+                    if lib_fcfg and len(lib_fcfg.parameters) != n_args:
+                        found = None
+                        for libs in list(ccfg.using_libraries.values()) + [ccfg.using_all_libraries]:
+                            for lib in (libs if isinstance(libs, list) else [libs]):
+                                if func_name in lib.functions:
+                                    for sig, fc in lib.functions[func_name].items():
+                                        if len(fc.parameters) == n_args:
+                                            found = fc
+                                            break
+                                if found: break
                             if found: break
-                        if found: break
-                    if found:
-                        lib_fcfg = found
+                        if found:
+                            lib_fcfg = found
 
                 return self._mapping_lookup_if_needed(
                     self.evaluate_library_function_call_context(
                         expr, variables, implicit_arg, lib_fcfg),
                     callerObject)
+
+            # interface cast 함수 호출인 경우 (IERC20(x).balanceOf())
+            if (isinstance(function_result, Expression) and
+                getattr(function_result, 'context', '') == 'InterfaceFunctionCallContext'):
+                cast_ifc = function_result._cast_interface
+                func_name = function_result.function.identifier
+                cast_addr = getattr(function_result, '_cast_address', None)
+
+                # IReturn registry 조회
+                fcfg = self.an.current_target_function_cfg
+                if fcfg and fcfg.ireturn_registry:
+                    addr_var = str(cast_addr) if cast_addr else None
+                    for key, val in fcfg.ireturn_registry.items():
+                        if key[0] == cast_ifc and key[2] == func_name:
+                            return self._mapping_lookup_if_needed(val, callerObject)
+
+                # pkl에서 interface return type 조회 → top 반환
+                import pickle, pathlib
+                pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{cast_ifc}.pkl')
+                if pkl_path.exists():
+                    with open(pkl_path, 'rb') as f:
+                        ifc_cfg = pickle.load(f)
+                    ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
+                    if ifc_fcfg and ifc_fcfg.return_types:
+                        rt = ifc_fcfg.return_types[0]
+                        et = getattr(rt, 'elementaryTypeName', None)
+                        if et and et.startswith('uint'):
+                            bits = getattr(rt, 'intTypeLength', 256) or 256
+                            return self._mapping_lookup_if_needed(
+                                UnsignedIntegerInterval.top(bits), callerObject)
+                        elif et and et.startswith('int'):
+                            bits = getattr(rt, 'intTypeLength', 256) or 256
+                            return self._mapping_lookup_if_needed(
+                                IntegerInterval.top(bits), callerObject)
+                        elif et == 'bool':
+                            return self._mapping_lookup_if_needed(BoolInterval.top(), callerObject)
+                        elif et == 'address':
+                            return self._mapping_lookup_if_needed(AddressSet.top(), callerObject)
+
+                # fallback: uint256 top
+                return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
 
             # super 함수 호출인 경우 (super.foo())
             if (isinstance(function_result, Expression) and
@@ -1706,12 +1832,20 @@ class Evaluation :
         arguments = expr.arguments if expr.arguments else []
         named_arguments = expr.named_arguments if expr.named_arguments else {}
 
-        # 파라미터 목록 (이 예시에서는 function_cfg.parameters를 [paramName1, paramName2, ...]로 가정)
+        # 파라미터 목록
         param_names = getattr(function_cfg, 'parameters', [])
-        # 또는 function_cfg가 paramName->type인 dict라면 list(paramName->type) 식으로 바꿔야 함
-
         total_params = len(param_names)
         total_args = len(arguments) + len(named_arguments)
+
+        # overload 재검색: 인자 개수 불일치 시 같은 이름의 다른 overload 탐색
+        if total_params != total_args and hasattr(contract_cfg, 'functions') and function_name in contract_cfg.functions:
+            for sig, fcfg_candidate in contract_cfg.functions[function_name].items():
+                if len(getattr(fcfg_candidate, 'parameters', [])) == total_args:
+                    function_cfg = fcfg_candidate
+                    param_names = function_cfg.parameters
+                    total_params = len(param_names)
+                    break
+
         if total_params != total_args:
             raise ValueError(f"Argument count mismatch in function call to '{function_name}': "
                              f"expected {total_params}, got {total_args}.")
@@ -1728,7 +1862,16 @@ class Evaluation :
 
             # function_cfg 내부의 related_variables에 param_name이 있어야
             if param_name in function_cfg.related_variables:
-                function_cfg.related_variables[param_name].value = arg_val
+                param_var = function_cfg.related_variables[param_name]
+                # struct 인자: StructVariable이면 members도 복사
+                if hasattr(param_var, 'members') and hasattr(arg_val, 'members'):
+                    param_var.members = {k: copy.deepcopy(v) for k, v in arg_val.members.items()}
+                    param_var.value = arg_val.value
+                elif hasattr(param_var, 'members') and arg_val is None:
+                    # struct 파라미터에 None이 전달됨 → members 유지 (기본 초기화 상태)
+                    pass
+                else:
+                    param_var.value = arg_val
             else:
                 raise ValueError(f"Parameter '{param_name}' not found in function '{function_name}' variables.")
         #    named 인자

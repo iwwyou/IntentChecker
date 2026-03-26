@@ -685,7 +685,8 @@ class Engine:
 
         if caller_env is not None:
             for k, v in caller_env.items():
-                start_block.variables[k] = VariableEnv.copy_single_variable(v)
+                if k not in start_block.variables:
+                    start_block.variables[k] = VariableEnv.copy_single_variable(v)
 
         G = fcfg.graph
         def _is_sink(n: CFGNode) -> bool:

@@ -6,12 +6,13 @@ class AddressSet:
     - 최대 K개의 구체적인 address ID를 추적
     - K 초과 시 Top으로 확장
     """
-    __slots__ = ("ids", "is_top")
+    __slots__ = ("ids", "is_top", "_cast_interface")
     K = 8  # cap
 
     def __init__(self, ids=None, is_top=False):
         self.ids = frozenset(ids or [])
         self.is_top = is_top
+        self._cast_interface = None  # interface type cast 시 interface 이름 태깅
 
     def is_bottom(self) -> bool:
         """Empty set (⊥) check"""
