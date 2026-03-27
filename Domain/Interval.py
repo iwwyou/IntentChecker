@@ -859,7 +859,7 @@ class BoolInterval(Interval):
             return self.bottom()
         return BoolInterval(new_min, new_max)
 
-    def widen(self):
+    def widen(self, current_interval=None):
         # bool에선 widen => top
         return BoolInterval.top()
 

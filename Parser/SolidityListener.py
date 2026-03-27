@@ -593,6 +593,15 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#IReturnChainedCall.
+    def enterIReturnChainedCall(self, ctx:SolidityParser.IReturnChainedCallContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnChainedCall.
+    def exitIReturnChainedCall(self, ctx:SolidityParser.IReturnChainedCallContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#duringIntent.
     def enterDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         pass

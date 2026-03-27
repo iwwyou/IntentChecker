@@ -2789,7 +2789,7 @@ class ContractAnalyzer:
         if ccf:
             func_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
             if func_cfg:
-                for param_var in func_cfg.variables.values():
+                for param_var in func_cfg.related_variables.values():
                     if param_var.identifier == var_name and hasattr(param_var, 'typeInfo') and param_var.typeInfo:
                         if param_var.typeInfo.typeCategory == "interface":
                             return param_var.typeInfo.interfaceName

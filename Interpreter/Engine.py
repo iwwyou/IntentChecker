@@ -99,22 +99,28 @@ class Engine:
                     )
                 variables[var_name] = vobj
             else:
-                # Elementary 타입 처리
+                # Elementary / interface 타입 처리
                 vobj = Variables(identifier=var_name, scope="local")
                 vobj.typeInfo = var_type
-                et = var_type.elementaryTypeName
-                if et and et.startswith("uint"):
-                    bits = var_type.intTypeLength or 256
-                    vobj.value = UnsignedIntegerInterval.top(bits)
-                elif et and et.startswith("int"):
-                    bits = var_type.intTypeLength or 256
-                    vobj.value = IntegerInterval.top(bits)
-                elif et == "bool":
-                    vobj.value = BoolInterval.top()
-                elif et == "address":
+                if var_type.typeCategory == "interface":
+                    ifc_name = getattr(var_type, 'interfaceName', None)
                     vobj.value = AddressSet.top()
+                    if ifc_name:
+                        vobj.value._cast_interface = ifc_name
                 else:
-                    vobj.value = f"symbol_{var_name}"
+                    et = var_type.elementaryTypeName
+                    if et and et.startswith("uint"):
+                        bits = var_type.intTypeLength or 256
+                        vobj.value = UnsignedIntegerInterval.top(bits)
+                    elif et and et.startswith("int"):
+                        bits = var_type.intTypeLength or 256
+                        vobj.value = IntegerInterval.top(bits)
+                    elif et == "bool":
+                        vobj.value = BoolInterval.top()
+                    elif et == "address":
+                        vobj.value = AddressSet.top()
+                    else:
+                        vobj.value = f"symbol_{var_name}"
                 variables[var_name] = vobj
 
         # ──────────────────────────────────────────────────────────────
@@ -797,7 +803,8 @@ class Engine:
 
                 elif node.condition_node_type in ["while", "for", "do_while"]:
                     exit_node = self.fixpoint(node)
-                    for nxt in list(G.successors(exit_node)):
+                    _succs = list(G.successors(exit_node))
+                    for nxt in _succs:
                         if _is_sink(nxt): continue
                         nxt.variables = VariableEnv.copy_variables(exit_node.variables)
                         work.append(nxt)

@@ -853,14 +853,17 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         return None
 
     def _parse_ireturn_access_chain(self, chain_ctx) -> tuple:
-        """ireturnAccessChain → tuple of ("member", name) or ("index", int)"""
+        """ireturnAccessChain → tuple of ("member", name), ("index", int), or ("call", name)"""
         if chain_ctx is None:
             return ()
+        from Parser.SolidityParser import SolidityParser
         result = []
         for acc in chain_ctx.ireturnAccess():
-            if acc.identifier() is not None:
+            if isinstance(acc, SolidityParser.IReturnChainedCallContext):
+                result.append(("call", acc.identifier().getText()))
+            elif isinstance(acc, SolidityParser.IReturnMemberAccessContext):
                 result.append(("member", acc.identifier().getText()))
-            elif acc.numberLiteral() is not None:
+            elif isinstance(acc, SolidityParser.IReturnIndexAccessContext):
                 result.append(("index", int(acc.numberLiteral().getText())))
         return tuple(result)
 

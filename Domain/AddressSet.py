@@ -42,9 +42,11 @@ class AddressSet:
             u = self.ids | other.ids
             result = AddressSet(u) if len(u) <= AddressSet.K else AddressSet.top()
         # _cast_interface 보존: 양쪽이 같으면 유지
-        ci = self._cast_interface or other._cast_interface
-        if self._cast_interface and other._cast_interface and self._cast_interface != other._cast_interface:
-            ci = None  # 다른 interface → 소실
+        s_ci = getattr(self, '_cast_interface', None)
+        o_ci = getattr(other, '_cast_interface', None)
+        ci = s_ci or o_ci
+        if s_ci and o_ci and s_ci != o_ci:
+            ci = None
         result._cast_interface = ci
         return result
 
@@ -55,7 +57,7 @@ class AddressSet:
         if other.is_top:
             return self
         result = AddressSet(self.ids & other.ids)
-        result._cast_interface = self._cast_interface or other._cast_interface
+        result._cast_interface = getattr(self, '_cast_interface', None) or getattr(other, '_cast_interface', None)
         return result
 
     def narrow(self, other: "AddressSet") -> "AddressSet":
@@ -65,7 +67,7 @@ class AddressSet:
         if other.is_top:
             return self
         result = AddressSet(self.ids & other.ids)
-        result._cast_interface = self._cast_interface or other._cast_interface
+        result._cast_interface = getattr(self, '_cast_interface', None) or getattr(other, '_cast_interface', None)
         return result
 
     def equals(self, other: "AddressSet") -> BoolInterval:

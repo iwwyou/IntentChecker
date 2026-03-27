@@ -139,6 +139,27 @@ class Evaluation :
                                 target = target.elements[idx]
                     else:
                         break
+                elif step[0] == "call":
+                    # chained interface call: target이 Variables이고
+                    # value가 AddressSet + _cast_interface면 해당 interface 함수 반환값 설정
+                    call_name = step[1]
+                    addr_val = target.value if isinstance(target, Variables) else target
+                    cast_ifc = getattr(addr_val, '_cast_interface', None)
+                    if cast_ifc and is_last:
+                        # 이 chained call의 반환값을 별도 registry에 저장하지 않고
+                        # 직접 top_val 수준에서 처리 (evaluation 시 _lookup_interface_return으로 조회)
+                        # → chained call은 registry에 full chain으로 저장되어 있으므로
+                        #   evaluation 시점에서 처리됨
+                        pass  # 값은 이미 registry에 chain 전체로 저장됨
+                    elif cast_ifc and not is_last:
+                        # 중간 chained call: 반환 타입으로 top 생성하여 다음 step 진행
+                        ret_val = self._lookup_interface_return(cast_ifc, call_name)
+                        if ret_val is not None:
+                            target = ret_val
+                        else:
+                            break
+                    else:
+                        break
 
         return self._mapping_lookup_if_needed(top_val, callerObject)
 
@@ -161,6 +182,39 @@ class Evaluation :
         if not entries:
             return None
         return self._assemble_ireturn_value(interface_name, func_name, entries, callerObject)
+
+    def _lookup_interface_return(self, interface_name, func_name):
+        """interface pkl에서 함수 return type 조회 (parent chain 포함) → top domain value"""
+        import pickle, pathlib
+        visited = set()
+        queue = [interface_name]
+        while queue:
+            ifc_name = queue.pop(0)
+            if ifc_name in visited:
+                continue
+            visited.add(ifc_name)
+            pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{ifc_name}.pkl')
+            if not pkl_path.exists():
+                continue
+            with open(pkl_path, 'rb') as f:
+                ifc_cfg = pickle.load(f)
+            ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
+            if ifc_fcfg and ifc_fcfg.return_types:
+                rt = ifc_fcfg.return_types[0]
+                struct_defs = getattr(ifc_cfg, 'structDefs', {})
+                enum_defs = getattr(ifc_cfg, 'enumDefs', {})
+                top_val = VariableEnv.top_from_soltype(
+                    rt, struct_defs, enum_defs,
+                    identifier=f"{ifc_name}.{func_name}_ret")
+                if isinstance(top_val, Variables) and \
+                   not isinstance(top_val, (StructVariable, ArrayVariable, MappingVariable, EnumVariable)):
+                    return top_val.value
+                return top_val
+            # parent chain 추가
+            for pname in getattr(ifc_cfg, 'parent_contracts', []):
+                if pname not in visited:
+                    queue.append(pname)
+        return None
 
     def _mapping_lookup_if_needed(self, result, callerObject):
         """
@@ -847,8 +901,8 @@ class Evaluation :
             return "this"
         if ident_str in variables:  # variables에 있으면
             var_obj = variables[ident_str]
-            # StructVariable은 .value가 None이므로 객체 자체를 반환
-            if hasattr(var_obj, 'members') and var_obj.members:
+            # composite 타입(Struct/Array/Mapping)은 객체 자체를 반환
+            if isinstance(var_obj, (StructVariable, ArrayVariable, MappingVariable)):
                 return var_obj
             return var_obj.value  # 해당 value 리턴
 
@@ -1832,23 +1886,9 @@ class Evaluation :
 
                 # pkl에서 interface return type 조회 → top_from_soltype으로 반환
                 import pickle, pathlib
-                pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{cast_ifc}.pkl')
-                if pkl_path.exists():
-                    with open(pkl_path, 'rb') as f:
-                        ifc_cfg = pickle.load(f)
-                    ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
-                    if ifc_fcfg and ifc_fcfg.return_types:
-                        rt = ifc_fcfg.return_types[0]
-                        struct_defs = getattr(ifc_cfg, 'structDefs', {})
-                        enum_defs = getattr(ifc_cfg, 'enumDefs', {})
-                        top_val = VariableEnv.top_from_soltype(
-                            rt, struct_defs, enum_defs,
-                            identifier=f"{cast_ifc}.{func_name}_ret")
-                        # Variables wrapper → .value 추출
-                        if isinstance(top_val, Variables) and \
-                           not isinstance(top_val, (StructVariable, ArrayVariable, MappingVariable, EnumVariable)):
-                            top_val = top_val.value
-                        return self._mapping_lookup_if_needed(top_val, callerObject)
+                result = self._lookup_interface_return(cast_ifc, func_name)
+                if result is not None:
+                    return self._mapping_lookup_if_needed(result, callerObject)
 
                 # fallback: uint256 top
                 return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)

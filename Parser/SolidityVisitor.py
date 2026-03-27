@@ -334,6 +334,11 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#IReturnChainedCall.
+    def visitIReturnChainedCall(self, ctx:SolidityParser.IReturnChainedCallContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#duringIntent.
     def visitDuringIntent(self, ctx:SolidityParser.DuringIntentContext):
         return self.visitChildren(ctx)

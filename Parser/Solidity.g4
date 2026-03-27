@@ -290,6 +290,7 @@ ireturnAccessChain
 ireturnAccess
     : '.' identifier            # IReturnMemberAccess
     | '[' numberLiteral ']'     # IReturnIndexAccess
+    | '.' identifier '(' ')'   # IReturnChainedCall
     ;
 
 duringIntent

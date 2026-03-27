@@ -246,11 +246,11 @@ _global_interface_names: set[str] = set()
 _global_library_cfgs: dict = {}  # 이전 분석된 library CFG 누적 (cross-library 호출용)
 _global_file_level_structs: dict = {}  # file-level struct 사전 수집
 
-# parent contract pkl 검색용 패턴
-_is_re = re.compile(r'(?:abstract\s+)?contract\s+\w+\s+is\s+([^{]+)')
+# parent pkl 검색용 패턴 (contract, abstract contract, interface, library)
+_is_re = re.compile(r'(?:abstract\s+)?(?:contract|interface|library)\s+\w+\s+is\s+([^{]+)')
 
 def _load_parent_pkls(source: str, ca) -> None:
-    """소스에서 'contract X is A, B, C' 파싱 → objectfile에서 parent pkl 로드"""
+    """소스에서 'X is A, B, C' 파싱 → objectfile에서 parent pkl 로드 (재귀)"""
     m = _is_re.search(source)
     if not m:
         return
@@ -301,9 +301,8 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
     if _global_library_cfgs:
         ca.library_cfgs.update(_global_library_cfgs)
         ca.contract_cfgs.update(_global_library_cfgs)  # 호환성
-    # parent contract pkl 로드: 소스에서 'is Parent1, Parent2' 파싱 → pkl 있으면 로드
-    if mode in ("contract",):
-        _load_parent_pkls(source, ca)
+    # parent pkl 로드: 소스에서 'is Parent1, Parent2' 파싱 → pkl 있으면 로드
+    _load_parent_pkls(source, ca)
     _pre_existing_all = set(ca.contract_cfgs.keys()) | set(ca.library_cfgs.keys())
 
     for rec in records:
@@ -354,8 +353,14 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
             return None
 
     elif mode == "interface":
-        if ca.contract_cfgs:
-            name = list(ca.contract_cfgs.keys())[0]
+        # 새로 분석된 interface만 식별 (로드된 parent pkl 제외)
+        new_ifcs = [k for k in ca.contract_cfgs if k not in _pre_existing_all]
+        if not new_ifcs:
+            m = re.search(r'interface\s+(\w+)', source)
+            if m and m.group(1) in ca.contract_cfgs:
+                new_ifcs = [m.group(1)]
+        if new_ifcs:
+            name = new_ifcs[0]
             cfg = ca.contract_cfgs[name]
             out = OBJ_DIR / f"ifc_{name}.pkl"
             with open(out, 'wb') as f:
@@ -364,7 +369,7 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
             print(f"  → ifc_{name}.pkl ({len(funcs)} functions: {funcs})")
             return name
         else:
-            print(f"  [경고] contract_cfgs 비어있음")
+            print(f"  [경고] interface 미발견")
             return None
 
     elif mode == "contract":

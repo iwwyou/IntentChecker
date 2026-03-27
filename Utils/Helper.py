@@ -450,6 +450,15 @@ class VariableEnv:
                 ev.value = defn.members[0]
             return ev
 
+        if sol_t.typeCategory == "interface":
+            ifc_name = getattr(sol_t, 'interfaceName', None)
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = AddressSet.top()
+            if ifc_name:
+                v.value._cast_interface = ifc_name
+            return v
+
         # elementary
         et = sol_t.elementaryTypeName or ""
         if et.startswith("int"):

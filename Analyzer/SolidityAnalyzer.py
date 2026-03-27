@@ -138,12 +138,14 @@ class SolidityAnalyzer:
 
         # 뒤 라인 밀기
         shift_from = start + 1 if skip_shift_at_start else start
+        # skip_shift_at_start: start 라인을 재사용하므로 실제 필요한 shift 양은 1 줄음
+        actual_offset = offset - 1 if skip_shift_at_start else offset
         ca = self.contract_analyzer
 
         for old_ln in sorted([ln for ln in self.full_code_lines if ln >= shift_from], reverse=True):
-            self.full_code_lines[old_ln + offset] = self.full_code_lines.pop(old_ln)
-            self._shift_source_meta(old_ln, old_ln + offset)
-            ca._shift_cfg_meta(old_ln, old_ln + offset)
+            self.full_code_lines[old_ln + actual_offset] = self.full_code_lines.pop(old_ln)
+            self._shift_source_meta(old_ln, old_ln + actual_offset)
+            ca._shift_cfg_meta(old_ln, old_ln + actual_offset)
 
         # 삽입 - 실제 코드 줄은 스팬 끝에, 빈 슬롯은 앞에 채운다
         write_count = min(len(new_lines), offset)
