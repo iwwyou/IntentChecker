@@ -852,36 +852,33 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         self.contract_analyzer.process_local_var_for_debug(lhs, rhs)
         return None
 
-    def visitIReturnSingle(self, ctx):
+    def _parse_ireturn_access_chain(self, chain_ctx) -> tuple:
+        """ireturnAccessChain → tuple of ("member", name) or ("index", int)"""
+        if chain_ctx is None:
+            return ()
+        result = []
+        for acc in chain_ctx.ireturnAccess():
+            if acc.identifier() is not None:
+                result.append(("member", acc.identifier().getText()))
+            elif acc.numberLiteral() is not None:
+                result.append(("index", int(acc.numberLiteral().getText())))
+        return tuple(result)
+
+    def visitIReturnPatternA(self, ctx):
         contract_var = ctx.identifier(0).getText()
         func_name = ctx.identifier(1).getText()
+        access_chain = self._parse_ireturn_access_chain(ctx.ireturnAccessChain())
         value = self._parse_debug_value(ctx.debugValue())
-        self.contract_analyzer.process_ireturn(contract_var, func_name, None, value)
+        self.contract_analyzer.process_ireturn(contract_var, func_name, access_chain, value)
         return None
 
-    def visitIReturnIndex(self, ctx):
-        contract_var = ctx.identifier(0).getText()
-        func_name = ctx.identifier(1).getText()
-        index = int(ctx.numberLiteral().getText())
-        value = self._parse_debug_value(ctx.debugValue())
-        self.contract_analyzer.process_ireturn(contract_var, func_name, index, value)
-        return None
-
-    def visitIReturnCastSingle(self, ctx):
+    def visitIReturnPatternB(self, ctx):
         interface_name = ctx.identifier(0).getText()
         addr_var = ctx.identifier(1).getText()
         func_name = ctx.identifier(2).getText()
+        access_chain = self._parse_ireturn_access_chain(ctx.ireturnAccessChain())
         value = self._parse_debug_value(ctx.debugValue())
-        self.contract_analyzer.process_ireturn_cast(interface_name, addr_var, func_name, None, value)
-        return None
-
-    def visitIReturnCastIndex(self, ctx):
-        interface_name = ctx.identifier(0).getText()
-        addr_var = ctx.identifier(1).getText()
-        func_name = ctx.identifier(2).getText()
-        index = int(ctx.numberLiteral().getText())
-        value = self._parse_debug_value(ctx.debugValue())
-        self.contract_analyzer.process_ireturn_cast(interface_name, addr_var, func_name, index, value)
+        self.contract_analyzer.process_ireturn_cast(interface_name, addr_var, func_name, access_chain, value)
         return None
 
     # Visit a parse tree produced by SolidityParser#duringIntent.

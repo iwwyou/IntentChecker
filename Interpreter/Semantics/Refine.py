@@ -147,9 +147,34 @@ class Refine:
             cond_expr: Expression,
             is_true_branch: bool) -> None:
 
+        _NON_LVALUE_CONTEXTS = frozenset({
+            'FunctionCallContext', 'InterfaceFunctionCallContext',
+            'LibraryFunctionCallContext', 'SuperFunctionCallContext',
+            'ThisFunctionCallContext',
+            'BinaryExpContext', 'UnaryExpContext',
+            'LiteralExpContext', 'TupleExpContext',
+            'TypeConversionContext',
+        })
+
+        def _has_non_lvalue_in_chain(e):
+            """expression의 base chain에 refine 불가능한 context가 있는지 확인"""
+            while e is not None:
+                ctx = getattr(e, 'context', '')
+                if ctx in _NON_LVALUE_CONTEXTS:
+                    return True
+                # operator 기반 체크 (binary/unary)
+                op = getattr(e, 'operator', None)
+                if op in ('+', '-', '*', '/', '%', '**', '&&', '||', '!',
+                          '<<', '>>', '&', '|', '^', '~'):
+                    return True
+                e = getattr(e, 'base', None)
+            return False
+
         def _maybe_update(expr, variables, new_iv):
             if self._is_read_only_expr(expr, variables):
                 return  # read-only → 변수 상태 수정 X
+            if _has_non_lvalue_in_chain(expr):
+                return  # non-l-value → narrowing 대상 아님
 
             # ★ Update.py의 전략 적용: 매핑/배열 접근에서 심볼릭 인덱스 처리
             # IndexAccessContext일 때 인덱스가 interval인지 확인

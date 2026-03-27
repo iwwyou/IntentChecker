@@ -548,39 +548,48 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#IReturnSingle.
-    def enterIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
+    # Enter a parse tree produced by SolidityParser#IReturnPatternA.
+    def enterIReturnPatternA(self, ctx:SolidityParser.IReturnPatternAContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#IReturnSingle.
-    def exitIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
-        pass
-
-
-    # Enter a parse tree produced by SolidityParser#IReturnIndex.
-    def enterIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
-        pass
-
-    # Exit a parse tree produced by SolidityParser#IReturnIndex.
-    def exitIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
+    # Exit a parse tree produced by SolidityParser#IReturnPatternA.
+    def exitIReturnPatternA(self, ctx:SolidityParser.IReturnPatternAContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#IReturnCastSingle.
-    def enterIReturnCastSingle(self, ctx:SolidityParser.IReturnCastSingleContext):
+    # Enter a parse tree produced by SolidityParser#IReturnPatternB.
+    def enterIReturnPatternB(self, ctx:SolidityParser.IReturnPatternBContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#IReturnCastSingle.
-    def exitIReturnCastSingle(self, ctx:SolidityParser.IReturnCastSingleContext):
+    # Exit a parse tree produced by SolidityParser#IReturnPatternB.
+    def exitIReturnPatternB(self, ctx:SolidityParser.IReturnPatternBContext):
         pass
 
 
-    # Enter a parse tree produced by SolidityParser#IReturnCastIndex.
-    def enterIReturnCastIndex(self, ctx:SolidityParser.IReturnCastIndexContext):
+    # Enter a parse tree produced by SolidityParser#ireturnAccessChain.
+    def enterIreturnAccessChain(self, ctx:SolidityParser.IreturnAccessChainContext):
         pass
 
-    # Exit a parse tree produced by SolidityParser#IReturnCastIndex.
-    def exitIReturnCastIndex(self, ctx:SolidityParser.IReturnCastIndexContext):
+    # Exit a parse tree produced by SolidityParser#ireturnAccessChain.
+    def exitIreturnAccessChain(self, ctx:SolidityParser.IreturnAccessChainContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IReturnMemberAccess.
+    def enterIReturnMemberAccess(self, ctx:SolidityParser.IReturnMemberAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnMemberAccess.
+    def exitIReturnMemberAccess(self, ctx:SolidityParser.IReturnMemberAccessContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IReturnIndexAccess.
+    def enterIReturnIndexAccess(self, ctx:SolidityParser.IReturnIndexAccessContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IReturnIndexAccess.
+    def exitIReturnIndexAccess(self, ctx:SolidityParser.IReturnIndexAccessContext):
         pass
 
 

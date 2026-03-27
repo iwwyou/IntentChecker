@@ -217,19 +217,29 @@ class Update :
         #      · allowed[msg.sender][_from]   (2-단계)
         # ────────────────────────────────────────────────
         if VariableEnv.is_global_expr(expr) and isinstance(callerObject, MappingVariable):
-            key = f"{expr.base.identifier}.{member}"  # "msg.sender"
+            full_name = f"{expr.base.identifier}.{member}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
                 ccf = self.an.contract_cfgs[self.an.current_target_contract]
                 callerObject.struct_defs = ccf.structDefs
                 callerObject.enum_defs = ccf.enumDefs
 
+            # global var의 실제 값으로 key 결정 (identifier 경로와 동일)
+            key = full_name  # fallback
+            if full_name in variables:
+                gv_val = variables[full_name].value
+                if isinstance(gv_val, AddressSet):
+                    if gv_val.is_singleton():
+                        key = str(gv_val)  # "AddressSet({101})"
+                elif hasattr(gv_val, "min_value"):
+                    if gv_val.min_value == gv_val.max_value:
+                        key = str(gv_val.min_value)
+
             # (1) 엔트리 없으면 생성
             if key not in callerObject.mapping:
                 callerObject.mapping[key] = callerObject.get_or_create(key)
 
             entry = callerObject.mapping[key]
-
             # struct/array/mapping이면 바로 반환 (외부 member access가 이어짐)
             if isinstance(entry, (StructVariable, ArrayVariable, MappingVariable)):
                 return entry

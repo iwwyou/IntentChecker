@@ -58,6 +58,110 @@ class Evaluation :
 
         return None
 
+    def _collect_ireturn_entries(self, registry, match_prefix):
+        """registry에서 match_prefix로 시작하는 (contract_var, func_name) entries 수집.
+        Returns: dict { access_chain_tuple: value }
+        """
+        entries = {}
+        for key, val in registry.items():
+            if key[:len(match_prefix)] == match_prefix:
+                chain = key[len(match_prefix)]  # access_chain tuple
+                entries[chain] = val
+        return entries
+
+    def _assemble_ireturn_value(self, interface_name, func_name, entries, callerObject):
+        """@IReturn entries로부터 반환값 조립.
+        entries: { access_chain_tuple: value }
+        - () → 단일 값
+        - (("member", "x"),) → struct member
+        - (("index", 0),) → tuple index
+        """
+        import pickle, pathlib
+
+        # 단일 반환 (access_chain이 빈 tuple)
+        if () in entries and len(entries) == 1:
+            return self._mapping_lookup_if_needed(entries[()], callerObject)
+
+        # struct member 또는 index가 있는 경우 → return type 조회 후 조립
+        pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{interface_name}.pkl')
+        if not pkl_path.exists():
+            # fallback: 단일 값이면 반환
+            if () in entries:
+                return self._mapping_lookup_if_needed(entries[()], callerObject)
+            return None
+
+        with open(pkl_path, 'rb') as f:
+            ifc_cfg = pickle.load(f)
+        ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
+        if not ifc_fcfg or not ifc_fcfg.return_types:
+            return None
+
+        rt = ifc_fcfg.return_types[0]
+        struct_defs = getattr(ifc_cfg, 'structDefs', {})
+        enum_defs = getattr(ifc_cfg, 'enumDefs', {})
+
+        # top 값 생성
+        top_val = VariableEnv.top_from_soltype(
+            rt, struct_defs, enum_defs,
+            identifier=f"{interface_name}.{func_name}_ret")
+        # Variables wrapper → value 추출 (elementary)
+        if isinstance(top_val, Variables) and \
+           not isinstance(top_val, (StructVariable, ArrayVariable, MappingVariable, EnumVariable)):
+            top_val = top_val.value
+
+        # entries의 access chain을 따라 값 설정
+        for chain, val in entries.items():
+            if chain == ():
+                top_val = val  # 전체 덮어쓰기
+                continue
+            target = top_val
+            for i, step in enumerate(chain):
+                is_last = (i == len(chain) - 1)
+                if step[0] == "member":
+                    if isinstance(target, StructVariable) and step[1] in target.members:
+                        if is_last:
+                            member_var = target.members[step[1]]
+                            if hasattr(member_var, 'value'):
+                                member_var.value = val
+                        else:
+                            target = target.members[step[1]]
+                    else:
+                        break  # member를 찾지 못함
+                elif step[0] == "index":
+                    if isinstance(target, ArrayVariable):
+                        idx = step[1]
+                        if idx < len(target.elements):
+                            if is_last:
+                                elem = target.elements[idx]
+                                if hasattr(elem, 'value'):
+                                    elem.value = val
+                            else:
+                                target = target.elements[idx]
+                    else:
+                        break
+
+        return self._mapping_lookup_if_needed(top_val, callerObject)
+
+    def _resolve_ireturn_pattern_a(self, fcfg, interface_name, contract_var, func_name, callerObject):
+        """Pattern A: contractVar.funcName().<chain> 조회"""
+        if not fcfg.ireturn_registry:
+            return None
+        entries = self._collect_ireturn_entries(
+            fcfg.ireturn_registry, (contract_var, func_name))
+        if not entries:
+            return None
+        return self._assemble_ireturn_value(interface_name, func_name, entries, callerObject)
+
+    def _resolve_ireturn_pattern_b(self, fcfg, interface_name, addr_var, func_name, callerObject):
+        """Pattern B: Interface(addr).funcName().<chain> 조회"""
+        if not fcfg.ireturn_registry:
+            return None
+        entries = self._collect_ireturn_entries(
+            fcfg.ireturn_registry, (interface_name, addr_var, func_name))
+        if not entries:
+            return None
+        return self._assemble_ireturn_value(interface_name, func_name, entries, callerObject)
+
     def _mapping_lookup_if_needed(self, result, callerObject):
         """
         callerObject가 MappingVariable이면 result를 key로 mapping lookup 수행.
@@ -825,6 +929,11 @@ class Evaluation :
             # function call이 아닌 경우 (상수 등)
             if lib_cfg and member in getattr(lib_cfg, 'globals', {}):
                 return lib_cfg.globals[member].value
+            # state_variable_node에서 상수 조회
+            sv_node = getattr(lib_cfg, 'state_variable_node', None)
+            if sv_node and member in getattr(sv_node, 'variables', {}):
+                sv = sv_node.variables[member]
+                return sv.value if hasattr(sv, 'value') else sv
             return f"symbolic({lib_name}.{member})"
 
         # ──────────────────────────────────────────────────────────────
@@ -890,9 +999,26 @@ class Evaluation :
                 # 0) 함수-env 에 이미 변수로 들어와 있나?
                 full_name = f"{baseVal}.{member}"
                 if isinstance(callerObject, MappingVariable):
-                    if full_name not in callerObject.mapping:
-                        callerObject.mapping[full_name] = callerObject.get_or_create(full_name)
-                    entry = callerObject.mapping[full_name]
+                    if not callerObject.struct_defs or not callerObject.enum_defs:
+                        ccf = self.an.contract_cfgs[self.an.current_target_contract]
+                        callerObject.struct_defs = ccf.structDefs
+                        callerObject.enum_defs = ccf.enumDefs
+                    # global var의 실제 값으로 key 결정 (identifier 경로와 동일)
+                    key_val = full_name  # fallback
+                    if full_name in variables:
+                        gv_val = variables[full_name].value
+                        if isinstance(gv_val, AddressSet):
+                            if gv_val.is_singleton():
+                                key_val = str(gv_val)  # "AddressSet({101})"
+                            # else: TOP → full_name 유지
+                        elif hasattr(gv_val, "min_value"):
+                            if gv_val.min_value == gv_val.max_value:
+                                key_val = str(gv_val.min_value)
+                    if key_val not in callerObject.mapping:
+                        callerObject.mapping[key_val] = callerObject.get_or_create(key_val)
+                    entry = callerObject.mapping[key_val]
+                    if isinstance(entry, (StructVariable, ArrayVariable, MappingVariable)):
+                        return entry
                     return entry.value if hasattr(entry, "value") else entry
 
                 else:
@@ -962,6 +1088,7 @@ class Evaluation :
 
             # interface cast된 address에서 interface 함수 호출 (IERC20(x).balanceOf())
             cast_ifc = getattr(baseVal, '_cast_interface', None)
+            import sys as _s; print(f"[CAST-CHK] member={member}, baseVal={type(baseVal).__name__}, cast_ifc={cast_ifc}, callerCtx={callerContext}", file=_s.stderr) if member in ('delayedStrategyParams','delayedProtocolParams') else None
             if cast_ifc and callerContext == "functionCallContext":
                 # interface function lookup → return type 기반 top 반환
                 result_expr = Expression(
@@ -1604,59 +1731,29 @@ class Evaluation :
             if hasattr(base_expr, 'identifier'):
                 contract_var = base_expr.identifier
                 fcfg = self.an.current_target_function_cfg
-                # 변수의 typeInfo에서 interface 여부 확인 (state var + parameter)
                 interface_name = self._get_interface_name_of_var(contract_var, variables)
                 if fcfg and interface_name:
-                    # 1) IReturnSingle 조회: (contract_var, func_name, None)
-                    single_key = (contract_var, member_name, None)
-                    if single_key in fcfg.ireturn_registry:
-                        return self._mapping_lookup_if_needed(
-                            fcfg.ireturn_registry[single_key], callerObject)
-
-                    # 2) IReturnIndex 조회: 등록된 index별 값을 모아 리스트로 반환
-                    indexed = {k[2]: v for k, v in fcfg.ireturn_registry.items()
-                               if k[0] == contract_var and k[1] == member_name and k[2] is not None}
-                    if indexed:
-                        icfg = self.an.contract_cfgs.get(interface_name)
-                        if icfg and member_name in icfg.functions:
-                            ret_count = len(icfg.get_function_cfg(member_name).return_types)
-                            result = []
-                            for i in range(ret_count):
-                                result.append(indexed.get(i, UnsignedIntegerInterval.top()))
-                            return result
+                    ret = self._resolve_ireturn_pattern_a(
+                        fcfg, interface_name, contract_var, member_name, callerObject)
+                    if ret is not None:
+                        return ret
 
             # ★ @IReturn Pattern B: explicit cast — IERC20(want).balanceOf() 등
-            #   base_expr가 FunctionCall이고, 그 callee가 interface name인 경우
             if (hasattr(base_expr, 'context') and base_expr.context == 'FunctionCallContext'
                     and hasattr(base_expr, 'function') and hasattr(base_expr.function, 'identifier')):
                 cast_interface = base_expr.function.identifier
                 fcfg = self.an.current_target_function_cfg
                 if fcfg and cast_interface in self.an.interface_names:
-                    # addr_var 추출: IERC20(want) → want
                     addr_var = None
                     if base_expr.arguments and len(base_expr.arguments) == 1:
                         arg = base_expr.arguments[0]
                         if hasattr(arg, 'identifier'):
                             addr_var = arg.identifier
                     if addr_var:
-                        # 1) CastSingle 조회: (interface_name, addr_var, func_name, None)
-                        single_key = (cast_interface, addr_var, member_name, None)
-                        if single_key in fcfg.ireturn_registry:
-                            return self._mapping_lookup_if_needed(
-                                fcfg.ireturn_registry[single_key], callerObject)
-
-                        # 2) CastIndex 조회
-                        indexed = {k[3]: v for k, v in fcfg.ireturn_registry.items()
-                                   if len(k) == 4 and k[0] == cast_interface
-                                   and k[1] == addr_var and k[2] == member_name and k[3] is not None}
-                        if indexed:
-                            icfg = self.an.contract_cfgs.get(cast_interface)
-                            if icfg and member_name in icfg.functions:
-                                ret_count = len(icfg.get_function_cfg(member_name).return_types)
-                                result = []
-                                for i in range(ret_count):
-                                    result.append(indexed.get(i, UnsignedIntegerInterval.top()))
-                                return result
+                        ret = self._resolve_ireturn_pattern_b(
+                            fcfg, cast_interface, addr_var, member_name, callerObject)
+                        if ret is not None:
+                            return ret
 
             # member access를 평가하여 라이브러리 함수인지 확인
             function_result = self.evaluate_expression(expr.function, variables, None, "functionCallContext")
@@ -1714,15 +1811,26 @@ class Evaluation :
                 func_name = function_result.function.identifier
                 cast_addr = getattr(function_result, '_cast_address', None)
 
-                # IReturn registry 조회
+                # IReturn registry 조회 (Pattern A/B에서 못 잡힌 경우)
                 fcfg = self.an.current_target_function_cfg
                 if fcfg and fcfg.ireturn_registry:
-                    addr_var = str(cast_addr) if cast_addr else None
-                    for key, val in fcfg.ireturn_registry.items():
-                        if key[0] == cast_ifc and key[2] == func_name:
-                            return self._mapping_lookup_if_needed(val, callerObject)
+                    # cast_ifc 기반으로 entries 수집 시도
+                    for prefix_len in (3, 2):  # Pattern B (4-tuple prefix 3) or A (3-tuple prefix 2)
+                        for key in fcfg.ireturn_registry:
+                            if len(key) >= prefix_len + 1 and \
+                               key[0] == cast_ifc and key[prefix_len - 1] == func_name:
+                                # 매칭되는 entries 수집
+                                match_prefix = key[:prefix_len]
+                                entries = self._collect_ireturn_entries(
+                                    fcfg.ireturn_registry, match_prefix)
+                                if entries:
+                                    ret = self._assemble_ireturn_value(
+                                        cast_ifc, func_name, entries, callerObject)
+                                    if ret is not None:
+                                        return ret
+                                break
 
-                # pkl에서 interface return type 조회 → top 반환
+                # pkl에서 interface return type 조회 → top_from_soltype으로 반환
                 import pickle, pathlib
                 pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{cast_ifc}.pkl')
                 if pkl_path.exists():
@@ -1731,19 +1839,16 @@ class Evaluation :
                     ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
                     if ifc_fcfg and ifc_fcfg.return_types:
                         rt = ifc_fcfg.return_types[0]
-                        et = getattr(rt, 'elementaryTypeName', None)
-                        if et and et.startswith('uint'):
-                            bits = getattr(rt, 'intTypeLength', 256) or 256
-                            return self._mapping_lookup_if_needed(
-                                UnsignedIntegerInterval.top(bits), callerObject)
-                        elif et and et.startswith('int'):
-                            bits = getattr(rt, 'intTypeLength', 256) or 256
-                            return self._mapping_lookup_if_needed(
-                                IntegerInterval.top(bits), callerObject)
-                        elif et == 'bool':
-                            return self._mapping_lookup_if_needed(BoolInterval.top(), callerObject)
-                        elif et == 'address':
-                            return self._mapping_lookup_if_needed(AddressSet.top(), callerObject)
+                        struct_defs = getattr(ifc_cfg, 'structDefs', {})
+                        enum_defs = getattr(ifc_cfg, 'enumDefs', {})
+                        top_val = VariableEnv.top_from_soltype(
+                            rt, struct_defs, enum_defs,
+                            identifier=f"{cast_ifc}.{func_name}_ret")
+                        # Variables wrapper → .value 추출
+                        if isinstance(top_val, Variables) and \
+                           not isinstance(top_val, (StructVariable, ArrayVariable, MappingVariable, EnumVariable)):
+                            top_val = top_val.value
+                        return self._mapping_lookup_if_needed(top_val, callerObject)
 
                 # fallback: uint256 top
                 return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)

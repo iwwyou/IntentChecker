@@ -279,10 +279,17 @@ debugLocalVar
     ;
 
 debugIReturn
-    : '//' '@IReturn' identifier '.' identifier '(' ')' '=' debugValue                                              # IReturnSingle
-    | '//' '@IReturn' identifier '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue                        # IReturnIndex
-    | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' '=' debugValue                           # IReturnCastSingle
-    | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' '[' numberLiteral ']' '=' debugValue     # IReturnCastIndex
+    : '//' '@IReturn' identifier '.' identifier '(' ')' ireturnAccessChain? '=' debugValue        # IReturnPatternA
+    | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' ireturnAccessChain? '=' debugValue   # IReturnPatternB
+    ;
+
+ireturnAccessChain
+    : ireturnAccess+
+    ;
+
+ireturnAccess
+    : '.' identifier            # IReturnMemberAccess
+    | '[' numberLiteral ']'     # IReturnIndexAccess
     ;
 
 duringIntent

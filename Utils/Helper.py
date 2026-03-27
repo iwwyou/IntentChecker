@@ -399,6 +399,94 @@ class VariableEnv:
         return isinstance(x, (IntegerInterval, UnsignedIntegerInterval))
 
     @staticmethod
+    def top_from_soltype(sol_t: SolType, struct_defs: dict = None, enum_defs: dict = None,
+                         identifier: str = ""):
+        """SolType → top-valued domain object 생성 (모든 타입 지원)"""
+        from Domain.BytesSet import BytesSet
+        if struct_defs is None:
+            struct_defs = {}
+        if enum_defs is None:
+            enum_defs = {}
+
+        if sol_t.typeCategory == "array":
+            arr = ArrayVariable(
+                identifier=identifier,
+                base_type=sol_t.arrayBaseType,
+                array_length=sol_t.arrayLength,
+                is_dynamic=sol_t.isDynamicArray,
+                struct_defs=struct_defs,
+                enum_defs=enum_defs,
+            )
+            arr.initialize_not_abstracted_type()
+            return arr
+
+        if sol_t.typeCategory == "mapping":
+            return MappingVariable(
+                identifier=identifier,
+                key_type=sol_t.mappingKeyType,
+                value_type=sol_t.mappingValueType,
+                struct_defs=struct_defs,
+                enum_defs=enum_defs,
+            )
+
+        if sol_t.typeCategory == "struct":
+            sv = StructVariable(
+                identifier=identifier,
+                struct_type=sol_t.structTypeName,
+            )
+            if sol_t.structTypeName in struct_defs:
+                sv.initialize_struct(struct_defs[sol_t.structTypeName])
+            return sv
+
+        if sol_t.typeCategory == "enum":
+            ev = EnumVariable(
+                identifier=identifier,
+                enum_type=sol_t.enumTypeName,
+            )
+            if sol_t.enumTypeName in enum_defs:
+                defn = enum_defs[sol_t.enumTypeName]
+                ev.members = {m: i for i, m in enumerate(defn.members)}
+                ev.valueIndex = 0
+                ev.value = defn.members[0]
+            return ev
+
+        # elementary
+        et = sol_t.elementaryTypeName or ""
+        if et.startswith("int"):
+            bits = sol_t.intTypeLength or 256
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = IntegerInterval.top(bits)
+            return v
+        if et.startswith("uint"):
+            bits = sol_t.intTypeLength or 256
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = UnsignedIntegerInterval.top(bits)
+            return v
+        if et == "bool":
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = BoolInterval.top()
+            return v
+        if et == "address":
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = AddressSet.top()
+            return v
+        if et.startswith("bytes") and len(et) > 5:
+            byte_size = int(et[5:])
+            v = Variables(identifier=identifier)
+            v.typeInfo = sol_t
+            v.value = BytesSet.top(byte_size)
+            return v
+        # string / bytes 등
+        v = Variables(identifier=identifier)
+        v.typeInfo = sol_t
+        v.value = f"symbol_{identifier}"
+        return v
+
+    @staticmethod
     def bottom_from_soltype(sol_t: SolType):
         if sol_t.typeCategory == "array":
             return ArrayVariable(

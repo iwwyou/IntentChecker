@@ -688,19 +688,23 @@ class ContractAnalyzer:
             if member_name in lib.structDefs:
                 return lib.structDefs[member_name]
 
-        # 3) pkl에서 직접 로드 (fallback)
+        # 3) pkl에서 직접 로드 (fallback: library + interface + contract)
         import pickle, os
         base_dir = os.path.dirname(__file__)
         for pkl_path in [
             os.path.join(base_dir, "..", "Dependencies", "objectfile", f"lib_{library_name}.pkl"),
             os.path.join(base_dir, "..", "Libraries", "objectfile", f"{library_name}.pkl"),
+            os.path.join(base_dir, "..", "Dependencies", "objectfile", f"ifc_{library_name}.pkl"),
+            os.path.join(base_dir, "..", "Dependencies", "objectfile", f"con_{library_name}.pkl"),
         ]:
             if os.path.exists(pkl_path):
                 try:
                     with open(pkl_path, "rb") as f:
-                        lib_cfg = pickle.load(f)
-                    if member_name in lib_cfg.structDefs:
-                        return lib_cfg.structDefs[member_name]
+                        cfg = pickle.load(f)
+                    if member_name in cfg.structDefs:
+                        return cfg.structDefs[member_name]
+                    if hasattr(cfg, 'enumDefs') and member_name in cfg.enumDefs:
+                        return cfg.enumDefs[member_name]
                 except Exception:
                     pass
         return None
@@ -2792,13 +2796,13 @@ class ContractAnalyzer:
 
         return None
 
-    def process_ireturn(self, contract_var: str, func_name: str, index: int | None, value):
+    def process_ireturn(self, contract_var: str, func_name: str, access_chain: tuple, value):
         """
-        @IReturn annotation 처리 (Pattern A: contractVar.funcName()).
-        interface call의 return value를 FunctionCFG.ireturn_registry에 저장.
-        Evaluation.py에서 interface call 시 TOP 대신 이 값을 사용.
+        @IReturn annotation 처리 (Pattern A: contractVar.funcName().<chain>).
+        access_chain: tuple of ("member", name) or ("index", int), e.g.:
+          () → 단일 return,  (("index", 0),) → [0],  (("member", "fee"),) → .fee
         """
-        # 1) contract_var가 interface type 변수(state var 또는 parameter)인지 검증
+        # 1) contract_var가 interface type 변수인지 검증
         interface_name = self._find_interface_name_for_var(contract_var)
         if interface_name is None:
             raise ValueError(
@@ -2823,32 +2827,25 @@ class ContractAnalyzer:
                 f"@IReturn only supports view/pure interface functions."
             )
 
-        # 4) index 지정 시 return type 개수 범위 검증
-        if index is not None and index >= len(fcfg.return_types):
-            raise ValueError(
-                f"@IReturn: index [{index}] out of range "
-                f"('{interface_name}.{func_name}' has {len(fcfg.return_types)} return types)"
-            )
-
-        # 5) FunctionCFG의 ireturn_registry에 저장
+        # 4) FunctionCFG의 ireturn_registry에 저장
         ccf = self.contract_cfgs[self.current_target_contract]
         self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("@IReturn must be inside a function.")
 
-        key = (contract_var, func_name, index)
+        key = (contract_var, func_name, access_chain)
         self.current_target_function_cfg.ireturn_registry[key] = value
 
-        # 6) 재해석 배치
+        # 5) 재해석 배치
         self._batch_targets.add(self.current_target_function_cfg)
 
     # ------------------------------------------------------------------
     #  @IReturn (Pattern B: explicit cast)  debug 주석
     # ------------------------------------------------------------------
     def process_ireturn_cast(self, interface_name: str, addr_var: str,
-                             func_name: str, index: int | None, value):
+                             func_name: str, access_chain: tuple, value):
         """
-        @IReturn Pattern B annotation 처리: IInterface(addrVar).funcName()
+        @IReturn Pattern B annotation 처리: IInterface(addrVar).funcName().<chain>
         """
         # 1) interface_name이 알려진 interface인지 검증
         if interface_name not in self.interface_names:
@@ -2875,24 +2872,16 @@ class ContractAnalyzer:
                 f"@IReturn only supports view/pure interface functions."
             )
 
-        # 4) index 지정 시 return type 개수 범위 검증
-        if index is not None and index >= len(fcfg.return_types):
-            raise ValueError(
-                f"@IReturn: index [{index}] out of range "
-                f"('{interface_name}.{func_name}' has {len(fcfg.return_types)} return types)"
-            )
-
-        # 5) FunctionCFG의 ireturn_registry에 저장
-        #    key: (interface_name, addr_var, func_name, index) — 4-tuple로 Pattern A와 구분
+        # 4) FunctionCFG의 ireturn_registry에 저장
         ccf = self.contract_cfgs[self.current_target_contract]
         self.current_target_function_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
         if self.current_target_function_cfg is None:
             raise ValueError("@IReturn must be inside a function.")
 
-        key = (interface_name, addr_var, func_name, index)
+        key = (interface_name, addr_var, func_name, access_chain)
         self.current_target_function_cfg.ireturn_registry[key] = value
 
-        # 6) 재해석 배치
+        # 5) 재해석 배치
         self._batch_targets.add(self.current_target_function_cfg)
 
     # ContractAnalyzer.py (일부)

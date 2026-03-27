@@ -309,23 +309,28 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IReturnSingle.
-    def visitIReturnSingle(self, ctx:SolidityParser.IReturnSingleContext):
+    # Visit a parse tree produced by SolidityParser#IReturnPatternA.
+    def visitIReturnPatternA(self, ctx:SolidityParser.IReturnPatternAContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IReturnIndex.
-    def visitIReturnIndex(self, ctx:SolidityParser.IReturnIndexContext):
+    # Visit a parse tree produced by SolidityParser#IReturnPatternB.
+    def visitIReturnPatternB(self, ctx:SolidityParser.IReturnPatternBContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IReturnCastSingle.
-    def visitIReturnCastSingle(self, ctx:SolidityParser.IReturnCastSingleContext):
+    # Visit a parse tree produced by SolidityParser#ireturnAccessChain.
+    def visitIreturnAccessChain(self, ctx:SolidityParser.IreturnAccessChainContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SolidityParser#IReturnCastIndex.
-    def visitIReturnCastIndex(self, ctx:SolidityParser.IReturnCastIndexContext):
+    # Visit a parse tree produced by SolidityParser#IReturnMemberAccess.
+    def visitIReturnMemberAccess(self, ctx:SolidityParser.IReturnMemberAccessContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IReturnIndexAccess.
+    def visitIReturnIndexAccess(self, ctx:SolidityParser.IReturnIndexAccessContext):
         return self.visitChildren(ctx)
 
 

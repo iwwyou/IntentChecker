@@ -37,9 +37,16 @@ class AddressSet:
     def join(self, other: "AddressSet") -> "AddressSet":
         """Least upper bound (union with cap)"""
         if self.is_top or other.is_top:
-            return AddressSet.top()
-        u = self.ids | other.ids
-        return AddressSet(u) if len(u) <= AddressSet.K else AddressSet.top()
+            result = AddressSet.top()
+        else:
+            u = self.ids | other.ids
+            result = AddressSet(u) if len(u) <= AddressSet.K else AddressSet.top()
+        # _cast_interface 보존: 양쪽이 같으면 유지
+        ci = self._cast_interface or other._cast_interface
+        if self._cast_interface and other._cast_interface and self._cast_interface != other._cast_interface:
+            ci = None  # 다른 interface → 소실
+        result._cast_interface = ci
+        return result
 
     def meet(self, other: "AddressSet") -> "AddressSet":
         """Greatest lower bound (intersection)"""
@@ -47,16 +54,19 @@ class AddressSet:
             return other
         if other.is_top:
             return self
-        return AddressSet(self.ids & other.ids)
+        result = AddressSet(self.ids & other.ids)
+        result._cast_interface = self._cast_interface or other._cast_interface
+        return result
 
     def narrow(self, other: "AddressSet") -> "AddressSet":
         """Narrowing operator - refine the approximation"""
-        # Narrowing: TOP인 경우 other로 구체화, 아니면 교집합
         if self.is_top:
             return other
         if other.is_top:
             return self
-        return AddressSet(self.ids & other.ids)
+        result = AddressSet(self.ids & other.ids)
+        result._cast_interface = self._cast_interface or other._cast_interface
+        return result
 
     def equals(self, other: "AddressSet") -> BoolInterval:
         """Abstract equality: self == other"""

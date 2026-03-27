@@ -268,12 +268,23 @@ class DebugInitializer:
         #    예: allowed[_from][msg.sender], balances[msg.sender]
         # ======================================================================
         if VariableEnv.is_global_expr(expr) and isinstance(callerObject, MappingVariable):
-            key = f"{expr.base.identifier}.{member_name}"  # "msg.sender"
+            full_name = f"{expr.base.identifier}.{member_name}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
                 ccf = self.an.contract_cfgs[self.an.current_target_contract]
                 callerObject.struct_defs = ccf.structDefs
                 callerObject.enum_defs = ccf.enumDefs
+
+            # global var의 실제 값으로 key 결정
+            key = full_name  # fallback
+            if full_name in variables:
+                gv_val = variables[full_name].value
+                if isinstance(gv_val, AddressSet):
+                    if gv_val.is_singleton():
+                        key = str(gv_val)  # "AddressSet({101})"
+                elif hasattr(gv_val, "min_value"):
+                    if gv_val.min_value == gv_val.max_value:
+                        key = str(gv_val.min_value)
 
             # 엔트리 없으면 생성
             if key not in callerObject.mapping:
@@ -298,12 +309,22 @@ class DebugInitializer:
         if isinstance(base_obj, str) and base_obj in ("block", "tx", "msg"):
             # 글로벌 멤버 접근 - callerObject가 MappingVariable이면 키로 사용
             if isinstance(callerObject, MappingVariable):
-                key = f"{base_obj}.{member_name}"
+                full_name = f"{base_obj}.{member_name}"
 
                 if not callerObject.struct_defs or not callerObject.enum_defs:
                     ccf = self.an.contract_cfgs[self.an.current_target_contract]
                     callerObject.struct_defs = ccf.structDefs
                     callerObject.enum_defs = ccf.enumDefs
+
+                key = full_name
+                if full_name in variables:
+                    gv_val = variables[full_name].value
+                    if isinstance(gv_val, AddressSet):
+                        if gv_val.is_singleton():
+                            key = str(gv_val)
+                    elif hasattr(gv_val, "min_value"):
+                        if gv_val.min_value == gv_val.max_value:
+                            key = str(gv_val.min_value)
 
                 if key not in callerObject.mapping:
                     callerObject.mapping[key] = callerObject.get_or_create(key)
@@ -397,12 +418,23 @@ class DebugInitializer:
         # 1) 글로벌 멤버가 매핑 키로 사용되는 경우: allowed[_from][msg.sender]
         # ======================================================================
         if VariableEnv.is_global_expr(expr) and isinstance(callerObject, MappingVariable):
-            key = f"{expr.base.identifier}.{member}"  # "msg.sender"
+            full_name = f"{expr.base.identifier}.{member}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
                 ccf = self.an.contract_cfgs[self.an.current_target_contract]
                 callerObject.struct_defs = ccf.structDefs
                 callerObject.enum_defs = ccf.enumDefs
+
+            # global var의 실제 값으로 key 결정
+            key = full_name
+            if full_name in variables:
+                gv_val = variables[full_name].value
+                if isinstance(gv_val, AddressSet):
+                    if gv_val.is_singleton():
+                        key = str(gv_val)
+                elif hasattr(gv_val, "min_value"):
+                    if gv_val.min_value == gv_val.max_value:
+                        key = str(gv_val.min_value)
 
             # 엔트리가 없으면 새로 만든다
             if key not in callerObject.mapping:
@@ -412,10 +444,10 @@ class DebugInitializer:
 
             # ① 더 깊은 IndexAccess 가 이어질 때는 객체 그대로 반환
             if callerContext == "IntentIndexAccess":
-                return entry  # allowed[msg.sender] 의 결과
+                return entry
 
-            # ② leaf 읽기(Intent이므로 값 패치는 하지 않음)
-            return entry  # Variables / EnumVariable / Array…
+            # ② leaf 읽기
+            return entry
 
         # ======================================================================
         # 2) 일반적인 경우: base 객체를 먼저 찾고 멤버 접근

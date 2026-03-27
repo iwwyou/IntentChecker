@@ -355,3 +355,50 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 
 ### 추가 구현 필요
 - **Issue 8** (78_H_02): 피상속 컨트랙트의 private state variable 접근
+
+---
+
+## Input JSON 형식 규칙 (2026-03-27)
+
+### JSON 생성 절차
+1. **전처리**: `preprocess_contraction.py` 실행 (import/주석/constructor 제거, single-line if 확장 등)
+2. **Code records 생성**: `soltotestjson.py`로 clean contraction .sol에서 변환
+3. **Annotation 추가**: code records 뒤에 intent → debug annotation 순서로 추가
+
+### JSON 레코드 순서 (반드시 준수)
+```
+1. Code records        (soltotestjson.py 출력 그대로)
+2. Intent annotations  (// @During ..., // @Post ...)
+3. // @Debugging BEGIN
+4. Debug annotations   (// @LocalVar, @StateVar, @GlobalVar, @IReturn)
+5. // @Debugging END
+```
+
+### @Debugging BEGIN/END 필수
+- Debug annotation은 반드시 `// @Debugging BEGIN` ~ `// @Debugging END`로 감싸야 함
+- BEGIN/END 없이 개별 flush하면 **동일 intent를 debug annotation 개수만큼 반복 체크**하게 됨
+- BEGIN/END의 startLine은 debug annotation 중 첫 번째의 startLine과 동일하게 설정
+
+### Debug annotation startLine 규칙
+- **각 debug annotation의 startLine은 서로 고유해야 함** (batch_mgr가 startLine을 dict key로 사용)
+- 함수 body 내 코드 라인 번호를 순차적으로 할당 (예: 197, 198, 199, ...)
+- Intent annotation의 startLine은 해당 코드 라인과 동일해도 됨 (debug와 별도 처리)
+
+### Contraction .sol에 annotation을 넣지 말 것
+- `target_contracts_contraction/` .sol은 순수 코드만 포함
+- annotation은 JSON에서만 추가
+- .sol에 annotation이 섞이면 soltotestjson.py가 라인 갭을 만들어 CFG 빌드 실패
+
+---
+
+## 엔진 수정 사항 (2026-03-27)
+
+### _merge_values None 방어
+- `VariableEnv._merge_values(v1, v2, mode)`: v1 또는 v2가 None이면 다른 쪽 반환
+- 한쪽 branch에서 초기화 안 된 변수가 join 시 에러 방지
+
+### Interface 타입 state variable 지원
+- `process_state_variable`: typeCategory=="interface"이면 AddressSet.top() + `_cast_interface` 설정
+- `process_variable_declaration`: 동일 처리 (local 변수)
+- `evaluate_identifier_context`: MemberAccessContext에서 interface 타입 변수는 `.value`(AddressSet) 반환
+- 이를 통해 `interestRateModel.getBorrowRate()` 같은 interface member call이 정상 동작

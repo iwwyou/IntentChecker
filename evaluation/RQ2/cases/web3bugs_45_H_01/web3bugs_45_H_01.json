@@ -1209,93 +1209,87 @@
     "event": "add"
   },
   {
-    "code": "// @LocalVar account = symbolicAddress 101",
+    "code": "// @StateVar minBorrow = [2, 2]",
     "startLine": 198,
     "endLine": 198,
     "event": "add"
   },
   {
-    "code": "// @StateVar minBorrow = [2, 2]",
+    "code": "// @StateVar debtCeiling = [1000000000000000002, 1000000000000000002]",
     "startLine": 199,
     "endLine": 199,
     "event": "add"
   },
   {
-    "code": "// @StateVar debtCeiling = [1000000000000000002, 1000000000000000002]",
+    "code": "// @StateVar totalBorrows = [0, 0]",
     "startLine": 200,
     "endLine": 200,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalBorrows = [0, 0]",
+    "code": "// @StateVar originationFee = [1000000000000001, 1000000000000001]",
     "startLine": 201,
     "endLine": 201,
     "event": "add"
   },
   {
-    "code": "// @StateVar originationFee = [1000000000000001, 1000000000000001]",
+    "code": "// @StateVar WAD = [1000000000000000000, 1000000000000000000]",
     "startLine": 202,
     "endLine": 202,
     "event": "add"
   },
   {
-    "code": "// @StateVar WAD = [1000000000000000000, 1000000000000000000]",
+    "code": "// @StateVar accountBorrows[msg.sender].principal = [1000000000000000001, 1000000000000000001]",
     "startLine": 203,
     "endLine": 203,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].principal = [1000000000000000001, 1000000000000000001]",
+    "code": "// @StateVar accrualBlockNumber = [1, 1]",
     "startLine": 204,
     "endLine": 204,
     "event": "add"
   },
   {
-    "code": "// @StateVar accrualBlockNumber = [1, 1]",
+    "code": "// @StateVar borrowIndex = [1000000000000000001, 1000000000000000001]",
     "startLine": 205,
     "endLine": 205,
     "event": "add"
   },
   {
-    "code": "// @StateVar borrowIndex = [1000000000000000001, 1000000000000000001]",
+    "code": "// @StateVar accountBorrows[msg.sender].interest = [1, 1]",
     "startLine": 206,
     "endLine": 206,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].interest = [1, 1]",
+    "code": "// @StateVar accountBorrows[msg.sender].interestIndex = [1000000000000000001, 1000000000000000001]",
     "startLine": 207,
     "endLine": 207,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].interestIndex = [1000000000000000001, 1000000000000000001]",
+    "code": "// @StateVar accountBorrows[msg.sender].lastRepay = [1, 1]",
     "startLine": 208,
     "endLine": 208,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].lastRepay = [1, 1]",
+    "code": "// @StateVar maxBorrow = [2001005000000000005, 2001005000000000005]",
     "startLine": 209,
     "endLine": 209,
     "event": "add"
   },
   {
-    "code": "// @StateVar maxBorrow = [2001005000000000005, 2001005000000000005]",
+    "code": "// @StateVar overdueBlocks = [2, 2]",
     "startLine": 210,
     "endLine": 210,
     "event": "add"
   },
   {
-    "code": "// @StateVar overdueBlocks = [2, 2]",
+    "code": "// @GlobalVar block.number = [2, 2]",
     "startLine": 211,
     "endLine": 211,
-    "event": "add"
-  },
-  {
-    "code": "// @GlobalVar block.number = [2, 2]",
-    "startLine": 212,
-    "endLine": 212,
     "event": "add"
   },
   {
