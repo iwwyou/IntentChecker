@@ -713,6 +713,8 @@ class LibraryCFG(CFG):
         self.structDefs = {}  # name -> StructDefinition 객체
         self.enumDefs = {}   # name -> EnumDefinition 객체
 
+        self.globals: dict[str, 'GlobalVariable'] = {}
+
         # Library 내부의 using directive 지원 (e.g., using Address for address;)
         self.using_libraries: dict[str, list['LibraryCFG']] = {}
         self.using_all_libraries: list['LibraryCFG'] = []

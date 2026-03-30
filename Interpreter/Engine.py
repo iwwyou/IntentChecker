@@ -799,6 +799,9 @@ class Engine:
                         t.variables = true_variables; work.append(t)
                     else:
                         self._set_bottom_env(t.variables)
+
+                    # require/assert 노드의 During intent 검증
+                    self._process_node_intents(node, cur_vars, getattr(node, 'src_line', None))
                     continue
 
                 elif node.condition_node_type in ["while", "for", "do_while"]:
@@ -1108,7 +1111,9 @@ class Engine:
             v.value = BoolInterval.bottom(); return
         from Domain.AddressSet import AddressSet
         if isinstance(val, AddressSet):
-            v.value = AddressSet.bot(); return
+            bot = AddressSet.bot()
+            bot._cast_interface = getattr(val, '_cast_interface', None)
+            v.value = bot; return
         v.value = None
 
     def _force_join_before_exit(self, fcfg: FunctionCFG) -> None:

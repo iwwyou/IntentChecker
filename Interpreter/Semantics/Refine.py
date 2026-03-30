@@ -230,7 +230,24 @@ class Refine:
 
         # ───────── CASE 1 : 둘 다 Interval ─────────────────────
         if VariableEnv.is_interval(left_val) and VariableEnv.is_interval(right_val):
+            # 비트 길이 통일: Solidity 비교 시 큰 쪽으로 promotion 후 refine, 결과는 원래 비트로 복원
+            orig_l_bits = left_val.type_length
+            orig_r_bits = right_val.type_length
+            if orig_l_bits != orig_r_bits:
+                promo_bits = max(orig_l_bits, orig_r_bits)
+                left_val = type(left_val)(left_val.min_value, left_val.max_value, promo_bits)
+                right_val = type(right_val)(right_val.min_value, right_val.max_value, promo_bits)
             new_l, new_r = self.refine_intervals_for_comparison(left_val, right_val, actual_op)
+            # 원래 비트 길이 복원
+            if orig_l_bits != orig_r_bits:
+                if not new_l.is_bottom():
+                    new_l = type(new_l)(new_l.min_value, new_l.max_value, orig_l_bits)
+                else:
+                    new_l = new_l.bottom(orig_l_bits)
+                if not new_r.is_bottom():
+                    new_r = type(new_r)(new_r.min_value, new_r.max_value, orig_r_bits)
+                else:
+                    new_r = new_r.bottom(orig_r_bits)
             _maybe_update(left_expr, variables, new_l)
             _maybe_update(right_expr, variables, new_r)
             return

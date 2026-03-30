@@ -358,6 +358,17 @@ class StaticCFGFactory:
         if sol_type.typeCategory == "struct":
             sname = sol_type.structTypeName
             struct_def = ccf.structDefs.get(sname) or an.sa.file_level_structs.get(sname)
+            # parent chain 검색
+            if struct_def is None:
+                def _search_parent_structs(cfg, name):
+                    for pcfg in getattr(cfg, 'parent_cfgs', {}).values():
+                        if name in pcfg.structDefs:
+                            return pcfg.structDefs[name]
+                        found = _search_parent_structs(pcfg, name)
+                        if found:
+                            return found
+                    return None
+                struct_def = _search_parent_structs(ccf, sname)
             if struct_def is None:
                 raise ValueError(f"Undefined struct '{sname}' used as parameter/return.")
             sv = StructVariable(identifier=ident, struct_type=sname, scope=scope)

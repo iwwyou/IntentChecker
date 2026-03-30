@@ -8,6 +8,16 @@ contract Governed {
     event NewGov(address indexed oldGov, address indexed newGov);
     event NewPendingGov(address indexed oldPendingGov, address indexed newPendingGov);
 
+    modifier governed {
+        require(msg.sender == gov, "!gov");
+        _;
+    }
+
+    modifier emergency_governed {
+        require(msg.sender == gov || msg.sender == emergency_gov, "!egov");
+        _;
+    }
+
     function governorship() public view returns (address, address, address) {
         return (gov, emergency_gov, pendingGov);
     }
@@ -33,16 +43,6 @@ contract Governed {
         address old = gov;
         gov = address(0);
         emit NewGov(old, address(0));
-    }
-
-    modifier governed {
-        require(msg.sender == gov, "!gov");
-        _;
-    }
-
-    modifier emergency_governed {
-        require(msg.sender == gov || msg.sender == emergency_gov, "!egov");
-        _;
     }
 }
 

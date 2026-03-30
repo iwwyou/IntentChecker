@@ -6,6 +6,13 @@ abstract contract Initializable {
 
     bool private _initializing;
 
+    function _isConstructor() private view returns (bool) {
+        address self = address(this);
+        uint256 cs;
+        assembly { cs := extcodesize(self) }
+        return cs == 0;
+    }
+
     modifier initializer() {
         require(_initializing || _isConstructor() || !_initialized, "Initializable: contract is already initialized");
 
@@ -20,12 +27,5 @@ abstract contract Initializable {
         if (isTopLevelCall) {
             _initializing = false;
         }
-    }
-
-    function _isConstructor() private view returns (bool) {
-        address self = address(this);
-        uint256 cs;
-        assembly { cs := extcodesize(self) }
-        return cs == 0;
     }
 }

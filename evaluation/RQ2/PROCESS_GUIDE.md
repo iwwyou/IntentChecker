@@ -9,7 +9,9 @@
 ## 핵심 지시사항
 - **오류가 나면 바로 수정하지 말고 사용자에게 먼저 보고할 것**
 - **모르는 것이 있으면 사용자에게 물어볼 것**
-- **항상 위 두 가지를 지킬 것**
+- **코드 수정 전 반드시 사용자에게 수정 방향을 설명하고 승인받을 것** (직접 판단하여 수정 금지)
+- **방어 코드(try-except 무시, None 체크 후 pass 등) 금지** — 근본 원인을 파악하고 일반화된 방향으로 해결할 것
+- **항상 위 사항들을 지킬 것**
 
 ## 데이터셋 구성
 - **총 89건**: Web3Bugs 81건 + Numscout 8건
@@ -317,6 +319,23 @@ python Dependencies/main.py --type all    # 전체 분석
 python Dependencies/main.py --file X.sol  # 단일 파일
 ```
 
+### Dependency .sol 작성 규칙
+
+**함수 순서 — callee가 caller보다 앞에 위치해야 함**
+- IntentChecker는 소스를 순차적으로 파싱하므로, 호출되는 함수(callee)가 호출하는 함수(caller)보다 뒤에 정의되면 CFG가 제대로 구축되지 않음
+- 예: `_transfer`가 `transferFrom`보다 **앞에** 정의되어야 함
+- Dependency .sol을 작성/수정할 때 반드시 호출 관계를 확인하고 순서 정렬
+
+**pkl 재생성 순서 — 상속 체인의 부모부터 생성**
+- 자식 contract의 pkl 생성 시 부모 pkl이 이미 존재해야 `parent_cfgs`, `using_libraries` 상속이 정상 동작
+- 재생성 순서 예시 (47번):
+  1. `SafeMathUpgradeable` (library, 독립)
+  2. `AddressUpgradeable` (library, 독립)
+  3. `Initializable` (base contract)
+  4. `ContextUpgradeable` (← Initializable)
+  5. `ERC20Upgradeable` (← Initializable, ContextUpgradeable)
+- `Dependencies/main.py --type all`은 알파벳순이라 상속 순서와 다를 수 있으므로, 개별 재생성 시 직접 순서를 지정할 것
+
 ### Phase 0
 - type alias 사전 수집 (`type X is Y;` regex)
 - interface 이름 사전 수집 (`interface X` regex)
@@ -402,3 +421,151 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 - `process_variable_declaration`: 동일 처리 (local 변수)
 - `evaluate_identifier_context`: MemberAccessContext에서 interface 타입 변수는 `.value`(AddressSet) 반환
 - 이를 통해 `interestRateModel.getBorrowRate()` 같은 interface member call이 정상 동작
+
+---
+
+## 엔진 수정 사항 (2026-03-30 세션 3)
+
+### Mapping key 통일 — AddressSet 값 기반
+- global var(msg.sender)가 mapping index일 때 `"msg.sender"` 리터럴 대신 `str(AddressSet({101}))` 사용
+- **5곳 수정**: Evaluation.py, Update.py, DebugInitializer.py
+- annotation `accountBorrows[msg.sender]`와 callee `accountBorrows[account]` 모두 동일 key 수렴
+- 45_H_01 해결
+
+### `top_from_soltype` 범용 유틸리티
+- `VariableEnv.top_from_soltype(sol_t, struct_defs, enum_defs, identifier)` → top-valued domain object
+- struct, enum, array, mapping, interface, elementary 전부 지원
+- interface function return 시 모든 return type에 대해 proper domain value 반환
+
+### Interface struct return + parent chain 검색
+- InterfaceFunctionCallContext에서 `top_from_soltype`으로 StructVariable 반환
+- `_lookup_interface_return`: parent interface chain BFS 검색 (IVaultGovernance → ILpIssuerGovernance 등)
+- `resolve_library_struct`: interface/contract pkl에서도 struct/enum 조회
+
+### Interface 타입 전반 지원 강화
+- `top_from_soltype`, `initialize_struct._make_var`, `MappingVariable._make_value`, `Engine._interpret_var_decl`: interface typeCategory → AddressSet.top() + `_cast_interface`
+- `AddressSet.join/meet/narrow`: `_cast_interface` 보존 (`getattr` safe access)
+- `_make_bottom`: AddressSet bottom 시 `_cast_interface` 타입 정보 보존
+- `evaluate_identifier_context`: composite 타입(Struct/Array/Mapping) 객체 직접 반환
+
+### @IReturn Grammar 일반화
+- `debugIReturn` rule: 기존 4개 → PatternA/B 2개 + `ireturnAccessChain`
+- access chain: `("member", name)`, `("index", int)`, `("call", name)` 3종
+- Registry key: `(contract_var, func_name, access_chain_tuple)` 형식
+- `_assemble_ireturn_value`: access chain 따라 struct member 설정
+
+### Library constant 조회
+- `evaluate_member_access_context`: library의 `state_variable_node.variables`에서 상수 조회
+
+### Dependency 사전분석 확장
+- `_load_parent_pkls`: 모든 모드(contract, interface, library)에서 호출
+- regex: `contract|interface|library` 모두 매칭
+- interface 결과 추출: `_pre_existing_all` 기반
+
+### Refine non-l-value skip
+- function call, binary/unary op, literal, tuple, type conversion 등 non-l-value expression narrowing 방지
+
+### SolidityAnalyzer._insert_lines shift 수정
+- `skip_shift_at_start=True` 시 `actual_offset = offset - 1`
+- for loop 이후 코드가 loop 내부로 잘못 포함되던 CFG 구축 문제 해결
+
+---
+
+## 엔진 수정 사항 (2026-03-30 세션 4)
+
+### Contract 타입 인식 (visitUserDefinedType)
+- `contract_cfgs`에 등록된 contract 타입 (부모 컨트랙트 등)을 interface와 동일하게 address로 처리
+- `library_cfgs`에 있는 타입은 제외 (library는 변수 타입으로 사용 불가)
+- 47_H_02 해결 (ERC20Upgradeable), 51_H_02 해결 (LPToken)
+
+### 부모 contract의 using 선언 상속
+- `make_contract_cfg` / `make_abstract_contract_cfg`에서 `_inherit_using_libraries(cfg)` 호출
+- 부모 pkl의 `using_libraries` / `using_all_libraries`를 자식 cfg에 복사
+- Solidity semantics: `using X for Y;`는 derived contract에도 적용
+
+### process_using_directive — library_cfgs 우선 조회
+- 기존: pkl 파일 경로로만 검색 (`lib_{name}.pkl`) → `lib_47_SafeMathUpgradeable.pkl` 같은 prefix 있는 경우 못 찾음
+- 수정: `self.library_cfgs`를 먼저 확인, pkl은 fallback
+- 이미 로드된 library를 재활용하므로 일관성 + 일반성 확보
+
+### Library globals (block.timestamp 등)
+- `LibraryCFG`에 `globals` 필드 추가 (`CFG.py`)
+- `make_library_cfg`에서 `StaticCFGFactory._create_global_variables()` 호출
+- library 함수도 `block.timestamp`, `msg.sender` 등 사용 가능 (Solidity semantics)
+- 51_H_02 해결 (SwapUtils library에서 block.timestamp 접근)
+
+### require/assert 분기에서 During intent 검증
+- Engine.py require/assert 분기 (`condition_node_type in ["require", "assert"]`)에서 `_process_node_intents` 호출 추가
+- 기존: require 노드에 statements가 없어 intent 검증이 스킵됨
+- 수정: `continue` 직전에 `_process_node_intents(node, cur_vars, src_line)` 호출
+- `@During require feasible` annotation 정상 동작
+- 51_H_02 해결 (require 조건이 항상 false → VIOLATED)
+
+### 51번 Dependency 신규 생성
+- `Dependencies/contracts/51/`: Context, ERC20 (OZ 0.6 표준), ERC20Burnable, Ownable, LPToken
+- `Dependencies/interfaces/ISwap.sol`
+- pkl 생성 순서: ISwap → Context → ERC20 → ERC20Burnable → Ownable → LPToken
+
+### struct 생성자 검색 일반화 (_find_struct_def)
+- `evaluate_function_call_context`에서 struct 생성자 검색 시 현재 contract + parent chain + using libraries + library_cfgs 전체 검색
+- library에서 찾은 경우 qualified name 반환 (e.g., `FixedPointMath.FixedDecimal`) → using key와 매칭
+- positional argument 지원: `FixedDecimal(x)` 같은 positional 인자도 struct 멤버에 매핑
+- 56_H_02 해결 (FixedPointMath.FixedDecimal struct 생성자 인식)
+
+### FixedPointMath inline assignment 분리
+- `require((x = self.x * value) / value == self.x)` → `uint256 x = self.x * value; require(x / value == self.x);`
+- IntentChecker가 조건식 내 inline assignment를 지원하지 않으므로 semantics 동일한 형태로 분리
+- `fromU256`, `add`, `sub`, `mul` 4개 함수 모두 적용
+
+### divide에서 0 제외 (Interval.py)
+- 기존: 분모에 0 포함 시 무조건 BOTTOM
+- 수정: Solidity에서 div-by-zero는 revert → 0을 제외하고 나눗셈 수행
+- `UnsignedIntegerInterval`: `[0, MAX]` → `[1, MAX]`으로 0 제외
+- `IntegerInterval`: `[-5, 5]` → `[-5, -1]` ∪ `[1, 5]` 두 구간으로 분리, 결과 보수적 합산
+- 분모가 정확히 `[0, 0]`일 때만 BOTTOM (항상 revert)
+
+### OR(||) short-circuit BOTTOM 전파 수정
+- 기존: `||`에서 한쪽 피연산자가 BOTTOM이면 결과도 BOTTOM
+- 수정: `||`에서 한쪽이 true 가능하면 다른 쪽 BOTTOM이어도 결과는 `[0,1]` (Solidity short-circuit semantics)
+- `&&`는 기존대로 한쪽 BOTTOM이면 BOTTOM 유지
+
+---
+
+## 케이스별 실행 결과 (2026-03-30 세션 4)
+
+| # | Case | Status | 비고 |
+|---|------|--------|------|
+| 1 | WANGMI | ✅ VIOLATED (V=1) | |
+| 2 | Nokon | ⚠️ WARNING (W=1) | |
+| 3 | SwordCrowdsale | ✅ VIOLATED (V=2) | |
+| 4 | BoostToken_operator | ✅ VIOLATED (V=2) | |
+| 5 | BoostToken_indivisible | ✅ VIOLATED (V=4) | |
+| 6 | HIT | ❌ ERROR | ImplicationContext.commonClause |
+| 7 | 5_H_07 | ✅ VIOLATED (V=1) | |
+| 8 | 5_H_08 | ✅ VIOLATED (V=1) | |
+| 9 | 5_H_12 | ✅ VIOLATED (V=1) | |
+| 10 | 77_H_01 | ✅ VIOLATED (V=1) | |
+| 11 | 101_H_01 | ⚠️ WARNING (W=1) | Issue F(ERC1155) 필요 |
+| 12 | 45_H_01 | ✅ VIOLATED (V=2) | 세션3 해결 |
+| 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 — contract 타입 인식 + using 상속 |
+| 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 — LPToken dep + library globals + require intent |
+| 15 | 56_H_02 | ⚠️ WARNING (W=1) | 세션4 해결 — struct chaining + divide fix, annotation 검토 필요 |
+| 16 | 58_H_02 | ⚠️ WARNING (W=1) | 세션3 해결, annotation 검토 필요 |
+| 17 | 60_H_01 | ⚠️ WARNING (W=1) | 세션4 부분 해결 — file-level struct + type alias + aliasName, qualified lib static call 체이닝 미해결 |
+| 18 | 62_H_08 | ❌ ERROR | Modifier 'governed' |
+| 19 | 70_H_10 | ❌ ERROR | qualified lib static call (UniswapV2OracleLibrary) |
+
+**13 VIOLATED + 5 WARNING + 1 ERROR = 19건** (42_H_01, 78_H_02 미생성)
+
+### 62_H_08 수정 사항 (세션4)
+- contraction sol에서 modifier를 함수 앞으로 이동 + soltotestjson 재생성
+- annotation `[101]` → `[msg.sender]`
+- Refine 비트 길이 통일: literal(256bit default) vs 변수(실제 비트) — promotion 후 refine, 원래 비트 복원
+- `visitUserDefinedType`: struct/enum 검색 시 parent chain 순회 추가
+- `StaticCFGFactory.make_param_variable`: struct 파라미터 parent chain 검색 추가
+
+### 60_H_01, 70_H_10 공통 미해결 사항
+- **Qualified library static call**: `Fixed18Lib._from(x)`, `UniswapV2OracleLibrary.currentCumulativePrice(pair)` 등 library 이름을 identifier로 평가할 때 resolve 안 됨
+- **Qualified static call 체이닝**: `Fixed18Lib._from(x).add(y)` — static call 반환값에 library 함수 체이닝
+- **Cross-library call**: `Fixed18Lib.abs()` → `UFixed18Lib._from()` 호출
+- 해결 시 60_H_01, 70_H_10 모두 re-test 필요

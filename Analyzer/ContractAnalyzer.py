@@ -520,6 +520,7 @@ class ContractAnalyzer:
             for pname in parent_contracts:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
+            self._inherit_using_libraries(cfg)
 
         if self.current_start_line and self.current_start_line in self.sa.line_info:
             self.sa.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
@@ -537,9 +538,19 @@ class ContractAnalyzer:
             for pname in parent_contracts:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
+            self._inherit_using_libraries(cfg)
 
         if self.current_start_line and self.current_start_line in self.sa.line_info:
             self.sa.line_info[self.current_start_line]['cfg_nodes'] = [cfg]
+
+    def _inherit_using_libraries(self, cfg):
+        """부모 contract의 using_libraries / using_all_libraries를 자식 cfg에 상속"""
+        for parent_cfg in cfg.parent_cfgs.values():
+            for target_type, libs in parent_cfg.using_libraries.items():
+                for lib in (libs if isinstance(libs, list) else [libs]):
+                    cfg.add_using_library(lib, target_type)
+            for lib in parent_cfg.using_all_libraries:
+                cfg.add_using_library(lib, None)
 
     def make_library_cfg(self, library_name: str):
         """
@@ -550,6 +561,7 @@ class ContractAnalyzer:
 
         self.current_target_contract = library_name  # 라이브러리도 contract로 처리
         library_cfg = LibraryCFG(library_name)
+        library_cfg.globals = StaticCFGFactory._create_global_variables(self)
 
         # 라이브러리 CFG를 저장
         self.library_cfgs[library_name] = library_cfg
@@ -637,26 +649,25 @@ class ContractAnalyzer:
         if not contract_cfg:
             return  # 컨트랙트/라이브러리 밖의 using directive는 무시
 
-        # 라이브러리 CFG 로드 — Dependencies/objectfile 우선, Libraries/objectfile fallback
-        library_cfg = None
-        base_dir = os.path.dirname(__file__)
-        search_paths = [
-            os.path.join(base_dir, "..", "Dependencies", "objectfile", f"lib_{library_name}.pkl"),
-            os.path.join(base_dir, "..", "Libraries", "objectfile", f"{library_name}.pkl"),
-        ]
-
-        for pkl_path in search_paths:
-            if os.path.exists(pkl_path):
-                try:
-                    with open(pkl_path, "rb") as f:
-                        library_cfg = pickle.load(f)
-                    break
-                except Exception:
-                    pass
+        # 라이브러리 CFG 로드 — library_cfgs 우선, pkl fallback
+        library_cfg = self.library_cfgs.get(library_name)
 
         if library_cfg is None:
-            # Address 등 pkl 파일이 없는 라이브러리는 stub 처리
-            # using_libraries에 이름만 저장 (find_library_function에서 None 반환)
+            base_dir = os.path.dirname(__file__)
+            search_paths = [
+                os.path.join(base_dir, "..", "Dependencies", "objectfile", f"lib_{library_name}.pkl"),
+                os.path.join(base_dir, "..", "Libraries", "objectfile", f"{library_name}.pkl"),
+            ]
+            for pkl_path in search_paths:
+                if os.path.exists(pkl_path):
+                    try:
+                        with open(pkl_path, "rb") as f:
+                            library_cfg = pickle.load(f)
+                        break
+                    except Exception:
+                        pass
+
+        if library_cfg is None:
             return
 
         # LibraryCFG를 using_libraries/using_all_libraries에 등록

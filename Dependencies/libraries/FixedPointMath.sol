@@ -9,8 +9,8 @@ library FixedPointMath {
   }
 
   function fromU256(uint256 value) internal pure returns (FixedDecimal memory) {
-    uint256 x;
-    require(value == 0 || (x = value * SCALAR) / SCALAR == value);
+    uint256 x = value * SCALAR;
+    require(value == 0 || x / SCALAR == value);
     return FixedDecimal(x);
   }
 
@@ -19,8 +19,8 @@ library FixedPointMath {
   }
 
   function add(FixedDecimal memory self, FixedDecimal memory value) internal pure returns (FixedDecimal memory) {
-    uint256 x;
-    require((x = self.x + value.x) >= self.x);
+    uint256 x = self.x + value.x;
+    require(x >= self.x);
     return FixedDecimal(x);
   }
 
@@ -29,8 +29,8 @@ library FixedPointMath {
   }
 
   function sub(FixedDecimal memory self, FixedDecimal memory value) internal pure returns (FixedDecimal memory) {
-    uint256 x;
-    require((x = self.x - value.x) <= self.x);
+    uint256 x = self.x - value.x;
+    require(x <= self.x);
     return FixedDecimal(x);
   }
 
@@ -39,8 +39,8 @@ library FixedPointMath {
   }
 
   function mul(FixedDecimal memory self, uint256 value) internal pure returns (FixedDecimal memory) {
-    uint256 x;
-    require(value == 0 || (x = self.x * value) / value == self.x);
+    uint256 x = self.x * value;
+    require(value == 0 || x / value == self.x);
     return FixedDecimal(x);
   }
 

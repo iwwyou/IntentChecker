@@ -1,29 +1,17 @@
-pragma solidity ^0.6.0;
+pragma solidity 0.6.12;
 
-contract ERC20Upgradeable is Initializable, ContextUpgradeable, IERC20Upgradeable {
-    using SafeMathUpgradeable for uint256;
-    using AddressUpgradeable for address;
+contract ERC20 is IERC20, Context {
+    using SafeMath for uint256;
 
-    mapping (address => uint256) internal _balances;
+    mapping (address => uint256) private _balances;
 
-    mapping (address => mapping (address => uint256)) internal _allowances;
+    mapping (address => mapping (address => uint256)) private _allowances;
 
-    uint256 internal _totalSupply;
+    uint256 private _totalSupply;
 
-    string internal _name;
-    string internal _symbol;
-    uint8 internal _decimals;
-
-    function __ERC20_init(string memory name, string memory symbol) internal initializer {
-        __Context_init_unchained();
-        __ERC20_init_unchained(name, symbol);
-    }
-
-    function __ERC20_init_unchained(string memory name, string memory symbol) internal initializer {
-        _name = name;
-        _symbol = symbol;
-        _decimals = 18;
-    }
+    string private _name;
+    string private _symbol;
+    uint8 private _decimals;
 
     function name() public view returns (string memory) {
         return _name;
@@ -37,15 +25,15 @@ contract ERC20Upgradeable is Initializable, ContextUpgradeable, IERC20Upgradeabl
         return _decimals;
     }
 
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() public view returns (uint256) {
         return _totalSupply;
     }
 
-    function balanceOf(address account) public view virtual override returns (uint256) {
+    function balanceOf(address account) public view returns (uint256) {
         return _balances[account];
     }
 
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+    function allowance(address owner, address spender) public view virtual returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -94,17 +82,17 @@ contract ERC20Upgradeable is Initializable, ContextUpgradeable, IERC20Upgradeabl
         _decimals = decimals_;
     }
 
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+    function transfer(address recipient, uint256 amount) public virtual returns (bool) {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
 
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+    function approve(address spender, uint256 amount) public virtual returns (bool) {
         _approve(_msgSender(), spender, amount);
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
         return true;
@@ -119,6 +107,4 @@ contract ERC20Upgradeable is Initializable, ContextUpgradeable, IERC20Upgradeabl
         _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
         return true;
     }
-
-    uint256[44] private __gap;
 }

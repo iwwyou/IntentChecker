@@ -1,12 +1,13 @@
 pragma solidity ^0.6.0;
 
 abstract contract ContextUpgradeable is Initializable {
+    function __Context_init_unchained() internal initializer {
+    }
+
     function __Context_init() internal initializer {
         __Context_init_unchained();
     }
 
-    function __Context_init_unchained() internal initializer {
-    }
     function _msgSender() internal view virtual returns (address payable) {
         return msg.sender;
     }

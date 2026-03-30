@@ -936,12 +936,16 @@ class Evaluation :
             if isinstance(baseVal, Variables):
                 base_type = self._get_variable_type_string(baseVal)
             elif isinstance(baseVal, (UnsignedIntegerInterval, IntegerInterval)):
-                # interval의 경우 bits에서 타입 추출
-                bits = getattr(baseVal, 'bits', 256)
-                if isinstance(baseVal, UnsignedIntegerInterval):
-                    base_type = f"uint{bits}"
+                # interval인 경우: expr.base에서 원래 타입(aliasName) 복원 시도
+                alias_type = self._resolve_alias_from_expr(expr.base, variables)
+                if alias_type:
+                    base_type = alias_type
                 else:
-                    base_type = f"int{bits}"
+                    bits = getattr(baseVal, 'bits', 256)
+                    if isinstance(baseVal, UnsignedIntegerInterval):
+                        base_type = f"uint{bits}"
+                    else:
+                        base_type = f"int{bits}"
 
             if base_type:
                 # 현재 컨트랙트의 using directive 확인
@@ -1355,6 +1359,9 @@ class Evaluation :
         if hasattr(var, 'typeInfo') and var.typeInfo:
             type_info = var.typeInfo
             if type_info.typeCategory == "elementary":
+                # type alias가 있으면 원래 이름 반환 (library function lookup용)
+                if getattr(type_info, 'aliasName', None):
+                    return type_info.aliasName
                 return type_info.elementaryTypeName
             elif type_info.typeCategory == "array":
                 return f"{self._get_type_string_from_soltype(type_info.arrayBaseType)}[]"
@@ -1693,12 +1700,20 @@ class Evaluation :
                 return BoolInterval.bottom()
             return Interval(None, None)  # fallback – 거의 안 옴
 
-        if (isinstance(leftInterval, Interval) and leftInterval.is_bottom()) or \
-                (isinstance(rightInterval, Interval) and rightInterval.is_bottom()):
-            # ★ BOTTOM 피연산자가 있으면 결과도 BOTTOM (unreachable 경로 전파)
-            if operator in ['==', '!=', '<', '>', '<=', '>=', '&&', '||']:
+        left_bottom = isinstance(leftInterval, Interval) and leftInterval.is_bottom()
+        right_bottom = isinstance(rightInterval, Interval) and rightInterval.is_bottom()
+        if left_bottom or right_bottom:
+            # || : short-circuit — 한쪽이 true 가능하면 결과도 true 가능
+            if operator == '||':
+                if not left_bottom and isinstance(leftInterval, BoolInterval) and leftInterval.max_value == 1:
+                    return BoolInterval(0, 1)
+                if not right_bottom and isinstance(rightInterval, BoolInterval) and rightInterval.max_value == 1:
+                    return BoolInterval(0, 1)
                 return BoolInterval.bottom()
-            return _bottom(leftInterval if not leftInterval.is_bottom() else rightInterval)
+            # && : 한쪽이 BOTTOM이면 BOTTOM
+            if operator in ['==', '!=', '<', '>', '<=', '>=', '&&']:
+                return BoolInterval.bottom()
+            return _bottom(leftInterval if not left_bottom else rightInterval)
 
         if operator == '+':
             result = leftInterval.add(rightInterval)
@@ -1947,25 +1962,35 @@ class Evaluation :
         if not contract_cfg:
             raise ValueError(f"Unable to find contract CFG for {self.an.current_target_contract}")
 
-        # 2-A) 구조체 생성자인지 확인
-        if function_name in contract_cfg.structDefs:
-            # 구조체 생성자: StructName({ field1: val1, ... })
-            struct_def = contract_cfg.structDefs[function_name]
+        # 2-A) 구조체 생성자인지 확인 (현재 contract + parent chain + using libraries)
+        found = self._find_struct_def(contract_cfg, function_name)
+        if found is not None:
+            struct_def, qualified_name = found
             new_struct = StructVariable(
                 identifier=f"temp_{function_name}_{id(expr)}",
-                struct_type=function_name,
+                struct_type=qualified_name,
                 scope="memory"
             )
             new_struct.initialize_struct(struct_def)
 
             # named_arguments로 필드 초기화
             named_args = expr.named_arguments if expr.named_arguments else {}
-            for field_name, field_expr in named_args.items():
-                if field_name in new_struct.members:
-                    field_value = self.evaluate_expression(field_expr, variables, None, None)
-                    field_var = new_struct.members[field_name]
-                    if isinstance(field_var, Variables):
-                        field_var.value = field_value
+            if named_args:
+                for field_name, field_expr in named_args.items():
+                    if field_name in new_struct.members:
+                        field_value = self.evaluate_expression(field_expr, variables, None, None)
+                        field_var = new_struct.members[field_name]
+                        if isinstance(field_var, Variables):
+                            field_var.value = field_value
+            elif expr.arguments:
+                # positional arguments: StructName(val1, val2, ...)
+                member_names = list(new_struct.members.keys())
+                for i, arg_expr in enumerate(expr.arguments):
+                    if i < len(member_names):
+                        field_value = self.evaluate_expression(arg_expr, variables, None, None)
+                        field_var = new_struct.members[member_names[i]]
+                        if isinstance(field_var, Variables):
+                            field_var.value = field_value
 
             return new_struct
 
@@ -2448,6 +2473,68 @@ class Evaluation :
             return BoolInterval.top()
 
         return arg_val  # 기타 타입은 그대로
+
+    def _resolve_alias_from_expr(self, base_expr, variables) -> str | None:
+        """expr.base에서 원래 타입의 aliasName을 복원.
+        1) Identifier → variables에서 조회
+        2) MemberAccess on struct → struct 멤버의 typeInfo 조회
+        3) 그 외 → None + error 출력"""
+        if base_expr is None:
+            return None
+
+        # 1) Identifier: someVar.add(...)
+        if getattr(base_expr, 'context', None) == 'IdentifierExpContext':
+            ident = base_expr.identifier
+            var = variables.get(ident)
+            if var and hasattr(var, 'typeInfo') and var.typeInfo:
+                return getattr(var.typeInfo, 'aliasName', None)
+            return None
+
+        # 2) MemberAccess: self.shortfall.add(...)
+        if getattr(base_expr, 'context', None) == 'MemberAccessContext':
+            member_name = base_expr.member
+            base_val = self.evaluate_expression(base_expr.base, variables, None, None)
+            if isinstance(base_val, StructVariable) and member_name in base_val.members:
+                member_var = base_val.members[member_name]
+                if hasattr(member_var, 'typeInfo') and member_var.typeInfo:
+                    return getattr(member_var.typeInfo, 'aliasName', None)
+            return None
+
+        # 3) TupleExpression: (expr).method() → 괄호 벗기고 재귀
+        if getattr(base_expr, 'context', None) == 'TupleExpressionContext':
+            inner = getattr(base_expr, 'elements', None)
+            if inner and len(inner) == 1:
+                return self._resolve_alias_from_expr(inner[0], variables)
+
+        # 4) 그 외
+        print(f"[ALIAS RESOLVE ERROR] unsupported expr context: {getattr(base_expr, 'context', type(base_expr).__name__)}")
+        return None
+
+    def _find_struct_def(self, contract_cfg, struct_name):
+        """struct 정의를 현재 contract, parent chain, using libraries에서 검색.
+        Returns: (struct_def, qualified_name) 또는 None"""
+        # 1) 현재 contract
+        if struct_name in contract_cfg.structDefs:
+            return contract_cfg.structDefs[struct_name], struct_name
+        # 2) parent chain
+        for parent_cfg in getattr(contract_cfg, 'parent_cfgs', {}).values():
+            if struct_name in parent_cfg.structDefs:
+                return parent_cfg.structDefs[struct_name], struct_name
+        # 3) using libraries
+        all_libs = []
+        for libs in getattr(contract_cfg, 'using_libraries', {}).values():
+            all_libs.extend(libs if isinstance(libs, list) else [libs])
+        all_libs.extend(getattr(contract_cfg, 'using_all_libraries', []))
+        for lib in all_libs:
+            if struct_name in lib.structDefs:
+                qualified = f"{lib.library_name}.{struct_name}"
+                return lib.structDefs[struct_name], qualified
+        # 4) library_cfgs 직접 검색
+        for lib_name, lib_cfg in self.an.library_cfgs.items():
+            if struct_name in lib_cfg.structDefs:
+                qualified = f"{lib_name}.{struct_name}"
+                return lib_cfg.structDefs[struct_name], qualified
+        return None
 
     def _evaluate_builtin_function(self, function_name, expr, variables, callerObject):
         """Solidity built-in 함수 처리. 해당하면 결과 반환, 아니면 None."""

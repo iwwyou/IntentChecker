@@ -318,14 +318,15 @@ class SolidityAnalyzer:
     # =================================================================
 
     def process_file_level_struct_definition(self, struct_name: str):
-        """file-level struct 정의 시작"""
+        """file-level struct 정의 시작 (contract level과 동일하게 StructDefinition 사용)"""
+        from Domain.Variable import StructDefinition
         self._current_file_struct = struct_name
-        self.file_level_structs[struct_name] = {}
+        self.file_level_structs[struct_name] = StructDefinition(struct_name)
 
-    def process_file_level_struct_member(self, var_name: str, type_obj: SolType):
+    def process_file_level_struct_member(self, var_name: str, type_obj):
         """file-level struct member 추가"""
-        if self._current_file_struct:
-            self.file_level_structs[self._current_file_struct][var_name] = type_obj
+        if self._current_file_struct and self._current_file_struct in self.file_level_structs:
+            self.file_level_structs[self._current_file_struct].add_member(var_name, type_obj)
 
     def end_file_level_struct(self):
         """file-level struct 정의 종료"""
@@ -339,8 +340,8 @@ class SolidityAnalyzer:
     #  File-level 조회 API
     # =================================================================
 
-    def get_file_level_struct(self, name: str) -> dict | None:
-        """file-level struct 정의 조회"""
+    def get_file_level_struct(self, name: str):
+        """file-level struct 정의 조회 (StructDefinition 또는 None)"""
         return self.file_level_structs.get(name)
 
     def resolve_type(self, type_name: str) -> str | None:

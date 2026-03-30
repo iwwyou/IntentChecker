@@ -137,12 +137,12 @@
 
 ---
 
-## 케이스별 실행 결과 (19/21건, 42_H_01/78_H_02 미생성) — 2026-03-27 최신
+## 케이스별 실행 결과 (19/21건, 42_H_01/78_H_02 미생성) — 2026-03-30 최신
 
 | # | Case | Status | 비고 |
 |---|------|--------|------|
-| 1 | WANGMI | ✅ VIOLATED (V=1) | _merge_values None 방어 추가 후 해결 |
-| 2 | Nokon | ⚠️ WARNING (W=1) | intent 동작, violation 미확정 |
+| 1 | WANGMI | ✅ VIOLATED (V=1) | |
+| 2 | Nokon | ⚠️ WARNING (W=1) | |
 | 3 | SwordCrowdsale | ✅ VIOLATED (V=2) | |
 | 4 | BoostToken_operator | ✅ VIOLATED (V=2) | |
 | 5 | BoostToken_indivisible | ✅ VIOLATED (V=4) | |
@@ -152,71 +152,99 @@
 | 9 | 5_H_12 | ✅ VIOLATED (V=1) | |
 | 10 | 77_H_01 | ✅ VIOLATED (V=1) | |
 | 11 | 101_H_01 | ⚠️ WARNING (W=1) | Issue F(ERC1155) 필요 |
-| 12 | 45_H_01 | ❌ ERROR | str.is_bottom — mapping[msg.sender] 접근 시 top key로 기존 entry 미조회 |
-| 13 | 47_H_02 | ❌ ERROR | Type 'ERC20Upgradeable' — contraction에서 parent contract 타입 미인식 |
-| 14 | 51_H_02 | ❌ ERROR | Type 'LPToken' — contract 타입 미인식 |
-| 15 | 56_H_02 | ❌ ERROR | struct member 'getEarnedYield' — struct가 interface function call 결과인 경우 |
-| 16 | 58_H_02 | ❌ ERROR | str.is_bottom — interface call 반환값이 str (45_H_01과 동류) |
-| 17 | 60_H_01 | ❌ ERROR | KeyError: None |
-| 18 | 62_H_08 | ❌ ERROR | Modifier 'governed' not defined |
-| 19 | 70_H_10 | ❌ ERROR | Type 'ExchangePair' — struct 전파 |
+| 12 | 45_H_01 | ✅ VIOLATED (V=2) | 세션3에서 해결 |
+| 13 | 47_H_02 | ❌ ERROR | Type 'ERC20Upgradeable' — 미해결 |
+| 14 | 51_H_02 | ❌ ERROR | Type 'LPToken' — 미해결 |
+| 15 | 56_H_02 | ❌ ERROR | struct member 'getEarnedYield' — 미해결 |
+| 16 | 58_H_02 | ⚠️ WARNING (W=1) | 세션3에서 해결 (violated 여부 annotation 검토 필요) |
+| 17 | 60_H_01 | ❌ ERROR | KeyError: None — 미분석 |
+| 18 | 62_H_08 | ❌ ERROR | Modifier 'governed' — 미해결 |
+| 19 | 70_H_10 | ❌ ERROR | Type 'ExchangePair' — 미해결 |
 
-**9 VIOLATED + 2 WARNING + 8 ERROR = 19건**
+**10 VIOLATED + 3 WARNING + 6 ERROR = 19건**
 
 ---
 
-## 이번 세션 완료 사항 (2026-03-27 세션 2)
+## 세션 3 완료 사항 (2026-03-30)
 
-### 1. @Debugging BEGIN/END 전체 삽입
-- 모든 19개 케이스 JSON에 `@Debugging BEGIN/END` 추가
-- 이전에는 debug annotation 개별 flush → 동일 intent 반복 체크 (V 수 과다)
-- 수정 후 일괄 flush → 정확한 V 수
+### 1. Mapping key 통일 — AddressSet 값 기반 (45_H_01 해결)
+- **5곳 수정**: Evaluation.py, Update.py, DebugInitializer.py
+- global var(msg.sender)가 mapping index일 때 리터럴 `"msg.sender"` 대신 `str(AddressSet({101}))` 사용
+- annotation `accountBorrows[msg.sender]`, callee의 `accountBorrows[account]` 모두 동일 key 수렴
+- JSON 재생성 (clean contraction .sol에서 soltotestjson.py)
 
-### 2. _merge_values None 방어 (Helper.py)
-- `VariableEnv._merge_values`: v1/v2가 None이면 다른 쪽 반환
-- WANGMI의 `INITIAL_DOMAIN_SEPARATOR` BytesSet/None join 에러 해결
+### 2. `top_from_soltype` 범용 유틸리티 (Helper.py)
+- SolType → top-valued domain object 생성 (struct, enum, array, mapping, interface, elementary 전부 지원)
+- interface function return에서 모든 타입에 대해 proper domain value 반환
 
-### 3. Interface 타입 state variable 지원
-- `process_state_variable`: typeCategory=="interface" → AddressSet.top() + `_cast_interface`
-- `process_variable_declaration`: 동일 (local variable)
-- `evaluate_identifier_context`: MemberAccessContext에서 interface 타입은 `.value` 반환
-- 45_H_01의 `interestRateModel.getBorrowRate()` str.multiply 에러 해결
+### 3. Interface struct return 지원
+- InterfaceFunctionCallContext에서 `top_from_soltype`으로 StructVariable 반환
+- parent interface chain 검색 (`_lookup_interface_return` — BFS)
+- `resolve_library_struct`에서 interface/contract pkl도 struct/enum 조회
 
-### 4. JSON 재생성 (에러 케이스 8건)
-- clean contraction .sol(target_contracts_contraction/)에서 soltotestjson.py로 code records 생성
-- 기존 JSON에서 annotation 추출 → code + intent + BEGIN/debug/END 순서로 재조합
-- 대상: 45_H_01, 47_H_02, 51_H_02, 56_H_02, 58_H_02, 60_H_01, 62_H_08, 70_H_10
+### 4. Interface 타입 전반 지원 강화
+- `top_from_soltype`, `initialize_struct._make_var`, `MappingVariable._make_value`, `Engine._interpret_var_decl`: interface typeCategory → AddressSet.top() + `_cast_interface`
+- `AddressSet.join/meet/narrow`: `_cast_interface` 보존 (`getattr` safe access)
+- `_make_bottom`: AddressSet bottom 시 `_cast_interface` 타입 정보 보존
+- `evaluate_identifier_context`: composite 타입(Struct/Array/Mapping) 객체 직접 반환
+
+### 5. @IReturn Grammar 일반화
+- `debugIReturn` rule: 기존 4개 → PatternA/B 2개 + `ireturnAccessChain` (member/index/chained call)
+- Visitor: `_parse_ireturn_access_chain` — `("member", name)`, `("index", int)`, `("call", name)`
+- Registry key: `(contract_var, func_name, access_chain_tuple)` 형식
+- Evaluation: `_assemble_ireturn_value` — chain 따라 struct member 설정, `_collect_ireturn_entries`
+- `_resolve_ireturn_pattern_a/b` 헬퍼
+
+### 6. Library constant 조회 (Evaluation.py)
+- `evaluate_member_access_context`에서 library의 `state_variable_node.variables`에서 상수 조회
+- CommonLibrary.PRICE_DENOMINATOR, DENOMINATOR, YEAR 등 해결
+
+### 7. Dependency 사전분석 확장 (Dependencies/main.py)
+- `_load_parent_pkls`: 모든 모드(contract, interface, library)에서 호출
+- regex: `contract|interface|library` 모두 매칭
+- interface 결과 추출: `_pre_existing_all` 기반으로 새로 분석된 interface만 식별
+- ILpIssuerGovernance.pkl 재생성 (IVaultGovernance parent 포함)
+
+### 8. Refine non-l-value skip (Refine.py)
+- `_has_non_lvalue_in_chain`: FunctionCall, BinaryExp, UnaryExp, Literal, Tuple, TypeConversion 등
+- operator 기반 체크: `+`, `-`, `*`, `/` 등
+- `_maybe_update`에서 non-l-value expression narrowing 방지
+
+### 9. BoolInterval.widen 시그니처 통일 (Interval.py)
+- `widen(self)` → `widen(self, current_interval=None)`
+
+### 10. SolidityAnalyzer._insert_lines shift 수정
+- `skip_shift_at_start=True`일 때 `actual_offset = offset - 1` (start 라인 재사용 시 1줄 적게 shift)
+- baseTvls loop 이후 코드가 loop 내부로 잘못 포함되던 CFG 구축 문제 해결
+
+### 11. ContractAnalyzer._find_interface_name_for_var 수정
+- `func_cfg.variables` → `func_cfg.related_variables`
 
 ---
 
 ## 다음 작업 (TODO)
 
-### 우선순위 1: 45_H_01 mapping 접근 문제
-- `accountBorrows[msg.sender].principal`이 `symbolic(None.principal)` → mapping entry 미조회
-- msg.sender는 사전 정의(top) → top key로 mapping 접근 시 기존 annotation entry `101`을 찾지 못함
-- mapping에서 top key 접근 시 기존 entry fallback 로직 확인 필요
+### 우선순위 1: 58_H_02 annotation 검토
+- WARNING(W=1) → VIOLATED 되어야 하는지 annotation 값 재검토 필요
+- `toMint = [689655172..., TOP]`, `baseSupply = [1e21]` → overlap 여부
 
-### 우선순위 2: 58_H_02 동류 문제
-- `str.is_bottom` — interface call 반환값이 interval이 아닌 string
-- 45_H_01과 동일 유형, interface member access 경로 추가 확인 필요
-
-### 우선순위 3: 타입 미인식 문제
+### 우선순위 2: 타입 미인식 문제
 - 47_H_02: `ERC20Upgradeable` parent contract 타입
 - 51_H_02: `LPToken` contract 타입
-- 70_H_10: `ExchangePair` struct (ILiquidityBasedTWAP에 정의 → 전파 필요)
-- contraction .sol에서 해당 타입을 사용하는 코드를 visitFunctionCall에서 인식하도록 수정 필요
+- 70_H_10: `ExchangePair` struct
+- contraction .sol에서 해당 타입 인식 필요
 
-### 우선순위 4: 기타 에러
-- 56_H_02: `'getEarnedYield' not in struct '_self'` — struct member가 interface function인 경우
+### 우선순위 3: 기타 에러
+- 56_H_02: `'getEarnedYield' not in struct '_self'` — struct member가 interface function call 결과
 - 60_H_01: `KeyError: None` — 원인 미분석
-- 62_H_08: `Modifier 'governed' not defined` — modifier dependency 필요
+- 62_H_08: `Modifier 'governed' not defined` — modifier dependency
 
-### 우선순위 5: 미생성 케이스
-- 42_H_01: FloatStruct rename 완료, JSON 생성 필요 (Float library dependency 복잡)
-- 78_H_02: ERC20 상속 private state variable 문제 (Issue 8)
+### 우선순위 4: 미생성 케이스
+- 42_H_01: FloatStruct rename 완료, JSON 생성 필요
+- 78_H_02: ERC20 상속 private state variable 문제
 
-### 우선순위 6: Implication 구현
+### 우선순위 5: Implication 구현
 - HIT 케이스: `ImplicationContext.commonClause` 미구현
 
-### 우선순위 7: Dependency 추가
+### 우선순위 6: Dependency 추가
 - Issue F: ERC1155Upgradeable (101_H_01용)

@@ -72,7 +72,7 @@
     "event": "add"
   },
   {
-    "code": "Fixed18 newBalance = Fixed18Lib.from(self.balances[account]).add(amount);",
+    "code": "Fixed18 newBalance = Fixed18Lib._from(self.balances[account]).add(amount);",
     "startLine": 15,
     "endLine": 15,
     "event": "add"

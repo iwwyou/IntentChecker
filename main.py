@@ -55,7 +55,23 @@ def load_dependencies():
                     contract_analyzer.contract_cfgs[con_name] = con_cfg
                 except Exception:
                     pass
-    # 2) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
+    # 2) type alias 사전 수집 (type X is Y;)
+    _type_re = re.compile(r'type\s+(\w+)\s+is\s+(\w+)\s*;')
+    type_scan_dirs = [
+        base / "Dependencies" / "libraries",
+        base / "Dependencies" / "contracts",
+        base / "Libraries",
+    ]
+    for d in type_scan_dirs:
+        if not d.exists():
+            continue
+        for sol in d.rglob("*.sol"):
+            for alias, underlying in _type_re.findall(sol.read_text(encoding='utf-8', errors='ignore')):
+                sa.type_aliases[alias] = underlying
+    if sa.type_aliases:
+        print(f"[Dependencies] {len(sa.type_aliases)} type aliases registered: {sa.type_aliases}")
+
+    # 3) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
     _ifc_re = re.compile(r'interface\s+(\w+)')
     scan_dirs = [
         base / "evaluation" / "RQ2" / "target_contracts_contraction",

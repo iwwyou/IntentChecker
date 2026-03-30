@@ -19,5 +19,8 @@ class SolType:
         self.structTypeName = None  # 구조체 이름 (문자열)
         self.enumTypeName = None
 
+        # user-defined value type alias (type UFixed18 is uint256;)
+        self.aliasName = None  # resolve 전 원래 타입 이름 (library function lookup용)
+
         # interface 타입 정보
         self.interfaceName = None  # interface 타입일 때 원본 이름 (e.g., "IERC20", "ILiquidityBasedTWAP")

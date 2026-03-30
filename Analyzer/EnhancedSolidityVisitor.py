@@ -659,17 +659,32 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # 현재 컨트랙트의 CFG 가져오기 (file-level이면 None)
         contract_cfg = self.contract_analyzer.contract_cfgs.get(contract_name) if contract_name else None
 
-        # 타입이 enum인지 struct인지 확인 (contract scope)
-        if contract_cfg and type_name in contract_cfg.enumDefs:
-            # Enum 타입인 경우
+        # 타입이 enum인지 struct인지 확인 (contract scope + parent chain)
+        def _find_in_chain(cfg, name, attr):
+            """contract CFG + parent chain에서 struct/enum 검색"""
+            defs = getattr(cfg, attr, {})
+            if name in defs:
+                return True
+            for pcfg in getattr(cfg, 'parent_cfgs', {}).values():
+                if _find_in_chain(pcfg, name, attr):
+                    return True
+            return False
+
+        if contract_cfg and _find_in_chain(contract_cfg, type_name, 'enumDefs'):
             type_obj.typeCategory = "enum"
             type_obj.enumTypeName = type_name
-        elif contract_cfg and type_name in contract_cfg.structDefs:
-            # Struct 타입인 경우
+        elif contract_cfg and _find_in_chain(contract_cfg, type_name, 'structDefs'):
             type_obj.typeCategory = "struct"
             type_obj.structTypeName = type_name
         elif type_name in self.contract_analyzer.interface_names:
             # Interface 타입: 원본 이름 보존 + address 하위 호환
+            type_obj.typeCategory = "interface"
+            type_obj.interfaceName = type_name
+            type_obj.elementaryTypeName = "address"
+            type_obj.intTypeLength = 160
+        elif type_name in self.contract_analyzer.contract_cfgs and \
+                type_name not in self.contract_analyzer.library_cfgs:
+            # Contract 타입 (부모 컨트랙트 등): interface와 동일하게 address 취급
             type_obj.typeCategory = "interface"
             type_obj.interfaceName = type_name
             type_obj.elementaryTypeName = "address"
@@ -686,6 +701,7 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 if underlying is not None:
                     type_obj.typeCategory = "elementary"
                     type_obj.elementaryTypeName = underlying
+                    type_obj.aliasName = type_name  # 원래 타입 이름 보존
                     # int/uint 비트 길이 설정
                     if underlying.startswith("int"):
                         type_obj.intTypeLength = int(underlying[3:]) if len(underlying) > 3 else 256
@@ -1469,7 +1485,11 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#interactiveStructDefinition.
     def visitInteractiveStructDefinition(self, ctx:SolidityParser.InteractiveStructDefinitionContext):
         struct_name = ctx.identifier().getText()
-        self.contract_analyzer.process_struct_definition(struct_name)
+        if self.contract_analyzer.current_target_contract is None:
+            # file-level struct → SA에서 처리
+            self.contract_analyzer.sa.process_file_level_struct_definition(struct_name)
+        else:
+            self.contract_analyzer.process_struct_definition(struct_name)
 
     # Visit a parse tree produced by SolidityParser#interactiveEnumItems.
     def visitInteractiveEnumItems(self, ctx:SolidityParser.InteractiveEnumItemsContext):
