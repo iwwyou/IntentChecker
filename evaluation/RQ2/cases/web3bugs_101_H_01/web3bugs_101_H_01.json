@@ -276,7 +276,7 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar pooledCLConstants[1].borrowLimit = [99000, 99000]",
+    "code": "// @StateVar pooledCLConstants[_id].borrowLimit = [99000, 99000]",
     "startLine": 44,
     "endLine": 44,
     "event": "add"
@@ -285,6 +285,18 @@
     "code": "// @IReturn POOLED_CREDIT_LINE.getPrincipal() = [0, 0]",
     "startLine": 45,
     "endLine": 45,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar _lender = symbolicAddress 102",
+    "startLine": 46,
+    "endLine": 46,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar _balances[_id][_lender] = [100000, 100000]",
+    "startLine": 47,
+    "endLine": 47,
     "event": "add"
   },
   {

@@ -1999,9 +1999,11 @@ class Evaluation :
         if not function_cfg:
             # 함수를 찾을 수 없음 → Top 반환 (외부 함수, interface 메서드, 미정의 함수)
             # ★ 아직 분석 안 된 함수일 수 있음 → pending_callee_name에 기록
+            print(f"[DEBUG] function '{function_name}' NOT found in hierarchy of '{self.an.current_target_contract}'")
             self.an.pending_callee_name = function_name
             # 반환 타입을 알 수 없으므로 uint256 Top으로 처리
             return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
+        print(f"[DEBUG] function '{function_name}' FOUND in hierarchy, params={function_cfg.parameters}")
 
         # 4) 함수 파라미터와 인자 매핑
         #    expr.arguments -> 위치 기반 인자
@@ -2071,8 +2073,40 @@ class Evaluation :
         for k, v in variables.items():
             function_cfg.related_variables.setdefault(k, v)
 
+        if function_name == 'balanceOf':
+            bal_var = function_cfg.related_variables.get('_balances')
+            if bal_var:
+                print(f"[DEBUG] _balances type: {type(bal_var).__name__}")
+                print(f"[DEBUG] _balances value: {bal_var.value}")
+                if hasattr(bal_var, 'mapping'):
+                    print(f"[DEBUG] _balances mapping keys: {list(bal_var.mapping.keys())}")
+                    for k, v in bal_var.mapping.items():
+                        print(f"[DEBUG]   _balances[{k}] = {v}")
+                        if hasattr(v, 'mapping'):
+                            for k2, v2 in v.mapping.items():
+                                print(f"[DEBUG]     _balances[{k}][{k2}] = {v2}")
+            cal_bal = variables.get('_balances')
+            if cal_bal:
+                print(f"[DEBUG] caller _balances type: {type(cal_bal).__name__}")
+                if hasattr(cal_bal, 'mapping'):
+                    print(f"[DEBUG] caller _balances mapping keys: {list(cal_bal.mapping.keys())}")
+                    for k, v in cal_bal.mapping.items():
+                        print(f"[DEBUG]   caller _balances[{k}] = {v}")
+                        if hasattr(v, 'mapping'):
+                            for k2, v2 in v.mapping.items():
+                                vv = v2.value if hasattr(v2, 'value') else v2
+                                print(f"[DEBUG]     caller _balances[{k}][{k2}] = {vv}")
+            # callee의 id, account 파라미터 값 확인
+            id_var = function_cfg.related_variables.get('id')
+            acc_var = function_cfg.related_variables.get('account')
+            id_val = str(id_var.value).encode('ascii', 'replace').decode() if id_var else 'N/A'
+            acc_val = str(acc_var.value).encode('ascii', 'replace').decode() if acc_var else 'N/A'
+            print(f"[DEBUG] balanceOf param id={id_val}, account={acc_val}")
+
         # 6) 실제 함수 CFG 해석
         return_value = self.engine.interpret_function_cfg(function_cfg, variables)  # ← caller env 전달
+        if function_name == 'balanceOf':
+            print(f"[DEBUG] balanceOf return_value: {return_value}")
 
         # 7) 함수 컨텍스트 복원
         self.an.current_target_function = saved_function
@@ -2493,7 +2527,14 @@ class Evaluation :
         # 2) MemberAccess: self.shortfall.add(...)
         if getattr(base_expr, 'context', None) == 'MemberAccessContext':
             member_name = base_expr.member
-            base_val = self.evaluate_expression(base_expr.base, variables, None, None)
+            # global keyword (block, msg, tx) base는 alias 없음
+            base_ident = getattr(base_expr.base, 'identifier', None)
+            if base_ident in ('block', 'msg', 'tx'):
+                return None
+            try:
+                base_val = self.evaluate_expression(base_expr.base, variables, None, None)
+            except (ValueError, KeyError):
+                return None
             if isinstance(base_val, StructVariable) and member_name in base_val.members:
                 member_var = base_val.members[member_name]
                 if hasattr(member_var, 'typeInfo') and member_var.typeInfo:

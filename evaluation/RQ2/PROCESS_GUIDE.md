@@ -529,43 +529,94 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 - 수정: `||`에서 한쪽이 true 가능하면 다른 쪽 BOTTOM이어도 결과는 `[0,1]` (Solidity short-circuit semantics)
 - `&&`는 기존대로 한쪽 BOTTOM이면 BOTTOM 유지
 
+### Infeasible path (BOTTOM env) statement 실행 스킵 (Engine.py)
+- 워크리스트 루프 상단에서 BOTTOM env 검사 추가
+- BOTTOM이면 모든 노드 타입(statement, condition, for-increment)에서 실행 스킵
+- successor에 BOTTOM 전파만 수행
+- 기존: infeasible branch의 literal return (`return 666666`)이 수집되어 join 범위 확대
+- 수정: infeasible path에서 statement 미실행 → return value 미수집 → 정확한 범위
+- Nokon WARNING→VIOLATED 해결 (calculateRate가 정확히 250000만 반환)
+
+### DebugInitializer TypeConversion mapping key 처리
+- `_update_left_var_for_debug`에 `TypeConversion` context 핸들러 추가
+- `balances[address(this)]` annotation에서 `address(this)`를 evaluator로 평가 → `AddressSet({1})` key 생성
+- evaluator의 `evaluate_type_conversion_context`와 동일한 key 결정
+
+### Refine 비트 길이 통일 (Refine.py)
+- literal(256bit default)과 변수(실제 비트) 비교 시 비트 불일치
+- promotion: 큰 쪽 비트로 통일 → refine → 원래 비트 복원
+- 62_H_08 해결 (uint32 vs uint256 literal 비교)
+
+### visitUserDefinedType parent chain 검색
+- struct/enum 검색 시 `contract_cfg` + parent chain 순회 (`_find_in_chain` 재귀)
+- `StaticCFGFactory.make_param_variable`에서도 parent chain struct 검색
+- 70_H_10 해결 (ILiquidityBasedTWAP.ExchangePair)
+
+### file-level struct StructDefinition 통일
+- 기존: `{field_name: SolType}` dict → `initialize_struct` 호환 안 됨
+- 수정: contract level과 동일하게 `StructDefinition` 객체 사용
+- 60_H_01 해결 (OptimisticLedger file-level struct)
+
+### main.py type alias 사전 등록
+- `load_dependencies()`에 `type X is Y;` 패턴 스캔 추가
+- Dependencies/libraries, contracts에서 type alias 수집 → `sa.type_aliases` 등록
+- 60_H_01 해결 (UFixed18, Fixed18)
+
+### SolType.aliasName 필드
+- user-defined value type의 원래 이름 보존 (e.g., `UFixed18`)
+- resolve 후에도 `aliasName`으로 using key 매칭 가능
+- `_get_variable_type_string`에서 `aliasName` 우선 반환
+- `_resolve_alias_from_expr`: interval baseVal일 때 expr.base 분석으로 alias 복원
+
+### 62_H_08 contraction 수정
+- sol에서 modifier를 함수 앞으로 이동 + soltotestjson 재생성
+- annotation `[101]` → `[msg.sender]`
+
 ---
 
-## 케이스별 실행 결과 (2026-03-30 세션 4)
+## 케이스별 실행 결과 (2026-03-31 세션 4 최종)
 
 | # | Case | Status | 비고 |
 |---|------|--------|------|
-| 1 | WANGMI | ✅ VIOLATED (V=1) | |
-| 2 | Nokon | ⚠️ WARNING (W=1) | |
-| 3 | SwordCrowdsale | ✅ VIOLATED (V=2) | |
-| 4 | BoostToken_operator | ✅ VIOLATED (V=2) | |
-| 5 | BoostToken_indivisible | ✅ VIOLATED (V=4) | |
-| 6 | HIT | ❌ ERROR | ImplicationContext.commonClause |
+| 1 | WANGMI | ✅ VIOLATED (V=1) | runner.py 경로 |
+| 2 | Nokon | ✅ VIOLATED (V=1) | 세션4 해결 — BOTTOM skip + address(this) key |
+| 3 | SwordCrowdsale | ✅ VIOLATED (V=2) | runner.py 경로 |
+| 4 | BoostToken_operator | ✅ VIOLATED (V=2) | runner.py 경로 |
+| 5 | BoostToken_indivisible | ✅ VIOLATED (V=4) | runner.py 경로 |
+| 6 | HIT | ❌ ERROR | ImplicationContext.commonClause (이후 작업) |
 | 7 | 5_H_07 | ✅ VIOLATED (V=1) | |
 | 8 | 5_H_08 | ✅ VIOLATED (V=1) | |
 | 9 | 5_H_12 | ✅ VIOLATED (V=1) | |
 | 10 | 77_H_01 | ✅ VIOLATED (V=1) | |
-| 11 | 101_H_01 | ⚠️ WARNING (W=1) | Issue F(ERC1155) 필요 |
+| 11 | 101_H_01 | ⚠️ WARNING (W=1) | balanceOf interface call → TOP, IReturn 필요 |
 | 12 | 45_H_01 | ✅ VIOLATED (V=2) | 세션3 해결 |
-| 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 — contract 타입 인식 + using 상속 |
-| 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 — LPToken dep + library globals + require intent |
-| 15 | 56_H_02 | ⚠️ WARNING (W=1) | 세션4 해결 — struct chaining + divide fix, annotation 검토 필요 |
-| 16 | 58_H_02 | ⚠️ WARNING (W=1) | 세션3 해결, annotation 검토 필요 |
-| 17 | 60_H_01 | ⚠️ WARNING (W=1) | 세션4 부분 해결 — file-level struct + type alias + aliasName, qualified lib static call 체이닝 미해결 |
-| 18 | 62_H_08 | ❌ ERROR | Modifier 'governed' |
-| 19 | 70_H_10 | ❌ ERROR | qualified lib static call (UniswapV2OracleLibrary) |
+| 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
+| 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
+| 15 | 56_H_02 | ⚠️ WARNING (W=1) | 세션4 해결 — FixedPointMath precision 한계 |
+| 16 | 58_H_02 | ❌ ERROR | refine 시 루프 변수 'i' 미선언 (기존 이슈) |
+| 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 |
+| 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
+| 19 | 70_H_10 | ❌ ERROR | qualified lib static call 미해결 |
 
-**13 VIOLATED + 5 WARNING + 1 ERROR = 19건** (42_H_01, 78_H_02 미생성)
+**14 VIOLATED + 2 WARNING + 3 ERROR = 19건** (42_H_01, 78_H_02 미생성)
 
-### 62_H_08 수정 사항 (세션4)
-- contraction sol에서 modifier를 함수 앞으로 이동 + soltotestjson 재생성
-- annotation `[101]` → `[msg.sender]`
-- Refine 비트 길이 통일: literal(256bit default) vs 변수(실제 비트) — promotion 후 refine, 원래 비트 복원
-- `visitUserDefinedType`: struct/enum 검색 시 parent chain 순회 추가
-- `StaticCFGFactory.make_param_variable`: struct 파라미터 parent chain 검색 추가
+### 남은 작업
 
-### 60_H_01, 70_H_10 공통 미해결 사항
-- **Qualified library static call**: `Fixed18Lib._from(x)`, `UniswapV2OracleLibrary.currentCumulativePrice(pair)` 등 library 이름을 identifier로 평가할 때 resolve 안 됨
-- **Qualified static call 체이닝**: `Fixed18Lib._from(x).add(y)` — static call 반환값에 library 함수 체이닝
-- **Cross-library call**: `Fixed18Lib.abs()` → `UFixed18Lib._from()` 호출
-- 해결 시 60_H_01, 70_H_10 모두 re-test 필요
+**ERROR 3건:**
+| Case | 에러 | 필요 작업 |
+|------|------|----------|
+| HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
+| 58_H_02 | refine 시 루프 변수 'i' 미선언 | `_edge_env_from_pred`에서 루프 변수 scope 처리 |
+| 60_H_01 / 70_H_10 | qualified lib static call | `LibName.func()` 패턴의 identifier resolve + 체이닝 + cross-lib call |
+
+**WARNING 2건:**
+| Case | 원인 | 가능한 해결 |
+|------|------|------------|
+| 101_H_01 | `balanceOf` interface call → TOP | `@IReturn` annotation으로 반환값 제약 |
+| 56_H_02 | FixedPointMath chain imprecision | annotation 조정 또는 intermediate 값 제약 |
+
+**미생성 2건:**
+| Case | 사유 | 필요 작업 |
+|------|------|----------|
+| 42_H_01 | FloatStruct file-level struct 미등록 | Dependencies/ISSUES.md 참조, file-level struct 등록 |
+| 78_H_02 | 피상속 컨트랙트 private state variable 접근 | Issue 8 구현 |

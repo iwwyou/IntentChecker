@@ -753,6 +753,14 @@ class Engine:
             cur_vars = node.variables
             node.evaluated = True
 
+            # BOTTOM env면 infeasible path → successor에 BOTTOM 전파만 하고 스킵
+            if self._is_bottom_env(cur_vars):
+                for nxt in list(G.successors(node)):
+                    if _is_sink(nxt): continue
+                    nxt.variables = VariableEnv.copy_variables(cur_vars)
+                    work.append(nxt)
+                continue
+
             if node.condition_node:
                 condition_expr = node.condition_expr
                 ln = getattr(node, "src_line", None)

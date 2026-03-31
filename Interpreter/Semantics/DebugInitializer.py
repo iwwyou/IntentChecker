@@ -70,6 +70,10 @@ class DebugInitializer:
             # VarRefIndexAccess: varRef의 [index] 접근 (IntentIndexAccess와 동일 구조)
             return self._update_left_var_of_intent_index_access_context_for_debug(
                 expr, rVal, operator, variables, callerObject, callerContext)
+        elif expr.context == "TypeConversion":
+            # TypeConversion이 mapping key로 사용되는 경우 (예: balances[address(this)])
+            return self._update_left_var_of_type_conversion_context_for_debug(
+                expr, rVal, operator, variables, callerObject, callerContext)
 
         return None
 
@@ -169,19 +173,8 @@ class DebugInitializer:
                 else:
                     key_str = key_var.identifier  # string·bool 등
             else:
-                # ───── 디버깅 전용: 리터럴 키로 강제 사용 ────────────────────────────
-                # mapping key type이 address이면 AddressSet 형식으로 자동 변환
-                key_type = getattr(caller_object.typeInfo, 'mappingKeyType', None)
-                key_type_name = getattr(key_type, 'elementaryTypeName', None) if key_type else None
-
-                if key_type_name == "address":
-                    try:
-                        addr_id = int(ident)
-                        key_str = str(AddressSet(ids={addr_id}))  # "AddressSet({1})"
-                    except ValueError:
-                        key_str = ident  # 숫자가 아니면 그대로
-                else:
-                    key_str = ident
+                # ───── 디버깅 전용: 리터럴/특수 expression을 key로 변환 ──────
+                key_str = self._resolve_mapping_key(ident, caller_object, variables)
 
             # ── ③ 매핑 엔트리 가져오거나 생성 ─────────────
             if not caller_object.struct_defs or not caller_object.enum_defs:
@@ -655,6 +648,63 @@ class DebugInitializer:
                     target_var.value = new_value
             else:
                 target_var.value = new_value
+
+    def _update_left_var_of_type_conversion_context_for_debug(
+            self, expr: Expression, rVal, operator, variables, callerObject=None, callerContext=None):
+        """
+        TypeConversion이 mapping key로 사용되는 경우 처리 (예: balances[address(this)])
+        evaluator로 expression을 평가하여 key를 결정하고 mapping entry를 반환
+        """
+        if not isinstance(callerObject, MappingVariable):
+            return None
+
+        key_val = self.an.evaluator.evaluate_expression(expr, variables, None, None)
+        if key_val is None:
+            return None
+
+        if isinstance(key_val, AddressSet):
+            key_str = str(key_val)
+        elif hasattr(key_val, "min_value") and key_val.min_value == key_val.max_value:
+            key_str = str(key_val.min_value)
+        else:
+            key_str = str(key_val)
+
+        if not callerObject.struct_defs or not callerObject.enum_defs:
+            ccf = self.an.contract_cfgs[self.an.current_target_contract]
+            callerObject.struct_defs = ccf.structDefs
+            callerObject.enum_defs = ccf.enumDefs
+
+        return callerObject.get_or_create(key_str)
+
+    def _resolve_mapping_key(self, ident: str, caller_object, variables: dict) -> str:
+        """mapping key 문자열을 evaluator와 동일한 방식으로 resolve.
+        address(this) → AddressSet({1}), 숫자 → AddressSet({N}) or str(N), 등"""
+        key_type = getattr(caller_object.typeInfo, 'mappingKeyType', None)
+        key_type_name = getattr(key_type, 'elementaryTypeName', None) if key_type else None
+
+        if key_type_name == "address":
+            # address(this) → symbolic address 1
+            if ident == "address(this)":
+                return str(AddressSet(ids={self.an.addr_mgr.make_symbolic_address(1, "this").ids.copy().pop()}))
+            # 숫자 literal → AddressSet
+            try:
+                addr_id = int(ident)
+                return str(AddressSet(ids={addr_id}))
+            except ValueError:
+                pass
+            # global variable (msg.sender 등) — MemberAccess에서 이미 처리되므로 여기 도달 안 함
+            # 변수명인 경우 variables에서 조회
+            if ident in variables:
+                val = getattr(variables[ident], "value", None)
+                if isinstance(val, AddressSet) and val.is_singleton():
+                    return str(val)
+            return ident
+
+        # address가 아닌 key type
+        try:
+            return str(int(ident))
+        except ValueError:
+            return ident
 
     def _bind_if_address_for_debug(self, target_var: Variables):
         """

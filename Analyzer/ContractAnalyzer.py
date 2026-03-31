@@ -520,6 +520,9 @@ class ContractAnalyzer:
             for pname in parent_contracts:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
+                else:
+                    print(f"[DEBUG] make_contract_cfg: parent '{pname}' NOT in contract_cfgs")
+            print(f"[DEBUG] make_contract_cfg({contract_name}): parent_cfgs={list(cfg.parent_cfgs.keys())}")
             self._inherit_using_libraries(cfg)
 
         if self.current_start_line and self.current_start_line in self.sa.line_info:
