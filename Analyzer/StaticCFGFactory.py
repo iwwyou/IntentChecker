@@ -372,7 +372,7 @@ class StaticCFGFactory:
             if struct_def is None:
                 raise ValueError(f"Undefined struct '{sname}' used as parameter/return.")
             sv = StructVariable(identifier=ident, struct_type=sname, scope=scope)
-            sv.initialize_struct(struct_def)
+            sv.initialize_struct(struct_def, struct_defs=ccf.structDefs)
 
             an.register_var(sv)
             return sv

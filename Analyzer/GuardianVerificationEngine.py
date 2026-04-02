@@ -1472,7 +1472,6 @@ class GuardianVerificationEngine:
         """
         preds = self._preds(fn_cfg, normal_only=normal_only)
         if not preds:
-            # 본문이 비거나 pred가 없으면 entry/fallback 사용
             return VariableEnv.copy_variables(getattr(fn_cfg, "related_variables", {}))
 
         env = VariableEnv.copy_variables(preds[0].variables)

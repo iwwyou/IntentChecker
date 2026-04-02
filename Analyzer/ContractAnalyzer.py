@@ -520,9 +520,6 @@ class ContractAnalyzer:
             for pname in parent_contracts:
                 if pname in self.contract_cfgs:
                     cfg.parent_cfgs[pname] = self.contract_cfgs[pname]
-                else:
-                    print(f"[DEBUG] make_contract_cfg: parent '{pname}' NOT in contract_cfgs")
-            print(f"[DEBUG] make_contract_cfg({contract_name}): parent_cfgs={list(cfg.parent_cfgs.keys())}")
             self._inherit_using_libraries(cfg)
 
         if self.current_start_line and self.current_start_line in self.sa.line_info:
@@ -783,10 +780,12 @@ class ContractAnalyzer:
                 struct_name = variable_obj.typeInfo.structTypeName
                 if struct_name in contract_cfg.structDefs:
                     struct_def = contract_cfg.structDefs[struct_name]
-                    variable_obj.initialize_struct(struct_def)
+                    variable_obj.initialize_struct(struct_def, struct_defs=contract_cfg.structDefs)
                 elif self.sa.get_file_level_struct(struct_name) is not None:
                     # file-level struct fallback
-                    variable_obj.initialize_struct(self.sa.file_level_structs[struct_name])
+                    all_defs = dict(contract_cfg.structDefs)
+                    all_defs.update(self.sa.file_level_structs)
+                    variable_obj.initialize_struct(self.sa.file_level_structs[struct_name], struct_defs=all_defs)
                 else :
                     raise ValueError(f"This struct def {struct_name} is undefined")
             elif isinstance(variable_obj, MappingVariable) :
@@ -1150,9 +1149,11 @@ class ContractAnalyzer:
             elif isinstance(v, StructVariable):
                 struct_name = v.typeInfo.structTypeName
                 if struct_name in ccf.structDefs:
-                    v.initialize_struct(ccf.structDefs[struct_name])
+                    v.initialize_struct(ccf.structDefs[struct_name], struct_defs=ccf.structDefs)
                 elif self.sa.get_file_level_struct(struct_name) is not None:
-                    v.initialize_struct(self.sa.file_level_structs[struct_name])
+                    all_defs = dict(ccf.structDefs)
+                    all_defs.update(self.sa.file_level_structs)
+                    v.initialize_struct(self.sa.file_level_structs[struct_name], struct_defs=all_defs)
                 else:
                     raise ValueError(f"Undefined struct {struct_name}")
 
@@ -1389,7 +1390,7 @@ class ContractAnalyzer:
         elif isinstance(v, StructVariable):
             if v.typeInfo.structTypeName not in ccf.structDefs:
                 raise ValueError(f"Undefined struct {v.typeInfo.structTypeName}")
-            v.initialize_struct(ccf.structDefs[v.typeInfo.structTypeName])
+            v.initialize_struct(ccf.structDefs[v.typeInfo.structTypeName], struct_defs=ccf.structDefs)
 
         # enum 기본 (첫 멤버)
         elif isinstance(v, EnumVariable):

@@ -574,6 +574,35 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 
 ---
 
+## 엔진 수정 사항 (2026-04-01 세션 5)
+
+### interpret_function_cfg / interpret_function_cfg_for_debug 분리
+- 기존: `_interpret_function_cfg_impl`을 공유하며 `record_enabled` flag로만 구분
+- 문제: internal function call 시 caller의 state variable이 callee에 전달되지 않음 (같은 storage인데 `not in` 체크로 차단)
+- 수정: `_interpret_function_cfg_impl` 제거, 두 함수를 별도 구현
+  - **Case A** (`interpret_function_cfg_for_debug`): debug batch flush에서 호출. `assign_env/entry_env` 갱신, Post annotation 처리, 기록 활성화
+  - **Case B** (`interpret_function_cfg`): evaluator의 함수 호출에서 호출. caller env의 state/global을 callee에 덮어씀 (파라미터 제외)
+- 공통 로직은 `_reset_node_vars`, `_run_worklist`, `_extract_return_value` 헬퍼로 추출
+
+### evaluate_function_call_context step 5-A 제거
+- 기존: `function_cfg.related_variables.setdefault(k, v)`로 caller env를 callee의 `related_variables`에 영구 병합
+- 문제: `related_variables`는 함수 정의 시점의 변수 집합인데 호출마다 caller 변수가 누적 → pkl 오염 (e.g., `balanceOfBatch`의 `i`가 `balanceOf`에 잔류 → BOTTOM 판정)
+- 수정: step 5-A 삭제. caller env 전달은 `interpret_function_cfg`의 `start_block.variables` 병합에서만 처리
+
+### ERC1155Upgradeable dependency 신규 생성
+- `Dependencies/interfaces/`: IERC165Upgradeable, IERC1155Upgradeable, IERC1155MetadataURIUpgradeable
+- `Dependencies/contracts/`: ERC165Upgradeable, ERC1155Upgradeable
+- OZ contracts-upgradeable ^3.4.2 기준 (Web3Bugs contest 101)
+- pkl 생성 순서: IERC165 → IERC1155 → IERC1155MetadataURI → ERC165 → ERC1155
+- 기존 pkl 재사용: `con_47_Initializable`, `con_47_ContextUpgradeable`, `lib_47_SafeMathUpgradeable`, `lib_47_AddressUpgradeable`
+
+### 101_H_01 해결: WARNING → VIOLATED
+- `balanceOf`는 상속 함수(ERC1155Upgradeable) — IReturn이 아니라 상속 체인으로 진입
+- `@StateVar _balances[_id][_lender] = [100000, 100000]` + `@LocalVar _lender = symbolicAddress 102` 추가
+- `_principalWithdrawable = [100000, 100000]` > `_totalLiquidityWithdrawable = [99000, 99000]` → VIOLATED
+
+---
+
 ## 케이스별 실행 결과 (2026-03-31 세션 4 최종)
 
 | # | Case | Status | 비고 |
@@ -588,7 +617,7 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 8 | 5_H_08 | ✅ VIOLATED (V=1) | |
 | 9 | 5_H_12 | ✅ VIOLATED (V=1) | |
 | 10 | 77_H_01 | ✅ VIOLATED (V=1) | |
-| 11 | 101_H_01 | ⚠️ WARNING (W=1) | balanceOf interface call → TOP, IReturn 필요 |
+| 11 | 101_H_01 | ✅ VIOLATED (V=1) | 세션5 해결 — 상속 함수 진입 + StateVar _balances |
 | 12 | 45_H_01 | ✅ VIOLATED (V=2) | 세션3 해결 |
 | 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |

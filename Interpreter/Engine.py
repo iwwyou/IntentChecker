@@ -644,48 +644,85 @@ class Engine:
         return exit_node
 
     # =================================================================
-    #  interpret_function_cfg (내부 함수 호출용 - 기록 비활성화)
+    #  interpret_function_cfg (Case B: 내부 함수 호출용)
+    #  - evaluate_function_call_context 등에서 호출
+    #  - 기록 비활성화, caller env의 state/global을 callee에 공유
     # =================================================================
     def interpret_function_cfg(self, fcfg: FunctionCFG, caller_env: dict[str, Variables] | None = None):
-        return self._interpret_function_cfg_impl(fcfg, caller_env, record_enabled=False)
-
-    # =================================================================
-    #  interpret_function_cfg_for_debug (디버깅 테스트용 - 기록 활성화)
-    # =================================================================
-    def interpret_function_cfg_for_debug(self, fcfg: FunctionCFG, caller_env: dict[str, Variables] | None = None):
-        return self._interpret_function_cfg_impl(fcfg, caller_env, record_enabled=True)
-
-    # =================================================================
-    #  _interpret_function_cfg_impl (공통 구현)
-    # =================================================================
-    def _interpret_function_cfg_impl(self, fcfg: FunctionCFG, caller_env: dict[str, Variables] | None = None, record_enabled: bool = False):
-        an = self.an; rec = self.rec
+        an = self.an
         _old_func = an.current_target_function
         _old_fcfg = an.current_target_function_cfg
-
-        # ★ 재귀 호출 전 _record_enabled 상태 저장 (내부 함수 호출 후 복원용)
         _old_record_enabled = self._record_enabled
 
         an.current_target_function = fcfg.function_name
         an.current_target_function_cfg = fcfg
-
-        # 기록 활성화 여부 설정
-        self._record_enabled = record_enabled
+        self._record_enabled = False
         an._seen_stmt_ids.clear()
-        # ★ node variables 백업 (해석 후 definition-time 상태 복원용)
-        _saved_node_vars = {blk: dict(blk.variables) for blk in fcfg.graph.nodes}
-        for blk in fcfg.graph.nodes:
-            # ★ 노드의 variables 초기화 (이전 실행의 값 제거)
-            blk.variables = {}
-            for st in blk.statements:
-                ln = getattr(st, "src_line", None)
-                if ln is not None and ln in an.analysis_per_line:
-                    an.analysis_per_line[ln].clear()
 
-        # ★ 동적 재해석 시 assign_env / entry_env를 debug-patched related_variables로 갱신
-        if record_enabled:
-            fcfg.assign_env = VariableEnv.copy_variables(fcfg.related_variables)
-            fcfg.entry_env = VariableEnv.copy_variables(fcfg.related_variables)
+        _saved_node_vars = self._reset_node_vars(fcfg)
+
+        entry = fcfg.get_entry_node()
+        (start_block,) = fcfg.graph.successors(entry)
+
+        # callee env 초기화: callee 자체 정의(파라미터, 로컬) 기반
+        start_block.variables = VariableEnv.copy_variables(fcfg.related_variables)
+
+        # caller env의 state variable / global을 callee에 공유 (같은 storage)
+        # - callee에 이미 있는 key도 caller 값으로 덮어씀 (단, 파라미터는 제외)
+        if caller_env is not None:
+            param_names = set(getattr(fcfg, 'parameters', []))
+            for k, v in caller_env.items():
+                if k in param_names:
+                    continue
+                start_block.variables[k] = VariableEnv.copy_single_variable(v)
+
+        return_values = self._run_worklist(fcfg, start_block)
+
+        self._force_join_before_exit(fcfg)
+        self._sync_named_return_vars(fcfg)
+
+        for blk, saved_vars in _saved_node_vars.items():
+            blk.variables = saved_vars
+
+        an.current_target_function = _old_func
+        an.current_target_function_cfg = _old_fcfg
+
+        # callee의 exit env를 caller에 반영 (state variable 변경 전파)
+        if caller_env is not None:
+            exit_env = fcfg.get_exit_node().variables
+            for k, v in exit_env.items():
+                if k in caller_env:
+                    if hasattr(caller_env[k], "value"):
+                        caller_env[k].value = v.value
+                    else:
+                        caller_env[k] = v
+                elif isinstance(v, (MappingVariable, ArrayVariable)):
+                    caller_env[k] = v
+
+        self._record_enabled = _old_record_enabled
+        return self._extract_return_value(fcfg, return_values)
+
+    # =================================================================
+    #  interpret_function_cfg_for_debug (Case A: debug batch flush용)
+    #  - ContractAnalyzer.flush에서 호출
+    #  - 기록 활성화, assign_env/entry_env 갱신, annotation 처리
+    # =================================================================
+    def interpret_function_cfg_for_debug(self, fcfg: FunctionCFG, caller_env: dict[str, Variables] | None = None):
+        an = self.an; rec = self.rec
+        _old_func = an.current_target_function
+        _old_fcfg = an.current_target_function_cfg
+        _old_record_enabled = self._record_enabled
+
+        an.current_target_function = fcfg.function_name
+        an.current_target_function_cfg = fcfg
+        self._record_enabled = True
+        an._seen_stmt_ids.clear()
+
+        _saved_node_vars = self._reset_node_vars(fcfg)
+
+        # debug-patched related_variables로 assign_env / entry_env 갱신
+        fcfg.assign_env = VariableEnv.copy_variables(fcfg.related_variables)
+        fcfg.entry_env = VariableEnv.copy_variables(fcfg.related_variables)
 
         entry = fcfg.get_entry_node()
         (start_block,) = fcfg.graph.successors(entry)
@@ -697,7 +734,44 @@ class Engine:
                 if k not in start_block.variables:
                     start_block.variables[k] = VariableEnv.copy_single_variable(v)
 
+        return_values = self._run_worklist(fcfg, start_block)
+
+        self._force_join_before_exit(fcfg)
+        self._sync_named_return_vars(fcfg)
+
+        # ═══ Post Annotation 처리 ═══
+        self._process_post_annotations(fcfg)
+
+        for blk, saved_vars in _saved_node_vars.items():
+            blk.variables = saved_vars
+
+        an.current_target_function = _old_func
+        an.current_target_function_cfg = _old_fcfg
+
+        # 반환값 (기록 포함)
+        result = self._extract_return_value(fcfg, return_values, log_implicit=True)
+        self._record_enabled = _old_record_enabled
+        return result
+
+    # =================================================================
+    #  공통 헬퍼
+    # =================================================================
+    def _reset_node_vars(self, fcfg: FunctionCFG) -> dict:
+        """node variables 백업 및 초기화. 백업 dict 반환."""
+        an = self.an
+        saved = {blk: dict(blk.variables) for blk in fcfg.graph.nodes}
+        for blk in fcfg.graph.nodes:
+            blk.variables = {}
+            for st in blk.statements:
+                ln = getattr(st, "src_line", None)
+                if ln is not None and ln in an.analysis_per_line:
+                    an.analysis_per_line[ln].clear()
+        return saved
+
+    def _run_worklist(self, fcfg: FunctionCFG, start_block) -> list:
+        """CFG worklist 순회. return_values 리스트 반환."""
         G = fcfg.graph
+
         def _is_sink(n: CFGNode) -> bool:
             if getattr(n, "function_exit_node", False): return True
             if getattr(n, "error_exit_node", False):    return True
@@ -726,12 +800,9 @@ class Engine:
             if node in visited: continue
 
             preds = list(G.predecessors(node))
-            # ★ join 노드는 모든 predecessor가 방문될 때까지 대기
-            # 단, worklist에 자기 자신 외의 노드가 있을 때만 defer
             if getattr(node, 'join_point_node', False) and preds:
                 unvisited_preds = [p for p in preds if p not in visited]
                 if unvisited_preds and len(work) > 0:
-                    # worklist에 다른 노드가 남아있으면 defer
                     work.append(node)
                     continue
 
@@ -740,7 +811,6 @@ class Engine:
             if preds:
                 joined = None
                 for p in preds:
-                    # ★ 이번 해석에서 이미 방문한 predecessor만 join (재해석 시 이전 값 무시)
                     if p not in visited:
                         continue
                     flow = _edge_env_from_pred(p, node)
@@ -753,7 +823,6 @@ class Engine:
             cur_vars = node.variables
             node.evaluated = True
 
-            # BOTTOM env면 infeasible path → successor에 BOTTOM 전파만 하고 스킵
             if self._is_bottom_env(cur_vars):
                 for nxt in list(G.successors(node)):
                     if _is_sink(nxt): continue
@@ -763,7 +832,6 @@ class Engine:
 
             if node.condition_node:
                 condition_expr = node.condition_expr
-                ln = getattr(node, "src_line", None)
 
                 if node.condition_node_type in ["if", "else if"]:
                     true_succs  = [s for s in G.successors(node) if G.edges[node, s].get('condition') is True]
@@ -781,8 +849,6 @@ class Engine:
 
                     if not can_true and not can_false:
                         continue
-
-                    # ✂ branch 기록 제거
 
                     t = true_succs[0]; f = false_succs[0]
                     if can_true:
@@ -808,7 +874,6 @@ class Engine:
                     else:
                         self._set_bottom_env(t.variables)
 
-                    # require/assert 노드의 During intent 검증
                     self._process_node_intents(node, cur_vars, getattr(node, 'src_line', None))
                     continue
 
@@ -843,7 +908,6 @@ class Engine:
                 continue
 
             else:
-                # ★ __STOP__ 범위를 현재 노드로 한정: 이전 노드의 return이 다른 branch를 막지 않도록
                 if "__STOP__" in return_values:
                     return_values.remove("__STOP__")
 
@@ -861,56 +925,29 @@ class Engine:
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
                     work.append(nxt)
 
-        self._force_join_before_exit(fcfg)
-        self._sync_named_return_vars(fcfg)
+        return return_values
 
-        # ═══ Post Annotation 처리 ═══
-        self._process_post_annotations(fcfg)
+    def _extract_return_value(self, fcfg: FunctionCFG, return_values: list, log_implicit: bool = False):
+        """return_values 리스트에서 최종 반환값을 추출."""
+        rec = self.rec
 
-        # ★ node variables 복원 (definition-time 상태로)
-        for blk, saved_vars in _saved_node_vars.items():
-            blk.variables = saved_vars
-
-        # 컨텍스트 복원
-        an.current_target_function = _old_func
-        an.current_target_function_cfg = _old_fcfg
-
-        # caller_env 반영
-        if caller_env is not None:
-            exit_env = fcfg.get_exit_node().variables
-            for k, v in exit_env.items():
-                if k in caller_env:
-                    if hasattr(caller_env[k], "value"):
-                        caller_env[k].value = v.value
-                    else:
-                        caller_env[k] = v
-                elif isinstance(v, (MappingVariable, ArrayVariable)):
-                    caller_env[k] = v
-
-        # 반환값
         def _log_implicit_return(var_objs: list[Variables]):
-            if not self._record_enabled: return
+            if not log_implicit or not self._record_enabled:
+                return
             ln = self._last_executable_line(fcfg)
             if ln is None: return
             if len(var_objs) == 1:
                 rec.record_return(line_no=ln, return_expr=None, return_val=var_objs[0].value, fn_cfg=fcfg)
             else:
-                # ★ add_env_record는 Variables 객체의 딕셔너리를 기대함
-                # 직렬화된 딕셔너리가 아닌 Variables 객체 딕셔너리를 전달
                 env_dict = {v.identifier: v for v in var_objs}
                 self.rec.add_env_record(ln, "implicitReturn", env_dict)
-
-        # ★ 반환 전 _record_enabled 복원을 위한 헬퍼
-        def _restore_and_return(val):
-            self._record_enabled = _old_record_enabled
-            return val
 
         if len(return_values) == 0:
             if fcfg.return_vars:
                 _log_implicit_return(fcfg.return_vars)
-                result = fcfg.return_vars[0].value if len(fcfg.return_vars) == 1 \
-                       else [rv.value for rv in fcfg.return_vars]
-                return _restore_and_return(result)
+                if len(fcfg.return_vars) == 1:
+                    return fcfg.return_vars[0].value
+                return [rv.value for rv in fcfg.return_vars]
             else:
                 exit_retvals = list(fcfg.get_return_exit_node().return_vals.values())
                 if exit_retvals:
@@ -919,27 +956,22 @@ class Engine:
                         if hasattr(joined, 'join') and hasattr(v, 'join'):
                             joined = joined.join(v)
                         else:
-                            # Handle tuples or other types that don't have join method
-                            return _restore_and_return(joined)
-                    return _restore_and_return(joined)
-                return _restore_and_return(None)
+                            return joined
+                    return joined
+                return None
         elif len(return_values) == 1:
-            return _restore_and_return(return_values[0])
+            return return_values[0]
         else:
-            # Filter out "__STOP__" strings from return_values
             filtered_values = [rv for rv in return_values if rv != "__STOP__"]
             if not filtered_values:
-                return _restore_and_return(None)
-
+                return None
             joined_ret = filtered_values[0]
             for rv in filtered_values[1:]:
                 if hasattr(joined_ret, 'join') and hasattr(rv, 'join'):
                     joined_ret = joined_ret.join(rv)
                 else:
-                    # Handle tuples or other types that don't have join method
-                    # For now, just return the first valid return value
-                    return _restore_and_return(joined_ret)
-            return _restore_and_return(joined_ret)
+                    return joined_ret
+            return joined_ret
 
     # =================================================================
     #  reinterpret_from (변경 없음; self.* 호출로 정리)

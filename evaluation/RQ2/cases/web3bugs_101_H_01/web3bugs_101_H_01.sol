@@ -39,13 +39,9 @@ contract LenderPool is ERC1155Upgradeable, ReentrancyGuardUpgradeable, IPooledCr
     mapping(uint256 => LenderPoolVariables) public pooledCLVariables;
     mapping(uint256 => uint256) public totalSupply;
 
-    function _calculatePrincipalWithdrawable(uint256 _id, address _lender) private view returns (uint256) {
-        // @LocalVar _id = [1, 1]
-        // @StateVar pooledCLConstants[1].borrowLimit = [99000, 99000]
-        // @IReturn POOLED_CREDIT_LINE.getPrincipal() = [0, 0]
+    function _calculatePrincipalWithdrawable(uint256 _id, address _lender) private view returns (uint256) {       
         uint256 _borrowedTokens = pooledCLConstants[_id].borrowLimit;
-        uint256 _totalLiquidityWithdrawable = _borrowedTokens.sub(POOLED_CREDIT_LINE.getPrincipal(_id));
-        // @During _principalWithdrawable <= _totalLiquidityWithdrawable
+        uint256 _totalLiquidityWithdrawable = _borrowedTokens.sub(POOLED_CREDIT_LINE.getPrincipal(_id));       
         uint256 _principalWithdrawable = _totalLiquidityWithdrawable.mul(balanceOf(_lender, _id)).div(_borrowedTokens);
         return _principalWithdrawable;
     }
