@@ -172,10 +172,11 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
 
 **실행 명령:**
 ```bash
-cd evaluation/RQ2
-python runner.py                          # 전체 실행
-python runner.py --category div_in_path   # 카테고리별
-python runner.py --case WANGMI            # 개별 케이스
+# 개별 케이스 실행 (main.py에 JSON 경로 전달)
+python main.py evaluation/RQ2/cases/web3bugs_56_H_02/web3bugs_56_H_02.json
+
+# 전체 regression 확인 (bash)
+for d in evaluation/RQ2/cases/*/; do name=$(basename "$d"); json="$d${name}.json"; if [ -f "$json" ]; then echo "=== $name ===" && python -u main.py "$json" 2>&1 | grep -iE "INTENT VIOLATION|INTENT WARNING|POST INTENT|Traceback" | head -3; fi; done
 ```
 
 ## 핵심 파일 경로
@@ -601,6 +602,12 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 - `@StateVar _balances[_id][_lender] = [100000, 100000]` + `@LocalVar _lender = symbolicAddress 102` 추가
 - `_principalWithdrawable = [100000, 100000]` > `_totalLiquidityWithdrawable = [99000, 99000]` → VIOLATED
 
+### 56_H_02 해결: WARNING → VIOLATED
+- **initialize_struct에 struct_defs 전달**: nested struct(FixedPointMath.FixedDecimal)의 멤버 `x`가 초기화되지 않던 문제 수정
+- **library function call에서 struct 전달**: `evaluate_library_function_call_context`에서 StructVariable 인자를 `.value`로 추출하면 `None`이 됨 → 객체 자체를 전달하도록 수정
+- **`_make_bottom` 재귀 버그**: `for m in ...: self._make_bottom(m); return` — 세미콜론으로 인해 첫 번째 멤버만 BOTTOM 처리 후 return. 전체 멤버 순회하도록 수정
+- FixedPointMath/SafeMath pkl 재생성 (related_variables 오염 제거)
+
 ---
 
 ## 케이스별 실행 결과 (2026-03-31 세션 4 최종)
@@ -621,13 +628,13 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 12 | 45_H_01 | ✅ VIOLATED (V=2) | 세션3 해결 |
 | 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
-| 15 | 56_H_02 | ⚠️ WARNING (W=1) | 세션4 해결 — FixedPointMath precision 한계 |
+| 15 | 56_H_02 | ✅ VIOLATED (V=1) | 세션5 해결 — struct 전달 + _make_bottom 재귀 |
 | 16 | 58_H_02 | ❌ ERROR | refine 시 루프 변수 'i' 미선언 (기존 이슈) |
 | 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 |
 | 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 19 | 70_H_10 | ❌ ERROR | qualified lib static call 미해결 |
 
-**14 VIOLATED + 2 WARNING + 3 ERROR = 19건** (42_H_01, 78_H_02 미생성)
+**16 VIOLATED + 0 WARNING + 3 ERROR = 19건** (42_H_01, 78_H_02 미생성)
 
 ### 남은 작업
 
@@ -637,12 +644,6 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
 | 58_H_02 | refine 시 루프 변수 'i' 미선언 | `_edge_env_from_pred`에서 루프 변수 scope 처리 |
 | 60_H_01 / 70_H_10 | qualified lib static call | `LibName.func()` 패턴의 identifier resolve + 체이닝 + cross-lib call |
-
-**WARNING 2건:**
-| Case | 원인 | 가능한 해결 |
-|------|------|------------|
-| 101_H_01 | `balanceOf` interface call → TOP | `@IReturn` annotation으로 반환값 제약 |
-| 56_H_02 | FixedPointMath chain imprecision | annotation 조정 또는 intermediate 값 제약 |
 
 **미생성 2건:**
 | Case | 사유 | 필요 작업 |

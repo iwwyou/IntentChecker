@@ -34,9 +34,14 @@ def generate_case(sol_path: pathlib.Path, out_path: pathlib.Path,
     for line, text in intents:
         records.append(make_annotation_record(text, line))
 
-    # Debug records (line numbers increment by 1 each)
-    for i, (start_line, text) in enumerate(debugs):
-        records.append(make_annotation_record(text, start_line + i))
+    # Debug records: BEGIN + annotations + END
+    if debugs:
+        base_line = debugs[0][0]
+        records.append(make_annotation_record("// @Debugging BEGIN", base_line))
+        for i, (start_line, text) in enumerate(debugs):
+            records.append(make_annotation_record(text, start_line + i))
+        end_line = base_line + len(debugs)
+        records.append(make_annotation_record("// @Debugging END", end_line))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(records, indent=2, ensure_ascii=False), encoding='utf-8')

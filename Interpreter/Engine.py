@@ -718,6 +718,7 @@ class Engine:
         self._record_enabled = True
         an._seen_stmt_ids.clear()
 
+
         _saved_node_vars = self._reset_node_vars(fcfg)
 
         # debug-patched related_variables로 assign_env / entry_env 갱신
@@ -781,6 +782,9 @@ class Engine:
 
         def _edge_env_from_pred(pred: CFGNode, succ: CFGNode):
             base = VariableEnv.copy_variables(getattr(pred, "variables", {}) or {})
+            # BOTTOM env는 refine 불필요 (BOTTOM ⊓ cond = BOTTOM)
+            if self._is_bottom_env(base):
+                return base
             if getattr(pred, "condition_node", False):
                 cond_expr = getattr(pred, "condition_expr", None)
                 ed = G.get_edge_data(pred, succ, default=None)
@@ -794,6 +798,7 @@ class Engine:
         work = deque([start_block])
         visited: set[CFGNode] = set()
         return_values = []
+        _node_count = [0]  # debug counter
 
         while work:
             node = work.popleft()
@@ -822,8 +827,11 @@ class Engine:
 
             cur_vars = node.variables
             node.evaluated = True
+            _node_count[0] += 1
 
             if self._is_bottom_env(cur_vars):
+                if getattr(node, 'intents', []):
+                    print(f"[DEBUG] BOTTOM node has intents: {node.name}, src_line={getattr(node,'src_line','?')}")
                 for nxt in list(G.successors(node)):
                     if _is_sink(nxt): continue
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
@@ -925,6 +933,10 @@ class Engine:
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
                     work.append(nxt)
 
+        # [DEBUG] find nodes with intents
+        _intent_nodes = [(n.name, getattr(n, 'src_line', '?'), [i.get('type') for i in n.intents]) for n in fcfg.graph.nodes if getattr(n, 'intents', [])]
+        if _intent_nodes:
+            print(f"[DEBUG] nodes with intents: {_intent_nodes}")
         return return_values
 
     def _extract_return_value(self, fcfg: FunctionCFG, return_values: list, log_implicit: bool = False):
@@ -1137,11 +1149,17 @@ class Engine:
 
     def _make_bottom(self, v: Variables) -> None:
         if isinstance(v, ArrayVariable):
-            for elem in v.elements: self._make_bottom(elem); return
+            for elem in v.elements:
+                self._make_bottom(elem)
+            return
         if isinstance(v, StructVariable):
-            for m in v.members.values(): self._make_bottom(m); return
+            for m in v.members.values():
+                self._make_bottom(m)
+            return
         if isinstance(v, MappingVariable):
-            for mv in v.mapping.values(): self._make_bottom(mv); return
+            for mv in v.mapping.values():
+                self._make_bottom(mv)
+            return
         val = getattr(v, "value", None)
         if isinstance(val, UnsignedIntegerInterval):
             v.value = UnsignedIntegerInterval.bottom(val.type_length); return

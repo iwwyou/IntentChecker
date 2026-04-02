@@ -89,8 +89,11 @@ class DynamicCFGBuilder:
             type_obj, var_obj.identifier, init_expr, line_no
         )
 
-        # 3) Add to function-scope variable table
-        fcfg.add_related_variable(var_obj)
+        # interface 타입 지역변수는 @IReturn 조회용으로 별도 등록
+        if hasattr(type_obj, 'typeCategory') and type_obj.typeCategory == "interface":
+            ifc_name = getattr(type_obj, 'interfaceName', None)
+            if ifc_name:
+                fcfg.interface_var_types[var_obj.identifier] = ifc_name
 
         return new_block
 
@@ -127,8 +130,12 @@ class DynamicCFGBuilder:
             new_block.add_variable_declaration_statement(
                 type_obj, var_obj.identifier, None, line_no
             )
-            # 3) Add to function-scope variable table
-            fcfg.add_related_variable(var_obj)
+
+            # interface 타입 지역변수는 @IReturn 조회용으로 별도 등록
+            if hasattr(type_obj, 'typeCategory') and type_obj.typeCategory == "interface":
+                ifc_name = getattr(type_obj, 'interfaceName', None)
+                if ifc_name:
+                    fcfg.interface_var_types[var_obj.identifier] = ifc_name
 
         return new_block
 

@@ -850,8 +850,9 @@ class ContractAnalyzer:
         contract_cfg.add_state_variable(variable_obj, expr=init_expr, line_no=self.current_start_line)
 
         # 5. ContractCFG에 있는 모든 FunctionCFG에 상태 변수 추가
+        #    copy를 저장하여 분석 중 _make_bottom() in-place mutation이 전파되지 않도록 함
         for _, function_cfg in contract_cfg.iter_all_functions():
-            function_cfg.add_related_variable(variable_obj.identifier, variable_obj)
+            function_cfg.add_related_variable(variable_obj.identifier, VariableEnv.copy_single_variable(variable_obj))
 
         # 6. contract_cfg를 contract_cfgs에 반영
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -924,7 +925,7 @@ class ContractAnalyzer:
 
         # 4. 이미 생성된 모든 FunctionCFG 에 read-only 변수로 연동
         for _, fn_cfg in contract_cfg.iter_all_functions():
-            fn_cfg.add_related_variable(variable_obj.identifier, variable_obj)
+            fn_cfg.add_related_variable(variable_obj.identifier, VariableEnv.copy_single_variable(variable_obj))
 
         # 5. 전역 map 업데이트
         self.contract_cfgs[self.current_target_contract] = contract_cfg
@@ -2800,7 +2801,7 @@ class ContractAnalyzer:
                     if var.typeInfo.typeCategory == "interface":
                         return var.typeInfo.interfaceName
 
-        # 2) 현재 함수의 parameter 검색
+        # 2) 현재 함수의 parameter / related_variables 검색
         if ccf:
             func_cfg = ccf.get_function_cfg(self.current_target_function, param_types=self.current_target_function_param_types)
             if func_cfg:
@@ -2808,6 +2809,10 @@ class ContractAnalyzer:
                     if param_var.identifier == var_name and hasattr(param_var, 'typeInfo') and param_var.typeInfo:
                         if param_var.typeInfo.typeCategory == "interface":
                             return param_var.typeInfo.interfaceName
+
+                # 3) 함수 내 지역변수 중 interface 타입 조회
+                if var_name in func_cfg.interface_var_types:
+                    return func_cfg.interface_var_types[var_name]
 
         return None
 
