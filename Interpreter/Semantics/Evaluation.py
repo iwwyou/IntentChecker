@@ -47,7 +47,12 @@ class Evaluation :
             if hasattr(var, 'typeInfo') and var.typeInfo and var.typeInfo.typeCategory == "interface":
                 return var.typeInfo.interfaceName
 
-        # 2) state variable
+        # 2) FunctionCFG.interface_var_types (지역변수 중 interface 타입)
+        fcfg = self.an.current_target_function_cfg
+        if fcfg and hasattr(fcfg, 'interface_var_types') and var_name in fcfg.interface_var_types:
+            return fcfg.interface_var_types[var_name]
+
+        # 3) state variable
         current_contract = self.an.current_target_contract
         if current_contract and current_contract in self.an.contract_cfgs:
             ccf = self.an.contract_cfgs[current_contract]
@@ -520,11 +525,16 @@ class Evaluation :
                 scope="memory"
             )
 
-            # ⬇ static-method 직접 호출
+            # ⬇ Solidity default: new array elements are zero-initialized
             if ArrayVariable._is_abstractable(sol_t.arrayBaseType):
-                dummy = (IntegerInterval.bottom()
-                         if str(sol_t.arrayBaseType.elementaryTypeName).startswith("int")
-                         else UnsignedIntegerInterval.bottom())
+                et = str(sol_t.arrayBaseType.elementaryTypeName)
+                bits = sol_t.arrayBaseType.intTypeLength or 256
+                if et.startswith("int"):
+                    dummy = IntegerInterval(0, 0, bits)
+                elif et == "bool":
+                    dummy = BoolInterval(0, 0)
+                else:
+                    dummy = UnsignedIntegerInterval(0, 0, bits)
                 arr.initialize_elements(dummy)
             else:
                 arr.initialize_not_abstracted_type()
@@ -1791,9 +1801,13 @@ class Evaluation :
             return result
 
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
+        # [TRACE]
+        _fn = getattr(expr, 'function', None)
+        _fn_ctx = getattr(_fn, 'context', None) if _fn else None
+        _fn_mem = getattr(_fn, 'member', None) if _fn else None
         if expr.context == "IdentifierExpContext":
             function_name = expr.identifier
-        elif expr.function.context == "MemberAccessContext":  # dynamic array에 대한 push, pop
+        elif _fn and _fn_ctx == "MemberAccessContext":  # dynamic array에 대한 push, pop
             # ★ @IReturn: interface call이면 registry에서 값 조회 (evaluate 전에 short-circuit)
             base_expr = expr.function.base
             member_name = expr.function.member

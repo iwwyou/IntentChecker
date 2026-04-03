@@ -354,7 +354,7 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar balances[address(this)] = [2000000000000, 2000000000000]",
+    "code": "// @StateVar balances[1] = [2000000000000, 2000000000000]",
     "startLine": 51,
     "endLine": 51,
     "event": "add"

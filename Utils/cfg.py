@@ -535,6 +535,7 @@ class FunctionCFG(CFG):
         self.return_vars: list[Variables] = []
         self.assign_env: dict[str, Variables] = {}   # 최초 스냅샷 전용
         self.ireturn_registry: dict[tuple, object] = {}  # @IReturn: (contractVar, funcName, index|None) → interval
+        self.interface_var_types: dict[str, str] = {}  # 지역변수 중 interface 타입: var_name → interfaceName
         self.mutability: str | None = None  # "view", "pure", "payable", or None (default/nonpayable)
 
         # ── 분리된 sink 노드들 생성(빌더가 연결) ────────────────────────

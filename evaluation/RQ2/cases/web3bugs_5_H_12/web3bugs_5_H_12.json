@@ -138,7 +138,7 @@
     "event": "add"
   },
   {
-    "code": "uint _balance = IERC20(_token).balanceOf(address(this));",
+    "code": "uint _balance = iERC20(_token).balanceOf(address(this));",
     "startLine": 24,
     "endLine": 24,
     "event": "add"
@@ -242,7 +242,7 @@
     "event": "add"
   },
   {
-    "code": "// @IReturn IERC20(_token).balanceOf() = [200, 200]",
+    "code": "// @IReturn iERC20(_token).balanceOf() = [200, 200]",
     "startLine": 30,
     "endLine": 30,
     "event": "add"

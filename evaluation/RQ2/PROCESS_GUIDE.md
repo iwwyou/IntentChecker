@@ -629,24 +629,89 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 13 | 47_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 15 | 56_H_02 | ✅ VIOLATED (V=1) | 세션5 해결 — struct 전달 + _make_bottom 재귀 |
-| 16 | 58_H_02 | ❌ ERROR | refine 시 루프 변수 'i' 미선언 (기존 이슈) |
+| 16 | 58_H_02 | ✅ VIOLATED (V=1) | 세션6 해결 — related_variables BOTTOM 전파 + interface_var_types + new 배열 0-init |
 | 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 |
 | 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 19 | 70_H_10 | ❌ ERROR | qualified lib static call 미해결 |
 
-**16 VIOLATED + 0 WARNING + 3 ERROR = 19건** (42_H_01, 78_H_02 미생성)
+**17 VIOLATED + 0 WARNING + 2 ERROR = 19건** (42_H_01, 78_H_02 미생성)
 
 ### 남은 작업
 
-**ERROR 3건:**
+**ERROR 2건:**
 | Case | 에러 | 필요 작업 |
 |------|------|----------|
 | HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
-| 58_H_02 | refine 시 루프 변수 'i' 미선언 | `_edge_env_from_pred`에서 루프 변수 scope 처리 |
 | 60_H_01 / 70_H_10 | qualified lib static call | `LibName.func()` 패턴의 identifier resolve + 체이닝 + cross-lib call |
 
 **미생성 2건:**
 | Case | 사유 | 필요 작업 |
 |------|------|----------|
-| 42_H_01 | FloatStruct file-level struct 미등록 | Dependencies/ISSUES.md 참조, file-level struct 등록 |
-| 78_H_02 | 피상속 컨트랙트 private state variable 접근 | Issue 8 구현 |
+| 42_H_01 | FloatStruct file-level struct + Float 라이브러리 | Dependencies/ISSUES.md 참조 |
+| 78_H_02 | 피상속 컨트랙트 private state variable | Issue 8: `_mint()` 호출 시 child state var 연동 |
+
+---
+
+## 세션 6 (2026-04-03)
+
+### 58_H_02 해결: ERROR → VIOLATED
+
+**근본 원인 5가지 발견 및 수정:**
+
+1. **`build_variable_declaration`에서 지역변수 `related_variables` 참조 공유 제거**
+   - `DynamicCFGBuilder.py`: `add_related_variable(var_obj)` 제거
+   - 대신 interface 타입 지역변수만 `FunctionCFG.interface_var_types`에 별도 등록
+   - 지역변수가 `related_variables`에 shared reference로 들어가면 분석 중 `_make_bottom()` in-place mutation이 전파됨
+
+2. **상태변수도 copy로 추가 (BOTTOM mutation 전파 방지)**
+   - `ContractAnalyzer.py:854,928`: `add_related_variable(var_obj)` → `add_related_variable(name, VariableEnv.copy_single_variable(var_obj))`
+
+3. **BOTTOM env에서 condition refine skip**
+   - `Engine.py _edge_env_from_pred()`: BOTTOM env는 refine 불필요 (BOTTOM ⊓ cond = BOTTOM)
+   - `if (baseSupply == 0)` true branch가 infeasible → BOTTOM env가 for_cond로 전파 → for_body가 outer worklist에 들어감 → `i` 미선언 에러 발생 경로 차단
+
+4. **`Evaluation._get_interface_name_of_var`에 `interface_var_types` 조회 추가**
+   - `related_variables`에서 지역변수를 빼면서 `vg`의 interface 이름 조회 실패 → IReturn 미적용
+   - `FunctionCFG.interface_var_types` fallback 추가
+
+5. **`new` 배열 원소 초기화: BOTTOM → 0 (Solidity semantics)**
+   - `Evaluation.py evaluate_new_expression()`: `UnsignedIntegerInterval.bottom()` → `UnsignedIntegerInterval(0, 0, bits)`
+   - Solidity에서 `new uint256[](n)` 원소는 0으로 초기화됨
+   - BOTTOM이었을 때 `baseTvls` 전체가 BOTTOM → 이후 모든 노드 BOTTOM 전파
+
+**annotation 값 조정:**
+- `_lpPriceHighWaterMarks[0]`과 `[1]`을 동일 값(1e18)으로 설정
+  - for-loop fixpoint에서 `hwms[i]`가 `i=[0,1]`로 join되면 `[hwm0, hwm1]` interval이 됨
+  - hwm이 다르면 `delta_min = hwm_min * DENOM / hwm_max < DENOM` → `toMint_min < baseSupply` → WARNING
+  - hwm이 같으면 `delta_min = DENOM` → `toMint_min = baseSupply` → VIOLATED
+
+### 기타 수정
+
+**`@Debugging END` 라인 전체 수정:**
+- 전체 19개 JSON 파일의 `@Debugging END` startLine이 BEGIN과 동일하게 잘못 설정됨 → 일괄 수정
+- `generate_case_jsons.py`: BEGIN/END 자동 생성하도록 수정
+
+### 78_H_02 시도 결과
+
+**JSON 생성 + OZ ERC20 pkl 생성 완료, 실행 가능하나 결과 미달:**
+- `Dependencies/contracts/78_OZ_ERC20.sol` 생성 → `con_ERC20.pkl` 재생성 (OZ 버전, `totalSupply()` 함수 포함)
+- 기존 `con_ERC20.pkl`은 Solmate ERC20 (public state var `totalSupply`), OZ는 private `_totalSupply` + getter 함수
+- 실행 결과: `@Post _balances[to] <= amount` → **satisfied** (의도는 violated)
+- **원인**: `_mint()` 호출 시 pkl 내부의 `_balances`와 RebaseProxy의 `_balances`가 **별도 객체**
+  - pkl `_mint.related_variables['_balances']` → `_mint()` 내부에서 업데이트
+  - RebaseProxy `related_variables['_balances']` → debug annotation 대상, Post 검증 대상
+  - 두 객체가 분리되어 있어 `_mint()` 결과가 Post 검증에 반영 안 됨
+- **해결 방향**: 상속 함수 호출 시 child의 state variable을 caller_env로 전달하여 pkl 함수가 child의 변수를 직접 업데이트하도록
+
+### 수정된 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `Interpreter/Engine.py` | BOTTOM env refine skip, `interface_var_types` 등록 |
+| `Interpreter/Semantics/Evaluation.py` | `_get_interface_name_of_var`에 `interface_var_types` fallback, `new` 배열 0-init |
+| `Analyzer/DynamicCFGBuilder.py` | `add_related_variable` 제거 → `interface_var_types` 등록 |
+| `Analyzer/ContractAnalyzer.py` | 상태변수 copy 추가, `_find_interface_name_for_var`에 `interface_var_types` fallback |
+| `Utils/CFG.py` | `FunctionCFG.interface_var_types` 필드 추가 |
+| `Dependencies/contracts/78_OZ_ERC20.sol` | OZ ERC20 축약 버전 (pkl 생성용) |
+| `evaluation/RQ2/generate_case_jsons.py` | 78_H_02, 42_H_01 추가, BEGIN/END 자동 생성 |
+| 전체 JSON 19개 | `@Debugging END` startLine 수정 |

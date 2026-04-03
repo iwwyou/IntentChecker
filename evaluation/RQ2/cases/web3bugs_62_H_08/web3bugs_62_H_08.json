@@ -920,7 +920,7 @@
     "event": "add"
   },
   {
-    "code": "// @Post tokensNotYetStreamed[msg.sender].lastUpdate == 1000",
+    "code": "// @Post tokensNotYetStreamed[101].lastUpdate == 1000",
     "startLine": 182,
     "endLine": 182,
     "event": "add"
@@ -986,31 +986,31 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar tokensNotYetStreamed[msg.sender].tokens = [0, 0]",
+    "code": "// @StateVar tokensNotYetStreamed[101].tokens = [0, 0]",
     "startLine": 155,
     "endLine": 155,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokensNotYetStreamed[msg.sender].lastUpdate = [800, 800]",
+    "code": "// @StateVar tokensNotYetStreamed[101].lastUpdate = [800, 800]",
     "startLine": 156,
     "endLine": 156,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokensNotYetStreamed[msg.sender].rewards = [0, 0]",
+    "code": "// @StateVar tokensNotYetStreamed[101].rewards = [0, 0]",
     "startLine": 157,
     "endLine": 157,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokensNotYetStreamed[msg.sender].lastCumulativeRewardPerToken = [100, 100]",
+    "code": "// @StateVar tokensNotYetStreamed[101].lastCumulativeRewardPerToken = [100, 100]",
     "startLine": 158,
     "endLine": 158,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokensNotYetStreamed[msg.sender].virtualBalance = [0, 0]",
+    "code": "// @StateVar tokensNotYetStreamed[101].virtualBalance = [0, 0]",
     "startLine": 159,
     "endLine": 159,
     "event": "add"

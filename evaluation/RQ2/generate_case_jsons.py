@@ -270,10 +270,41 @@ def main():
                 (54, "// @StateVar blacklist[msg.sender] = false")],
     )
 
-    # ── 17. web3bugs_45_H_01
-    # 이건 contraction 라인넘버 확인 필요 — 나중에
-    # ── 18. web3bugs_101_H_01
-    # ── 19. web3bugs_47_H_02
+    # ── 17. web3bugs_78_H_02
+    generate_case(
+        CONTRACTION / "web3bugs_78_H_02.sol",
+        CASES / "web3bugs_78_H_02" / "web3bugs_78_H_02.json",
+        intents=[(24, "// @Post _balances[to] <= amount")],
+        debugs=[(19, "// @StateVar _totalSupply = [1000000000000000000000, 1000000000000000000000]"),
+                (19, "// @StateVar _balances[to] = [0, 0]"),
+                (19, "// @IReturn IERC20(baseToken).balanceOf() = [1500000000000000000000, 1500000000000000000000]"),
+                (19, "// @LocalVar amount = [500000000000000000000, 500000000000000000000]")],
+    )
+
+    # ── 18. web3bugs_42_H_01
+    generate_case(
+        CONTRACTION / "web3bugs_42_H_01.sol",
+        CASES / "web3bugs_42_H_01" / "web3bugs_42_H_01.json",
+        intents=[(50, "// @During debts >= increasingDebt + 800")],
+        debugs=[(29, "// @StateVar debts = [800, 800]"),
+                (29, "// @StateVar debtIndex = [1000000000000000000, 1000000000000000000]"),
+                (29, "// @GlobalVar block.timestamp = [1000000, 1000000]"),
+                (29, "// @StateVar lastAccrued = [1000000, 1000000]"),
+                (29, "// @StateVar details[2].collateral = [10000000000000000000, 10000000000000000000]"),
+                (29, "// @StateVar details[2].debt = [0, 0]"),
+                (29, "// @StateVar details[2].debtIndex = [1000000000000000000, 1000000000000000000]"),
+                (29, "// @IReturn engine.mochiProfile().calculateFeeIndex() = [1000000000000000000, 1000000000000000000]"),
+                (29, "// @IReturn engine.cssr().update() = [1000000000000000000, 1000000000000000000]"),
+                (29, "// @IReturn engine.mochiProfile().maxCollateralFactor() = [800000000000000000, 800000000000000000]"),
+                (29, "// @IReturn engine.mochiProfile().creditCap() = [100000000000000000000, 100000000000000000000]"),
+                (29, "// @IReturn engine.mochiProfile().minimumDebt() = [0, 0]"),
+                (29, "// @IReturn engine.nft().ownerOf() = symbolicAddress 1"),
+                (29, "// @IReturn engine.nft().asset() = symbolicAddress 2"),
+                (29, "// @LocalVar _id = [2, 2]"),
+                (29, "// @LocalVar _amount = [1000, 1000]")],
+    )
+
+    # ── (manual) web3bugs_45_H_01, web3bugs_101_H_01, web3bugs_47_H_02
 
     print(f"\nDone. Generated in {CASES}")
 

@@ -798,7 +798,6 @@ class Engine:
         work = deque([start_block])
         visited: set[CFGNode] = set()
         return_values = []
-        _node_count = [0]  # debug counter
 
         while work:
             node = work.popleft()
@@ -827,11 +826,8 @@ class Engine:
 
             cur_vars = node.variables
             node.evaluated = True
-            _node_count[0] += 1
 
             if self._is_bottom_env(cur_vars):
-                if getattr(node, 'intents', []):
-                    print(f"[DEBUG] BOTTOM node has intents: {node.name}, src_line={getattr(node,'src_line','?')}")
                 for nxt in list(G.successors(node)):
                     if _is_sink(nxt): continue
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
@@ -933,10 +929,6 @@ class Engine:
                     nxt.variables = VariableEnv.copy_variables(cur_vars)
                     work.append(nxt)
 
-        # [DEBUG] find nodes with intents
-        _intent_nodes = [(n.name, getattr(n, 'src_line', '?'), [i.get('type') for i in n.intents]) for n in fcfg.graph.nodes if getattr(n, 'intents', [])]
-        if _intent_nodes:
-            print(f"[DEBUG] nodes with intents: {_intent_nodes}")
         return return_values
 
     def _extract_return_value(self, fcfg: FunctionCFG, return_values: list, log_implicit: bool = False):
