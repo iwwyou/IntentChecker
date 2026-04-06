@@ -630,20 +630,20 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 14 | 51_H_02 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 15 | 56_H_02 | ✅ VIOLATED (V=1) | 세션5 해결 — struct 전달 + _make_bottom 재귀 |
 | 16 | 58_H_02 | ✅ VIOLATED (V=1) | 세션6 해결 — related_variables BOTTOM 전파 + interface_var_types + new 배열 0-init |
-| 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 |
+| 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 (Fixed18Lib._from().add()) |
 | 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
-| 19 | 70_H_10 | ❌ ERROR | qualified lib static call 미해결 |
+| 19 | 70_H_10 | ✅ VIOLATED (V=1) | 세션7 해결 — enum pkl + enum parent chain + for init 0 + VarRefMemberAccess length |
 | 20 | 78_H_02 | ✅ VIOLATED (V=1) | 세션7 해결 — exit_env 캡처 + 복합자료구조 전파 + IReturn sub-function 전파 |
 
-**18 VIOLATED + 0 WARNING + 2 ERROR = 20건** (42_H_01 미생성)
+**19 VIOLATED + 0 WARNING + 2 ERROR = 21건** (42_H_01 미생성)
 
 ### 남은 작업
 
-**ERROR 3건:**
+**ERROR 2건:**
 | Case | 에러 | 필요 작업 |
 |------|------|----------|
 | HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
-| 60_H_01 / 70_H_10 | qualified lib static call | `LibName.func()` 패턴의 identifier resolve + 체이닝 + cross-lib call |
+| 60_H_01 | qualified lib static call 체이닝 | `Fixed18Lib._from(x).add(y)` — 라이브러리 함수 반환값에 `.add()` 체이닝 미지원 |
 
 **미생성 1건:**
 | Case | 사유 | 필요 작업 |
@@ -761,3 +761,43 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 |------|------|
 | `Interpreter/Engine.py` | exit_env 캡처 순서 변경, 복합자료구조 전파, callee 파라미터 skip, ireturn_registry 전파 |
 | `evaluation/RQ2/cases/web3bugs_78_H_02/web3bugs_78_H_02.json` | `@LocalVar to = symbolicAddress 10` 추가, startLine shift |
+
+### 70_H_10 해결: ERROR → VIOLATED
+
+**근본 원인 4가지 발견 및 수정:**
+
+1. **`UniswapV2OracleLibrary` pkl 미생성**
+   - `Dependencies/libraries/UniswapV2OracleLibrary.sol` 생성 (stub: 반환 타입만 보존)
+   - pkl 생성 → `library_cfgs`에 등록 → qualified static call resolve 가능
+
+2. **`ILiquidityBasedTWAP` enum members 미등록**
+   - `Dependencies/main.py slice_solidity()`: enum body 파싱 미지원 → members가 빈 리스트
+   - `in_enum` 플래그 추가: enum header 후 `}` 까지 모아서 한 record로 전달
+   - pkl 재생성 → `Paths.members = ['VADER', 'USDV']`
+
+3. **parent chain에서 enum 검색 미지원**
+   - `Evaluation.py evaluate_identifier_context()`: 현재 contract의 `enumDefs`만 검색
+   - `_find_enum_in_chain()` 추가: parent_cfgs 재귀 탐색
+   - `Paths`가 `ILiquidityBasedTWAP`(parent)에 정의 → 검색 가능
+
+4. **for문 초기화 없는 변수 선언 시 value=None**
+   - `for (uint256 i; ...)` → `init_expr = None` → `i.value = None` → `++i` 에서 None + 1 에러
+   - Solidity 기본값: uint/int는 0으로 초기화
+
+5. **`VarRefMemberAccess`에서 `.length` 특별 처리 누락**
+   - `DebugInitializer.py`: `.length` annotation 처리 조건에 `VarRefMemberAccess` 미포함
+   - 조건에 추가 → `@StateVar vaderPairs.length = [1, 1]` 정상 적용
+
+**최종 결과:**
+- `previousPrices[0]` Entry=[1000000000000000] == Exit=[1000000000000000] → changed 미발생 → **VIOLATED (risk=10.0)**
+
+### 수정된 파일 요약 (70_H_10)
+
+| 파일 | 변경 |
+|------|------|
+| `Dependencies/main.py` | `slice_solidity()` enum body 파싱 (`in_enum` 플래그) |
+| `Dependencies/libraries/UniswapV2OracleLibrary.sol` | 신규 생성 (stub) |
+| `Dependencies/interfaces/ILiquidityBasedTWAP.sol` | enum members 줄바꿈 정리 |
+| `Interpreter/Semantics/Evaluation.py` | `_find_enum_in_chain()` parent chain enum 검색 |
+| `Interpreter/Semantics/DebugInitializer.py` | `.length` 조건에 `VarRefMemberAccess` 추가 |
+| `Analyzer/ContractAnalyzer.py` | for init 초기화 없는 uint/int → 0 |

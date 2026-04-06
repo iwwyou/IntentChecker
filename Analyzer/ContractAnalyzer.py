@@ -2187,7 +2187,15 @@ class ContractAnalyzer:
                         init_expr, init_node.variables, None, None
                     )
                 else:
-                    r_val = None
+                    # Solidity 기본값: for init에서 초기화 없으면 0
+                    elem = getattr(v_type, 'elementaryTypeName', '') or ''
+                    bits = getattr(v_type, 'intTypeLength', None) or 256
+                    if elem.startswith('uint'):
+                        r_val = UnsignedIntegerInterval(0, 0, bits)
+                    elif elem.startswith('int'):
+                        r_val = IntegerInterval(0, 0, bits)
+                    else:
+                        r_val = None
 
                 # 변수 객체 생성 & env 삽입
                 v_obj = Variables(identifier=v_name, scope="local")

@@ -503,7 +503,7 @@ class DebugInitializer:
         """
 
         # ★ 특별 케이스: 동적 배열의 .length 설정
-        if (lhs_expr.context in ("MemberAccessContext", "IntentMemberAccess") and
+        if (lhs_expr.context in ("MemberAccessContext", "IntentMemberAccess", "VarRefMemberAccess") and
             lhs_expr.member == "length"):
 
             # base 객체 찾기

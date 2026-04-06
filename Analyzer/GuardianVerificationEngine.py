@@ -1506,6 +1506,8 @@ class GuardianVerificationEngine:
         if k == "direct":
             return self.verify_during_direct_comparison(lhs_expr=pred["lhs"], comp_op=pred["op"], rhs_expr=pred["rhs"],
                                                         line_no=line_no, cfg_node=cfg_node)
+        if k == "nonzero":
+            return self._eval_nonzero(pred["expr"], cfg_node.variables, line_no)
         return self._err("duringPredicate", f"unknown DURING predicate kind: {k}", line_no)
 
     # POST predicate evaluator
@@ -1524,7 +1526,43 @@ class GuardianVerificationEngine:
         if k == "direct":
             return self.verify_post_direct_comparison(lhs_expr=pred["lhs"], comp_op=pred["op"], rhs_expr=pred["rhs"],
                                                       line_no=line_no, fn_cfg=fn_cfg)
+        if k == "nonzero":
+            exit_env = self._exit_env(fn_cfg)
+            return self._eval_nonzero(pred["expr"], exit_env, line_no)
         return self._err("postPredicate", f"unknown POST predicate kind: {k}", line_no)
+
+    def _eval_nonzero(self, expr, vars_env, line_no: int) -> dict:
+        """intentValue를 평가하여 nonzero 여부 판정."""
+        val = self.evaluate_guardian_expression(expr, vars_env, None, None)
+        val = self._materialize(val)
+
+        if hasattr(val, "min_value") and hasattr(val, "max_value"):
+            lo, hi = val.min_value, val.max_value
+            if lo > 0 or hi < 0:
+                satisfied, violated = True, False
+            elif lo == 0 and hi == 0:
+                satisfied, violated = False, True
+            else:
+                satisfied, violated = False, False
+        elif isinstance(val, bool):
+            satisfied, violated = val, not val
+        else:
+            satisfied, violated = False, False
+
+        if satisfied:
+            status = "success"
+        elif violated:
+            status = "failure"
+        else:
+            status = "warning"
+
+        return {
+            "status": status,
+            "kind": "nonzero",
+            "line": line_no,
+            "details": {"satisfied": satisfied, "violated": violated, "value": str(val)},
+            "message": f"{self._pretty_expr(expr)} is {'nonzero' if satisfied else 'zero' if violated else 'possibly zero'} ({val})"
+        }
 
     def _tri_state(self, res: dict) -> str:
         """

@@ -985,11 +985,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 "unit": int(clause_ctx.numberLiteral().getText())
             }
         elif isinstance(clause_ctx, P.ImplicationContext):
-            # Implication은 재귀적으로 처리
+            # Implication: intentValue '=>' intentValue
+            # 각 intentValue를 nonzero 판정으로 래핑
             return {
                 "kind": "implication",
-                "antecedent": self._build_common_clause_dict(clause_ctx.commonClause(0)),
-                "consequent": self._build_common_clause_dict(clause_ctx.commonClause(1))
+                "antecedent": {"kind": "nonzero", "expr": self.visit(clause_ctx.intentValue(0))},
+                "consequent": {"kind": "nonzero", "expr": self.visit(clause_ctx.intentValue(1))}
             }
         elif isinstance(clause_ctx, P.VarChangedEvalContext):
             # changed(x, true/false)
