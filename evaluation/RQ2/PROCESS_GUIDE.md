@@ -633,22 +633,22 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 17 | 60_H_01 | ❌ ERROR | qualified lib static call 체이닝 미해결 |
 | 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 19 | 70_H_10 | ❌ ERROR | qualified lib static call 미해결 |
+| 20 | 78_H_02 | ✅ VIOLATED (V=1) | 세션7 해결 — exit_env 캡처 + 복합자료구조 전파 + IReturn sub-function 전파 |
 
-**17 VIOLATED + 0 WARNING + 2 ERROR = 19건** (42_H_01, 78_H_02 미생성)
+**18 VIOLATED + 0 WARNING + 2 ERROR = 20건** (42_H_01 미생성)
 
 ### 남은 작업
 
-**ERROR 2건:**
+**ERROR 3건:**
 | Case | 에러 | 필요 작업 |
 |------|------|----------|
 | HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
 | 60_H_01 / 70_H_10 | qualified lib static call | `LibName.func()` 패턴의 identifier resolve + 체이닝 + cross-lib call |
 
-**미생성 2건:**
+**미생성 1건:**
 | Case | 사유 | 필요 작업 |
 |------|------|----------|
 | 42_H_01 | FloatStruct file-level struct + Float 라이브러리 | Dependencies/ISSUES.md 참조 |
-| 78_H_02 | 피상속 컨트랙트 private state variable | Issue 8: `_mint()` 호출 시 child state var 연동 |
 
 ---
 
@@ -715,3 +715,49 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | `Dependencies/contracts/78_OZ_ERC20.sol` | OZ ERC20 축약 버전 (pkl 생성용) |
 | `evaluation/RQ2/generate_case_jsons.py` | 78_H_02, 42_H_01 추가, BEGIN/END 자동 생성 |
 | 전체 JSON 19개 | `@Debugging END` startLine 수정 |
+
+---
+
+## 세션 7 (2026-04-06)
+
+### 78_H_02 해결: satisfied → VIOLATED
+
+**근본 원인 3가지 발견 및 수정:**
+
+1. **exit_env가 node 복원 후에 읽혀서 빈 dict 반환**
+   - `interpret_function_cfg()`에서 `_force_join_before_exit()`로 exit_node.variables를 설정하지만,
+     직후 `_saved_node_vars` 복원에서 exit_node.variables도 실행 전 값(빈 dict)으로 덮어씀
+   - **수정**: `_exit_env`를 node 복원 **전에** 캡처하도록 순서 변경
+   - `Engine.py`: `_exit_env = VariableEnv.copy_variables(fcfg.get_exit_node().variables)`
+
+2. **exit_env → caller_env 반영 시 복합 자료구조 미전파**
+   - 기존 코드: `caller_env[k].value = v.value` → MappingVariable의 실제 데이터는 `.mapping`에 있어 전파 안 됨
+   - **수정**: 타입별 내부 데이터 전파
+     - `MappingVariable`: `.mapping` 전파
+     - `ArrayVariable`: `.elements` 전파
+     - `StructVariable`: `.members` 전파
+     - `EnumVariable`: `.value` + `.valueIndex` 전파
+   - **추가**: callee 파라미터 이름이 caller의 동명 변수를 오염시키지 않도록 skip
+
+3. **IReturn이 sub-function에서 미적용**
+   - `mint()` 스코프에서 설정한 `@IReturn IERC20(baseToken).balanceOf() = [1500e18]`가
+     sub-function `redeemRate()` 호출 시 적용 안 됨 (`fcfg.ireturn_registry`가 callee 것만 참조)
+   - **수정**: `interpret_function_cfg()` 진입 시 caller의 `ireturn_registry`를 callee에 `setdefault`로 합치고, 실행 후 복원
+   - 결과: `redeemRate()` 내 `balanceOfBase`가 TOP → 1500e18로 정밀해짐 → `_redeemRate = 1.5e18` → `proxy = 1000e18`
+
+**annotation 추가:**
+- `@LocalVar to = symbolicAddress 10` 추가
+  - `_balances[to]` annotation에서 mapping key가 문자열 `"to"`로 저장됨
+  - `_mint(address account, ...)` 내부에서 `_balances[account]`의 key는 `"account"`
+  - symbolic address를 통해 두 key가 같은 주소를 바라보도록 연결
+
+**최종 결과:**
+- `_balances[to] = [1000e18, 1000e18]` (= proxy) > `amount = [500e18, 500e18]` → **VIOLATED (risk=10.0, both-side)**
+- `proxy = (1500e18 * 1e18) / 1.5e18 = 1000e18` — 정확한 계산
+
+### 수정된 파일 요약
+
+| 파일 | 변경 |
+|------|------|
+| `Interpreter/Engine.py` | exit_env 캡처 순서 변경, 복합자료구조 전파, callee 파라미터 skip, ireturn_registry 전파 |
+| `evaluation/RQ2/cases/web3bugs_78_H_02/web3bugs_78_H_02.json` | `@LocalVar to = symbolicAddress 10` 추가, startLine shift |

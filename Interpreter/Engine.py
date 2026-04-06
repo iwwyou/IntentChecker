@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from Analyzer.ContractAnalyzer import ContractAnalyzer
 
-from Domain.Variable import Variables, MappingVariable, ArrayVariable, StructVariable
+from Domain.Variable import Variables, MappingVariable, ArrayVariable, StructVariable, EnumVariable
 from Domain.IR import Expression
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
 from Domain.AddressSet import AddressSet
@@ -659,6 +659,12 @@ class Engine:
         self._record_enabled = False
         an._seen_stmt_ids.clear()
 
+        # caller의 ireturn_registry를 callee에 전파 (sub-function에서도 IReturn 적용)
+        _saved_ireturn = dict(fcfg.ireturn_registry)
+        if _old_fcfg and _old_fcfg.ireturn_registry:
+            for key, val in _old_fcfg.ireturn_registry.items():
+                fcfg.ireturn_registry.setdefault(key, val)
+
         _saved_node_vars = self._reset_node_vars(fcfg)
 
         entry = fcfg.get_entry_node()
@@ -681,19 +687,36 @@ class Engine:
         self._force_join_before_exit(fcfg)
         self._sync_named_return_vars(fcfg)
 
+        # exit env를 node 복원 전에 캡처
+        _exit_env = VariableEnv.copy_variables(fcfg.get_exit_node().variables) if caller_env is not None else None
+
         for blk, saved_vars in _saved_node_vars.items():
             blk.variables = saved_vars
 
         an.current_target_function = _old_func
         an.current_target_function_cfg = _old_fcfg
+        fcfg.ireturn_registry = _saved_ireturn
 
         # callee의 exit env를 caller에 반영 (state variable 변경 전파)
-        if caller_env is not None:
-            exit_env = fcfg.get_exit_node().variables
-            for k, v in exit_env.items():
+        # callee 파라미터가 caller의 동명 변수를 오염시키지 않도록 제외
+        if caller_env is not None and _exit_env is not None:
+            _callee_params = set(getattr(fcfg, 'parameters', []))
+            for k, v in _exit_env.items():
+                if k in _callee_params:
+                    continue
                 if k in caller_env:
-                    if hasattr(caller_env[k], "value"):
-                        caller_env[k].value = v.value
+                    cv = caller_env[k]
+                    if isinstance(v, MappingVariable) and isinstance(cv, MappingVariable):
+                        cv.mapping = v.mapping
+                    elif isinstance(v, ArrayVariable) and isinstance(cv, ArrayVariable):
+                        cv.elements = v.elements
+                    elif isinstance(v, StructVariable) and isinstance(cv, StructVariable):
+                        cv.members = v.members
+                    elif isinstance(v, EnumVariable) and isinstance(cv, EnumVariable):
+                        cv.value = v.value
+                        cv.valueIndex = v.valueIndex
+                    elif hasattr(cv, "value"):
+                        cv.value = v.value
                     else:
                         caller_env[k] = v
                 elif isinstance(v, (MappingVariable, ArrayVariable)):

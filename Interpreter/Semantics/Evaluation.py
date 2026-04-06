@@ -36,6 +36,22 @@ class Evaluation :
 
     # ──────────────────── Helper functions ───────────────────────────
 
+    def _find_enum_in_chain(self, name: str):
+        """현재 contract + parent chain에서 EnumDefinition 검색. 없으면 None."""
+        cfg = self.an.contract_cfgs.get(self.an.current_target_contract)
+        return self._search_enum_recursive(cfg, name) if cfg else None
+
+    @staticmethod
+    def _search_enum_recursive(cfg, name):
+        defs = getattr(cfg, 'enumDefs', {})
+        if name in defs:
+            return defs[name]
+        for pcfg in getattr(cfg, 'parent_cfgs', {}).values():
+            result = Evaluation._search_enum_recursive(pcfg, name)
+            if result:
+                return result
+        return None
+
     def _get_interface_name_of_var(self, var_name: str, variables: dict) -> str | None:
         """
         변수(function parameter 또는 state variable)의 typeInfo에서
@@ -896,8 +912,8 @@ class Evaluation :
                     return "super"
                 elif ident_str in ["block", "tx", "msg", "address", "code"]:
                     return ident_str  # block, tx, msg를 리턴
-                elif ident_str in self.an.contract_cfgs[self.an.current_target_contract].enumDefs:  # EnumDef 리턴
-                    return self.an.contract_cfgs[self.an.current_target_contract].enumDefs[ident_str]
+                elif self._find_enum_in_chain(ident_str):  # EnumDef 리턴 (parent chain 포함)
+                    return self._find_enum_in_chain(ident_str)
                 elif ident_str in self.an.library_cfgs:
                     return {"isLibrary": True, "libraryName": ident_str}
                 else:

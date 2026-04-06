@@ -57,10 +57,34 @@ def slice_solidity(source: str) -> List[Dict]:
     cur_line = 1
     i = 0
     in_assembly = 0  # assembly brace depth 추적
+    in_enum = False    # enum body 추적
 
     while i < len(lines):
         raw = lines[i]
         txt = raw.strip()
+
+        # 0-E) enum 내부: 멤버를 } 까지 모아서 한 record로 전달
+        if in_enum:
+            enum_start = cur_line
+            enum_end = cur_line
+            collected = []
+            while i < len(lines):
+                raw2 = lines[i]; txt2 = raw2.strip()
+                if _only_ws.match(raw2):
+                    cur_line += 1; i += 1; continue
+                if '}' in txt2:
+                    before_brace = txt2.split('}')[0].strip()
+                    if before_brace:
+                        collected.extend(m.strip() for m in before_brace.split(',') if m.strip())
+                        enum_end = cur_line
+                    cur_line += 1; i += 1; break
+                collected.extend(m.strip() for m in txt2.split(',') if m.strip())
+                enum_end = cur_line
+                cur_line += 1; i += 1
+            in_enum = False
+            if collected:
+                inputs.append({"code": ", ".join(collected), "startLine": enum_start, "endLine": enum_start, "event": "add"})
+            continue
 
         # 0) assembly 내부: 줄 단위로 처리 (Yul은 ; 없으므로)
         if in_assembly > 0:
@@ -115,6 +139,8 @@ def slice_solidity(source: str) -> List[Dict]:
             # assembly { 진입 시 in_assembly 활성화
             if txt.startswith('assembly'):
                 in_assembly = 1
+            elif txt.startswith('enum'):
+                in_enum = True
             cur_line += 1; i += 1; continue
 
         # 4) 세미콜론으로 끝나는 한 줄 문장

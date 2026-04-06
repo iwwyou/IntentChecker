@@ -115,32 +115,38 @@
   },
   {
     "code": "// @StateVar _totalSupply = [1000000000000000000000, 1000000000000000000000]",
-    "startLine": 19,
-    "endLine": 19,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar _balances[to] = [0, 0]",
     "startLine": 20,
     "endLine": 20,
     "event": "add"
   },
   {
-    "code": "// @IReturn IERC20(baseToken).balanceOf() = [1500000000000000000000, 1500000000000000000000]",
+    "code": "// @LocalVar to = symbolicAddress 10",
     "startLine": 21,
     "endLine": 21,
     "event": "add"
   },
   {
-    "code": "// @LocalVar amount = [500000000000000000000, 500000000000000000000]",
+    "code": "// @StateVar _balances[to] = [0, 0]",
     "startLine": 22,
     "endLine": 22,
     "event": "add"
   },
   {
-    "code": "// @Debugging END",
+    "code": "// @IReturn IERC20(baseToken).balanceOf() = [1500000000000000000000, 1500000000000000000000]",
     "startLine": 23,
     "endLine": 23,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar amount = [500000000000000000000, 500000000000000000000]",
+    "startLine": 24,
+    "endLine": 24,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 25,
+    "endLine": 25,
     "event": "add"
   }
 ]
