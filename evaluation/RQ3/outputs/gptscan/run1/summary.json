@@ -124,5 +124,80 @@
     ],
     "time": 948.8713538646698,
     "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_3_H_04",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 296.13219475746155,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_61_H_02",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "first-deposit",
+      "first-deposit",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "wrong-order-interest",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 1000.1471288204193,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_101_H_01",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1800.2137613296509,
+    "status": "timeout"
+  },
+  {
+    "case_id": "web3bugs_110_H_01",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation"
+    ],
+    "time": 186.61186575889587,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_5_H_15",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "price-manipulation",
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "wrong-order-interest",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 691.661917924881,
+    "status": "ok"
   }
 ]

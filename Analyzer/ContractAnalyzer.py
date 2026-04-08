@@ -672,7 +672,9 @@ class ContractAnalyzer:
             return
 
         # LibraryCFG를 using_libraries/using_all_libraries에 등록
-        contract_cfg.add_using_library(library_cfg, target_type)
+        # 자식 contract가 명시적으로 선언한 using은 부모로부터 상속된 것보다 우선되어야 하므로
+        # 리스트 앞쪽(우선순위 높음)에 삽입
+        contract_cfg.add_using_library(library_cfg, target_type, prepend=True)
 
     def resolve_library_struct(self, library_name: str, member_name: str):
         """

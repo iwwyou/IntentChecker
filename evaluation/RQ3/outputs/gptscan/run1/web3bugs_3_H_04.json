@@ -1,0 +1,103 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\3\\contracts\\MarginRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 189
+                        },
+                        "end": {
+                            "line": 218
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\3\\contracts\\MarginRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 221
+                        },
+                        "end": {
+                            "line": 233
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\3\\contracts\\PriceAware.sol",
+                    "range": {
+                        "start": {
+                            "line": 60
+                        },
+                        "end": {
+                            "line": 87
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\3\\contracts\\UniswapStyleLib.sol",
+                    "range": {
+                        "start": {
+                            "line": 67
+                        },
+                        "end": {
+                            "line": 85
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\3\\contracts\\UniswapStyleLib.sol",
+                    "range": {
+                        "start": {
+                            "line": 88
+                        },
+                        "end": {
+                            "line": 106
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

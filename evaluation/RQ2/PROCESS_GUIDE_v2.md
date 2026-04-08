@@ -350,12 +350,190 @@ python Dependencies/main.py  # Dependencies 전체 재분석 + pkl 생성
 
 ### 4. 다음 세션 작업 우선순위
 
-#### P0: 101_H_01 해결
-1. debug interpretation에서 intent 재체크가 안 되는 원인 확인
-2. SafeMath.sub가 debug context에서 TOP 반환하는 원인 확인
+#### P0: 101_H_01 해결 → ✅ 완료 (session 10)
+1. ~~debug interpretation에서 intent 재체크가 안 되는 원인 확인~~
+2. ~~SafeMath.sub가 debug context에서 TOP 반환하는 원인 확인~~
 
-#### P1: 회귀 테스트
-- `run_all.py` 실행하여 20개 전체 VIOLATED 확인
+#### P1: 회귀 테스트 → ✅ 완료 (20/20 VIOLATED)
+- `run_all.py` 실행하여 20개 전체 VIOLATED 확인 — 87.05s total, avg 4.35s
+
+---
+
+## Session 10 (2026-04-08): 101_H_01 근본 원인 해결 — `using` directive 상속 우선순위
+
+### 핵심 결과
+**20/20 VIOLATED 달성.** 9세션에서 "debug context에서 SafeMath.sub가 TOP 반환"으로 보였던 문제가 실제로는 **`using` directive 상속 순서**가 원인이었음.
+
+### 10.1 진단 경로
+
+#### 사용자 관찰
+- debug annotation 처리 후 `_borrowedTokens.sub(...)` 분석 시 call stack:
+  `_interpret_var_decl → evaluate_expression → evaluate_function_call_context → evaluate_library_function_call_context → interpret_function_cfg → _run_worklist`
+- **worklist 첫 노드가 `return` 문**이었음 (`src_line=157`)
+- SafeMath.sub이 왜 그런 CFG 구조를 갖는지 의문
+
+#### 중간 탐색: networkx 버전 충돌 (적색 청어지만 기록)
+진짜 원인은 아니지만 **독립적으로 해결되어야 할 별개 이슈** 발견:
+
+| 환경 | networkx 버전 |
+|------|--------------|
+| Global Python 3.10 | **2.5.1** (`falcon-analyzer`가 downgrade) |
+| SolidityGuardian `.venv` | **3.4.2** |
+
+- `Dependencies/objectfile/` pkl들은 venv의 3.4.2로 생성됨
+- global python으로 로드 시 `'DiGraph' object has no attribute '_adj'` in `NodeView.__setstate__` 실패
+- `main.py load_dependencies()`의 `except Exception: pass`가 조용히 삼킴
+- 결과: SafeMath, SafeMathUpgradeable 등 11개 lib + 23개 contract pkl이 silently 로딩 실패
+
+**수칙**: main.py/run_all.py는 반드시 **`.venv/Scripts/python.exe`** 로 실행. bare `python` 금지.
+
+**원인**: 사용자가 numscout/gptscan을 설치하면서 개별 venv로 격리했지만, `falcon-analyzer`가 global site-packages에 들어가 networkx를 downgrade.
+
+이 문제는 20/20 결과에는 영향 없음 (venv로 돌리면 pkl 모두 정상 로드). 하지만 **향후 global python 실수 사용 시 silent 실패 위험**이 있음.
+
+#### 진짜 원인: `using` directive 상속 순서
+`Evaluation.py:1888` 직전에 임시 trace 추가:
+```python
+print(f"[TEMP] ccfg.using_libraries[{base_type}]={lib_names}")
+```
+
+실행 결과:
+```
+LenderPool.using_libraries[uint256] = ['SafeMathUpgradeable', 'SafeMath']
+```
+
+contraction에는 `using SafeMath for uint256;` 하나뿐인데 **`SafeMathUpgradeable`이 먼저** 등록되어 있었음.
+
+### 10.2 근본 원인
+
+#### 상속 전파 경로
+`Analyzer/ContractAnalyzer.py:_inherit_using_libraries` (line 546):
+```python
+def _inherit_using_libraries(self, cfg):
+    for parent_cfg in cfg.parent_cfgs.values():
+        for target_type, libs in parent_cfg.using_libraries.items():
+            for lib in (libs if isinstance(libs, list) else [libs]):
+                cfg.add_using_library(lib, target_type)
+```
+
+LenderPool의 부모 `ERC1155Upgradeable` (`Dependencies/contracts/ERC1155Upgradeable.sol:4`):
+```solidity
+library SafeMathUpgradeable { ... }  // 파일 외부에 정의
+contract ERC1155Upgradeable {
+    using SafeMathUpgradeable for uint256;  // ← 여기
+    ...
+}
+```
+
+**파싱 순서**:
+1. `contract LenderPool is ERC1155Upgradeable, ...` 파싱 → `make_contract_cfg` → `_inherit_using_libraries` → **부모의 `SafeMathUpgradeable`이 먼저 리스트에 append**
+2. `using SafeMath for uint256;` 파싱 → `process_using_directive` → **SafeMath가 뒤에 append**
+3. 결과: `using_libraries['uint256'] = [SafeMathUpgradeable, SafeMath]`
+
+#### 왜 CFG 첫 노드가 return이었나
+`Dependencies/contracts/47/SafeMathUpgradeable.sol:18-20`:
+```solidity
+function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+    return sub(a, b, "SafeMath: subtraction overflow");  // ← 본체가 return 한 줄
+}
+```
+
+이 2-arg `sub`는 본체가 **`return sub(a, b, errorMsg)` 한 줄짜리 wrapper**. 그래서:
+- CFG: entry → `return(3-arg sub)` → exit
+- worklist 첫 노드가 정말로 return 문 (bug 아님, wrapper 함수의 자연스러운 CFG)
+- 내부에서 3-arg overload 해소가 제대로 안 되거나 중첩된 library call에서 TOP이 발생 → 그대로 return
+- `_totalLiquidityWithdrawable = [0, MAX]` (TOP) → `_principalWithdrawable` = TOP → intent WARNING
+
+#### Solidity 의미론 검토
+Solidity spec상 **contract-level `using` directive는 상속되지 않습니다**. file-level directive만 같은 파일 내 모든 contract에 적용. `_inherit_using_libraries`는 엄밀히 말하면 잘못된 설계지만, 기존 19개 케이스가 의존하고 있을 수 있어 **전면 제거는 위험**.
+
+### 10.3 수정
+
+#### 최소 변경 원칙: 자식의 명시적 선언에 우선권 부여
+자식 contract가 **스스로 선언한** `using` directive는 부모로부터 상속된 것보다 **앞에** 배치.
+
+**`Utils/CFG.py`** — `ContractCFG.add_using_library`, `LibraryCFG.add_using_library`:
+```python
+def add_using_library(self, library_cfg, target_type=None, prepend: bool = False):
+    if target_type is None:
+        if library_cfg not in self.using_all_libraries:
+            if prepend:
+                self.using_all_libraries.insert(0, library_cfg)
+            else:
+                self.using_all_libraries.append(library_cfg)
+    else:
+        if target_type not in self.using_libraries:
+            self.using_libraries[target_type] = []
+        if library_cfg not in self.using_libraries[target_type]:
+            if prepend:
+                self.using_libraries[target_type].insert(0, library_cfg)
+            else:
+                self.using_libraries[target_type].append(library_cfg)
+```
+
+중복 방지(`not in` 체크)도 함께 추가 — 기존 ContractCFG는 중복 체크 있었지만 LibraryCFG는 없었음.
+
+**`Analyzer/ContractAnalyzer.py:675`** — `process_using_directive`:
+```python
+# 자식 contract가 명시적으로 선언한 using은 부모로부터 상속된 것보다 우선되어야 하므로
+# 리스트 앞쪽(우선순위 높음)에 삽입
+contract_cfg.add_using_library(library_cfg, target_type, prepend=True)
+```
+
+`_inherit_using_libraries`는 그대로 (기본 append). 자식의 명시적 선언은 prepend로 앞에 들어가므로, 자식이 선언한 것이 **항상 우선**.
+
+### 10.4 결과
+
+```
+[20/20] web3bugs_101_H_01 ... VIOLATED (1.3177s)
+==================================================
+Results: 20 VIOLATED / 20 cases
+Time:    total=87.05s  avg=4.35s  min=0.49s  max=15.76s
+```
+
+101_H_01 분석 결과:
+```
+L 50 | _borrowedTokens            = [99000, 99000]    # debug 값
+L 51 | _totalLiquidityWithdrawable = [99000, 99000]   # = 99000 - 0
+L 52 | _principalWithdrawable      = [100000, 100000] # 99000*100000/99000
+L 53 | return _principalWithdrawable
+
+[INTENT VIOLATION] Line 45: _principalWithdrawable <= _totalLiquidityWithdrawable
+  LHS = [100000, 100000]
+  RHS = [99000, 99000]
+  Risk: Type 3 (both-side)  risk=10.0
+```
+
+100000 > 99000이므로 violation — 버그가 정확히 탐지됨. 총 분석 시간도 9세션 117s → 10세션 87s로 단축 (SafeMathUpgradeable wrapper 우회).
+
+### 10.5 Input JSON mistake patterns v2 — 항목 J 추가
+
+#### J. `using` directive 상속에 의한 overload 충돌
+- **증상**: static analysis에서 동일 타입(`uint256` 등)에 대한 library 함수 호출이 기대와 다른 CFG로 해석됨. 결과가 TOP에 가깝게 나오거나 interval이 넓게 발산.
+- **원인**: 자식 contract가 parent contract의 `using X for T` directive를 상속 + 리스트 순서상 parent 쪽이 먼저 등록. 특히 parent가 wrapper 함수(`return func(a,b,msg)`)만 가진 버전일 때 CFG 첫 노드가 return이 되어 어색해 보임.
+- **해결**: 본 세션에서 `process_using_directive`가 `prepend=True`로 자식의 명시적 선언을 앞에 배치하도록 수정. **코드 수정으로 구조적으로 해결됨** — 향후 input JSON에서는 신경 쓸 필요 없음.
+- **진단법**: 의심 시 `Evaluation.py:1888` 근처에 `print(ccfg.using_libraries)` 임시 trace 추가.
+
+### 10.6 코드 변경 요약
+
+| 파일 | 변경 |
+|------|------|
+| `Utils/CFG.py` | `ContractCFG.add_using_library` / `LibraryCFG.add_using_library`에 `prepend` 파라미터 추가, 중복 방지 |
+| `Analyzer/ContractAnalyzer.py:675` | `process_using_directive`가 `prepend=True`로 호출 |
+
+### 10.7 환경 주의사항 (신규 규칙)
+
+**프로젝트 venv python 사용 필수**:
+```bash
+# 옳음
+.venv/Scripts/python.exe evaluation/RQ2/run_all.py
+.venv/Scripts/python.exe main.py <case>.json
+
+# 위험 — global python 3.10은 networkx 2.5.1 (falcon-analyzer가 downgrade)
+python evaluation/RQ2/run_all.py
+```
+
+`main.py load_dependencies()`의 `except Exception: pass`가 pkl 로딩 실패를 silently 삼키므로, 잘못된 python으로 돌리면 library CFG가 통째로 빠진 채 분석이 돌아감. 에러 은폐를 제거할지 여부는 추후 논의.
 
 ---
 

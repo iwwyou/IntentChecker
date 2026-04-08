@@ -134,7 +134,26 @@ We evaluated \textsc{IntentChecker} on real-world smart contracts, demonstrating
 
 \section{Introduction}
 
-
+\begin{table}[!t]
+    \centering
+    \caption{Distribution of Variable Types in Smart Contract Functions}
+    \label{tab:variable_distribution}
+    \resizebox{\columnwidth}{!}{
+    \begin{tabular}{lcc}
+        \hline
+        \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
+        \hline
+        \textbf{Total Functions Analyzed} & 1524 & \\
+        Excluded Functions & 501 & \\
+        \textbf{Functions Considered for Analysis} & 1023 & \\
+        \hline
+        Functions using \textbf{uint} & 798 & 78.00587 \\
+        Functions using \textbf{int} & 5 & 0.48876 \\
+        Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\
+        Functions using other types & 178 & 17.39980 \\
+        \hline
+    \end{tabular}}
+\end{table}
 
 Smart contracts are immutable once deployed, making security assurance during development critical.
 Among vulnerability types, logic errors present a distinct challenge:
@@ -198,27 +217,6 @@ Section~\ref{sec:design} describes the design of \textsc{IntentChecker}, includi
 Section~\ref{sec:evaluation} presents our evaluation results.
 Section~\ref{sec:discussion} discusses limitations and future work.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
-
-\begin{table}[!t]
-    \centering
-    \caption{Distribution of Variable Types in Smart Contract Functions}
-    \label{tab:variable_distribution}
-    \resizebox{\columnwidth}{!}{
-    \begin{tabular}{lcc}
-        \hline
-        \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
-        \hline
-        \textbf{Total Functions Analyzed} & 1524 & \\
-        Excluded Functions & 501 & \\
-        \textbf{Functions Considered for Analysis} & 1023 & \\
-        \hline
-        Functions using \textbf{uint} & 798 & 78.00587 \\
-        Functions using \textbf{int} & 5 & 0.48876 \\
-        Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\
-        Functions using other types & 178 & 17.39980 \\
-        \hline
-    \end{tabular}}
-\end{table}
 
 \section{Background}\label{sec:background}
 \subsection{Numeric Logic Errors in Solidity}

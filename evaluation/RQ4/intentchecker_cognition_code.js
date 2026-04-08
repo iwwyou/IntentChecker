@@ -343,19 +343,84 @@ var examples = [
     }
 ];
 
+// Real-world examples drawn from the RQ2 benchmark (Code4rena audits)
+var realExamples = [
+    {
+        code: '<span style="color: #6A9955;">// From Vader Protocol audit (web3bugs #5)</span>\n' +
+            '<span style="color: #569CD6;">function</span> <span style="color: #DCDCAA;">calcAsymmetricShare</span>(<span style="color: #569CD6;">uint</span> u, <span style="color: #569CD6;">uint</span> U, <span style="color: #569CD6;">uint</span> A) <span style="color: #569CD6;">public pure returns</span> (<span style="color: #569CD6;">uint</span>) {\n' +
+            '    <span style="color: #569CD6;">uint</span> part1    = (u * A);\n' +
+            '    <span style="color: #569CD6;">uint</span> part2    = ((U * U) * 2);\n' +
+            '    <span style="color: #569CD6;">uint</span> part3    = ((U * u) * 2);\n' +
+            '    <span style="color: #569CD6;">uint</span> part4    = (u * u);\n' +
+            '    <span style="color: #569CD6;">uint</span> numerator = ((part1 * part2) - part3) + part4;\n' +
+            '    <span style="color: #569CD6;">uint</span> part5    = ((U * U) * U);\n' +
+            '    <span style="color: #6A9955;">// @During returnExpression == u*A*(2*U*U - 2*U*u + u*u) / (U*U*U)</span>\n' +
+            '    <span style="color: #C586C0;">return</span> (numerator / part5);\n' +
+            '}',
+        title: 'Real Example 1: Asymmetric Share Formula',
+        description: 'From the Vader Protocol audit. The developer implemented a share-of-pool formula and ' +
+            'wrote an intent annotation stating the closed-form expression that the return value should equal.',
+        name: 'real_asymmetric_share',
+        context: 'Expanding the intended formula gives terms <code>2*U<sup>2</sup>*u*A</code>, <code>2*U*u<sup>2</sup>*A</code>, and <code>u<sup>3</sup>*A</code>, ' +
+            'but the implemented <code>part3</code> and <code>part4</code> are missing the <code>u*A</code> factor &mdash; ' +
+            'each correction term is off by orders of magnitude, so the computed share diverges from the intended value. ' +
+            'IntentChecker flags this as <strong>Violated</strong>.'
+    },
+    {
+        code: '<span style="color: #6A9955;">// From Sublime Finance audit (web3bugs #101), simplified</span>\n' +
+            '<span style="color: #569CD6;">function</span> <span style="color: #DCDCAA;">_calculatePrincipalWithdrawable</span>(<span style="color: #569CD6;">uint256</span> _id, <span style="color: #569CD6;">address</span> _lender)\n' +
+            '    <span style="color: #569CD6;">private view returns</span> (<span style="color: #569CD6;">uint256</span>) {\n' +
+            '    <span style="color: #569CD6;">uint256</span> _borrowedTokens            = pooledCLConstants[_id].borrowLimit;\n' +
+            '    <span style="color: #569CD6;">uint256</span> _totalLiquidityWithdrawable = _borrowedTokens - POOLED_CREDIT_LINE.<span style="color: #DCDCAA;">getPrincipal</span>(_id);\n' +
+            '    <span style="color: #569CD6;">uint256</span> _principalWithdrawable      = _totalLiquidityWithdrawable * <span style="color: #DCDCAA;">balanceOf</span>(_lender, _id) / _borrowedTokens;\n' +
+            '    <span style="color: #6A9955;">// @During _principalWithdrawable &lt;= _totalLiquidityWithdrawable</span>\n' +
+            '    <span style="color: #C586C0;">return</span> _principalWithdrawable;\n' +
+            '}',
+        title: 'Real Example 2: Per-Lender Withdrawable Principal',
+        description: 'From the Sublime Finance audit. A lending pool computes how much principal a single lender ' +
+            'can withdraw. The intent is that no individual lender\'s withdrawable amount may exceed the pool\'s ' +
+            'total available liquidity.',
+        name: 'real_principal_withdrawable',
+        context: 'When a lender\'s ERC-1155 balance exceeds <code>_borrowedTokens</code> (the pool\'s borrow limit), ' +
+            'the multiplication before the division makes <code>_principalWithdrawable</code> strictly larger than ' +
+            '<code>_totalLiquidityWithdrawable</code> &mdash; a single lender could withdraw more than the pool holds. ' +
+            'IntentChecker flags this as <strong>Violated</strong>.'
+    }
+];
+
+// Notice shown once before the real-world section
+var realCasesNotice = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: '<h2>Real-World Examples</h2>' +
+        '<div style="text-align: left; max-width: 850px; margin: 0 auto; line-height: 1.7;">' +
+        '<p>The next two examples come from the actual benchmark used to evaluate IntentChecker &mdash; ' +
+        'numeric bugs reported in public Code4rena audits of real DeFi protocols.</p>' +
+        '<div style="background: #E3F2FD; border-left: 4px solid #2196F3; padding: 14px 18px; margin: 18px 0; border-radius: 4px;">' +
+        '<strong>Note on input ranges.</strong> In real experiments, concrete input ranges (e.g., ' +
+        '<code>u = 100</code>, <code>U = 1000</code>, <code>A = 5000</code>) are supplied to the analyzer ' +
+        'through <em>debug annotations</em> attached to the function. ' +
+        'These are omitted in the snippets below so you can focus on the <strong>intent annotation</strong> itself &mdash; ' +
+        'the expression of what the developer thinks the function should compute.' +
+        '</div>' +
+        '<p style="color: #666; font-size: 14px;">' +
+        'Unlike the earlier toy examples, these are drawn directly from production contracts, so the surrounding ' +
+        'code and naming may look denser. Focus on the highlighted comment line.' +
+        '</p>' +
+        '</div>',
+    choices: ['Continue']
+};
+
 // Build timeline
 var timeline = [welcome, participantInfo, demographics, intentModelIntro, analysisDemo, syntaxReference];
 
-// Show all examples first (no per-example questions)
-for (var i = 0; i < examples.length; i++) {
-    var example = examples[i];
-
-    var exampleDisplay = {
+// Helper: build a code-example display page
+function buildExampleDisplay(example, indexLabel, buttonLabel) {
+    return {
         type: jsPsychHtmlButtonResponse,
         stimulus: '<div style="max-width: 900px; margin: 0 auto;">' +
             '<div style="display: flex; justify-content: space-between; align-items: center;">' +
             '<h3>' + example.title + '</h3>' +
-            '<span style="color: #999; font-size: 14px;">Example ' + (i + 1) + ' of ' + examples.length + '</span>' +
+            '<span style="color: #999; font-size: 14px;">' + indexLabel + '</span>' +
             '</div>' +
             '<p style="color: #555; margin-bottom: 15px; text-align: left;">' + example.description + '</p>' +
             '<pre style="background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; font-size: 14px; overflow-x: auto; text-align: left;">' +
@@ -365,9 +430,31 @@ for (var i = 0; i < examples.length; i++) {
             '<strong>How IntentChecker helps:</strong> ' + example.context +
             '</div>' +
             '</div>',
-        choices: [i < examples.length - 1 ? 'Next Example' : 'Continue to Evaluation']
+        choices: [buttonLabel]
     };
-    timeline.push(exampleDisplay);
+}
+
+// Toy examples
+var totalExamples = examples.length + realExamples.length;
+for (var i = 0; i < examples.length; i++) {
+    var buttonLabel = (i < examples.length - 1) ? 'Next Example' : 'Continue to Real Examples';
+    timeline.push(buildExampleDisplay(
+        examples[i],
+        'Example ' + (i + 1) + ' of ' + totalExamples,
+        buttonLabel
+    ));
+}
+
+// Real-world section: notice + real examples
+timeline.push(realCasesNotice);
+for (var j = 0; j < realExamples.length; j++) {
+    var isLast = (j === realExamples.length - 1);
+    var buttonLabel = isLast ? 'Continue to Evaluation' : 'Next Example';
+    timeline.push(buildExampleDisplay(
+        realExamples[j],
+        'Example ' + (examples.length + j + 1) + ' of ' + totalExamples,
+        buttonLabel
+    ));
 }
 
 // Combined Evaluation + Open-ended (single page)
