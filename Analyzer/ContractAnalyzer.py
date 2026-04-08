@@ -662,7 +662,8 @@ class ContractAnalyzer:
                 if os.path.exists(pkl_path):
                     try:
                         with open(pkl_path, "rb") as f:
-                            library_cfg = pickle.load(f)
+                            raw = pickle.load(f)
+                        library_cfg = raw["cfg"] if isinstance(raw, dict) and "cfg" in raw else raw
                         break
                     except Exception:
                         pass
@@ -711,7 +712,8 @@ class ContractAnalyzer:
             if os.path.exists(pkl_path):
                 try:
                     with open(pkl_path, "rb") as f:
-                        cfg = pickle.load(f)
+                        raw = pickle.load(f)
+                    cfg = raw["cfg"] if isinstance(raw, dict) and "cfg" in raw else raw
                     if member_name in cfg.structDefs:
                         return cfg.structDefs[member_name]
                     if hasattr(cfg, 'enumDefs') and member_name in cfg.enumDefs:

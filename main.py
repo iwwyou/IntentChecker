@@ -25,21 +25,38 @@ def load_dependencies():
         for pkl_path in sorted(obj_dir.glob("*.pkl")):
             name = pkl_path.stem
             if name.startswith("ifc_"):
-                ifc_name = name[4:]
+                # prefix 제거: ifc_5_iERC20 → iERC20
+                raw_name = name[4:]
+                parts = raw_name.split("_", 1)
+                ifc_name = parts[1] if len(parts) > 1 and parts[0].isdigit() else raw_name
                 contract_analyzer.interface_names.add(ifc_name)
                 # interface CFG 로드 → IReturn, interface call return type 등에서 사용
                 try:
                     with open(pkl_path, 'rb') as f:
-                        ifc_cfg = pickle.load(f)
+                        raw = pickle.load(f)
+                    if isinstance(raw, dict) and "cfg" in raw:
+                        ifc_cfg = raw["cfg"]
+                        sa.file_level_structs.update(raw.get("file_level_structs", {}))
+                        sa.type_aliases.update(raw.get("type_aliases", {}))
+                    else:
+                        ifc_cfg = raw
                     contract_analyzer.contract_cfgs[ifc_name] = ifc_cfg
                 except Exception:
                     pass
             elif name.startswith("lib_"):
                 # library CFG 로드 → library 함수 호출 해석에 사용
-                lib_name = name[4:]
+                # prefix 제거: lib_47_SafeMathUpgradeable → SafeMathUpgradeable
+                parts = name[4:].split("_", 1)
+                lib_name = parts[1] if len(parts) > 1 and parts[0].isdigit() else name[4:]
                 try:
                     with open(pkl_path, 'rb') as f:
-                        lib_cfg = pickle.load(f)
+                        raw = pickle.load(f)
+                    if isinstance(raw, dict) and "cfg" in raw:
+                        lib_cfg = raw["cfg"]
+                        sa.file_level_structs.update(raw.get("file_level_structs", {}))
+                        sa.type_aliases.update(raw.get("type_aliases", {}))
+                    else:
+                        lib_cfg = raw
                     contract_analyzer.library_cfgs[lib_name] = lib_cfg
                     contract_analyzer.contract_cfgs[lib_name] = lib_cfg
                 except Exception:
@@ -51,7 +68,13 @@ def load_dependencies():
                 con_name = parts[1] if len(parts) > 1 and parts[0].isdigit() else name[4:]
                 try:
                     with open(pkl_path, 'rb') as f:
-                        con_cfg = pickle.load(f)
+                        raw = pickle.load(f)
+                    if isinstance(raw, dict) and "cfg" in raw:
+                        con_cfg = raw["cfg"]
+                        sa.file_level_structs.update(raw.get("file_level_structs", {}))
+                        sa.type_aliases.update(raw.get("type_aliases", {}))
+                    else:
+                        con_cfg = raw
                     contract_analyzer.contract_cfgs[con_name] = con_cfg
                 except Exception:
                     pass
@@ -164,5 +187,8 @@ if __name__ == "__main__":
     path = sys.argv[1]
     records = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     print(f"=== {pathlib.Path(path).name} ({len(records)} records) ===\n")
+    t0 = time.perf_counter()
     simulate_inputs(records)
+    elapsed = time.perf_counter() - t0
+    print(f"\n[TIMING] {elapsed:.4f}s")
 

@@ -73,7 +73,8 @@
       "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_101_H_01/web3bugs_101_H_01.sol\" -o \"evaluation/RQ2/cases/web3bugs_101_H_01/web3bugs_101_H_01.json\")",
       "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_47_H_02/web3bugs_47_H_02.sol\" -o \"evaluation/RQ2/cases/web3bugs_47_H_02/web3bugs_47_H_02.json\")",
       "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_5_H_07/web3bugs_5_H_07.sol\" -o \"evaluation/RQ2/cases/web3bugs_5_H_07/web3bugs_5_H_07.json\")",
-      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.sol\" -o \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.json\")"
+      "Bash(PYTHONIOENCODING=utf-8 python soltotestjson.py \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.sol\" -o \"evaluation/RQ2/cases/web3bugs_5_H_08/web3bugs_5_H_08.json\")",
+      "Bash(\"C:/Users/isjeon/NumScout/venv/Scripts/python.exe\" run_numscout.py --case numscout_HIT)"
     ],
     "deny": [],
     "ask": []

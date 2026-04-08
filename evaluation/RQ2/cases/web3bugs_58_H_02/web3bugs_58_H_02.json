@@ -410,13 +410,13 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar _lpPriceHighWaterMarks[0] = [1900000000000000000, 1900000000000000000]",
+    "code": "// @StateVar _lpPriceHighWaterMarks[0] = [1000000000000000000, 1000000000000000000]",
     "startLine": 24,
     "endLine": 24,
     "event": "add"
   },
   {
-    "code": "// @StateVar _lpPriceHighWaterMarks[1] = [2900000000000000000, 2900000000000000000]",
+    "code": "// @StateVar _lpPriceHighWaterMarks[1] = [1000000000000000000, 1000000000000000000]",
     "startLine": 25,
     "endLine": 25,
     "event": "add"

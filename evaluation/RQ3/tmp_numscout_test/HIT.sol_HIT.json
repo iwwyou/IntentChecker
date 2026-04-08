@@ -1,0 +1,75 @@
+{
+ "evm_code_coverage": "71.1",
+ "instructions": "3365",
+ "time": "301.7259056568146",
+ "analysis": {
+  "div_in_path": [],
+  "operator_order_issue": [],
+  "indivisible_amount": [],
+  "precision_loss_trend": [],
+  "exchange_problem": [
+   [
+    "HIT.sol:126:9: Warning: Exchange Problem.\n        getTokens()",
+    "HIT.sol:144:9: Warning: Exchange Problem.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Exchange Problem.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Exchange Problem.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Exchange Problem.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Exchange Problem.\n        emit Transfer(address(0), _to, _amount)"
+   ],
+   [
+    "HIT.sol:144:9: Warning: Exchange Problem.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Exchange Problem.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Exchange Problem.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Exchange Problem.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Exchange Problem.\n        emit Transfer(address(0), _to, _amount)"
+   ]
+  ],
+  "exchange_rounding": [
+   [
+    "HIT.sol:126:9: Warning: Exchange Rounding.\n        getTokens()",
+    "HIT.sol:144:9: Warning: Exchange Rounding.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Exchange Rounding.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Exchange Rounding.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Exchange Rounding.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Exchange Rounding.\n        emit Transfer(address(0), _to, _amount)"
+   ],
+   [
+    "HIT.sol:144:9: Warning: Exchange Rounding.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Exchange Rounding.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Exchange Rounding.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Exchange Rounding.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Exchange Rounding.\n        emit Transfer(address(0), _to, _amount)"
+   ]
+  ],
+  "profit_opportunity": [
+   [
+    "HIT.sol:126:9: Warning: Profit Opportunity.\n        getTokens()",
+    "HIT.sol:144:9: Warning: Profit Opportunity.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Profit Opportunity.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Profit Opportunity.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Profit Opportunity.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Profit Opportunity.\n        emit Transfer(address(0), _to, _amount)"
+   ],
+   [
+    "HIT.sol:144:9: Warning: Profit Opportunity.\n        distr(investor, toGive)",
+    "HIT.sol:113:28: Warning: Profit Opportunity.\n        totalDistributed = totalDistributed.add(_amount)",
+    "HIT.sol:114:26: Warning: Profit Opportunity.\n        totalRemaining = totalRemaining.sub(_amount)",
+    "HIT.sol:115:25: Warning: Profit Opportunity.\n        balances[_to] = balances[_to].add(_amount)",
+    "HIT.sol:117:14: Warning: Profit Opportunity.\n        emit Transfer(address(0), _to, _amount)"
+   ]
+  ]
+ },
+ "bool_defect": {
+  "div_in_path": false,
+  "operator_order_issue": false,
+  "indivisible_amount": false,
+  "precision_loss_trend": false,
+  "exchange_problem": true,
+  "exchange_rounding": true,
+  "profit_opportunity": true
+ },
+ "address": "",
+ "contract_count": 2,
+ "storage_var_count": 13,
+ "pub_fun_count": 21
+}

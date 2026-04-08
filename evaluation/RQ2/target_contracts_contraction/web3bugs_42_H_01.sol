@@ -4,8 +4,6 @@ contract MochiVault is Initializable, IMochiVault, IERC3156FlashLender {
     using Float for uint256;
     using CheapERC20 for IERC20;
 
-    bytes32 public constant CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
-
     IMochiEngine public immutable engine;
     IERC20 public override asset;
 

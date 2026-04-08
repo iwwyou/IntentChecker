@@ -634,21 +634,56 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 18 | 62_H_08 | ✅ VIOLATED (V=1) | 세션4 해결 |
 | 19 | 70_H_10 | ✅ VIOLATED (V=1) | 세션7 해결 — enum pkl + enum parent chain + for init 0 + VarRefMemberAccess length |
 | 20 | 78_H_02 | ✅ VIOLATED (V=1) | 세션7 해결 — exit_env 캡처 + 복합자료구조 전파 + IReturn sub-function 전파 |
+| 21 | HIT | ✅ VIOLATED (V=1) | 세션8 해결 — ImplicationContext visitor 수정 + nonzero 평가기 + alias resolve 일반화 |
+| 22 | 60_H_01 | ✅ VIOLATED (V=1) | 세션8 해결 — qualified lib call 체이닝 + library_name 역추적 |
 
-**19 VIOLATED + 0 WARNING + 2 ERROR = 21건** (42_H_01 미생성)
+**21 VIOLATED + 0 WARNING + 0 ERROR = 22건** (42_H_01 미생성)
 
 ### 남은 작업
-
-**ERROR 2건:**
-| Case | 에러 | 필요 작업 |
-|------|------|----------|
-| HIT | ImplicationContext.commonClause | implication annotation 파싱/검증 구현 |
-| 60_H_01 | qualified lib static call 체이닝 | `Fixed18Lib._from(x).add(y)` — 라이브러리 함수 반환값에 `.add()` 체이닝 미지원 |
 
 **미생성 1건:**
 | Case | 사유 | 필요 작업 |
 |------|------|----------|
 | 42_H_01 | FloatStruct file-level struct + Float 라이브러리 | Dependencies/ISSUES.md 참조 |
+
+---
+
+## 세션 8 (2026-04-06)
+
+### HIT 해결: ERROR → VIOLATED
+
+**근본 원인 3가지 발견 및 수정:**
+
+1. **`ImplicationContext` visitor에서 `commonClause()` 대신 `intentValue()` 호출**
+   - `EnhancedSolidityVisitor._build_common_clause_dict`: grammar는 `intentValue '=>' intentValue`인데 visitor가 `commonClause(0/1)` 호출 → None 반환 → 크래시
+   - `intentValue(0/1)`로 수정, `{"kind": "nonzero", "expr": ...}` dict로 래핑
+
+2. **`_eval_nonzero` 평가기 추가 (GuardianVerificationEngine)**
+   - `_eval_during_predicate`, `_eval_post_predicate`에 `"nonzero"` kind 분기 추가
+   - interval `[a,b]`에서 0 미포함→satisfied, `[0,0]`→violated, 0 포함→warning
+   - `toGive=[5000e18]`→nonzero(satisfied), `msg.value=[0,0]`→zero(violated) → **VIOLATED**
+
+3. **`_resolve_alias_from_expr` 일반화 (Evaluation.py)**
+   - `IndexAccessContext` 지원: `balances[_to].add(...)` — 평가 후 Variables typeInfo 확인
+   - `FunctionCallContext` 지원: `value.div(100000).mul(...)` — 체이닝 시 base object 재귀 추적
+   - 일반 fallback: 평가 시도 후 Variables typeInfo 확인
+   - **ALIAS RESOLVE ERROR 전부 해소**, SafeMath dispatch 정상화
+
+4. **`@Debugging BEGIN` 라인 번호 수정 (HIT_input.json)**
+   - 54(함수 헤더) → 55(함수 본문): `_batch_targets`에 `getTokens` fcfg 정상 등록
+
+### 60_H_01 해결: ERROR → VIOLATED
+
+**근본 원인 2가지 발견 및 수정:**
+
+1. **`evaluate_library_function_call_context`: qualified call의 implicit_first_arg 처리**
+   - `arguments = [implicit_first_arg]` → qualified call에서 `implicit_first_arg=None`이 `[None]`으로 들어가 인자 수 불일치
+   - `None`이 아닐 때만 추가하도록 수정
+
+2. **`_resolve_alias_from_expr`: library CFG의 `library_name` 속성으로 역추적**
+   - `contract_name` 속성이 없고 `library_name`만 있음 → `getattr(lib, 'contract_name')` 실패
+   - `library_name` 우선, `contract_name` fallback으로 수정
+   - `using_libraries` 역추적: `{'Fixed18': [Fixed18Lib_cfg]}` → `Fixed18Lib` → `Fixed18` alias 반환
 
 ---
 

@@ -427,56 +427,56 @@
   },
   {
     "code": "// @Debugging BEGIN",
-    "startLine": 54,
-    "endLine": 54,
-    "event": "add"
-  },
-  {
-    "code": "// @GlobalVar msg.value = [0, 0]",
-    "startLine": 54,
-    "endLine": 54,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar value = [5000000000000000000000, 5000000000000000000000]",
     "startLine": 55,
     "endLine": 55,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalRemaining = [800000000000000000000000000, 800000000000000000000000000]",
+    "code": "// @GlobalVar msg.value = [0, 0]",
+    "startLine": 55,
+    "endLine": 55,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar value = [5000000000000000000000, 5000000000000000000000]",
     "startLine": 56,
     "endLine": 56,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalDistributed = [200000000000000000000000000, 200000000000000000000000000]",
+    "code": "// @StateVar totalRemaining = [800000000000000000000000000, 800000000000000000000000000]",
     "startLine": 57,
     "endLine": 57,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalSupply = [1000000000000000000000000000, 1000000000000000000000000000]",
+    "code": "// @StateVar totalDistributed = [200000000000000000000000000, 200000000000000000000000000]",
     "startLine": 58,
     "endLine": 58,
     "event": "add"
   },
   {
-    "code": "// @StateVar distributionFinished = false",
+    "code": "// @StateVar totalSupply = [1000000000000000000000000000, 1000000000000000000000000000]",
     "startLine": 59,
     "endLine": 59,
     "event": "add"
   },
   {
-    "code": "// @StateVar blacklist[msg.sender] = false",
+    "code": "// @StateVar distributionFinished = false",
     "startLine": 60,
     "endLine": 60,
     "event": "add"
   },
   {
-    "code": "// @Debugging END",
+    "code": "// @StateVar blacklist[msg.sender] = false",
     "startLine": 61,
     "endLine": 61,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 62,
+    "endLine": 62,
     "event": "add"
   }
 ]

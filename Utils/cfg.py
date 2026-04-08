@@ -405,23 +405,34 @@ class ContractCFG(CFG):
             if library_cfg not in self.using_libraries[target_type]:
                 self.using_libraries[target_type].append(library_cfg)
 
-    def find_library_function(self, target_type: str, function_name: str, param_types=None) -> 'FunctionCFG':
+    def find_library_function(self, target_type: str, function_name: str, param_types=None, n_args: int = None) -> 'FunctionCFG':
         """
         target_type에 대한 라이브러리 함수를 찾아 반환
         예: find_library_function("uint256", "mul") -> SafeMath.mul
+        n_args가 주어지면 인자 개수가 일치하는 overload를 우선 반환
         """
-        # 특정 타입에 대한 라이브러리 검색 (리스트 순회)
+        def _search_libs(libs):
+            for library_cfg in libs:
+                if n_args is not None and function_name in library_cfg.functions:
+                    for sig, fc in library_cfg.functions[function_name].items():
+                        if len(fc.parameters) == n_args:
+                            return fc
+                else:
+                    result = library_cfg.get_function_cfg(function_name, param_types)
+                    if result is not None:
+                        return result
+            return None
+
+        # 특정 타입에 대한 라이브러리 검색
         if target_type in self.using_libraries:
-            for library_cfg in self.using_libraries[target_type]:
-                result = library_cfg.get_function_cfg(function_name, param_types)
-                if result is not None:
-                    return result
+            result = _search_libs(self.using_libraries[target_type])
+            if result:
+                return result
 
         # using * 라이브러리들에서 검색
-        for library_cfg in self.using_all_libraries:
-            result = library_cfg.get_function_cfg(function_name, param_types)
-            if result is not None:
-                return result
+        result = _search_libs(self.using_all_libraries)
+        if result:
+            return result
 
         return None
     
@@ -779,17 +790,28 @@ class LibraryCFG(CFG):
         else:
             sub[sig] = function_cfg
 
-    def find_library_function(self, target_type: str, function_name: str, param_types=None) -> 'FunctionCFG':
-        """라이브러리 내 using directive로 등록된 라이브러리 함수 검색"""
+    def find_library_function(self, target_type: str, function_name: str, param_types=None, n_args: int = None) -> 'FunctionCFG':
+        """라이브러리 내 using directive로 등록된 라이브러리 함수 검색
+        n_args가 주어지면 인자 개수가 일치하는 overload를 우선 반환"""
+        def _search_libs(libs):
+            for lib in libs:
+                if n_args is not None and function_name in lib.functions:
+                    for sig, fc in lib.functions[function_name].items():
+                        if len(fc.parameters) == n_args:
+                            return fc
+                else:
+                    result = lib.get_function_cfg(function_name, param_types)
+                    if result is not None:
+                        return result
+            return None
+
         if target_type in self.using_libraries:
-            for lib in self.using_libraries[target_type]:
-                result = lib.get_function_cfg(function_name, param_types)
-                if result is not None:
-                    return result
-        for lib in self.using_all_libraries:
-            result = lib.get_function_cfg(function_name, param_types)
-            if result is not None:
+            result = _search_libs(self.using_libraries[target_type])
+            if result:
                 return result
+        result = _search_libs(self.using_all_libraries)
+        if result:
+            return result
         return None
 
     def define_enum(self, enum_name, enum_def):

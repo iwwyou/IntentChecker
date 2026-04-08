@@ -1,0 +1,128 @@
+[
+  {
+    "case_id": "numscout_WANGMI",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "no-slippage-limit-check"
+    ],
+    "time": 38.209028482437134,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_Nokon",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 24.25377345085144,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_SwordCrowdsale",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1.6342039108276367,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_BoostToken_operator",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 61.998984575271606,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_BoostToken_indivisible",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation"
+    ],
+    "time": 68.11320614814758,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_EthereumGod",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 91.01941680908203,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_HIT",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 10.495969295501709,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_35_H_12",
+    "tool": "gptscan",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 2371.4912910461426,
+    "status": "timeout"
+  },
+  {
+    "case_id": "web3bugs_45_H_01",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "wrong-order-interest",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 286.8268702030182,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_45_H_02",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "wrong-order-interest",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 380.04597091674805,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_83_H_02",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 135.62764978408813,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_112_H_01",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "wrong-order-checkpoint",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "wrong-order-interest",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 948.8713538646698,
+    "status": "ok"
+  }
+]

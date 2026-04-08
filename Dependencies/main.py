@@ -291,7 +291,11 @@ def _load_parent_pkls(source: str, ca) -> None:
             for pkl_path in candidates:
                 try:
                     with open(pkl_path, 'rb') as f:
-                        parent_cfg = pickle.load(f)
+                        raw = pickle.load(f)
+                    if isinstance(raw, dict) and "cfg" in raw:
+                        parent_cfg = raw["cfg"]
+                    else:
+                        parent_cfg = raw
                     ca.contract_cfgs[pname] = parent_cfg
                     break
                 except Exception:
@@ -350,7 +354,7 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
                     tree = ParserHelpers.generate_parse_tree(code, ctx, True)
                     EnhancedSolidityVisitor(ca).visit(tree)
             except Exception as ex:
-                pass  # pragma, 빈 줄 등 무시
+                print(f"  [ERR] L{s} ctx={ctx}: {ex}")
 
     # ── 결과 추출 + 저장 ──
     OBJ_DIR.mkdir(exist_ok=True, parents=True)
@@ -368,7 +372,10 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
                 pkl_name = f"lib_{name}.pkl"
             out = OBJ_DIR / pkl_name
             with open(out, 'wb') as f:
-                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump({"cfg": cfg,
+                             "file_level_structs": dict(sa.file_level_structs),
+                             "type_aliases": dict(sa.type_aliases)},
+                            f, protocol=pickle.HIGHEST_PROTOCOL)
             funcs = list(cfg.functions.keys())
             print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
             # cross-library 호출용: 분석 결과를 전역에 누적
@@ -388,11 +395,20 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
         if new_ifcs:
             name = new_ifcs[0]
             cfg = ca.contract_cfgs[name]
-            out = OBJ_DIR / f"ifc_{name}.pkl"
+            # 서브폴더(타겟별)의 경우 prefix 추가: ifc_5_iERC20.pkl
+            parent = sol_path.parent.name
+            if parent not in ("interfaces", "libraries", "contracts") and parent.isdigit():
+                pkl_name = f"ifc_{parent}_{name}.pkl"
+            else:
+                pkl_name = f"ifc_{name}.pkl"
+            out = OBJ_DIR / pkl_name
             with open(out, 'wb') as f:
-                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump({"cfg": cfg,
+                             "file_level_structs": dict(sa.file_level_structs),
+                             "type_aliases": dict(sa.type_aliases)},
+                            f, protocol=pickle.HIGHEST_PROTOCOL)
             funcs = list(cfg.functions.keys())
-            print(f"  → ifc_{name}.pkl ({len(funcs)} functions: {funcs})")
+            print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
             return name
         else:
             print(f"  [경고] interface 미발견")
@@ -417,7 +433,10 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
                 pkl_name = f"con_{name}.pkl"
             out = OBJ_DIR / pkl_name
             with open(out, 'wb') as f:
-                pickle.dump(cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump({"cfg": cfg,
+                             "file_level_structs": dict(sa.file_level_structs),
+                             "type_aliases": dict(sa.type_aliases)},
+                            f, protocol=pickle.HIGHEST_PROTOCOL)
             funcs = list(cfg.functions.keys())
             print(f"  → {pkl_name} ({len(funcs)} functions: {funcs})")
             return name
@@ -469,7 +488,7 @@ def main():
 
     # 1) Interfaces
     if args.type in ("interfaces", "all"):
-        ifc_files = sorted(IFC_DIR.glob("*.sol")) if IFC_DIR.exists() else []
+        ifc_files = sorted(IFC_DIR.rglob("*.sol")) if IFC_DIR.exists() else []
         print(f"\n[Phase 1] Interfaces: {len(ifc_files)}개")
         for f in ifc_files:
             name = analyze_file(f, "interface")
@@ -489,12 +508,56 @@ def main():
             if name:
                 results["libraries"].append(name)
 
-    # 3) Contracts (서브폴더 포함 — rglob)
+    # 3) Contracts (서브폴더 포함)
+    #    library → parent contract → child contract 순서로 분석
+    #    의존관계를 수동으로 파악하여 하드코딩 (자동 정렬은 복잡도 대비 이점 없음)
     if args.type in ("contracts", "all"):
-        con_files = sorted(CON_DIR.rglob("*.sol")) if CON_DIR.exists() else []
-        print(f"\n[Phase 3] Contracts: {len(con_files)}개")
-        for f in con_files:
-            name = analyze_file(f, "contract")
+        # ── 분석 순서 정의: (상대경로, 모드) ──
+        #   library 먼저 → parent contract → child contract
+        _con_order = [
+            # --- 루트 (의존 없음) ---
+            ("solmate_ERC20.sol",           "contract"),
+            ("LockeERC20.sol",              "contract"),
+            ("Pausable.sol",                "contract"),
+            ("78_OZ_ERC20.sol",             "contract"),
+            ("TokenProxyLike.sol",          "contract"),
+            # --- 루트 (library) ---
+            ("AddressProviderKeys.sol",     "library"),
+            ("AddressProviderMeta.sol",     "library"),
+            # --- 루트 (의존 있음) ---
+            ("AuthorizationBase.sol",       "contract"),
+            ("Authorization.sol",           "contract"),   # is AuthorizationBase
+            ("Preparable.sol",              "contract"),
+            ("ReentrancyGuardUpgradeable.sol", "contract"),  # is Initializable (pkl)
+            # --- 47/ : library → parent → child ---
+            ("47/SafeMathUpgradeable.sol",  "library"),
+            ("47/AddressUpgradeable.sol",   "library"),
+            ("47/Initializable.sol",        "contract"),
+            ("47/ContextUpgradeable.sol",   "contract"),   # is Initializable
+            ("47/ERC20Upgradeable.sol",     "contract"),   # is Initializable, ContextUpgradeable
+            # --- 51/ : library → parent → child ---
+            ("51/Context.sol",              "contract"),
+            ("51/Ownable.sol",              "contract"),   # is Context
+            ("51/ERC20.sol",                "contract"),   # is Context
+            ("51/ERC20Burnable.sol",        "contract"),   # is ERC20
+            ("51/LPToken.sol",              "contract"),   # is ERC20Burnable, Ownable
+            # --- 112/ : library → contract ---
+            ("112/Roles.sol",               "library"),
+            ("112/Controller.sol",          "contract"),
+            # --- 45/ ---
+            ("45/Controller.sol",           "contract"),
+            # --- ERC1155 계열 ---
+            ("ERC165Upgradeable.sol",       "contract"),   # is Initializable (pkl)
+            ("ERC1155Upgradeable.sol",      "contract"),   # is Initializable, ..., ERC165Upgradeable
+        ]
+
+        print(f"\n[Phase 3] Contracts: {len(_con_order)}개 (수동 순서)")
+        for rel_path, mode in _con_order:
+            f = CON_DIR / rel_path
+            if not f.exists():
+                print(f"  [건너뜀] {rel_path} (파일 없음)")
+                continue
+            name = analyze_file(f, mode)
             if name:
                 results["contracts"].append(name)
 

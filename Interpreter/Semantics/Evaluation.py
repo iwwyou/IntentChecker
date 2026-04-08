@@ -112,7 +112,8 @@ class Evaluation :
             return None
 
         with open(pkl_path, 'rb') as f:
-            ifc_cfg = pickle.load(f)
+            raw = pickle.load(f)
+        ifc_cfg = raw["cfg"] if isinstance(raw, dict) and "cfg" in raw else raw
         ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
         if not ifc_fcfg or not ifc_fcfg.return_types:
             return None
@@ -218,7 +219,8 @@ class Evaluation :
             if not pkl_path.exists():
                 continue
             with open(pkl_path, 'rb') as f:
-                ifc_cfg = pickle.load(f)
+                raw = pickle.load(f)
+            ifc_cfg = raw["cfg"] if isinstance(raw, dict) and "cfg" in raw else raw
             ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
             if ifc_fcfg and ifc_fcfg.return_types:
                 rt = ifc_fcfg.return_types[0]
@@ -1882,21 +1884,8 @@ class Evaluation :
                                     lib_fcfg = fc
                                     break
                 else:
-                    lib_fcfg = ccfg.find_library_function(base_type, func_name)
-                    # 인자 개수가 맞지 않으면 다른 overload 검색
-                    if lib_fcfg and len(lib_fcfg.parameters) != n_args:
-                        found = None
-                        for libs in list(ccfg.using_libraries.values()) + [ccfg.using_all_libraries]:
-                            for lib in (libs if isinstance(libs, list) else [libs]):
-                                if func_name in lib.functions:
-                                    for sig, fc in lib.functions[func_name].items():
-                                        if len(fc.parameters) == n_args:
-                                            found = fc
-                                            break
-                                if found: break
-                            if found: break
-                        if found:
-                            lib_fcfg = found
+                    # n_args를 전달하여 처음부터 올바른 overload 선택
+                    lib_fcfg = ccfg.find_library_function(base_type, func_name, n_args=n_args)
 
                 return self._mapping_lookup_if_needed(
                     self.evaluate_library_function_call_context(
@@ -2109,15 +2098,16 @@ class Evaluation :
         """
         라이브러리 함수 호출 처리
         expr: 원래 FunctionCallContext Expression 객체 (arguments 포함)
-        implicit_first_arg: 첫 번째 인자로 전달될 baseVal (Variables 객체)  
+        implicit_first_arg: 첫 번째 인자로 전달될 baseVal (Variables 객체)
         library_function_cfg: 라이브러리 함수의 FunctionCFG
         """
-        
         if not library_function_cfg:
             return f"symbolic_library_call(unknown_function)"
 
-        # 1) 인자 준비 - implicit_first_arg를 첫 번째 인자로 설정
-        arguments = [implicit_first_arg]
+        # 1) 인자 준비 - implicit_first_arg가 있으면 첫 번째 인자로 설정
+        arguments = []
+        if implicit_first_arg is not None:
+            arguments.append(implicit_first_arg)
         if expr.arguments:
             arguments.extend(expr.arguments)
 
@@ -2193,6 +2183,7 @@ class Evaluation :
                         caller_env[var_name] = var_obj
 
             return_value = self.engine.interpret_function_cfg(library_function_cfg, caller_env)
+
 
             # 함수 컨텍스트 복원
             self.an.current_target_function = saved_function
@@ -2548,8 +2539,37 @@ class Evaluation :
             if inner and len(inner) == 1:
                 return self._resolve_alias_from_expr(inner[0], variables)
 
-        # 4) 그 외
-        print(f"[ALIAS RESOLVE ERROR] unsupported expr context: {getattr(base_expr, 'context', type(base_expr).__name__)}")
+        # 4) IndexAccess: balances[_to].add(...) → 평가해서 Variables typeInfo 확인
+        if getattr(base_expr, 'context', None) == 'IndexAccessContext':
+            try:
+                val = self.evaluate_expression(base_expr, variables, None, None)
+                if isinstance(val, Variables) and hasattr(val, 'typeInfo') and val.typeInfo:
+                    return getattr(val.typeInfo, 'aliasName', None)
+            except (ValueError, KeyError, AttributeError):
+                pass
+            return None
+
+        # 5) FunctionCall: value.div(100000).mul(...) → 체이닝, base object 재귀 추적
+        if getattr(base_expr, 'context', None) == 'FunctionCallContext':
+            func_expr = getattr(base_expr, 'function', None) or getattr(base_expr, 'base', None)
+            if func_expr and getattr(func_expr, 'context', None) == 'MemberAccessContext':
+                result = self._resolve_alias_from_expr(func_expr.base, variables)
+                if result:
+                    return result
+                # base가 library 이름인 경우: using directive에서 역추적
+                lib_ident = getattr(func_expr.base, 'identifier', None)
+                if lib_ident and lib_ident in self.an.library_cfgs:
+                    contract_name = self.an.current_target_contract
+                    ccfg = self.an.contract_cfgs.get(contract_name)
+                    if ccfg:
+                        for type_name, libs in ccfg.using_libraries.items():
+                            for lib in libs:
+                                lib_name = getattr(lib, 'library_name', None) or getattr(lib, 'contract_name', None)
+                                if lib_name == lib_ident:
+                                    return type_name
+            return None
+
+        # 6) 그 외: alias 없음
         return None
 
     def _find_struct_def(self, contract_cfg, struct_name):

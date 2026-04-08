@@ -128,7 +128,10 @@ class StaticCFGFactory:
         • FunctionCFG 와 기본 abstract env 를 만들어 contract_cfg.functions 에 등록
         """
         if modifier_name in contract_cfg.functions:
-            return contract_cfg.functions[modifier_name]  # 중복 선언 방지
+            overloads = contract_cfg.functions[modifier_name]
+            if isinstance(overloads, dict):
+                return next(iter(overloads.values()))
+            return overloads  # 중복 선언 방지
 
         mod_cfg = FunctionCFG(function_type="modifier",
                               function_name=modifier_name)
