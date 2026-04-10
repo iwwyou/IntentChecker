@@ -1,0 +1,61 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\8\\nftx-protocol-v2\\contracts\\solidity\\NFTXLPStaking.sol",
+                    "range": {
+                        "start": {
+                            "line": 168
+                        },
+                        "end": {
+                            "line": 172
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\8\\nftx-protocol-v2\\contracts\\solidity\\NFTXFeeDistributor.sol",
+                    "range": {
+                        "start": {
+                            "line": 153
+                        },
+                        "end": {
+                            "line": 172
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "approval-not-clear",
+            "severity": "HIGH",
+            "title": "MWE-203: Approval Not Revoked",
+            "description": "Approval is not revoked or reset after the code functionality finishes.",
+            "recommendation": "Try to remove the approval after the code finishes its job.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\8\\nftx-protocol-v2\\contracts\\solidity\\eligibility\\NFTXMintRequestEligibility.sol",
+                    "range": {
+                        "start": {
+                            "line": 188
+                        },
+                        "end": {
+                            "line": 216
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

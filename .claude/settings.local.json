@@ -101,7 +101,10 @@
       "Read(//c/Users/isjeon/GPTScan/venv/Lib/site-packages/falcon/printers/summary/**)",
       "Bash(solc-select use:*)",
       "Bash(solc --version)",
-      "Bash(solc \"C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/Dataset/Numscout/Original/Target/div_in_path/39da420ac0d9a6d8e05c5d9acac75377decfbb42_WANGMI.sol\")"
+      "Bash(solc \"C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/Dataset/Numscout/Original/Target/div_in_path/39da420ac0d9a6d8e05c5d9acac75377decfbb42_WANGMI.sol\")",
+      "Bash(.venv/Scripts/python.exe -c \"import matplotlib; import scipy; print\\('matplotlib:', matplotlib.__version__, 'scipy:', scipy.__version__\\)\")",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python.exe evaluation/RQ1/plot_correlations.py --out paper/figure/rq1_scatter.pdf)"
     ],
     "deny": [],
     "ask": []

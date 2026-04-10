@@ -1,0 +1,442 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "insecure-vote-calculation",
+            "severity": "HIGH",
+            "title": "MWE-201: Insecure Vote Calculation",
+            "description": "Calculating vote amount can be manipulated to cause flashloan attacks.",
+            "recommendation": "In vote calculation, add a check for tokens that may come from a flash loan.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\DAO.sol",
+                    "range": {
+                        "start": {
+                            "line": 174
+                        },
+                        "end": {
+                            "line": 182
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\DAO.sol",
+                    "range": {
+                        "start": {
+                            "line": 79
+                        },
+                        "end": {
+                            "line": 92
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 54
+                        },
+                        "end": {
+                            "line": 75
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 106
+                        },
+                        "end": {
+                            "line": 111
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 143
+                        },
+                        "end": {
+                            "line": 153
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Vault.sol",
+                    "range": {
+                        "start": {
+                            "line": 101
+                        },
+                        "end": {
+                            "line": 120
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 155
+                        },
+                        "end": {
+                            "line": 165
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 167
+                        },
+                        "end": {
+                            "line": 174
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 358
+                        },
+                        "end": {
+                            "line": 373
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 192
+                        },
+                        "end": {
+                            "line": 203
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Pools.sol",
+                    "range": {
+                        "start": {
+                            "line": 101
+                        },
+                        "end": {
+                            "line": 119
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 106
+                        },
+                        "end": {
+                            "line": 111
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 113
+                        },
+                        "end": {
+                            "line": 118
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 270
+                        },
+                        "end": {
+                            "line": 276
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 245
+                        },
+                        "end": {
+                            "line": 252
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Token1.sol",
+                    "range": {
+                        "start": {
+                            "line": 74
+                        },
+                        "end": {
+                            "line": 79
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\USDV.sol",
+                    "range": {
+                        "start": {
+                            "line": 174
+                        },
+                        "end": {
+                            "line": 181
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\USDV.sol",
+                    "range": {
+                        "start": {
+                            "line": 112
+                        },
+                        "end": {
+                            "line": 119
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Vader.sol",
+                    "range": {
+                        "start": {
+                            "line": 237
+                        },
+                        "end": {
+                            "line": 244
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+                    "range": {
+                        "start": {
+                            "line": 96
+                        },
+                        "end": {
+                            "line": 105
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+                    "range": {
+                        "start": {
+                            "line": 175
+                        },
+                        "end": {
+                            "line": 182
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 358
+                        },
+                        "end": {
+                            "line": 373
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+                    "range": {
+                        "start": {
+                            "line": 229
+                        },
+                        "end": {
+                            "line": 242
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Vault.sol",
+                    "range": {
+                        "start": {
+                            "line": 86
+                        },
+                        "end": {
+                            "line": 96
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Vault.sol",
+                    "range": {
+                        "start": {
+                            "line": 81
+                        },
+                        "end": {
+                            "line": 85
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

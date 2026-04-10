@@ -1,0 +1,82 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "front-running",
+            "severity": "HIGH",
+            "title": "MWE-205: Front Running",
+            "description": "Users are required to transfer assets in advance and minting token/liquidity/earning thus could be frontrun.",
+            "recommendation": "Put asset transfering and token minting in the same function to keep atomicity.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\42\\projects\\mochi-core\\contracts\\emission\\VestedRewardPool.sol",
+                    "range": {
+                        "start": {
+                            "line": 36
+                        },
+                        "end": {
+                            "line": 46
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "insecure-buying-behavior",
+            "severity": "HIGH",
+            "title": "MWE-202: Insecure Token Buying Behavior",
+            "description": "Buying tokens via swap or AMM can be manipulated to cause sandwich attacks.",
+            "recommendation": "Do not use swap or AMM to buy tokens.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\42\\projects\\mochi-core\\contracts\\treasury\\MochiTreasuryV0.sol",
+                    "range": {
+                        "start": {
+                            "line": 81
+                        },
+                        "end": {
+                            "line": 94
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\42\\projects\\mochi-core\\contracts\\treasury\\MochiTreasuryV0.sol",
+                    "range": {
+                        "start": {
+                            "line": 44
+                        },
+                        "end": {
+                            "line": 52
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "approval-not-clear",
+            "severity": "HIGH",
+            "title": "MWE-203: Approval Not Revoked",
+            "description": "Approval is not revoked or reset after the code functionality finishes.",
+            "recommendation": "Try to remove the approval after the code finishes its job.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\42\\projects\\mochi-core\\contracts\\vault\\MochiVault.sol",
+                    "range": {
+                        "start": {
+                            "line": 181
+                        },
+                        "end": {
+                            "line": 211
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

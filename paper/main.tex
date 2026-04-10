@@ -414,6 +414,53 @@ Allowing \texttt{@IReturn} on state-modifying calls would let the developer spec
 Restricting \texttt{@IReturn} to view/pure functions avoids this unsoundness: by definition, a view or pure call has no side effects, so binding its return value is a complete description of its observable behavior.
 
 \smallskip
+\noindent\textit{Resolution at call sites.}
+When the abstract interpreter encounters an interface function call during analysis, it must decide whether to return $\top$ (no information) or a developer-specified value.
+Algorithm~\ref{alg:resolve-ireturn} describes the resolution procedure.
+The key insight is that \texttt{@IReturn} annotations are registered into a per-function registry during the batch annotation phase---alongside \texttt{@StateVar}, \texttt{@LocalVar}, and \texttt{@GlobalVar}---and the resolution occurs as a short-circuit check \emph{before} the interpreter would otherwise default to $\top$.
+Two surface patterns are tried in order: Pattern~A matches by the variable name that holds the interface reference (e.g., \texttt{oracle.getPrice()}), and Pattern~B matches by the explicit interface cast (e.g., \texttt{IOracle(addr).getPrice()}).
+If a match is found, the registered value is assembled---potentially following an access chain for struct members or tuple indices---and returned immediately, preventing $\top$ from propagating into downstream computations.
+
+\begin{algorithm}[t]
+\caption{ResolveIReturn: Interface Call Value Resolution}
+\label{alg:resolve-ireturn}
+\begin{algorithmic}[1]
+\State \textbf{Input:} interface call expression $e = \mathit{base}.\mathit{func}(\ldots)$, IReturn registry $\mathcal{R}$
+\State \textbf{Output:} resolved value or $\top$
+\Statex
+\Statex \textit{// Pattern A: variable-qualified (e.g., oracle.getPrice())}
+\If{$\mathit{base}$ is an identifier with interface type $I$}
+    \State $\mathit{entries} \gets \{c \mapsto v \mid (\mathit{base}, \mathit{func}, c) \mapsto v \in \mathcal{R}\}$
+    \If{$\mathit{entries} \neq \emptyset$}
+        \State \Return \Call{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
+    \EndIf
+\EndIf
+\Statex
+\Statex \textit{// Pattern B: explicit cast (e.g., IERC20(addr).balanceOf())}
+\If{$\mathit{base}$ is a cast $I(\mathit{addr})$}
+    \State $\mathit{entries} \gets \{c \mapsto v \mid (I, \mathit{addr}, \mathit{func}, c) \mapsto v \in \mathcal{R}\}$
+    \If{$\mathit{entries} \neq \emptyset$}
+        \State \Return \Call{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
+    \EndIf
+\EndIf
+\Statex
+\State \Return $\top$ \Comment{no registry match; fall back to default}
+\Statex
+\Function{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
+    \If{$\mathit{entries}$ contains only the empty chain $()$}
+        \State \Return $\mathit{entries}[()]$ \Comment{single scalar return}
+    \EndIf
+    \State $\mathit{retType} \gets$ load return type schema of $I.\mathit{func}$ from interface CFG
+    \State $\mathit{val} \gets \top_{\mathit{retType}}$ \Comment{initialize with $\top$ of the declared type}
+    \ForAll{$(c, v) \in \mathit{entries}$}
+        \State set $\mathit{val}$ at access chain $c$ to $v$ \Comment{struct member or tuple index}
+    \EndFor
+    \State \Return $\mathit{val}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\smallskip
 \noindent\textbf{(d) Arithmetic-focused inline assembly support.}
 Solidity's inline assembly (\texttt{assembly \{ ... \}}) is written in Yul and frequently appears in arithmetic-heavy code, particularly in high-precision fixed-point libraries such as FullMath or ABDKMath.
 \textsc{SolQDebug} originally treated any inline assembly block as a single opaque region, leaving all affected variables at $\top$.
@@ -479,64 +526,88 @@ For each annotation, it evaluates whether the declared intent holds by comparing
 
 \subsection{Motivating Examples}
 
-This section illustrates how IntentChecker addresses representative numeric logic errors from each variable flow stage introduced in Section~\ref{sec:background}.
-For each example, we show the vulnerable code pattern and demonstrate how developers can express their intentions through annotations.
+This section illustrates how \textsc{IntentChecker} addresses representative numeric logic errors, using three real-world cases from our evaluation benchmark (§\ref{sec:evaluation}).
+The first two cases demonstrate mid-execution checks via \texttt{@During} annotations; the third demonstrates a post-execution check via \texttt{@Post}.
 
-\subsubsection{COMPUTE: Precision Loss in Arithmetic}
+\subsubsection{Operator Order Issue (BoostToken)}
 
-% Representative example: Operator Order Issue or Precision Loss Trend
-% Show how @During annotation can specify intended arithmetic relationships
+Listing~\ref{lst:compute-example} shows a fee-distribution function that divides before multiplying, causing integer truncation to silently reduce the transferred amount.
+The developer intends the marketing wallet to receive $\lfloor\texttt{amount} \times 5 / 12\rfloor$, but \texttt{amount.div(12).mul(5)} truncates $\texttt{amount}/12$ first, losing precision when \texttt{amount} is not a multiple of~12.
 
-\begin{lstlisting}[caption={Example: Precision loss in fee calculation}, label={lst:compute-example}]
-// Vulnerable: division before multiplication causes precision loss
-uint256 fee = amount / 100 * feeRate;
-
-// Developer's intent: fee should equal the mathematically correct result
-// @During fee == amount * feeRate / 100
-\end{lstlisting}
-
-% Explanation of how IntentChecker validates this intent
-
-\subsubsection{TRANSFER: Function Argument Validation}
-
-% Representative example: Minor Amount Retention
-% Show how @During func.arg[n] annotation validates transfer arguments
-
-\begin{lstlisting}[caption={Example: Ensuring non-zero transfer amounts}, label={lst:transfer-example}]
-// Vulnerable: integer division may result in zero transfer
-for (uint i = 0; i < recipients.length; i++) {
-    uint256 share = totalAmount / recipients.length;
-    // @During transfer.arg[0] > 0
-    recipients[i].transfer(share);
+\begin{lstlisting}[caption={BoostToken: operator order issue in fee distribution (simplified).}, label={lst:compute-example}]
+function sendETHToTeam(uint256 amount) private {
+    // @LocalVar amount = [68, 68]
+    _devWalletAddress.transfer(amount.div(4));
+    // @During transfer.arg[0] >= amount * 5 / 12
+    _marketingWalletAddress.transfer(amount.div(12).mul(5));
+    // @During transfer.arg[0] >= amount * 2 / 9
+    _dipWalletAddress.transfer(amount.div(9).mul(2));
+    _marketingWalletAddress2.transfer(amount.div(9));
 }
 \end{lstlisting}
 
-% Explanation of how IntentChecker validates function arguments
+The \texttt{@During transfer.arg[0] >= amount * 5 / 12} annotation expresses the developer's intent that the actual transfer argument should be at least the mathematically correct share.
+With \texttt{amount\,=\,68}, the correct value is $\lfloor 68 \times 5 / 12 \rfloor = 28$, but \texttt{68.div(12).mul(5)} computes $\lfloor 68/12 \rfloor \times 5 = 5 \times 5 = 25$.
+\textsc{IntentChecker} evaluates the annotation to $[25,25] \geq [28,28]$ and reports \textit{Violated} with risk score~$10.0$.
 
-\subsubsection{OUTPUT: State Consistency After Execution}
+\subsubsection{Exchange Rate Validation (Nokon)}
 
-% Representative example: Balance invariant or state update verification
-% Show how @Post annotation verifies function-level effects
+Listing~\ref{lst:transfer-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
 
-\begin{lstlisting}[caption={Example: Verifying balance consistency}, label={lst:output-example}]
-function withdraw(uint256 amount) external {
-    require(balances[msg.sender] >= amount);
-    balances[msg.sender] -= amount;
-    // @Post balances[msg.sender](Entry > Exit)
-    msg.sender.transfer(amount);
+\begin{lstlisting}[caption={Nokon: exchange rate calculation with operator order issue (simplified).}, label={lst:transfer-example}]
+function buy() public payable {
+    // @GlobalVar msg.value = [50000000000500000, ...]
+    // @StateVar presell = true
+    require(presell, "presell is closed");
+    uint256 amountToBuy = msg.value / ethRateFix
+                          * calculateRate();
+    // @During amountToBuy * ethRateFix >= msg.value * 250000
+    balances[msg.sender] += amountToBuy;
 }
 \end{lstlisting}
 
-% Explanation of how IntentChecker validates post-conditions
+The developer's intent is that \texttt{amountToBuy} should satisfy the exchange-rate invariant: the tokens received, times the rate denominator, should be at least the ETH paid times the rate numerator.
+Because \texttt{msg.value / ethRateFix} truncates before multiplication, the invariant is violated for non-round input amounts.
+The \texttt{@During} annotation captures this invariant directly, and \textsc{IntentChecker} reports \textit{Violated}.
+
+\subsubsection{Minting Invariant with Interface Call (Web3Bugs~\#78)}
+
+Listing~\ref{lst:output-example} shows a rebasing vault's \texttt{mint} function.
+The bug is that minted proxy tokens are computed from the total vault balance (including the just-deposited amount), which inflates the shares beyond the deposited amount when the redeem rate deviates from~1.
+
+\begin{lstlisting}[caption={Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified).}, label={lst:output-example}]
+function mint(address to, uint256 amount)
+    public override returns (uint256) {
+    // @LocalVar amount = [500e18, 500e18]
+    // @StateVar _totalSupply = [1000e18, 1000e18]
+    // @StateVar _balances[to] = [0, 0]
+    // @IReturn IERC20(baseToken).balanceOf()
+    //   = [1500e18, 1500e18]
+    uint256 _redeemRate = redeemRate();
+    require(IERC20(baseToken).transferFrom(
+        msg.sender, address(this), amount));
+    uint256 baseBalance =
+        IERC20(baseToken).balanceOf(address(this));
+    uint256 proxy = (baseBalance * ONE) / _redeemRate;
+    // @Post _balances[to] <= amount
+    _mint(to, proxy);
+}
+\end{lstlisting}
+
+The \texttt{@Post \_balances[to] <= amount} annotation expresses the invariant that no user should receive more shares than the tokens they deposited.
+The \texttt{@IReturn} debug annotation injects a concrete balance (1500\,e18) for the external \texttt{balanceOf} call, which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(c)).
+With these annotations, \textsc{IntentChecker} computes the proxy amount and finds that it exceeds \texttt{amount}, reporting \textit{Violated}.
+This example demonstrates how \texttt{@IReturn} enables intent validation for functions that depend on external contract state.
 
 \smallskip
-These examples demonstrate how IntentChecker enables developers to explicitly specify their numerical intentions.
+These three examples---drawn from real bugs in the evaluation benchmark---illustrate the two temporal scopes of intent validation: mid-execution checks (\texttt{@During} with relational and argument constraints) and post-execution checks (\texttt{@Post} combined with \texttt{@IReturn} for external state injection).
 The complete intent model supporting these annotations is defined in the following section.
 
 \subsection{Intent Model}
 
 This section defines the syntax and semantics of intent annotations.
-While Section~\ref{sec:background} introduced the conceptual foundation---\texttt{@During} for COMPUTE and TRANSFER stages, \texttt{@Post} for OUTPUT stage---here we specify the concrete grammar and meaning of each annotation construct.
+The two annotation types correspond to the two temporal scopes at which numeric intent can be validated: \texttt{@During} checks conditions at specific program points within a function's execution, while \texttt{@Post} checks conditions after the function completes.
+This section specifies the concrete grammar and semantics of each construct.
 
 \begin{figure}[t]
 \centering
@@ -587,7 +658,7 @@ Relational operators include \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \
 
 \smallskip
 \noindent\textbf{@During Annotation.}
-The \texttt{@During} annotation specifies intended relationships at specific program points within a function, validating developer intentions during the COMPUTE and TRANSFER stages of variable flow.
+The \texttt{@During} annotation specifies intended relationships at specific program points within a function's execution.
 It supports the following clause types:
 
 \begin{itemize}
@@ -595,12 +666,12 @@ It supports the following clause types:
 
     \item \texttt{x(assign relOp current)}---compares the value being assigned to \texttt{x} against its current value. This is useful for validating incremental updates (e.g., \texttt{counter(assign == current + 1)}).
 
-    \item \texttt{func.arg[n] relOp value}---validates the $n$-th argument passed to a function call. This covers the TRANSFER stage, ensuring that function calls receive arguments satisfying specified constraints before execution proceeds.
+    \item \texttt{func.arg[n] relOp value}---validates the $n$-th argument passed to a function call, ensuring that function calls receive arguments satisfying specified constraints before execution proceeds.
 \end{itemize}
 
 \smallskip
 \noindent\textbf{@Post Annotation.}
-The \texttt{@Post} annotation specifies intended relationships that should hold after function execution completes, validating the OUTPUT stage of variable flow.
+The \texttt{@Post} annotation specifies intended relationships that should hold after function execution completes.
 It supports the following clause types:
 
 \begin{itemize}
@@ -972,10 +1043,8 @@ On the basis of this verification, the rest of the paper treats Algorithm~\ref{a
 
 \section{Evaluation}\label{sec:evaluation}
 
-\subsection{Research Questions}
-
 The validation algorithm itself was already verified to be mathematically correct in §\ref{sec:alg-verification}, where we showed that it produces results in exact agreement with brute-force ground truth across every possible topological configuration of two integer intervals.
-The remaining questions concern \textsc{IntentChecker}'s behavior on real-world code, the structural ceiling of its annotation model, its position relative to existing detection tools, and how developers perceive it.
+The remaining questions concern \textsc{IntentChecker}'s behavior on real-world code, the structural ceiling of its annotation model, and its position relative to existing detection tools.
 We address these questions through the following three RQs:
 
 \begin{itemize}
@@ -1015,7 +1084,7 @@ For each instance, we record the target contract, the buggy function, the specif
 
 \begin{table}[t]
 \centering
-\caption{Benchmark dataset composition (89 instances).}
+\caption{Benchmark dataset composition.}
 \label{tab:dataset}
 \begin{tabular}{llcc}
 \hline
@@ -1035,13 +1104,28 @@ Flyinointment & Greedy Contract & 1 \\
   & Erroneous Accounting        & 72 \\
   & Inconsistent State Updates  & 9  \\
 \hline
-\textbf{Total} & & \textbf{89} \\
+\textbf{Total (collected)} & & \textbf{89} \\
+Excluded (see below)        & & $-14$ \\
+\textbf{Effective}          & & \textbf{75} \\
 \hline
 \end{tabular}
 \end{table}
 
+\smallskip\noindent\textbf{Exclusions.}
+Of the 89 collected instances, 14 are excluded after manual inspection because they fall outside the definition of a development-time numeric logic error.
+The exclusion categories are:
+source already silently patched (E1, 2 cases);
+checked-arithmetic revert under Solidity~$\geq$0.8 such that the program traps rather than returns a wrong value (E2, 2 cases);
+duplicate audit findings on the same buggy site (E3, 2 cases);
+reports the original auditors disputed as intended behavior (E4, 1 case);
+required external libraries not provided in the audit package (E5, 2 cases);
+bugs whose manifestation requires state changes across separate transactions and therefore fall outside our single-transaction scope (E6, 3 cases);
+a case whose bug actually resides in a different contract than the documented target (1 case);
+and one NumScout case whose ``bug'' is the inherent truncation of integer division for which no alternative correct implementation exists (E7, 1 case).
+The remaining \textbf{75 instances} form the effective evaluation set used in RQ1--RQ3.
+
 \smallskip\noindent\textbf{Methodology.}
-For each bug instance, we (1) analyse the audit report to understand the root cause,
+For each of the 75 effective instances, we (1) analyse the audit report to understand the root cause,
 (2) write an intent annotation that captures the expected numeric behaviour described in the report,
 and (3) run \textsc{IntentChecker} to record whether it reports \textit{Satisfied}, \textit{Violated}, or \textit{Warning}.
 Cases that produce a non-\textit{Satisfied} verdict are reported as \textit{mitigated} in RQ1; cases for which no annotation can yield such a verdict are classified into the limitation taxonomy (§\ref{sec:rq1}) and analyzed for annotation expressibility in RQ2.
@@ -1049,15 +1133,13 @@ Cases that produce a non-\textit{Satisfied} verdict are reported as \textit{miti
 \subsection{RQ1: Mitigation}\label{sec:rq1}
 
 \noindent\textbf{Setup.}
-For each of the 89 benchmark instances, we (1) read the audit report and identify the buggy line(s), (2) write \texttt{@During} and/or \texttt{@Post} intent annotations that capture the expected numeric behavior described in the report, (3) supply the debug annotations (\texttt{@StateVar}, \texttt{@LocalVar}, \texttt{@GlobalVar}, and \texttt{@IReturn}) that the function needs to be analyzable under representative inputs, and (4) run \textsc{IntentChecker} on the resulting annotated source.
+For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the audit report and identify the buggy line(s), (2) write \texttt{@During} and/or \texttt{@Post} intent annotations that capture the expected numeric behavior described in the report, (3) supply the debug annotations (\texttt{@StateVar}, \texttt{@LocalVar}, \texttt{@GlobalVar}, and \texttt{@IReturn}) that the function needs to be analyzable under representative inputs, and (4) run \textsc{IntentChecker} on the resulting annotated source.
 We record the verdict produced by the validation engine---\textit{Satisfied}, \textit{Warning}, or \textit{Violated}---together with the risk score and violated region.
 For instances where no annotation can yield a non-\textit{Satisfied} signal, we further classify the structural reason according to the limitation taxonomy described below.
 
 \smallskip
 \noindent\textbf{Outcomes.}
-Of the 89 instances, 14 are excluded from the mitigation analysis after manual inspection because they fall outside the definition of a development-time numeric logic error.
-The exclusion breakdown is: source already silently patched (E1, 2 cases); checked-arithmetic revert under Solidity~$\geq$0.8 such that the program traps rather than returns a wrong value (E2, 2 cases); duplicate audit findings on the same buggy site (E3, 2 cases); reports the original auditors disputed as intended behavior (E4, 1 case); required external libraries not provided in the audit package (E5, 2 cases); bugs whose manifestation requires state changes across separate transactions and therefore fall outside our single-transaction scope (E6, 3 cases); a case whose bug actually resides in a different contract than the documented target (1 case); and one NumScout case whose ``bug'' is the inherent truncation of integer division for which no alternative correct implementation exists (E7, 1 case, \texttt{numscout\_HippoHotel}).
-On the remaining 75 instances, \textsc{IntentChecker} produces a \textit{Violated} verdict on \textbf{20 cases} when supplied with annotations derived from the audit report (RQ1's main mitigation result).
+Of the 75 effective instances, \textsc{IntentChecker} produces a \textit{Violated} verdict on \textbf{20 cases} when supplied with annotations derived from the audit report.
 The remaining 55 instances are classified as \textit{not\_detectable}: \textsc{IntentChecker} cannot, given the structure of its analysis or its annotation model, surface a non-\textit{Satisfied} signal for them.
 The structural reasons fall into eleven sub-categories grouped into two top-level families, summarized in Figure~\ref{fig:rq1-limitations}.
 
@@ -1223,6 +1305,7 @@ The full per-case timings appear in Table~\ref{tab:rq1-timing}.
 \end{table}
 
 To understand what drives the variation across cases, we collected six per-case complexity metrics---total source lines in the deployment unit, function count, control-flow branch count, loop count, debug annotation count, and external call count---and computed the Pearson correlation of each with the mean analysis time.
+Figure~\ref{fig:rq1-scatter} plots each metric against analysis time.
 Three observations emerge.
 \textit{First}, the strongest predictors are aggregate size measures: source lines ($r=0.87$), function count ($r=0.76$), and branch count ($r=0.72$).
 The dominant cost is therefore the abstract interpreter's traversal of the deployment unit's control-flow graph, not any single feature local to the bug site.
@@ -1232,6 +1315,13 @@ This contradicts the natural expectation that fixpoint iteration on loops would 
 Inspection of the mitigated set explains the gap: in several cases that contain loops, the widening of accumulator variables happens to occur on variables that do not flow into the intent annotation's value path, so the precision loss does not affect the verdict but the fixpoint iteration cost is still paid.
 The cost is real, but it is not concentrated in the cases that succeed---those cases instead pay it as ``dead work'' alongside successful bug surfacing.
 A future optimization that confines fixpoint iteration to the intent-relevant scope could reduce this overhead without changing detectability; we discuss this further in §\ref{sec:disc:tech}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figure/rq1_scatter.pdf}
+\caption{Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient.}
+\label{fig:rq1-scatter}
+\end{figure}
 
 Per-tool latency comparison against NumScout and GPTScan is reported in §\ref{sec:rq3}.
 
@@ -1263,23 +1353,28 @@ The Inexpressible tier maps exactly to the L4 sub-categories (L4a 10, L4b 8, L4c
 
 \begin{table}[t]
 \centering
-\caption{RQ2 expressibility classification of the 34 L4--L5 cases. ``Inexpressible'' = no annotation can yield a non-\textit{Satisfied} verdict even with bug awareness (the L4 family). ``Strong'' = the annotation states the correct value or relation directly. ``Weak'' = the annotation captures only that the expected change did or did not occur, providing an awareness signal without encoding the correct value.}
+\caption{RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph{Inexpressible}: no annotation yields a non-\textit{Satisfied} verdict even with full bug awareness. \emph{Strong}: the annotation encodes the correct value directly. \emph{Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value.}
 \label{tab:rq2-tiers}
 \small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l r r r @{}}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l r r @{}}
 \toprule
-\textbf{Tier} & \textbf{L5a (missing)} & \textbf{L5b (wrong)} & \textbf{Total} \\
+\textbf{Tier / Sub-category} & \textbf{Count} & \textbf{\%} \\
 \midrule
-Inexpressible (L4) & --- & --- & 20 \\
-\quad \emph{L4a inexpressible expected value} & --- & --- & \emph{10} \\
-\quad \emph{L4b no target storage}            & --- & --- & \emph{8} \\
-\quad \emph{L4c magnitude-only difference}    & --- & --- & \emph{1} \\
-\quad \emph{L4d invariant masked}             & --- & --- & \emph{1} \\
+\textbf{Inexpressible (L4)} & \textbf{20} & \textbf{59} \\
+\quad L4a: inexpressible expected value & 10 & \\
+\quad L4b: no target storage variable   & 8  & \\
+\quad L4c: magnitude-only difference    & 1  & \\
+\quad L4d: invariant masked             & 1  & \\
 \addlinespace
-Expressible-Strong (Direct)   & 2 & 5 & 7 \\
-Expressible-Weak (Indirect)   & 5 & 2 & 7 \\
+\textbf{Expressible-Strong (Direct)} & \textbf{7} & \textbf{21} \\
+\quad L5a (missing code) & 2 & \\
+\quad L5b (wrong code)   & 5 & \\
+\addlinespace
+\textbf{Expressible-Weak (Indirect)} & \textbf{7} & \textbf{21} \\
+\quad L5a (missing code) & 5 & \\
+\quad L5b (wrong code)   & 2 & \\
 \midrule
-\textbf{Total}                & \textbf{7} & \textbf{7} & \textbf{34} \\
+\textbf{Total} & \textbf{34} & \textbf{100} \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -1352,12 +1447,28 @@ Even for code whose intent is clear, \textsc{IntentChecker} can only analyze the
 This is the standard cost of any annotation-based analysis and is well understood, but it remains a non-trivial barrier to adoption.
 
 \smallskip
+\noindent\textbf{The circularity objection.}
+A natural question is whether writing a correct intent annotation already presupposes knowing the bug---in which case the tool would only confirm what the developer already knows.
+The concern is legitimate, and our RQ2 analysis quantifies it precisely: 14 of the 34 annotation-model limitation cases (L5) require bug awareness before the annotation can be written, confirming that for those cases, independent discovery through annotation alone is not realistic.
+However, this circularity is not unique to \textsc{IntentChecker}; it is inherent in \emph{any} specification-based approach, from formal pre/post-conditions to Scribble annotations to test oracles.
+What differs across tools is how much of the specification burden falls on the developer.
+For the 20 mitigated cases in RQ1, the annotations were derivable from the developer's own stated intent (e.g., ``this fee should equal $x$'', ``this balance should decrease after withdrawal'') without requiring knowledge of the specific bug.
+The L5 cases, by contrast, identify the boundary where intent-driven annotation reaches its limit and external assistance---such as automated annotation suggestion---becomes necessary.
+This observation directly motivates the LLM-assisted workflow described below: rather than expecting the developer to write all annotations from scratch, a suggestion layer can propose candidate annotations that the developer accepts, rejects, or refines, shifting the task from \emph{generation} to \emph{validation} and partially breaking the circularity.
+
+\smallskip
 \noindent\textbf{Future direction: LLM-assisted annotation suggestion and auto-repair.}
 A natural way to lower both barriers is to combine \textsc{IntentChecker} with a large language model that observes the same source the developer is editing.
 For intent annotations, the LLM could generate candidate \texttt{@During}/\texttt{@Post} clauses by reading the surrounding function, the contract's NatSpec comments, and the developer's recent commit messages, presenting the candidates as suggestions that the developer accepts or edits.
 For debug annotations, the LLM could propose representative ranges based on the function's call sites elsewhere in the codebase or based on standard token decimals (e.g., 18 for most ERC20 tokens, 6 for USDC).
 Beyond annotation suggestion, an LLM that has access to \textsc{IntentChecker}'s \textit{Violated} verdict and violated region could also propose code edits that move the violated region out of the reachable interval, effectively turning the awareness signal into a candidate fix.
 We deliberately leave both directions as future work; what matters for this paper is that they are natural extensions enabled by, rather than blocked by, the current design.
+
+\smallskip
+\noindent\textbf{Developer study.}
+This paper evaluates \textsc{IntentChecker} through structural analysis---what the tool can and cannot detect (RQ1), what the annotation model can and cannot express (RQ2), and how the tool compares with existing detectors (RQ3)---rather than through a developer study measuring perceived usability or annotation intuitiveness.
+A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery compared to existing debugging workflows.
+Designing such a study requires careful attention to participant recruitment (sufficient Solidity expertise) and ecological validity (realistic development tasks rather than isolated code snippets), and we defer it to future work as an independent evaluation axis that builds on the structural foundation established here.
 
 \subsection{Remaining Technical Limitations}\label{sec:disc:tech}
 
@@ -1386,6 +1497,41 @@ Extending the Yul visitor to handle memory and storage opcodes and the abstract 
 The guarantee does not extend outside those ranges.
 A bug that only manifests at the boundary of a parameter's representable values, but not in the range the developer chose for \texttt{@LocalVar}, will not appear in any verdict.
 This is an inherent characteristic of debugging tools---traditional debuggers also only execute the inputs the developer provides---and we encourage developers to use representative ranges and to iteratively refine them when \textit{Warning} results draw attention to specific sub-intervals.
+
+\smallskip
+\noindent\textbf{Value-level intent vs.\ logic-level intent.}
+A broader observation from the limitation taxonomy is that \textsc{IntentChecker}'s annotation model operates at the \emph{value level}: it can express whether a variable's value satisfies a numeric relationship (``this fee should be at least $x$'', ``this balance should decrease''), but it cannot express whether the right \emph{computation} was performed in the first place.
+The 20 mitigated cases in RQ1 are precisely the cases where a value-level assertion suffices to distinguish buggy from correct execution.
+The L4 cases reveal the boundary: in L4a (10 cases), the correct expected value requires a computation that does not exist in the program; in L4b (8 cases), the function modifies no state variable, so there is no value to assert on.
+These are not failures of precision but of \emph{abstraction level}---the developer's true intent is about what the code should \emph{do} (``split the swap at the crossing point'', ``update \texttt{totalLocked}''), not about what value a variable should hold.
+Capturing such logic-level intent would require a fundamentally different formalism, such as temporal properties over execution traces or structural specifications of required code patterns, and lies outside the scope of a value-based interval-domain tool.
+Recognizing this boundary is important: \textsc{IntentChecker} is effective when the bug manifests as a wrong value, and complementary tools are needed when the bug manifests as a missing or misplaced operation.
+
+\subsection{Practical Annotation Guidelines}\label{sec:disc:guidelines}
+
+The annotation grammar (§\ref{sec:design}) defines \emph{what} can be written; the question that remains is \emph{when} a developer should write which annotation.
+The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations are not the ones that verify what the developer \emph{did} write, but the ones that catch what the developer \emph{forgot} to write.
+We distill three non-obvious guidelines from this observation.
+
+\smallskip
+\noindent\textbf{Guideline 1: Enumerate all state variables a function \emph{should} affect, not just those it \emph{does} affect.}
+Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
+Bugs of omission (L5a, 7 cases) arise precisely from this cognitive bias: a state variable that \emph{should} have been updated was simply never mentioned.
+After writing a function, the developer should list every state variable whose value the function is expected to change and add at least a directional annotation (\texttt{@Post var(Entry\,<\,Exit)} or \texttt{@Post changed(var, true)}) for each.
+In our data, this single practice---checking what \emph{should} change rather than what \emph{does} change---would have caught 7 of the 14 L5 expressible cases and 5 of the 8 mitigated \texttt{@Post} cases, all without requiring any knowledge of the specific bug.
+
+\smallskip
+\noindent\textbf{Guideline 2: When two state variables should move together, annotate their relationship, not each one in isolation.}
+Several benchmark cases involve accounting pairs (e.g., a per-user balance and a global total, a deposit ledger and a reward tracker) that should stay in sync.
+Annotating each variable independently catches only missing-update bugs; annotating their \emph{relationship} (e.g., \texttt{@Post globalTotal(Entry\,-\,Exit) >= userBalance(Entry\,-\,Exit)}) catches bugs where both variables are updated but by inconsistent amounts.
+This pattern recurs in 4 of the 20 mitigated cases (all Erroneous Accounting) and is the dominant form in L4d (invariant-masked), where independent annotations on each variable succeed but the cross-variable invariant fails.
+
+\smallskip
+\noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
+Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
+Code that reads \texttt{amount.div(12).mul(5)} may look correct, but the developer's actual intent is the mathematical value $\lfloor\texttt{amount} \times 5 / 12\rfloor$.
+Writing the intent annotation in the ideal form---\texttt{@During result >= amount * 5 / 12}---causes \textsc{IntentChecker} to compare the truncated code path against the non-truncated reference, surfacing the discrepancy automatically.
+This pattern accounts for 7 of the 20 mitigated cases (Div In Path, Operator Order Issue, Exchange Problem, and Precision Loss Trend), all of which were caught by annotations that express the mathematically correct expression rather than restating what the code already does.
 
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
@@ -1468,23 +1614,15 @@ While these development-phase tools rely on predefined detection patterns for kn
 
 \section{Conclusion}\label{sec:conclusion}
 
-This paper presented \textsc{IntentChecker}, a development-time intent validation tool for numeric logic errors in Solidity smart contracts.
-We started from the observation that existing numeric logic detection tools---NumScout, GPTScan, and their peers---face two structural limitations rather than engineering shortcomings: they operate in post-hoc auditing contexts in which the developer's intent is unavailable, and as a consequence they must commit to fixed pattern catalogs whose coverage is necessarily orthogonal across tools.
-At the time when code is being written and the developer's intent is still fresh, no tool currently offers a way to declare that intent and validate it directly inside the editor.
+We presented \textsc{IntentChecker}, a development-time intent validation tool that extends \textsc{SolQDebug} with (i) an intent annotation model (\texttt{@During}/\texttt{@Post}), (ii) a validation engine producing graded \textit{Satisfied}/\textit{Warning}/\textit{Violated} signals with risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
-\textsc{IntentChecker} fills this gap by extending \textsc{SolQDebug}, our previously published interactive debugger, with three contributions: (i) an intent annotation model in which \texttt{@During} and \texttt{@Post} annotations declare intended numeric relationships at program-point and function-level granularity; (ii) a validation engine that maps each clause to an interval-domain comparison and produces a graded \textit{Satisfied}/\textit{Warning}/\textit{Violated} signal together with a risk score and violated region, with the underlying interval comparison algorithm exhaustively verified against brute-force ground truth; and (iii) a scope extension from single-contract to multi-contract single-transaction analysis covering inheritance, library delegatecalls, interface-typed variables through the new \texttt{@IReturn} debug annotation, and an arithmetic-focused subset of inline assembly.
+On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, \textsc{IntentChecker} surfaced 20 bugs via \textit{Violated} verdicts at edit-time speeds (mean 3.69\,s per case).
+RQ2's expressibility analysis showed that 14 of the 34 annotation-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the annotation model.
+\textsc{IntentChecker}'s positioning relative to existing detection tools is complementary: it fills the edit-time gap that auditing-time tools structurally cannot occupy.
 
-On a benchmark of 89 real-world numeric logic errors drawn from Web3Bugs and NumScout, \textsc{IntentChecker} surfaced 20 instances via a \textit{Violated} verdict at edit-time speeds, with the remaining unmitigated cases distributed across analysis-engine limitations, annotation-model limitations, and the bug-awareness-required limitation that motivates RQ2's expressibility analysis.
-Our positioning relative to NumScout and GPTScan is complementary rather than competitive: each tool occupies a distinct point on the development--auditing timeline, and their coverage is structurally orthogonal.
-
-The most important practical limitation that \textsc{IntentChecker} inherits is the annotation authoring burden: writing intent annotations for unfamiliar code requires reconstructing the intent first, and choosing representative ranges for debug annotations remains the developer's responsibility.
-We see two natural avenues for future work that build directly on the current design.
-First, an LLM-assisted annotation suggestion layer could read the surrounding code, comments, and recent commits to propose candidate \texttt{@During}/\texttt{@Post} clauses and representative debug ranges for the developer to accept or refine, lowering both the intent-elicitation barrier and the L5 (bug-awareness-required) ceiling.
-Second, an auto-repair layer that consumes \textsc{IntentChecker}'s violated region and proposes minimal code edits to move the violated values out of reach would convert the awareness signal into an actionable fix.
-On the analyzer side, extending the Yul visitor beyond the arithmetic subset and reasoning across multiple transactions would close the technical limitations identified in §\ref{sec:disc:tech}.
-
-We believe the broader contribution of this paper is to redraw the design space for numeric logic error tools.
-The choice is no longer ``pattern-based detector or formal verifier'' but also includes ``edit-time intent validator'', and the three categories cover different stages of the development--auditing timeline rather than competing for the same role.
+The primary practical limitation is the annotation authoring burden, which future work can address through LLM-assisted annotation suggestion (lowering the L5 bug-awareness ceiling) and auto-repair from violated regions.
+On the analyzer side, extending Yul support and multi-transaction reasoning would close the remaining technical limitations.
+More broadly, this work adds ``edit-time intent validator'' as a third category alongside pattern-based detectors and formal verifiers in the design space for numeric logic error tools.
 
 \newif\ifshowack
 \showackfalse

@@ -1,0 +1,73 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\83\\contracts\\MasterChef.sol",
+                    "range": {
+                        "start": {
+                            "line": 135
+                        },
+                        "end": {
+                            "line": 154
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\83\\contracts\\MasterChef.sol",
+                    "range": {
+                        "start": {
+                            "line": 157
+                        },
+                        "end": {
+                            "line": 180
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\83\\contracts\\MasterChef.sol",
+                    "range": {
+                        "start": {
+                            "line": 202
+                        },
+                        "end": {
+                            "line": 211
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\83\\contracts\\MasterChef.sol",
+                    "range": {
+                        "start": {
+                            "line": 157
+                        },
+                        "end": {
+                            "line": 180
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}
