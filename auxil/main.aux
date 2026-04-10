@@ -3,88 +3,130 @@
 \providecommand\hyper@newdestlabel[2]{}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
-\citation{flyinointment}
 \Newlabel{1}{1}
-\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\citation{flyinointment}
 \citation{defisecurity}
-\citation{defisecurity}
-\citation{dappscan}
+\citation{numscout}
+\citation{gptscan}
 \citation{solqdebug}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{2}{section.1}\protected@file@percent }
+\citation{dappscan}
+\citation{exploitablebugs}
+\citation{numscout}
 \citation{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}
 \citation{gptscan,exploitablebugs}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Distribution of Variable Types in Smart Contract Functions}}{4}{table.caption.3}\protected@file@percent }
+\newlabel{tab:variable_distribution}{{1}{4}{Distribution of Variable Types in Smart Contract Functions}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{4}{section.2}\protected@file@percent }
+\newlabel{sec:background}{{2}{4}{Background}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Numeric Logic Errors in Solidity}{4}{subsection.2.1}\protected@file@percent }
 \citation{numscout}
 \citation{numscout}
 \citation{numscout}
 \citation{numscout}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Background}{3}{section.2}\protected@file@percent }
-\newlabel{sec:background}{{2}{3}{Background}{section.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Numeric Logic Errors in Solidity}{3}{subsection.2.1}\protected@file@percent }
 \citation{numscout}
 \citation{gptscan,exploitablebugs}
+\citation{exploitablebugs}
 \citation{flyinointment}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Motivation for Intent-Based Validation}{4}{subsection.2.2}\protected@file@percent }
+\citation{numscout}
+\citation{gptscan}
+\citation{accountingerrors,smartinv}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Limitations of Current Work}{5}{subsection.2.2}\protected@file@percent }
+\citation{smartinv}
 \citation{solqdebug}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}IntentChecker Overview}{5}{subsection.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}The Design of IntentChecker}{5}{section.3}\protected@file@percent }
-\newlabel{sec:design}{{3}{5}{The Design of IntentChecker}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}System Architecture}{5}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Proposed Overview}{6}{subsection.2.3}\protected@file@percent }
+\newlabel{sec:proposed-overview}{{2.3}{6}{Proposed Overview}{subsection.2.3}{}}
 \citation{solqdebug}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker.}}{6}{figure.caption.4}\protected@file@percent }
-\newlabel{fig:architecture}{{1}{6}{System architecture of IntentChecker}{figure.caption.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Motivating Examples}{7}{subsection.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}COMPUTE: Precision Loss in Arithmetic}{7}{subsubsection.3.2.1}\protected@file@percent }
-\newlabel{lst:compute-example}{{1}{7}{Example: Precision loss in fee calculation}{lstlisting.1}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Example: Precision loss in fee calculation}}{7}{lstlisting.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}TRANSFER: Function Argument Validation}{7}{subsubsection.3.2.2}\protected@file@percent }
-\newlabel{lst:transfer-example}{{2}{7}{Example: Ensuring non-zero transfer amounts}{lstlisting.2}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Example: Ensuring non-zero transfer amounts}}{7}{lstlisting.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.3}OUTPUT: State Consistency After Execution}{7}{subsubsection.3.2.3}\protected@file@percent }
-\newlabel{lst:output-example}{{3}{7}{Example: Verifying balance consistency}{lstlisting.3}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Example: Verifying balance consistency}}{7}{lstlisting.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Intent Model}{7}{subsection.3.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{8}{figure.caption.5}\protected@file@percent }
-\newlabel{fig:intent-grammar}{{2}{8}{Grammar of intent annotations}{figure.caption.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Validation Engine}{9}{subsection.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}Validation Targets}{10}{subsubsection.3.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}State Determination and Risk Scoring}{10}{subsubsection.3.4.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{11}{table.caption.7}\protected@file@percent }
-\newlabel{tab:interval-mapping}{{2}{11}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt  {in}/\texttt  {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}}{11}{table.caption.9}\protected@file@percent }
-\newlabel{tab:op-formulas}{{3}{11}{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt {in}/\texttt {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$}{table.caption.9}{}}
-\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Interval Comparison with Risk Score}}{12}{algorithm.1}\protected@file@percent }
-\newlabel{alg:interval-compare}{{1}{12}{Interval Comparison with Risk Score}{algorithm.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{12}{section.4}\protected@file@percent }
-\newlabel{sec:evaluation}{{4}{12}{Evaluation}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Research Questions}{12}{subsection.4.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{13}{table.caption.11}\protected@file@percent }
-\newlabel{tab:logic-combination}{{4}{13}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Experimental Setup}{13}{subsection.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}RQ1: Validation Algorithm Soundness}{13}{subsection.4.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints, (b)~one shared endpoint, and (c)~both. Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{14}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:interval-topologies}{{3}{14}{Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints, (b)~one shared endpoint, and (c)~both. Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints}{figure.caption.12}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}RQ2: Mitigation}{14}{subsection.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}RQ3: Developer Perception}{14}{subsection.4.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Threats to Validity}{14}{subsection.4.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Discussion}{14}{section.5}\protected@file@percent }
-\newlabel{sec:discussion}{{5}{14}{Discussion}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Limitations}{14}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Preliminaries: SolQDebug Foundations and Scope Extension}{8}{section.3}\protected@file@percent }
+\newlabel{sec:prelim}{{3}{8}{Preliminaries: SolQDebug Foundations and Scope Extension}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}SolQDebug Recap}{8}{subsection.3.1}\protected@file@percent }
+\newlabel{sec:prelim:recap}{{3.1}{8}{SolQDebug Recap}{subsection.3.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Scope Extension for Multi-Contract Single-Transaction Analysis}{9}{subsection.3.2}\protected@file@percent }
+\newlabel{sec:prelim:extension}{{3.2}{9}{Scope Extension for Multi-Contract Single-Transaction Analysis}{subsection.3.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}The Design of IntentChecker}{11}{section.4}\protected@file@percent }
+\newlabel{sec:design}{{4}{11}{The Design of IntentChecker}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture}{11}{subsection.4.1}\protected@file@percent }
+\citation{solqdebug}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker.}}{12}{figure.caption.4}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:architecture}{{1}{12}{System architecture of IntentChecker}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Motivating Examples}{13}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}COMPUTE: Precision Loss in Arithmetic}{13}{subsubsection.4.2.1}\protected@file@percent }
+\newlabel{lst:compute-example}{{1}{13}{Example: Precision loss in fee calculation}{lstlisting.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces Example: Precision loss in fee calculation}}{13}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}TRANSFER: Function Argument Validation}{13}{subsubsection.4.2.2}\protected@file@percent }
+\newlabel{lst:transfer-example}{{2}{13}{Example: Ensuring non-zero transfer amounts}{lstlisting.2}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Example: Ensuring non-zero transfer amounts}}{13}{lstlisting.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}OUTPUT: State Consistency After Execution}{13}{subsubsection.4.2.3}\protected@file@percent }
+\newlabel{lst:output-example}{{3}{13}{Example: Verifying balance consistency}{lstlisting.3}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Example: Verifying balance consistency}}{13}{lstlisting.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{14}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:intent-grammar}{{2}{14}{Grammar of intent annotations}{figure.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Intent Model}{14}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Validation Engine}{15}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Validation Targets}{16}{subsubsection.4.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}State Determination and Risk Scoring}{16}{subsubsection.4.4.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{17}{table.caption.7}\protected@file@percent }
+\newlabel{tab:interval-mapping}{{2}{17}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt  {in}/\texttt  {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}}{18}{table.caption.9}\protected@file@percent }
+\newlabel{tab:op-formulas}{{3}{18}{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt {in}/\texttt {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$}{table.caption.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{18}{table.caption.11}\protected@file@percent }
+\newlabel{tab:logic-combination}{{4}{18}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}Algorithm Verification}{18}{subsubsection.4.4.3}\protected@file@percent }
+\newlabel{sec:alg-verification}{{4.4.3}{18}{Algorithm Verification}{subsubsection.4.4.3}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Interval Comparison with Risk Score}}{19}{algorithm.1}\protected@file@percent }
+\newlabel{alg:interval-compare}{{1}{19}{Interval Comparison with Risk Score}{algorithm.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{20}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:interval-topologies}{{3}{20}{Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints}{figure.caption.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration.}}{20}{table.caption.14}\protected@file@percent }
+\newlabel{tab:rq1-results}{{5}{20}{Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration}{table.caption.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Evaluation}{20}{section.5}\protected@file@percent }
+\newlabel{sec:evaluation}{{5}{20}{Evaluation}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Research Questions}{20}{subsection.5.1}\protected@file@percent }
+\citation{numscout}
+\citation{flyinointment}
+\citation{exploitablebugs}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Experimental Setup}{21}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:setup}{{5.2}{21}{Experimental Setup}{subsection.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Benchmark dataset composition (89 instances).}}{22}{table.caption.16}\protected@file@percent }
+\newlabel{tab:dataset}{{6}{22}{Benchmark dataset composition (89 instances)}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}RQ1: Mitigation}{22}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:rq1}{{5.3}{22}{RQ1: Mitigation}{subsection.5.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Limitation breakdown for the 55 \textit  {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph  {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}}{24}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:rq1-limitations}{{4}{24}{Limitation breakdown for the 55 \textit {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5)}{figure.caption.17}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements).}}{26}{table.caption.19}\protected@file@percent }
+\newlabel{tab:rq1-annotations}{{7}{26}{Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements)}{table.caption.19}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time.}}{27}{table.caption.21}\protected@file@percent }
+\newlabel{tab:rq1-timing}{{8}{27}{Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time}{table.caption.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}RQ2: Annotation Model Expressibility}{27}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:rq2}{{5.4}{27}{RQ2: Annotation Model Expressibility}{subsection.5.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces RQ2 expressibility classification of the 34 L4--L5 cases. ``Inexpressible'' = no annotation can yield a non-\textit  {Satisfied} verdict even with bug awareness (the L4 family). ``Strong'' = the annotation states the correct value or relation directly. ``Weak'' = the annotation captures only that the expected change did or did not occur, providing an awareness signal without encoding the correct value.}}{28}{table.caption.23}\protected@file@percent }
+\newlabel{tab:rq2-tiers}{{9}{28}{RQ2 expressibility classification of the 34 L4--L5 cases. ``Inexpressible'' = no annotation can yield a non-\textit {Satisfied} verdict even with bug awareness (the L4 family). ``Strong'' = the annotation states the correct value or relation directly. ``Weak'' = the annotation captures only that the expected change did or did not occur, providing an awareness signal without encoding the correct value}{table.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}RQ3: Comparison with Existing Detection Tools}{30}{subsection.5.5}\protected@file@percent }
+\newlabel{sec:rq3}{{5.5}{30}{RQ3: Comparison with Existing Detection Tools}{subsection.5.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6}Threats to Validity}{30}{subsection.5.6}\protected@file@percent }
+\newlabel{sec:threats}{{5.6}{30}{Threats to Validity}{subsection.5.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{30}{section.6}\protected@file@percent }
+\newlabel{sec:discussion}{{6}{30}{Discussion}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Annotation Authoring Burden and Future Automation}{30}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:disc:burden}{{6.1}{30}{Annotation Authoring Burden and Future Automation}{subsection.6.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Remaining Technical Limitations}{31}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:disc:tech}{{6.2}{31}{Remaining Technical Limitations}{subsection.6.2}{}}
 \citation{highguard}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces RQ1 validation algorithm soundness: brute-force verification results by topological configuration. Each row aggregates 5 width profiles $\times $ 8 operators = 40 test cases.}}{15}{table.caption.14}\protected@file@percent }
-\newlabel{tab:rq1-results}{{5}{15}{RQ1 validation algorithm soundness: brute-force verification results by topological configuration. Each row aggregates 5 width profiles $\times $ 8 operators = 40 test cases}{table.caption.14}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Related Works}{15}{section.6}\protected@file@percent }
-\newlabel{sec:related}{{6}{15}{Related Works}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Numeric Logic Error Detection in Solidity}{15}{subsection.6.1}\protected@file@percent }
 \citation{smartpulse}
 \citation{consolidating}
 \citation{smartinv}
 \citation{exploitablebugs}
 \citation{accountingerrors}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{32}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{32}{Related Works}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{32}{subsection.7.1}\protected@file@percent }
 \citation{defiranger,defiguard,pomabuster,secplf,defitainter}
 \citation{defitail,midnight}
+\citation{accountingerrors}
 \citation{scribble}
 \citation{mythx}
 \citation{mythril}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Specification-based Smart Contract Verification}{16}{subsection.6.2}\protected@file@percent }
 \citation{smartace}
 \citation{scribble}
 \citation{seahorn}
@@ -92,12 +134,15 @@
 \citation{klee}
 \citation{idealist}
 \citation{solvent}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{33}{subsection.7.2}\protected@file@percent }
 \citation{making}
 \citation{oyente}
 \citation{mythril}
 \citation{securify}
 \citation{solhint}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Tools for Strengthening Security During Development Phase}{17}{subsection.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Tools for Strengthening Security During Development Phase}{34}{subsection.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{34}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{34}{Conclusion}{section.8}{}}
 \bibcite{secplf}{{1}{2024}{{Arora et~al.}}{{}}}
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
@@ -110,8 +155,6 @@
 \bibcite{seahorn}{{10}{2015}{{Gurfinkel et~al.}}{{}}}
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
 \bibcite{defitainter}{{12}{2023}{{Kong et~al.}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{18}{section.7}\protected@file@percent }
-\newlabel{sec:conclusion}{{7}{18}{Conclusion}{section.7}{}}
 \bibcite{defitail}{{13}{2025}{{Li et~al.}}{{}}}
 \bibcite{libfuzzer}{{14}{2025}{{LLVM}}{{}}}
 \bibcite{oyente}{{15}{2016}{{Luu et~al.}}{{}}}
@@ -135,4 +178,4 @@
 \bibcite{exploitablebugs}{{33}{2023}{{Zhang et~al.}}{{}}}
 \bibcite{dappscan}{{34}{2024}{{Zheng et~al.}}{{}}}
 \bibcite{defiattacks}{{35}{2023}{{Zhou et~al.}}{{}}}
-\gdef \@abspage@last{20}
+\gdef \@abspage@last{38}

@@ -20,7 +20,7 @@
     "rules_types_for_step_2": 0,
     "rules_types_for_static": 0,
     "rules_types_after_static": 0,
-    "used_time": 0.7309670448303223,
+    "used_time": 0.8602108955383301,
     "vul_before_static": 0,
     "vul_after_static": 0,
     "vul_after_merge": 0,

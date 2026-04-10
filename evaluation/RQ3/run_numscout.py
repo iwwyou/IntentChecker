@@ -56,19 +56,28 @@ def flatten_sol(contest_number: str, project_root: str, target_sol: str, solc_ve
     flat_file = WORK_DIR / f"{Path(target_sol).stem}_flat.sol"
 
     env = os.environ.copy()
-    env["INFURA_ID"] = "dummy"
-    env["MNEMONIC_TEST"] = "test test test test test test test test test test test junk"
-    env["ALCHEMY_API_KEY"] = "dummy"
-    env["PRIVATE_KEY"] = "0x0000000000000000000000000000000000000000000000000000000000000001"
-    env["ETHERSCAN_API_KEY"] = "dummy"
-    env["PYTHONUTF8"] = "1"
+    dummy_vars = {
+        "INFURA_ID": "dummy", "INFURA_KEY": "dummy", "INFURA_API_KEY": "dummy",
+        "ALCHEMY_API_KEY": "dummy", "ALCHEMY_KEY": "dummy", "ALCHEMY_URL": "https://dummy",
+        "MNEMONIC": "test test test test test test test test test test test junk",
+        "MNEMONIC_TEST": "test test test test test test test test test test test junk",
+        "PRIVATE_KEY": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "DEPLOYER_PRIVATE_KEY": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "ETHERSCAN_API_KEY": "dummy", "COINMARKETCAP_API_KEY": "dummy",
+        "DEV": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "DEV_BOT": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "REF": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "kovan": "https://kovan.infura.io/v3/dummy",
+        "PYTHONUTF8": "1",
+    }
+    env.update(dummy_vars)
 
     # Try hardhat flatten
     try:
         result = subprocess.run(
-            ["npx", "hardhat", "flatten", rel_sol],
+            ["npx.cmd", "hardhat", "flatten", rel_sol],
             cwd=str(web3bugs_project),
-            capture_output=True, timeout=120, env=env
+            capture_output=True, timeout=180, env=env, shell=True
         )
         if result.returncode == 0 and len(result.stdout) > 100:
             content = result.stdout.decode("utf-8", errors="replace")

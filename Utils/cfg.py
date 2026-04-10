@@ -392,18 +392,26 @@ class ContractCFG(CFG):
             return "(" + ",".join(fcfg.parameter_types) + ")"
         return "()"
     
-    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):
+    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None, prepend: bool = False):
         """
         using directive 처리: using LibraryName for TargetType;
         target_type이 None이면 모든 타입에 적용 (using LibraryName for *;)
+        prepend=True이면 리스트 앞에 삽입 (명시적 선언이 상속보다 우선)
         """
         if target_type is None:
-            self.using_all_libraries.append(library_cfg)
+            if library_cfg not in self.using_all_libraries:
+                if prepend:
+                    self.using_all_libraries.insert(0, library_cfg)
+                else:
+                    self.using_all_libraries.append(library_cfg)
         else:
             if target_type not in self.using_libraries:
                 self.using_libraries[target_type] = []
             if library_cfg not in self.using_libraries[target_type]:
-                self.using_libraries[target_type].append(library_cfg)
+                if prepend:
+                    self.using_libraries[target_type].insert(0, library_cfg)
+                else:
+                    self.using_libraries[target_type].append(library_cfg)
 
     def find_library_function(self, target_type: str, function_name: str, param_types=None, n_args: int = None) -> 'FunctionCFG':
         """
@@ -765,15 +773,23 @@ class LibraryCFG(CFG):
         else:
             raise ValueError(f"Struct {struct_def_name} is not defined in library {self.library_name}.")
 
-    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None):
-        """라이브러리 내 using directive 처리"""
+    def add_using_library(self, library_cfg: 'LibraryCFG', target_type: str = None, prepend: bool = False):
+        """라이브러리 내 using directive 처리
+        prepend=True이면 리스트 앞에 삽입 (명시적 선언이 상속보다 우선)"""
         if target_type is None:
-            self.using_all_libraries.append(library_cfg)
+            if library_cfg not in self.using_all_libraries:
+                if prepend:
+                    self.using_all_libraries.insert(0, library_cfg)
+                else:
+                    self.using_all_libraries.append(library_cfg)
         else:
             if target_type not in self.using_libraries:
                 self.using_libraries[target_type] = []
             if library_cfg not in self.using_libraries[target_type]:
-                self.using_libraries[target_type].append(library_cfg)
+                if prepend:
+                    self.using_libraries[target_type].insert(0, library_cfg)
+                else:
+                    self.using_libraries[target_type].append(library_cfg)
 
     def update_function_cfg(self, function_name, function_cfg):
         """기존에 등록된 함수의 CFG를 동일 signature로 업데이트"""

@@ -20,7 +20,7 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 | L1a | `loop-widening` | 루프 내 `+=` 등 누적 연산에 fixpoint iteration 시 widening 적용 → Top/∞. 버기 값과 정상 값이 모두 widened range에 포함되어 구분 불가. precision loss가 루프 내 누적 연산에서 발생하는 경우도 포함 | web3bugs_34_H_01, web3bugs_52_H_04, web3bugs_52_H_34, web3bugs_59_H_04, web3bugs_70_H_03, web3bugs_70_H_04, web3bugs_70_H_05, web3bugs_3_H_04 |
 | L1b | `loop-body-granularity` | IntentChecker가 루프 내부를 line-by-line 분석하지 않고 fixpoint만 계산. 루프 바디 내 특정 지점에 annotation을 배치해야 탐지 가능하나, 현재 구조에서는 불가 | web3bugs_45_H_02, web3bugs_71_H_11 |
 | L2 | `cross-deployment-call-top` | 별도 deployment된 외부 컨트랙트에 대한 호출 시, callee의 storage state가 annotation scope 밖 → 반환값 Top. 아래 두 하위 유형으로 구분 | - |
-| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top. state-modifying interface call은 @IReturn 적용 불가 | web3bugs_5_H_15, numscout_EthereumGod |
+| L2a | `interface-call-return-top` | L2의 하위 유형. Interface를 통한 호출로 구현 코드 자체가 없음 → 반환값 Top. state-modifying interface call은 @IReturn 적용 불가 | web3bugs_5_H_15, web3bugs_42_H_01, numscout_EthereumGod |
 | L2b | `external-call-state-unknown` | L2의 하위 유형. 구현 코드는 import로 존재하나, 외부 컨트랙트의 런타임 state를 모름 → 반환값 Top | web3bugs_3_H_05 |
 | L3 | `unsupported-construct-top` | 분석 엔진이 지원하지 않는 언어 구조(abi.decode, inline assembly, keccak256 등)로 인해 관련 변수가 Top이 되어 buggy/correct 구분 불가. L1(loop), L2(cross-deployment)와 독립적인 별도 Top 발생 원인 | web3bugs_35_H_08, web3bugs_8_H_03, web3bugs_16_H_04, web3bugs_16_H_06, web3bugs_29_H_08, web3bugs_29_H_11, web3bugs_44_H_02 |
 
@@ -28,12 +28,14 @@ IntentChecker로 탐지 불가능한 케이스들의 한계 유형을 정의하�
 
 | ID | Limitation Type | 설명 | 해당 케이스 |
 |----|----------------|------|------------|
-| L4 | `annotation-inexpressible` | annotation을 구조적으로 표현할 수 없는 케이스. 아래 하위 유형으로 구분 | - |
-| L4a | `inexpressible-expected-value` | L4의 하위 유형. 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값을 구하려면 현재 코드에 존재하지 않는 새로운 중간 계산이 필요 | web3bugs_25_H_05, web3bugs_29_H_05, web3bugs_39_H_02, web3bugs_51_H_04, web3bugs_51_H_06, web3bugs_25_H_01, web3bugs_61_H_01, web3bugs_61_H_04 |
-| L4b | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음 | web3bugs_83_H_02 |
-| L5 | `bug-awareness-required` | annotation 표현은 가능하나, 올바른 annotation을 구성하려면 버그를 이미 인지하고 있어야 함. 아래 두 하위 유형으로 구분 | - |
-| L5a | `missing-code` | L5의 하위 유형. 있어야 할 코드(함수 호출, state update 등)가 누락됨. Post-condition으로 표현 가능하나, 무엇이 누락되었는지 아는 것 자체가 버그 인지를 전제 | web3bugs_83_H_01, web3bugs_35_H_10, web3bugs_35_H_12, web3bugs_36_H_02, web3bugs_62_H_03, web3bugs_62_H_10, web3bugs_65_H_01, web3bugs_192_H_01, web3bugs_52_H_23, web3bugs_58_H_04, web3bugs_61_H_02, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_110_H_01, web3bugs_17_H_02 |
-| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드·순서 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_52_H_15, web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_52_H_16, web3bugs_79_H_02, web3bugs_101_H_02, web3bugs_59_H_05, web3bugs_70_H_09, web3bugs_112_H_01 |
+| L4 | `annotation-inexpressible` | annotation을 구조적으로 표현할 수 없는 케이스. 버그 인지(awareness)가 있어도 표현 불가. 아래 하위 유형으로 구분 | - |
+| L4a | `inexpressible-expected-value` | L4의 하위 유형. 올바른 값을 프로그램 내 기존 변수들의 산술 조합으로 표현할 수 없음. 올바른 값이 외부 contract state, 함수 호출, 또는 새로운 중간 계산에 의존 | web3bugs_25_H_05, web3bugs_29_H_05, web3bugs_39_H_02, web3bugs_51_H_04, web3bugs_51_H_06, web3bugs_25_H_01, web3bugs_61_H_01, web3bugs_61_H_04, web3bugs_61_H_02, web3bugs_59_H_05 |
+| L4b | `no-target-storage` | L4의 하위 유형. 버기 함수가 target contract의 storage variable을 변경하지 않아 intent annotation을 부착할 대상이 없음. View 함수, state-modifying이 없는 함수, library 등 포함 | web3bugs_83_H_02, web3bugs_62_H_01, web3bugs_70_H_08, web3bugs_52_H_15, web3bugs_58_H_04, web3bugs_110_H_01, web3bugs_17_H_02, web3bugs_52_H_16 |
+| L4c | `magnitude-only-difference` | L4의 하위 유형. State variable이 buggy/correct 모두에서 동일 방향으로 변경되며, 차이는 변경 크기(magnitude)뿐. `changed()` / `Entry op Exit`로 buggy/correct 구분 불가 | web3bugs_35_H_10 |
+| L4d | `invariant-masked` | L4의 하위 유형. 동일 함수 내 다른 코드가 이미 target 변수를 변경하여 `changed()`/PostEntryExit가 buggy/correct 모두에서 satisfied. Product invariant 등 다중 변수 산술 관계가 필요하나 PostEntryExit에서 산술식 미지원 | web3bugs_36_H_02 |
+| L5 | `bug-awareness-required` | annotation의 표현은 가능하나, 올바른 annotation을 구성하려면 버그를 이미 인지하고 있어야 함. Bug 인지가 전제될 경우 IntentChecker가 *awareness signal*(Violated 또는 Warning)을 제공할 수 있는 케이스. 아래 두 하위 유형으로 구분 | - |
+| L5a | `missing-code` | L5의 하위 유형. 있어야 할 코드(함수 호출, state update 등)가 누락됨. Post-condition으로 표현 가능하나, 무엇이 누락되었는지 아는 것 자체가 버그 인지를 전제 | web3bugs_83_H_01, web3bugs_35_H_12, web3bugs_62_H_03, web3bugs_62_H_10, web3bugs_65_H_01, web3bugs_192_H_01, web3bugs_52_H_23 |
+| L5b | `wrong-code` | L5의 하위 유형. 코드는 존재하나 잘못된 식별자·연산자·필드·순서 등을 사용. 올바른 값을 annotation하려면 정확한 의미를 알아야 하며, 그 지식이 있었으면 버그 자체가 발생하지 않았을 것 → 버그 인지 전제 | web3bugs_113_H_05, web3bugs_35_H_11, web3bugs_31_H_01, web3bugs_79_H_02, web3bugs_101_H_02, web3bugs_70_H_09, web3bugs_112_H_01 |
 
 ---
 
@@ -154,6 +156,40 @@ return getY(self, tokenIndexFrom, tokenIndexTo, x, xp, aNew, d);
 #### L4b: no-target-storage
 
 버기 함수가 target contract의 storage variable을 변경하지 않고 파라미터 계산이나 return 값만 관여하는 경우, intent annotation을 부착할 대상이 없다. IntentChecker의 intent annotation은 target contract의 storage variable 변경을 기준으로 올바름을 검증하므로, storage 변경이 없으면 검증 자체가 불가.
+
+다음 두 패턴이 포함된다:
+- **View 함수**: 함수 시그니처에 `view`/`pure`가 있어 storage 수정 자체가 불가능. 예: `web3bugs_58_H_04` (`AaveVault.tvl`), `web3bugs_110_H_01` (`StakedCitadel.balance`), `web3bugs_17_H_02` (`Buoy3Pool.safetyCheck`), `web3bugs_52_H_16` (`VaderRouter.calculateOutGivenIn`).
+- **State-modifying이 없는 일반 함수**: 함수 본문에 storage write가 없거나, 외부 컨트랙트에 대한 호출만 수행. 예: `web3bugs_83_H_02` (`MasterChef.deposit`), `web3bugs_62_H_01` (`Stream.recoverTokens`), `web3bugs_70_H_08` (`VaderReserve.reimburseImpermanentLoss`), `web3bugs_52_H_15` (`VaderRouter._swap`).
+
+#### L4c: magnitude-only-difference
+
+State variable이 buggy/correct 모두에서 동일 방향으로 변경되며, 차이는 변경 크기(magnitude)뿐. `changed(var, true)` / `Entry op Exit` annotation은 buggy/correct 모두에서 동일하게 satisfied되어 구분 불가. PostEntryExit에서 산술 표현(`Entry - Exit == expected_magnitude`)이 미지원이므로 magnitude 자체를 비교할 방법이 없음.
+
+**예시** (`web3bugs_35_H_10` — `ConcentratedLiquidityPool.burn`):
+```solidity
+// Buggy
+reserve0 -= uint128(amount0fees);   // 감소 방향
+// Correct
+reserve0 -= uint128(amount0);        // 동일하게 감소 방향, 크기만 다름
+```
+- `@Post reserve0(Entry > Exit)`: buggy/correct 모두 satisfied
+- `@Post changed(reserve0, true)`: 동일하게 satisfied
+- 차이는 `amount0fees` vs `amount0`의 크기뿐, 표현 불가
+
+#### L4d: invariant-masked
+
+동일 함수 내 다른 코드가 이미 target 변수를 변경하여 `changed()`/PostEntryExit가 buggy/correct 모두에서 satisfied. 버그를 감지하려면 multiple state variables 간의 product invariant 같은 다중 변수 산술 관계가 필요하나, PostEntryExit에서는 산술식이 미지원.
+
+**예시** (`web3bugs_36_H_02` — `Basket.auctionBurn`):
+```solidity
+function auctionBurn(uint256 amount) external {
+    handleFees();              // ibRatio 갱신 (특정 분기에서)
+    _burn(msg.sender, amount); // totalSupply 감소
+    // Bug: ibRatio가 totalSupply 감소에 비례하여 추가로 갱신되어야 하나 누락
+}
+```
+- `changed(ibRatio, true)`: handleFees가 이미 ibRatio를 변경한 상태라 buggy에서도 satisfied
+- 필요한 invariant: `ibRatio * totalSupply(Entry == Exit)` (product 보존), 그러나 PostEntryExit에서 산술 표현 미지원
 
 ### L5: bug-awareness-required
 

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  3 MAR 2026 18:32
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  10 APR 2026 15:39
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1186,24 +1186,6 @@ Package: listings 2024/09/23 1.10c (Carsten Heinz)
  (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/comment\comment.sty
 \CommentStream=\write4
 Excluding comment 'comment')
-
-main.tex:42: LaTeX Error: Option clash for package natbib.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.42 \newcolumntype
-                   {L}{>{\raggedright\arraybackslash}X}
-The package natbib has already been loaded with options:
-  [authoryear]
-There has now been an attempt to load it with options
-  [authoryear,round]
-Adding the global options:
-  authoryear,authoryear,round
-to your \documentclass declaration may fix this.
-Try typing  <return>  to proceed.
-
 \c@theorem=\count374
 \c@example=\count375
 \c@remark=\count376
@@ -1217,24 +1199,24 @@ File: l3backend-pdftex.def 2025-06-09 L3 backend support: PDF output (pdfTeX)
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
 \openout1 = `main.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 104.
-LaTeX Font Info:    ... okay on input line 104.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 105.
+LaTeX Font Info:    ... okay on input line 105.
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
 *geometry* verbose mode - [ preamble ] result:
@@ -1296,13 +1278,13 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 cfg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
-LaTeX Info: Redefining \S on input line 104.
-LaTeX Font Info:    Redeclaring symbol font `AMSa' on input line 104.
+LaTeX Info: Redefining \S on input line 105.
+LaTeX Font Info:    Redeclaring symbol font `AMSa' on input line 105.
 LaTeX Font Info:    Overwriting symbol font `AMSa' in version `normal'
-(Font)                  U/msa/m/n --> U/msa/m/n on input line 104.
+(Font)                  U/msa/m/n --> U/msa/m/n on input line 105.
 LaTeX Font Info:    Overwriting symbol font `AMSa' in version `bold'
-(Font)                  U/msa/m/n --> U/msa/m/n on input line 104.
-Package hyperref Info: Link coloring ON on input line 104.
+(Font)                  U/msa/m/n --> U/msa/m/n on input line 105.
+Package hyperref Info: Link coloring ON on input line 105.
 
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.out)
@@ -1314,273 +1296,52 @@ Package caption Info: float package is loaded.
 Package caption Info: listings package is loaded.
 Package caption Info: End \AtBeginDocument code.
 \c@lstlisting=\count385
-LaTeX Font Info:    Calculating math sizes for size <12.045> on input line 134.
+LaTeX Font Info:    Calculating math sizes for size <12.045> on input line 135.
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 134
+LaTeX Font Info:    Trying to load font information for U+msa on input line 135
 .
 (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 134
+LaTeX Font Info:    Trying to load font information for U+msb on input line 135
 .
 
 (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
 LaTeX Font Info:    Trying to load font information for U+rsfs on input line 13
-4.
+5.
 
 (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/jknappen\ursfs.fd
 File: ursfs.fd 1998/03/24 rsfs font definition file (jk)
 )
 
 LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <8.43146> not available
-(Font)              size <8> substituted on input line 134.
+(Font)              size <8> substituted on input line 135.
 
 LaTeX Font Info:    Trying to load font information for U+stmry on input line 1
-34.
+35.
 (C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/stmaryrd\ustmry.fd)
 
 LaTeX Font Warning: Font shape `U/stmry/b/n' undefined
-(Font)              using `U/stmry/m/n' instead on input line 134.
+(Font)              using `U/stmry/m/n' instead on input line 135.
 
 
 LaTeX Font Warning: Font shape `U/stmry/b/n' in size <8.43146> not available
-(Font)              size <8> substituted on input line 134.
+(Font)              size <8> substituted on input line 135.
 
 LaTeX Font Info:    Calculating math sizes for size <11.04124> on input line 13
-4.
+5.
 
 LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <5.52061> not available
-(Font)              size <6> substituted on input line 134.
+(Font)              size <6> substituted on input line 135.
 
 
 LaTeX Font Warning: Font shape `U/stmry/b/n' in size <5.52061> not available
-(Font)              size <6> substituted on input line 134.
+(Font)              size <6> substituted on input line 135.
 
 LaTeX Font Info:    Calculating math sizes for size <10.03749> on input line 13
-4.
-LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 155.
-
-LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 155.
-
-
-LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 155.
-
-main.tex:155: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:155: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:155: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:155: Missing \endgroup inserted.
-<inserted text> 
-                \endgroup 
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:155: Missing } inserted.
-<inserted text> 
-                }
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-main.tex:155: LaTeX Error: \begin{threeparttable} on input line 137 ended by \e
-nd{tabular}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.155     \end{tabular}}
-                        
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:155: Missing } inserted.
-<inserted text> 
-                }
-l.155     \end{tabular}}
-                        
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-main.tex:155: Package graphics Error: Division by 0.
-
-See the graphics package documentation for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.155     \end{tabular}}
-                        
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:156: Missing } inserted.
-<inserted text> 
-                }
-l.156 \end{table}
-                 
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:156: Extra }, or forgotten \endgroup.
-\TPT@close ...\unskip \fi \color@endgroup \egroup 
-                                                  
-l.156 \end{table}
-                 
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-main.tex:156: LaTeX Error: \begin{table} on input line 137 ended by \end{threep
-arttable}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.156 \end{table}
-                 
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-
-main.tex:156: LaTeX Error: \begin{document} ended by \end{center}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.156 \end{table}
-                 
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:156: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.156 \end{table}
-                 
-Things are pretty mixed up, but I think the worst is over.
-
-main.tex:156: Too many }'s.
-\@endfloatbox ...pagefalse \outer@nobreak \egroup 
-                                                  \color@endbox 
-l.156 \end{table}
-                 
-You've closed more groups than you opened.
-Such booboos are generally harmless, so keep going.
-
-main.tex:156: Extra \endgroup.
-\color@endgroup ->\endgraf \@endpefalse \endgroup 
-                                                  
-l.156 \end{table}
-                 
-Things are pretty mixed up, but I think the worst is over.
-
-main.tex:156: Too many }'s.
-\color@endbox ->\color@endgroup \egroup 
-                                        
-l.156 \end{table}
-                 
-You've closed more groups than you opened.
-Such booboos are generally harmless, so keep going.
-
-
-main.tex:156: LaTeX Error: \begin{document} ended by \end{tableorg}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.156 \end{table}
-                 
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:156: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.156 \end{table}
-                 
-Things are pretty mixed up, but I think the worst is over.
-
-
-main.tex:156: LaTeX Error: \begin{document} ended by \end{table}.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.156 \end{table}
-                 
-Your command was ignored.
-Type  I <command> <return>  to replace it with another command,
-or  <return>  to continue without it.
-
-main.tex:156: Extra \endgroup.
-\end  ...end#1\endcsname \@checkend {#1}\endgroup 
-                                                  \UseHook {env/#1/after}\if...
-l.156 \end{table}
-                 
-Things are pretty mixed up, but I think the worst is over.
-
+5.
 
 
 
@@ -1589,9 +1350,10 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
  [1
 
 {C:/Users/isjeon/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
-
-LaTeX Warning: Reference `tab:variable_distribution' on page 2 undefined on inp
-ut line 181.
+Underfull \hbox (badness 3735) in paragraph at lines 143--148
+[]\OT1/cmr/m/n/10 Several recent tools---most notably Num-Scout ([][]Chen et al
+.[][], [][]2025[][]) and
+ []
 
 
 
@@ -1609,12 +1371,6 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [4]
-<figure/architecture.png, id=217, 1174.278pt x 466.689pt>
-File: figure/architecture.png Graphic file (type png)
-<use figure/architecture.png>
-Package pdftex.def Info: figure/architecture.png  used on input line 333.
-(pdftex.def)             Requested size: 372.0pt x 147.84097pt.
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1624,11 +1380,12 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [6 <./figure/architecture.png>]
-Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
-nput line 378.
-LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <7> not available
-(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 380.
+ [6]
+Underfull \hbox (badness 3919) in paragraph at lines 328--330
+\OT1/cmr/m/n/10 This section reviews the parts of \OT1/cmr/m/sc/10.03749 SolQDe
+-bug \OT1/cmr/m/n/10 ([][]Jeon et al.[][], [][]2025[][]) that
+ []
+
 
 
 
@@ -1641,26 +1398,35 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [8]
 
-LaTeX Warning: Reference `sec:architecture' on page 9 undefined on input line 5
-19.
-
-
-
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [9]
+Underfull \hbox (badness 1117) in paragraph at lines 407--408
+\OT1/cmr/m/n/10 Both pat-terns may tar-get struc-tured return val-ues, includ-i
+ng struct mem-bers
+ []
+
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [10]
-Overfull \hbox (6.29893pt too wide) in paragraph at lines 623--644
- [] 
- []
+LaTeX Font Info:    Trying to load font information for OMS+cmtt on input line 
+418.
+LaTeX Font Info:    No file OMScmtt.fd. on input line 418.
 
-Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
-put line 647.
+
+LaTeX Font Warning: Font shape `OMS/cmtt/m/n' undefined
+(Font)              using `OMS/cmsy/m/n' instead
+(Font)              for symbol `textbraceleft' on input line 418.
+
+<figure/architecture.png, id=302, 1174.278pt x 466.689pt>
+File: figure/architecture.png Graphic file (type png)
+<use figure/architecture.png>
+Package pdftex.def Info: figure/architecture.png  used on input line 445.
+(pdftex.def)             Requested size: 372.0pt x 147.84097pt.
 
 
 
@@ -1671,7 +1437,12 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [12]
+ [12 <./figure/architecture.png>]
+Package hyperref Info: bookmark level for unknown lstlisting defaults to 0 on i
+nput line 490.
+LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <7> not available
+(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 492.
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1682,16 +1453,6 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [14]
-LaTeX Font Info:    Trying to load font information for OMS+cmtt on input line 
-957.
-LaTeX Font Info:    No file OMScmtt.fd. on input line 957.
-
-
-LaTeX Font Warning: Font shape `OMS/cmtt/m/n' undefined
-(Font)              using `OMS/cmsy/m/n' instead
-(Font)              for symbol `textbraceleft' on input line 957.
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1702,317 +1463,37 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [16]
+Overfull \hbox (6.29893pt too wide) in paragraph at lines 735--756
+ [] 
+ []
+
+Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
+put line 759.
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [17]
-Underfull \hbox (badness 1112) in paragraph at lines 1057--1058
-[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
-funds against ora-cle
- []
-
-main.tex:1060: Missing $ inserted.
-<inserted text> 
-                $
-l.1060 ...tps://doi.org/10.1007/978-3-031-76554-4_
-                                                  14
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1061: Missing $ inserted.
-<inserted text> 
-                $
-l.1061 
-       
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1061: Missing } inserted.
-<inserted text> 
-                }
-l.1061 
-       
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:1061: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.1061 
-       
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 2221) in paragraph at lines 1063--1064
-[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
-tion of high-coverage
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 1063--1064
-\OT1/cmr/m/n/10 tests for com-plex sys-tems pro-grams. In: OSDI, pp. 209--224 (
-2008).
- []
-
-main.tex:1084: Missing $ inserted.
-<inserted text> 
-                $
-l.1084 ...tps://doi.org/10.1007/978-3-319-21690-4_
-                                                  20
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1085: Missing $ inserted.
-<inserted text> 
-                $
-l.1085 
-       
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1085: Missing } inserted.
-<inserted text> 
-                }
-l.1085 
-       
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-main.tex:1085: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.1085 
-       
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 1552) in paragraph at lines 1090--1091
-[]\OT1/cmr/m/n/10 Kong, Q., et al.: Defi-tain-ter: Detect-ing price manip-u-la-
-tion vul-ner-a-bil-i-ties in defi
- []
-
-
-Underfull \hbox (badness 2762) in paragraph at lines 1090--1091
-\OT1/cmr/m/n/10 pro-to-cols. In: Pro-ceed-ings of the 32nd ACM SIG-SOFT Inter-n
-a-tional Sym-
- []
-
-
-Underfull \hbox (badness 3471) in paragraph at lines 1090--1091
-\OT1/cmr/m/n/10 po-sium on Soft-ware Test-ing and Anal-y-sis (ISSTA), pp. 1144-
--1156 (2023).
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [18]
-main.tex:1102: Missing $ inserted.
-<inserted text> 
-                $
-l.1102 ...tps://doi.org/10.1007/978-981-99-7584-6_
-                                                  2
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1103: Missing $ inserted.
-<inserted text> 
-                $
-l.1103 
-       
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1103: Missing } inserted.
-<inserted text> 
-                }
-l.1103 
-       
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
-
-
-Underfull \hbox (badness 1831) in paragraph at lines 1102--1103
-[]\OT1/cmr/m/n/10 Nguyen, T.D., et al.: An ide-al-ist's approach for smart con-
-tract cor-rect-ness. In:
- []
-
-
-Underfull \hbox (badness 2197) in paragraph at lines 1102--1103
-\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on For-mal Engi-neer-ing Meth-ods,
- pp. 11--28 (2023).
- []
-
-main.tex:1103: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.1103 
-       
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
-
-
-Underfull \hbox (badness 4193) in paragraph at lines 1108--1109
-[]\OT1/cmr/m/n/10 Ramezany, S., Set-tha-wong, R., Set-tha-wong, P.: Mid-night: 
-An Effi-cient Event-
- []
-
-
-Underfull \hbox (badness 3735) in paragraph at lines 1108--1109
-\OT1/cmr/m/n/10 tion. In: Pro-ceed-ings of the 2023 20th Inter-na-tional Joint 
-Con-fer-ence on
- []
-
-
-Underfull \hbox (badness 3590) in paragraph at lines 1108--1109
-\OT1/cmr/m/n/10 Com-puter Sci-ence and Soft-ware Engi-neer-ing (JCSSE), pp. 237
---241 (2023).
- []
-
-
-Underfull \hbox (badness 2050) in paragraph at lines 1120--1121
-\OT1/cmr/m/n/10 bin-ing gpt with pro-gram anal-y-sis. In: Pro-ceed-ings of the 
-IEEE/ACM 46th
- []
-
-
-Underfull \hbox (badness 3219) in paragraph at lines 1120--1121
-\OT1/cmr/m/n/10 Inter-na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE),
- pp. 1--13 (2024).
- []
-
-
-Underfull \hbox (badness 4467) in paragraph at lines 1126--1127
-\OT1/cmr/m/n/10 graph neu-ral net-works. IEEE Trans-ac-tions on Ser-vices Com-p
-ut-ing (2024).
- []
-
-
-Underfull \hbox (badness 1888) in paragraph at lines 1132--1133
-[]\OT1/cmr/m/n/10 Wei, G., et al.: Con-sol-i-dat-ing Smart Con-tracts with Beha
-v-ioral Con-tracts. Pro-
- []
-
-
-Underfull \hbox (badness 1742) in paragraph at lines 1132--1133
-\OT1/cmr/m/n/10 ceed-ings of the ACM on Pro-gram-ming Lan-guages 8(PLDI), 965--
-989 (2024).
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [19]
-main.tex:1135: Missing $ inserted.
-<inserted text> 
-                $
-l.1135 ...tps://doi.org/10.1007/978-3-030-94583-1_
-                                                  21
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1136: Missing $ inserted.
-<inserted text> 
-                $
-l.1136 
-       
-I've inserted a begin-math/end-math symbol since I think
-you left one out. Proceed, with fingers crossed.
-
-main.tex:1136: Missing } inserted.
-<inserted text> 
-                }
-l.1136 
-       
-I've inserted something that you may have forgotten.
-(See the <inserted text> above.)
-With luck, this will get me unwedged. But if you
-really didn't forget anything, try typing `2' now; then
-my insertion and my current dilemma will both disappear.
+LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 960.
 
 
-Underfull \hbox (badness 1527) in paragraph at lines 1135--1136
-[]\OT1/cmr/m/n/10 Wesley, S., et al.: Ver-i-fy-ing Solid-ity smart con-tracts v
-ia com-mu-ni-ca-tion abstrac-
- []
-
-main.tex:1136: Extra }, or forgotten \endgroup.
-\par ...m \@noitemerr {\@@par }\fi \else {\@@par }
-                                                  \fi 
-l.1136 
-       
-I've deleted a group-closing symbol because it seems to be
-spurious, as in `$x}$'. But perhaps the } is legitimate and
-you forgot something else, as in `\hbox{$x}'. In such cases
-the way to recover is to insert both the forgotten and the
-deleted material, e.g., by typing `I$}'.
+LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 960.
 
 
-Underfull \hbox (badness 6016) in paragraph at lines 1138--1139
-[]\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
--tion attacks. IEEE
- []
-
-
-Underfull \hbox (badness 1603) in paragraph at lines 1138--1139
-\OT1/cmr/m/n/10 Trans-ac-tions on Depend-able and Secure Com-put-ing 21(4), 414
-7--4161 (2023).
- []
-
-
-Underfull \hbox (badness 7869) in paragraph at lines 1141--1142
-[]\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
-g Price Ora-cle
- []
-
-
-Underfull \hbox (badness 1817) in paragraph at lines 1141--1142
-\OT1/cmr/m/n/10 Manip-u-la-tion Attacks in Decen-tral-ized Finance. In: Pro-cee
-d-ings of the 2024
- []
-
-
-Underfull \hbox (badness 6332) in paragraph at lines 1141--1142
-\OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
- (2024).
- []
-
-
-Underfull \hbox (badness 2418) in paragraph at lines 1150--1151
-\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 2
-125--2137 (2025).
- []
-
-
-Underfull \hbox (badness 1043) in paragraph at lines 1159--1160
-\OT1/cmr/m/n/10 2023 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 2444-
--2461 (2023).
- []
+LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 960.
 
 
 
@@ -2020,6 +1501,181 @@ Underfull \hbox (badness 1043) in paragraph at lines 1159--1160
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [20]
+Underfull \hbox (badness 10000) in paragraph at lines 984--985
+[]\OT1/cmr/bx/n/10.03749 RQ3 (Com-par-i-son with Exist-ing Detec-tion Tools)\OT
+1/cmr/m/n/10 : How does
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [21]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [22]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [23]
+Underfull \hbox (badness 1292) in paragraph at lines 1129--1130
+\OT1/cmr/m/n/10 and \OT1/cmtt/m/n/10.03749 Entry op Exit \OT1/cmr/m/n/10 both s
+uc-ceed in both ver-sions, and \OT1/cmr/m/sc/10.03749 IntentChecker\OT1/cmr/m/n
+/10 's
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [24]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [25]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [26]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [27]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [28]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [29]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [30]
+Underfull \hbox (badness 1354) in paragraph at lines 1376--1382
+\OT1/cmr/bx/n/10.03749 Non-arithmetic Yul and other unsup-ported Solid-ity con-
+structs. \OT1/cmr/m/n/10 The
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [31]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [32]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [33]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [34]
+Underfull \hbox (badness 1052) in paragraph at lines 1475--1476
+\OT1/cmr/m/n/10 lished inter-ac-tive debug-ger, with three con-tri-bu-tions: (i
+) an intent anno-ta-tion
+ []
+
+
+Underfull \hbox (badness 1112) in paragraph at lines 1500--1501
+[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
+funds against ora-cle
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [35]
+Underfull \hbox (badness 5622) in paragraph at lines 1506--1507
+[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
+tion of high-
+ []
+
+
+Underfull \hbox (badness 1603) in paragraph at lines 1509--1510
+[]\OT1/cmr/m/n/10 Chaliasos, S., et al.: Smart con-tract and defi secu-rity too
+ls: Do they meet
+ []
+
+
+Underfull \hbox (badness 3482) in paragraph at lines 1509--1510
+\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 1
+--13 (2024).
+ []
+
+
+Underfull \hbox (badness 1442) in paragraph at lines 1515--1516
+[]\OT1/cmr/m/n/10 Consensys Dili-gence: Mythril. [][]$https : / / github . com 
+/ ConsenSysDiligence / mythril$[][]
+ []
+
+
+Underfull \hbox (badness 1867) in paragraph at lines 1524--1525
+\OT1/cmr/m/n/10 con-tracts. In: Pro-ceed-ings of the 39th IEEE/ACM Inter-na-tio
+nal Con-fer-
+ []
+
+
+Underfull \hbox (badness 2221) in paragraph at lines 1524--1525
+\OT1/cmr/m/n/10 ence on Auto-mated Soft-ware Engi-neer-ing (ASE), pp. 2378--238
+1 (2024).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [36]
+Underfull \hbox (badness 2005) in paragraph at lines 1581--1582
+[]\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
+-tion attacks. IEEE
+ []
+
+
+Underfull \hbox (badness 2573) in paragraph at lines 1584--1585
+[]\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
+g Price Ora-cle
+ []
+
+
+Underfull \hbox (badness 1867) in paragraph at lines 1584--1585
+\OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
+ (2024).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [37]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [38]
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\auxil\main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
@@ -2032,20 +1688,17 @@ LaTeX Font Warning: Size substitutions with differences
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
-
-LaTeX Warning: There were undefined references.
-
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 5C10C3149AB245CD74BCC683435108F2;5299.
+(rerunfilecheck)             Checksum: 862F16160E54CC8764D616C138153DEA;6791.
  ) 
 Here is how much of TeX's memory you used:
- 27182 strings out of 468081
- 490879 string characters out of 5425304
- 890443 words of memory out of 5000000
- 55260 multiletter control sequences out of 15000+600000
- 661449 words of font info for 172 fonts, out of 8000000 for 9000
+ 27364 strings out of 468081
+ 493959 string characters out of 5425304
+ 889780 words of memory out of 5000000
+ 55408 multiletter control sequences out of 15000+600000
+ 661794 words of font info for 173 fonts, out of 8000000 for 9000
  1151 hyphenation exceptions out of 8191
- 90i,13n,93p,543b,1208s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,13n,93p,983b,1208s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\isjeon\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi602\tcr
 m1000.pk><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
 onts/cm/cmbx10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/p
@@ -2057,31 +1710,29 @@ ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/i
 sjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C
 :/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmm
 i7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfon
-ts/cm/cmmi8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publ
-ic/amsfonts/cm/cmmi9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/t
-ype1/public/amsfonts/cm/cmr10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTe
-X/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/isjeon/AppData/Local/Progr
-ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/Users/isjeon/AppData/Lo
-cal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/Users/isjeon/Ap
-pData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/i
-sjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:
-/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9
-.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts
-/cm/cmsy10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publi
-c/amsfonts/cm/cmsy9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/ty
-pe1/public/amsfonts/cm/cmti10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTe
-X/fonts/type1/public/amsfonts/cm/cmti7.pfb><C:/Users/isjeon/AppData/Local/Progr
-ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmti8.pfb><C:/Users/isjeon/AppData/Lo
-cal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti9.pfb><C:/Users/isjeon/A
-ppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/User
-s/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt8.pfb
-><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/
-cmtt9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/ams
-fonts/symbols/msbm10.pfb>
+ts/cm/cmmi9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publ
+ic/amsfonts/cm/cmr10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/t
+ype1/public/amsfonts/cm/cmr12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTe
+X/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/Users/isjeon/AppData/Local/Progr
+ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/Users/isjeon/AppData/Loc
+al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/isjeon/App
+Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/is
+jeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/
+Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy1
+0.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
+s/cm/cmsy9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publi
+c/amsfonts/cm/cmti10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/t
+ype1/public/amsfonts/cm/cmti7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTe
+X/fonts/type1/public/amsfonts/cm/cmti9.pfb><C:/Users/isjeon/AppData/Local/Progr
+ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/Users/isjeon/AppData/L
+ocal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt8.pfb><C:/Users/isjeon/
+AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb><C:/User
+s/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm
+10.pfb>
 Output written on C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardia
-n\out\main.pdf (20 pages, 643334 bytes).
+n\out\main.pdf (38 pages, 737256 bytes).
 PDF statistics:
- 580 PDF objects out of 1000 (max. 8388607)
- 120 named destinations out of 1000 (max. 500000)
- 250 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 762 PDF objects out of 1000 (max. 8388607)
+ 154 named destinations out of 1000 (max. 500000)
+ 290 words of extra memory for PDF output out of 10000 (max. 10000000)
 

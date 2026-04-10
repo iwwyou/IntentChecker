@@ -23,6 +23,14 @@ import sys
 import time
 from pathlib import Path
 
+# Force stdout/stderr to UTF-8 on Windows (avoids cp949 encoding errors)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 GPTSCAN_SRC = Path("C:/Users/isjeon/GPTScan/src")
@@ -36,37 +44,83 @@ TIMEOUT = 1800  # seconds per case
 
 
 def switch_solc(version: str):
-    """Copy the correct solc binary into the GPTScan venv."""
+    """Copy the correct solc binary into ALL locations where subprocess might find it.
+
+    Python subprocess inherits the parent's PATH, and when run_gptscan.py is invoked
+    from a non-activated shell, the GPTScan venv's Scripts/ is not in PATH. We therefore
+    overwrite solc.exe in every candidate PATH location so the subprocess always picks
+    up the correct version regardless of PATH order.
+    """
     solc_exe = SOLC_ARTIFACTS / f"solc-{version}" / f"solc-{version}.exe"
-    target = Path("C:/Users/isjeon/GPTScan/venv/Scripts/solc.exe")
     if not solc_exe.exists():
         print(f"  [ERROR] solc {version} not found at {solc_exe}")
         return False
-    shutil.copy2(solc_exe, target)
+
+    targets = [
+        Path("C:/Users/isjeon/GPTScan/venv/Scripts/solc.exe"),
+        Path("C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe"),
+    ]
+    for target in targets:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(solc_exe, target)
+        except Exception as e:
+            print(f"  [WARN] failed to copy solc to {target}: {e}")
     return True
+
+
+def disable_foundry_config(project_root: str):
+    """Rename foundry.toml so crytic-compile detects the project as Hardhat, not Foundry.
+
+    crytic-compile's framework detection priority is Foundry > Hardhat. If foundry.toml
+    exists, crytic-compile looks for `out/build-info/` (Foundry output) instead of
+    `artifacts/build-info/` (Hardhat output). Since we use Hardhat to compile all
+    projects for consistency, we need to hide foundry.toml so Hardhat wins detection.
+    """
+    project_dir = WEB3BUGS_DIR / project_root
+    foundry_toml = project_dir / "foundry.toml"
+    disabled = project_dir / "foundry.toml.disabled"
+    if foundry_toml.exists() and not disabled.exists():
+        foundry_toml.rename(disabled)
+        print(f"  [disable-foundry] {foundry_toml} -> foundry.toml.disabled")
 
 
 def compile_hardhat(project_root: str) -> bool:
     """Run hardhat compile on a Web3Bugs project."""
     project_dir = WEB3BUGS_DIR / project_root
+    # Ensure crytic-compile uses Hardhat (not Foundry) for this project
+    disable_foundry_config(project_root)
     artifacts_dir = project_dir / "artifacts"
     if artifacts_dir.exists() and any(artifacts_dir.rglob("*.json")):
         return True  # Already compiled
 
     env = os.environ.copy()
-    env["INFURA_ID"] = "dummy"
-    env["MNEMONIC_TEST"] = "test test test test test test test test test test test junk"
-    env["ALCHEMY_API_KEY"] = "dummy"
-    env["PRIVATE_KEY"] = "0x0000000000000000000000000000000000000000000000000000000000000001"
-    env["ETHERSCAN_API_KEY"] = "dummy"
-    env["PYTHONUTF8"] = "1"
+    # Set common dummy env vars to prevent hardhat config parse errors
+    dummy_vars = {
+        "INFURA_ID": "dummy", "INFURA_KEY": "dummy", "INFURA_API_KEY": "dummy",
+        "ALCHEMY_API_KEY": "dummy", "ALCHEMY_KEY": "dummy", "ALCHEMY_URL": "https://dummy",
+        "MNEMONIC": "test test test test test test test test test test test junk",
+        "MNEMONIC_TEST": "test test test test test test test test test test test junk",
+        "PRIVATE_KEY": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "DEPLOYER_PRIVATE_KEY": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "ETHERSCAN_API_KEY": "dummy", "COINMARKETCAP_API_KEY": "dummy",
+        "DEV": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "DEV_BOT": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "REF": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "kovan": "https://kovan.infura.io/v3/dummy",
+        "PYTHONUTF8": "1",
+    }
+    env.update(dummy_vars)
 
     try:
         result = subprocess.run(
-            ["npx", "hardhat", "compile"],
+            ["npx.cmd", "hardhat", "compile"],
             cwd=str(project_dir),
-            capture_output=True, timeout=120, env=env
+            capture_output=True, timeout=180, env=env, shell=True
         )
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace")[-300:]
+            print(f"  [WARN] hardhat compile error: {stderr.strip()}")
         return result.returncode == 0
     except Exception as e:
         print(f"  [WARN] hardhat compile failed: {e}")
@@ -77,20 +131,105 @@ def run_gptscan(source_dir: str, output_file: str, api_key: str) -> dict:
     """Run GPTScan on a source directory."""
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
+    # Ensure GPTScan venv's Scripts dir (with the current solc.exe) is first in PATH
+    venv_scripts = str(Path("C:/Users/isjeon/GPTScan/venv/Scripts"))
+    env["PATH"] = venv_scripts + os.pathsep + env.get("PATH", "")
 
     start = time.time()
+    # Stream subprocess output line-by-line so GPTScan's internal progress is visible
     try:
-        result = subprocess.run(
-            [str(GPTSCAN_VENV_PYTHON), "main.py",
+        proc = subprocess.Popen(
+            [str(GPTSCAN_VENV_PYTHON), "-u", "main.py",
              "-s", source_dir,
              "-o", output_file,
              "-k", api_key],
             cwd=str(GPTSCAN_SRC),
-            capture_output=True, timeout=TIMEOUT, env=env
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=env, bufsize=1, universal_newlines=True, encoding="utf-8", errors="replace"
         )
-    except subprocess.TimeoutExpired:
+    except Exception as e:
         elapsed = time.time() - start
-        return {"error": "timeout", "time": elapsed}
+        return {"error": f"spawn_failed: {e}", "time": elapsed}
+
+    # Filter noisy lines; only show key progress events
+    import re
+    NOISE_PATTERNS = [
+        r'^\s*[│┌└├┤┬┴─═║╔╗╚╝╠╣╦╩╬]',  # box drawing
+        r'^\s*\|',                         # pipe-bordered content
+        r'^\s*[.oO0@*#]{3,}',              # ASCII art
+        r'^\s*\[04/\d{2}/\d{2}',           # rich log timestamps (already have ours)
+    ]
+    noise_re = re.compile('|'.join(NOISE_PATTERNS))
+    # Important events to show
+    KEEP_PATTERNS = [
+        r'Loaded \d+ rules',
+        r'Compiling',
+        r'Compiled \d+',
+        r'Scanning',
+        r'Starting',
+        r'Summary',
+        r'Error',
+        r'ERROR',
+        r'Exception',
+        r'Traceback',
+        r'Files\s*\|',
+        r'Contracts\s*\|',
+        r'Functions\s*\|',
+        r'Used Time',
+        r'Estimated Cost',
+    ]
+    keep_re = re.compile('|'.join(KEEP_PATTERNS))
+
+    last_heartbeat = start
+    last_activity = start
+    collected_lines = []
+    try:
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                if proc.poll() is not None:
+                    break
+                # No output, check heartbeat
+                now = time.time()
+                if now - last_heartbeat > 30:
+                    print(f"    [heartbeat] elapsed={now - start:.0f}s / timeout={TIMEOUT}s / idle={now - last_activity:.0f}s")
+                    last_heartbeat = now
+                if now - start > TIMEOUT:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                    elapsed = time.time() - start
+                    return {"error": "timeout", "time": elapsed}
+                time.sleep(0.1)
+                continue
+            line = line.rstrip()
+            last_activity = time.time()
+            if line:
+                collected_lines.append(line)
+                # Only print if it's an important event (not noise)
+                if keep_re.search(line) and not noise_re.search(line):
+                    print(f"    > {line[:200]}")
+            # Periodic heartbeat even when output is flowing
+            now = time.time()
+            if now - last_heartbeat > 30:
+                print(f"    [heartbeat] elapsed={now - start:.0f}s / timeout={TIMEOUT}s")
+                last_heartbeat = now
+            # Hard timeout
+            if now - start > TIMEOUT:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                elapsed = time.time() - start
+                return {"error": "timeout", "time": elapsed}
+        proc.wait()
+    except Exception as e:
+        proc.kill()
+        elapsed = time.time() - start
+        return {"error": f"stream_failed: {e}", "time": elapsed}
 
     elapsed = time.time() - start
 
@@ -100,9 +239,8 @@ def run_gptscan(source_dir: str, output_file: str, api_key: str) -> dict:
         data["_elapsed_wall"] = elapsed
         return data
     else:
-        stderr = result.stderr.decode("utf-8", errors="replace")[-500:]
-        stdout = result.stdout.decode("utf-8", errors="replace")[-500:]
-        return {"error": "no_output", "time": elapsed, "stderr": stderr, "stdout": stdout}
+        tail = "\n".join(collected_lines[-10:])
+        return {"error": "no_output", "time": elapsed, "tail": tail}
 
 
 def main():
@@ -110,7 +248,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run GPTScan on RQ3 cases")
     parser.add_argument("--case", help="Run single case by ID")
     parser.add_argument("--source", choices=["numscout", "web3bugs", "all"], default="all")
-    parser.add_argument("--key", help="OpenAI API key", default=os.environ.get("OPENAI_API_KEY", ""))
+    # TODO: Remove this key before committing to public repo
+    _DEFAULT_KEY = "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"
+    parser.add_argument("--key", help="OpenAI API key", default=os.environ.get("OPENAI_API_KEY", _DEFAULT_KEY))
     parser.add_argument("--run", help="Run name (output subdirectory)", default="run1")
     args = parser.parse_args()
 
@@ -146,13 +286,16 @@ def main():
             print(f"[SKIP] {cid} — already has result")
             continue
 
-        print(f"[RUN] {cid} (contract={contract}, solc={solc_ver})")
+        import datetime
+        print(f"[RUN] {cid} (contract={contract}, solc={solc_ver}) @ {datetime.datetime.now().strftime('%H:%M:%S')}")
 
+        print(f"  [1/4] Switching solc to {solc_ver}...")
         if not switch_solc(solc_ver):
             results_summary.append({"case_id": cid, "result": "solc_missing"})
             continue
 
         if source == "numscout":
+            print(f"  [2/4] Preparing single-file input...")
             # Single file -> put in a temp folder
             sol_file = PROJECT_ROOT / case["target_sol_file"]
             if not sol_file.exists():
@@ -168,14 +311,20 @@ def main():
             project_root = case["project_root"]
             source_dir = str(WEB3BUGS_DIR / project_root)
 
-            if project_root not in compiled_projects:
-                print(f"  Compiling {project_root}...")
+            if project_root in compiled_projects:
+                print(f"  [2/4] Using pre-compiled {project_root}")
+            else:
+                print(f"  [2/4] Compiling {project_root} with hardhat...")
+                comp_start = time.time()
                 if compile_hardhat(project_root):
                     compiled_projects.add(project_root)
+                    print(f"  [2/4] Compile OK ({time.time() - comp_start:.1f}s)")
                 else:
-                    print(f"  [WARN] Compile failed, running GPTScan anyway (ANTLR fallback)")
+                    print(f"  [2/4] [WARN] Compile failed, running GPTScan anyway (ANTLR fallback)")
 
+        print(f"  [3/4] Running GPTScan (timeout={TIMEOUT}s)...")
         data = run_gptscan(source_dir, output_file, args.key)
+        print(f"  [4/4] GPTScan done")
 
         if "error" in data:
             t = data.get("time", 0)

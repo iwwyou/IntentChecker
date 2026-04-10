@@ -1,0 +1,20 @@
+[
+  {
+    "case_id": "web3bugs_58_H_02",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 440.2120580673218,
+    "status": "ok"
+  }
+]

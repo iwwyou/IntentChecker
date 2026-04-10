@@ -3,6 +3,34 @@ const jsPsych = initJsPsych({
 });
 
 // ============================================================
+// Inject global stylesheet into <head> so it survives across trials.
+// Putting the <style> tag inside a stimulus would be wiped out when
+// jsPsych replaces #jspsych-content.innerHTML on the next trial.
+// ============================================================
+(function injectGlobalStyles() {
+    var css =
+        '#jspsych-content { max-width: 100% !important; padding: 0 24px; box-sizing: border-box; }' +
+        'body { margin: 0; }' +
+        '.jspsych-btn { white-space: normal; }' +
+        '@media (max-width: 600px) {' +
+        '  #jspsych-content { padding: 0 14px; }' +
+        '  h1 { font-size: 22px; }' +
+        '  h2 { font-size: 18px; }' +
+        '  h3 { font-size: 16px; }' +
+        '  p, li, td, label { font-size: 14px; }' +
+        '  pre { font-size: 11px !important; padding: 12px !important; line-height: 1.45 !important; }' +
+        '  table { font-size: 13px; }' +
+        '  th, td { padding: 8px 6px !important; }' +
+        '  textarea { font-size: 13px !important; }' +
+        '  .jspsych-btn { font-size: 15px; padding: 10px 18px; }' +
+        '}';
+    var styleEl = document.createElement('style');
+    styleEl.setAttribute('data-injected-by', 'intentchecker-survey');
+    styleEl.appendChild(document.createTextNode(css));
+    document.head.appendChild(styleEl);
+})();
+
+// ============================================================
 // IntentChecker Developer Survey
 // RQ4: Evaluating Intent Model's Expressiveness and Usability
 // ============================================================
@@ -354,8 +382,7 @@ var realExamples = [
             '    <span style="color: #569CD6;">uint</span> part4    = (u * u);\n' +
             '    <span style="color: #569CD6;">uint</span> numerator = ((part1 * part2) - part3) + part4;\n' +
             '    <span style="color: #569CD6;">uint</span> part5    = ((U * U) * U);\n' +
-            '    <span style="color: #6A9955;">// @During returnExpression == u*A*(2*U*U - 2*U*u + u*u) / (U*U*U)</span>\n' +
-            '    <span style="color: #C586C0;">return</span> (numerator / part5);\n' +
+            '    <span style="color: #C586C0;">return</span> (numerator / part5); <span style="color: #6A9955;">// @During returnExpression == u*A*(2*U*U - 2*U*u + u*u) / (U*U*U)</span>\n' +
             '}',
         title: 'Real Example 1: Asymmetric Share Formula',
         description: 'From the Vader Protocol audit. The developer implemented a share-of-pool formula and ' +
@@ -373,8 +400,7 @@ var realExamples = [
             '    <span style="color: #569CD6;">uint256</span> _borrowedTokens            = pooledCLConstants[_id].borrowLimit;\n' +
             '    <span style="color: #569CD6;">uint256</span> _totalLiquidityWithdrawable = _borrowedTokens - POOLED_CREDIT_LINE.<span style="color: #DCDCAA;">getPrincipal</span>(_id);\n' +
             '    <span style="color: #569CD6;">uint256</span> _principalWithdrawable      = _totalLiquidityWithdrawable * <span style="color: #DCDCAA;">balanceOf</span>(_lender, _id) / _borrowedTokens;\n' +
-            '    <span style="color: #6A9955;">// @During _principalWithdrawable &lt;= _totalLiquidityWithdrawable</span>\n' +
-            '    <span style="color: #C586C0;">return</span> _principalWithdrawable;\n' +
+            '    <span style="color: #C586C0;">return</span> _principalWithdrawable; <span style="color: #6A9955;">// @During _principalWithdrawable &lt;= _totalLiquidityWithdrawable</span>\n' +
             '}',
         title: 'Real Example 2: Per-Lender Withdrawable Principal',
         description: 'From the Sublime Finance audit. A lending pool computes how much principal a single lender ' +
