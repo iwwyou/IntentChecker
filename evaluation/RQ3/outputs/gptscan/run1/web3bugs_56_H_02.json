@@ -1,0 +1,190 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\governance\\YaxisVotePower.sol",
+                    "range": {
+                        "start": {
+                            "line": 44
+                        },
+                        "end": {
+                            "line": 69
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\controllers\\Controller.sol",
+                    "range": {
+                        "start": {
+                            "line": 375
+                        },
+                        "end": {
+                            "line": 393
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\Vault.sol",
+                    "range": {
+                        "start": {
+                            "line": 146
+                        },
+                        "end": {
+                            "line": 175
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\VaultHelper.sol",
+                    "range": {
+                        "start": {
+                            "line": 27
+                        },
+                        "end": {
+                            "line": 49
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\Vault.sol",
+                    "range": {
+                        "start": {
+                            "line": 268
+                        },
+                        "end": {
+                            "line": 280
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "first-deposit",
+            "severity": "HIGH",
+            "title": "MWE-204: Unsafe First Deposit",
+            "description": "First depositor can break minting of shares or drain the liquidity of all users.",
+            "recommendation": "When totalSupply() == 0, send the first min liquidity LP tokens to the zero address to enable share dilution.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\alchemix\\mocks\\YearnVaultMock.sol",
+                    "range": {
+                        "start": {
+                            "line": 51
+                        },
+                        "end": {
+                            "line": 64
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "first-deposit",
+            "severity": "HIGH",
+            "title": "MWE-204: Unsafe First Deposit",
+            "description": "First depositor can break minting of shares or drain the liquidity of all users.",
+            "recommendation": "When totalSupply() == 0, send the first min liquidity LP tokens to the zero address to enable share dilution.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\alchemix\\mocks\\YearnVaultMock.sol",
+                    "range": {
+                        "start": {
+                            "line": 51
+                        },
+                        "end": {
+                            "line": 64
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\alchemix\\libraries\\alchemist\\AlchemistVault.sol",
+                    "range": {
+                        "start": {
+                            "line": 48
+                        },
+                        "end": {
+                            "line": 57
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\alchemix\\mocks\\YearnVaultMock.sol",
+                    "range": {
+                        "start": {
+                            "line": 66
+                        },
+                        "end": {
+                            "line": 83
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "wrong-order-interest",
+            "severity": "HIGH",
+            "title": "MWE-209: Wrong Order for Interest or ExchangeRate",
+            "description": "Update of interest or exchange rate should be executed before calculating new balance, share, stake, loan or fee.",
+            "recommendation": "Check the business logic and move the statements about updating exchange rate or interest forward.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\56\\contracts\\v3\\converters\\StablesConverter.sol",
+                    "range": {
+                        "start": {
+                            "line": 111
+                        },
+                        "end": {
+                            "line": 165
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

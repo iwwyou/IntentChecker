@@ -1,0 +1,126 @@
+\begin{tikzpicture}[
+    font=\scriptsize,
+    >=Stealth,
+    % Modules: rounded
+    sqd/.style={draw, dashed, rounded corners=3pt, inner sep=3pt,
+                minimum height=0.5cm, align=center, fill=white},
+    new/.style={draw, solid, rounded corners=3pt, inner sep=3pt,
+                minimum height=0.5cm, align=center, fill=black!8},
+    core/.style={draw, solid, line width=0.8pt, rounded corners=3pt,
+                 inner sep=3pt, minimum height=0.5cm, align=center, fill=black!12},
+    % Input/Output: sharp rectangle
+    io/.style={draw, solid, inner sep=3pt, minimum height=0.45cm, align=center, fill=white},
+    % Labels
+    laylab/.style={font=\scriptsize\bfseries, anchor=east},
+    layerbg/.style={draw=black!40, fill=black!3, rounded corners=3pt},
+    arr/.style={->, thick, black!70},
+    subrA/.style={draw=black!50, densely dashed, rounded corners=3pt, inner sep=4pt},
+    subrB/.style={draw=black!50, solid, rounded corners=3pt, inner sep=4pt},
+]
+
+% Y increases downward: Input at top (y=0), Output at bottom (y=8.5)
+
+% ── INPUT (top) ───────────────────────────────────────
+\node[laylab] at (-0.3, 0) {Input};
+\node[io, minimum width=1.8cm] (src)  at (1.5, 0)  {Solidity Source};
+\node[io, minimum width=2.2cm] (dbg)  at (4.3, 0)  {Debug Annotations};
+\node[io, minimum width=2.2cm] (int)  at (7.3, 0)  {Intent Annotations};
+\node[io, minimum width=2.0cm] (dep)  at (10.3, 0) {Dependency CFGs};
+
+% ── LAYER 1: Parsing ──────────────────────────────────
+\node[laylab] at (-0.3, 1.6) {Layer 1};
+\node[sqd, minimum width=2.0cm] (antlr) at (1.8, 1.6) {Solidity Parser};
+\node[sqd, minimum width=2.2cm] (annp)  at (4.8, 1.6) {Annotation Parser};
+\node[new, minimum width=2.2cm] (solc)  at (8.0, 1.6) {Solidity Compiler};
+
+\begin{scope}[on background layer]
+  \node[layerbg, fit=(antlr)(annp)(solc),
+        inner xsep=6pt, inner ysep=6pt] (L1) {};
+\end{scope}
+
+% Input → Layer 1
+\draw[arr] (src)  -- (antlr);
+\draw[arr] (dbg)  -- (annp);
+\draw[arr] (int)  -- (annp);
+
+% ── LAYER 2: Analysis Module ─────────────────────────
+\node[laylab] at (-0.3, 3.8) {Layer 2};
+
+% Sub-region A (SolQDebug)
+\node[sqd, minimum width=2.4cm] (icfg)   at (1.8, 3.2) {Incremental CFG Builder};
+\node[sqd, minimum width=2.4cm] (absint) at (1.8, 3.9) {Abstract Interpreter};
+\node[sqd, minimum width=2.4cm] (snap)   at (1.8, 4.6) {Snapshot Manager};
+
+\begin{scope}[on background layer]
+  \node[subrA, fit=(icfg)(absint)(snap), inner sep=5pt,
+        label={[font=\tiny\itshape, anchor=north west]north west:{SolQDebug}}] (SRA) {};
+\end{scope}
+
+% Sub-region B (New)
+\node[new, minimum width=2.2cm] (c3)   at (5.5, 3.2) {C3 Inheritance};
+\node[new, minimum width=2.2cm] (lib)  at (5.5, 3.9) {Library Handler};
+\node[new, minimum width=2.2cm] (iret) at (5.5, 4.6) {IReturn Resolver};
+\node[new, minimum width=2.2cm] (yul)  at (8.5, 3.2) {Yul Visitor};
+
+\begin{scope}[on background layer]
+  \node[subrB, fit=(c3)(lib)(iret)(yul), inner sep=5pt,
+        label={[font=\tiny\itshape, anchor=north west]north west:{New in IntentChecker}}] (SRB) {};
+\end{scope}
+
+\begin{scope}[on background layer]
+  \node[layerbg, fit=(SRA)(SRB), inner xsep=6pt, inner ysep=8pt,
+        label={[font=\scriptsize\bfseries, anchor=north]north:{Analysis Module}}] (L2) {};
+\end{scope}
+
+% Dependency CFGs → Sub-region B
+\draw[arr] (dep) -- ++(0, 0.8) -| ($(SRB.north east)+(-0.4,0)$);
+
+% Layer 1 → Layer 2
+\draw[arr] (L1.south) -- (L2.north);
+
+% ── LAYER 3: Validation Engine ───────────────────────
+\node[laylab] at (-0.3, 6.4) {Layer 3};
+
+\node[core, minimum width=2.2cm] (cmap) at (2.0, 6.4) {Clause Mapper};
+\node[core, minimum width=2.4cm] (icmp) at (5.5, 6.4) {Interval Comparator};
+\node[core, minimum width=2.0cm] (rsk)  at (8.8, 6.4) {Risk Scorer};
+
+\begin{scope}[on background layer]
+  \node[layerbg, fill=black!6, draw=black!60, line width=0.6pt,
+        fit=(cmap)(icmp)(rsk), inner xsep=6pt, inner ysep=8pt,
+        label={[font=\scriptsize\bfseries, anchor=north]north:{Validation Engine -- Core Contribution}}] (L3) {};
+\end{scope}
+
+\draw[arr] (cmap) -- (icmp);
+\draw[arr] (icmp) -- (rsk);
+
+% Layer 2 → Layer 3
+\draw[arr] ($(L2.south)+(-1.5,0)$) -- ++(0,0.35)
+  node[pos=0.5, right, font=\tiny, text=black!50] {Intent Clauses}
+  -| (cmap.north);
+\draw[arr] ($(L2.south)+(1.5,0)$) -- ++(0,0.35)
+  node[pos=0.5, right, font=\tiny, text=black!50] {Variable Intervals}
+  -| (icmp.north);
+
+% ── OUTPUT (bottom) ──────────────────────────────────
+\node[laylab] at (-0.3, 7.8) {Output};
+
+\node[io, minimum width=2.2cm] (ores) at (2.0, 7.8) {Validation Result};
+\node[io, minimum width=1.8cm] (osc)  at (5.5, 7.8) {Risk Score};
+\node[io, minimum width=2.0cm] (oreg) at (8.8, 7.8) {Violated Region};
+
+\draw[arr] (cmap.south) -- (ores.north);
+\draw[arr] (icmp.south) -- (osc.north);
+\draw[arr] (rsk.south)  -- (oreg.north);
+
+% ── LEGEND ───────────────────────────────────────────
+\draw[dashed, rounded corners=2pt] (10.2, 1.2) rectangle ++(0.4, 0.2);
+\node[anchor=west, font=\tiny] at (10.7, 1.3) {SolQDebug};
+\fill[black!8] (10.2, 0.75) rectangle ++(0.4, 0.2);
+\draw[solid, rounded corners=2pt] (10.2, 0.75) rectangle ++(0.4, 0.2);
+\node[anchor=west, font=\tiny] at (10.7, 0.85) {New};
+\fill[black!12] (10.2, 0.3) rectangle ++(0.4, 0.2);
+\draw[solid, line width=0.8pt, rounded corners=2pt] (10.2, 0.3) rectangle ++(0.4, 0.2);
+\node[anchor=west, font=\tiny] at (10.7, 0.4) {Core};
+
+\end{tikzpicture}

@@ -24,6 +24,7 @@
 \captionsetup{justification=raggedright, singlelinecheck=false}% Left-align all captions by default
 \captionsetup[figure]{justification=centering, singlelinecheck=false}% Center-align figure captions
 \usepackage{tikz}%
+\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta}%
 \usepackage{multirow}%
 \usepackage{booktabs}%
 \usepackage{tabularx}
@@ -414,10 +415,34 @@ Allowing \texttt{@IReturn} on state-modifying calls would let the developer spec
 Restricting \texttt{@IReturn} to view/pure functions avoids this unsoundness: by definition, a view or pure call has no side effects, so binding its return value is a complete description of its observable behavior.
 
 \smallskip
+\noindent\textit{Registration.}
+Algorithm~\ref{alg:process-ireturn} describes how an \texttt{@IReturn} annotation is validated and registered.
+Like \texttt{@StateVar}, \texttt{@LocalVar}, and \texttt{@GlobalVar}, \texttt{@IReturn} annotations are processed as part of the batch annotation phase: the developer writes all debug annotations, and the analyzer then interprets the target function from its start block with all registered values in effect.
+The key difference is the view/pure check (line~4): if the target function is state-modifying, registration is rejected with a diagnostic, preventing the unsound model described above.
+
+\begin{algorithm}[t]
+\caption{ProcessIReturn: Annotation Registration}
+\label{alg:process-ireturn}
+\begin{algorithmic}[1]
+\State \textbf{Input:} annotation $\mathit{contractVar}.\mathit{func}(\,).\mathit{chain} = \mathit{value}$
+\State \textbf{Output:} updated IReturn registry $\mathcal{R}$, or error
+\Statex
+\State $I \gets$ resolve $\mathit{contractVar}$ to its declared interface type
+\If{$I$ is undefined} \Return \textsc{Error}(``not an interface variable'') \EndIf
+\State $f \gets$ look up $\mathit{func}$ in interface $I$
+\If{$f$ is undefined} \Return \textsc{Error}(``function not in interface'') \EndIf
+\If{$f$ is not \texttt{view} or \texttt{pure}}
+    \State \Return \textsc{Error}(``@IReturn restricted to view/pure'')
+\EndIf
+\State $\mathcal{R}[(\mathit{contractVar},\; \mathit{func},\; \mathit{chain})] \gets \mathit{value}$
+\end{algorithmic}
+\end{algorithm}
+
+\smallskip
 \noindent\textit{Resolution at call sites.}
 When the abstract interpreter encounters an interface function call during analysis, it must decide whether to return $\top$ (no information) or a developer-specified value.
 Algorithm~\ref{alg:resolve-ireturn} describes the resolution procedure.
-The key insight is that \texttt{@IReturn} annotations are registered into a per-function registry during the batch annotation phase---alongside \texttt{@StateVar}, \texttt{@LocalVar}, and \texttt{@GlobalVar}---and the resolution occurs as a short-circuit check \emph{before} the interpreter would otherwise default to $\top$.
+The registered entries from Algorithm~\ref{alg:process-ireturn} are looked up as a short-circuit check \emph{before} the interpreter would otherwise default to $\top$.
 Two surface patterns are tried in order: Pattern~A matches by the variable name that holds the interface reference (e.g., \texttt{oracle.getPrice()}), and Pattern~B matches by the explicit interface cast (e.g., \texttt{IOracle(addr).getPrice()}).
 If a match is found, the registered value is assembled---potentially following an access chain for struct members or tuple indices---and returned immediately, preventing $\top$ from propagating into downstream computations.
 
@@ -489,8 +514,8 @@ Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChec
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\linewidth]{figure/architecture.png}
-    \caption{System architecture of IntentChecker.}
+    \resizebox{\linewidth}{!}{\input{figure/architecture_tikz}}
+    \caption{System architecture of IntentChecker. Dashed boxes denote modules reused from \textsc{SolQDebug}; solid boxes denote new components; the thicker-bordered Layer~3 is the core contribution.}
     \label{fig:architecture}
 \end{figure}
 
@@ -1141,85 +1166,7 @@ For instances where no annotation can yield a non-\textit{Satisfied} signal, we 
 \noindent\textbf{Outcomes.}
 Of the 75 effective instances, \textsc{IntentChecker} produces a \textit{Violated} verdict on \textbf{20 cases} when supplied with annotations derived from the audit report.
 The remaining 55 instances are classified as \textit{not\_detectable}: \textsc{IntentChecker} cannot, given the structure of its analysis or its annotation model, surface a non-\textit{Satisfied} signal for them.
-The structural reasons fall into eleven sub-categories grouped into two top-level families, summarized in Figure~\ref{fig:rq1-limitations}.
-
-\begin{figure}[t]
-\centering
-\begin{tikzpicture}[font=\small]
-  % Constants
-  \def\barH{0.45}
-  \def\barGap{0.18}
-  \def\xUnit{0.45}  % cm per case
-  \def\maxCount{10}
-
-  % Group A: analysis-engine (L1-L3) — blue
-  \def\colA{black!55}
-  % Group B: annotation-model (L4-L5) — gray
-  \def\colB{black!25}
-
-  % Bars: (label, count, color, y)
-  \foreach \i/\lab/\val/\col in {%
-    0/L1a/8/\colA,
-    1/L1b/2/\colA,
-    2/L2a/3/\colA,
-    3/L2b/1/\colA,
-    4/L3/7/\colA,
-    5/L4a/10/\colB,
-    6/L4b/8/\colB,
-    7/L4c/1/\colB,
-    8/L4d/1/\colB,
-    9/L5a/7/\colB,
-    10/L5b/7/\colB%
-  } {%
-    \pgfmathsetmacro{\y}{-\i*(\barH+\barGap)}
-    \pgfmathsetmacro{\w}{\val*\xUnit}
-    \node[anchor=east] at (0,\y) {\textbf{\lab}};
-    \fill[\col] (0.15,\y-\barH/2) rectangle (0.15+\w,\y+\barH/2);
-    \node[anchor=west] at (0.18+\w,\y) {\val};
-  }
-
-  % Group brackets
-  \draw[thick] (-1.05,0.32) -- (-1.15,0.32) -- (-1.15,-2.06) -- (-1.05,-2.06);
-  \node[rotate=90, anchor=south] at (-1.25,-0.87) {\scriptsize Analysis-engine (21)};
-  \draw[thick] (-1.05,-2.46) -- (-1.15,-2.46) -- (-1.15,-6.84) -- (-1.05,-6.84);
-  \node[rotate=90, anchor=south] at (-1.25,-4.65) {\scriptsize Annotation-model (34)};
-
-  % X-axis
-  \draw[->] (0.15,-7.25) -- (0.15+11*\xUnit,-7.25);
-  \foreach \x in {0,2,4,6,8,10} {
-    \draw (0.15+\x*\xUnit,-7.20) -- (0.15+\x*\xUnit,-7.30);
-    \node[anchor=north] at (0.15+\x*\xUnit,-7.30) {\scriptsize \x};
-  }
-  \node[anchor=north] at (0.15+5*\xUnit,-7.65) {\scriptsize \# of cases};
-\end{tikzpicture}
-\caption{Limitation breakdown for the 55 \textit{not\_detectable} instances.
-Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover.
-Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph{would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}
-\label{fig:rq1-limitations}
-\end{figure}
-
-\smallskip
-\noindent\textbf{Limitation type definitions.}
-\begin{itemize}
-  \item \textbf{L1a (Loop widening, 8).} Accumulator variables (\texttt{+=}, \texttt{*=}) inside fixpoint iteration are widened to $\top$, and both buggy and correct executions land in the same widened range.
-  \item \textbf{L1b (Loop body granularity, 2).} The bug is exposed only at a specific point inside a loop body, but the analyzer summarizes loops by fixpoint result rather than by per-iteration trace, so no annotation point is available at the granularity needed.
-  \item \textbf{L2a (Interface call return $\top$, 3).} The callee is reached only through an interface variable, the implementation is therefore unavailable, and \texttt{@IReturn} is inapplicable because the bug requires the return value of a state-modifying call.
-  \item \textbf{L2b (External call, unknown external state, 1).} The implementation exists via dependency pre-analysis, but the callee's runtime storage state lies outside the deployment unit and the return value collapses to $\top$.
-  \item \textbf{L3 (Unsupported construct, 7).} The bug-relevant value flows through an unsupported construct---\texttt{abi.decode}, opaque hash builtins, \texttt{address(this).balance}, or non-arithmetic Yul---which the analyzer treats as $\top$.
-  \item \textbf{L4a (Inexpressible expected value, 10).} The intent annotation grammar can refer to in-scope arithmetic over existing variables, but the correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no \texttt{intentValue} expression can be constructed.
-  \item \textbf{L4b (No target storage variable, 8).} The buggy function (a view function, a pure function, a thin wrapper around external calls, or a library helper) does not modify any storage variable in the target contract, so no \texttt{@Post} clause has anything to attach to.
-  \item \textbf{L4c (Magnitude-only difference, 1).} Buggy and correct code change the same state variable in the same direction; only the magnitude differs. \texttt{changed(\,)} and \texttt{Entry op Exit} both succeed in both versions, and \textsc{IntentChecker}'s \texttt{PostEntryExit} clause does not currently admit arithmetic relations between Entry and Exit.
-  \item \textbf{L4d (Invariant masked, 1).} A different statement in the same function already modifies the target state variable, so \texttt{changed(\,)} is satisfied in both versions. The actual invariant is a multi-variable arithmetic relation (e.g., a product invariant) which \texttt{PostEntryExit} cannot express.
-  \item \textbf{L5a (Bug-awareness-required: missing code, 7).} A required statement (a function call, a state update) is omitted; the post-condition that would catch this is expressible, but knowing what is missing already presupposes knowing the bug.
-  \item \textbf{L5b (Bug-awareness-required: wrong code, 7).} A required statement is present but uses the wrong identifier, operator, or struct field; the corrective annotation is expressible, but writing it requires knowledge of the correct form---and possessing that knowledge would have prevented the bug in the first place.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Reading the limitation breakdown.}
-Two top-level families emerge.
-The L1--L3 limitations (21 instances combined) are properties of the underlying abstract interpreter: the analyzer assigns $\top$ to a value that should have been concrete enough to distinguish buggy from correct execution, and no developer annotation under the current model can recover that precision.
-The L4--L5 limitations (34 instances) are properties of the annotation model rather than of the analyzer: the abstract interpreter \emph{would} distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no expression the developer could write (L4) or has one whose construction presupposes already knowing the bug (L5).
-RQ2 examines this second family in detail, classifying each of the 34 cases by whether the annotation model can express any awareness signal at all---and if so, how directly.
+We first describe the 20 mitigated cases in detail (pattern coverage, annotation usage, and analysis time) and then present the limitation taxonomy for the 55 unmitigated cases.
 
 \smallskip
 \noindent\textbf{Pattern coverage of the 20 mitigated cases.}
@@ -1324,6 +1271,88 @@ A future optimization that confines fixpoint iteration to the intent-relevant sc
 \end{figure}
 
 Per-tool latency comparison against NumScout and GPTScan is reported in §\ref{sec:rq3}.
+
+\smallskip
+\noindent\textbf{Limitation taxonomy for the 55 unmitigated cases.}
+The structural reasons for the 55 \textit{not\_detectable} instances fall into eleven sub-categories grouped into two top-level families, summarized in Figure~\ref{fig:rq1-limitations}.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\small]
+  % Constants
+  \def\barH{0.45}
+  \def\barGap{0.18}
+  \def\xUnit{0.45}  % cm per case
+  \def\maxCount{10}
+
+  % Group A: analysis-engine (L1-L3) — blue
+  \def\colA{black!55}
+  % Group B: annotation-model (L4-L5) — gray
+  \def\colB{black!25}
+
+  % Bars: (label, count, color, y)
+  \foreach \i/\lab/\val/\col in {%
+    0/L1a/8/\colA,
+    1/L1b/2/\colA,
+    2/L2a/3/\colA,
+    3/L2b/1/\colA,
+    4/L3/7/\colA,
+    5/L4a/10/\colB,
+    6/L4b/8/\colB,
+    7/L4c/1/\colB,
+    8/L4d/1/\colB,
+    9/L5a/7/\colB,
+    10/L5b/7/\colB%
+  } {%
+    \pgfmathsetmacro{\y}{-\i*(\barH+\barGap)}
+    \pgfmathsetmacro{\w}{\val*\xUnit}
+    \node[anchor=east] at (0,\y) {\textbf{\lab}};
+    \fill[\col] (0.15,\y-\barH/2) rectangle (0.15+\w,\y+\barH/2);
+    \node[anchor=west] at (0.18+\w,\y) {\val};
+  }
+
+  % Group brackets
+  \draw[thick] (-1.05,0.32) -- (-1.15,0.32) -- (-1.15,-2.06) -- (-1.05,-2.06);
+  \node[rotate=90, anchor=south] at (-1.25,-0.87) {\scriptsize Analysis-engine (21)};
+  \draw[thick] (-1.05,-2.46) -- (-1.15,-2.46) -- (-1.15,-6.84) -- (-1.05,-6.84);
+  \node[rotate=90, anchor=south] at (-1.25,-4.65) {\scriptsize Annotation-model (34)};
+
+  % X-axis
+  \draw[->] (0.15,-7.25) -- (0.15+11*\xUnit,-7.25);
+  \foreach \x in {0,2,4,6,8,10} {
+    \draw (0.15+\x*\xUnit,-7.20) -- (0.15+\x*\xUnit,-7.30);
+    \node[anchor=north] at (0.15+\x*\xUnit,-7.30) {\scriptsize \x};
+  }
+  \node[anchor=north] at (0.15+5*\xUnit,-7.65) {\scriptsize \# of cases};
+\end{tikzpicture}
+\caption{Limitation breakdown for the 55 \textit{not\_detectable} instances.
+Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover.
+Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph{would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}
+\label{fig:rq1-limitations}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Limitation type definitions.}
+\begin{itemize}
+  \item \textbf{L1a (Loop widening, 8).} Accumulator variables (\texttt{+=}, \texttt{*=}) inside fixpoint iteration are widened to $\top$, and both buggy and correct executions land in the same widened range.
+  \item \textbf{L1b (Loop body granularity, 2).} The bug is exposed only at a specific point inside a loop body, but the analyzer summarizes loops by fixpoint result rather than by per-iteration trace, so no annotation point is available at the granularity needed.
+  \item \textbf{L2a (Interface call return $\top$, 3).} The callee is reached only through an interface variable, the implementation is therefore unavailable, and \texttt{@IReturn} is inapplicable because the bug requires the return value of a state-modifying call.
+  \item \textbf{L2b (External call, unknown external state, 1).} The implementation exists via dependency pre-analysis, but the callee's runtime storage state lies outside the deployment unit and the return value collapses to $\top$.
+  \item \textbf{L3 (Unsupported construct, 7).} The bug-relevant value flows through an unsupported construct---\texttt{abi.decode}, opaque hash builtins, \texttt{address(this).balance}, or non-arithmetic Yul---which the analyzer treats as $\top$.
+  \item \textbf{L4a (Inexpressible expected value, 10).} The intent annotation grammar can refer to in-scope arithmetic over existing variables, but the correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no \texttt{intentValue} expression can be constructed.
+  \item \textbf{L4b (No target storage variable, 8).} The buggy function (a view function, a pure function, a thin wrapper around external calls, or a library helper) does not modify any storage variable in the target contract, so no \texttt{@Post} clause has anything to attach to.
+  \item \textbf{L4c (Magnitude-only difference, 1).} Buggy and correct code change the same state variable in the same direction; only the magnitude differs. \texttt{changed(\,)} and \texttt{Entry op Exit} both succeed in both versions, and \textsc{IntentChecker}'s \texttt{PostEntryExit} clause does not currently admit arithmetic relations between Entry and Exit.
+  \item \textbf{L4d (Invariant masked, 1).} A different statement in the same function already modifies the target state variable, so \texttt{changed(\,)} is satisfied in both versions. The actual invariant is a multi-variable arithmetic relation (e.g., a product invariant) which \texttt{PostEntryExit} cannot express.
+  \item \textbf{L5a (Bug-awareness-required: missing code, 7).} A required statement (a function call, a state update) is omitted; the post-condition that would catch this is expressible, but knowing what is missing already presupposes knowing the bug.
+  \item \textbf{L5b (Bug-awareness-required: wrong code, 7).} A required statement is present but uses the wrong identifier, operator, or struct field; the corrective annotation is expressible, but writing it requires knowledge of the correct form---and possessing that knowledge would have prevented the bug in the first place.
+\end{itemize}
+
+\smallskip
+\noindent\textbf{Reading the limitation breakdown.}
+Two top-level families emerge.
+The L1--L3 limitations (21 instances combined) are properties of the underlying abstract interpreter: the analyzer assigns $\top$ to a value that should have been concrete enough to distinguish buggy from correct execution, and no developer annotation under the current model can recover that precision.
+The L4--L5 limitations (34 instances) are properties of the annotation model rather than of the analyzer: the abstract interpreter \emph{would} distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no expression the developer could write (L4) or has one whose construction presupposes already knowing the bug (L5).
+RQ2 examines this second family in detail, classifying each of the 34 cases by whether the annotation model can express any awareness signal at all---and if so, how directly.
 
 \subsection{RQ2: Annotation Model Expressibility}\label{sec:rq2}
 
