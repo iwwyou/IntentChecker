@@ -133,7 +133,11 @@
       "Bash(/c/Users/isjeon/NumScout/venv/Scripts/solc.exe --version)",
       "Bash(/c/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe --version)",
       "Bash(rm -rf \"C:\\\\Users\\\\isjeon\\\\PycharmProjects\\\\pythonProject\\\\SolidityGuardian\\\\evaluation\\\\RQ3\\\\outputs\\\\numscout\\\\test\")",
-      "Bash(rm -rf \"C:\\\\Users\\\\isjeon\\\\PycharmProjects\\\\pythonProject\\\\SolidityGuardian\\\\evaluation\\\\RQ3\\\\work\")"
+      "Bash(rm -rf \"C:\\\\Users\\\\isjeon\\\\PycharmProjects\\\\pythonProject\\\\SolidityGuardian\\\\evaluation\\\\RQ3\\\\work\")",
+      "Bash(.venv/Scripts/python.exe evaluation/RQ3/rq3_comparison.py)",
+      "Bash(/c/Users/isjeon/NumScout/venv/Scripts/python.exe /c/Users/isjeon/NumScout/tool.py --help)",
+      "Bash(npx.cmd sol-merger:*)",
+      "Bash(npm list:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,0 +1,21 @@
+case_id,source,contract,function,pattern,IC_detected,IC_time,GPT_strict,GPT_loose,GPT_time,GPT_patterns,SC_applicable,SC_detected,SC_time
+numscout_BoostToken_indivisible,numscout,BoostToken,sendETHToTeam,indivisible_amount,True,,False,False,69.35960841178894,,False,,
+numscout_BoostToken_operator,numscout,BoostToken,sendETHToTeam,operator_order_issue,True,,False,False,65.55449032783508,,False,,
+numscout_HIT,numscout,HIT,getTokens,profit_opportunity,True,2.5125,False,False,9.402916193008423,,False,,
+numscout_Nokon,numscout,Nokon,buy,exchange_problem,True,0.7739,False,False,26.350369215011597,,False,,
+numscout_SwordCrowdsale,numscout,SwordCrowdsale,refundMoney,greedy_contract,True,0.7347,False,False,0.8602108955383301,,False,,
+numscout_WANGMI,numscout,WANGMI,_transfer,div_in_path,True,16.777,False,True,35.641305923461914,no-slippage-limit-check,False,,
+web3bugs_101_H_01,web3bugs,LenderPool,_calculatePrincipalWithdrawable,erroneous_accounting,True,0.9112,False,True,750.0597898960114,price-manipulation; wrong-order-interest,True,False,22.8
+web3bugs_45_H_01,web3bugs,UToken,borrow,erroneous_accounting,True,18.3732,False,True,271.38538885116577,price-manipulation,False,,
+web3bugs_47_H_02,web3bugs,WrappedIbbtcEth,transferFrom,erroneous_accounting,True,1.5477,False,False,11.587499856948853,,True,True,3.17
+web3bugs_51_H_02,web3bugs,SwapUtils,rampTargetPrice,erroneous_accounting,True,3.9684,False,True,129.32209658622742,no-slippage-limit-check; price-manipulation,False,,
+web3bugs_56_H_02,web3bugs,CDP,update,erroneous_accounting,True,4.0391,False,False,620.5549674034119,,True,False,22.876666666666665
+web3bugs_58_H_02,web3bugs,LpIssuer,_chargeFees,erroneous_accounting,True,13.8368,False,True,390.31834149360657,price-manipulation,False,,
+web3bugs_5_H_07,web3bugs,Utils,calcAsymmetricShare,erroneous_accounting,True,0.4585,False,True,543.4399991035461,price-manipulation,True,True,8.623333333333335
+web3bugs_5_H_08,web3bugs,Utils,calcLiquidityUnits,erroneous_accounting,True,0.99,False,True,514.2229676246643,price-manipulation,True,True,8.716666666666667
+web3bugs_5_H_12,web3bugs,Pools,getAddedAmount,erroneous_accounting,True,3.3818,False,True,528.7797667980194,no-slippage-limit-check; price-manipulation,False,,
+web3bugs_60_H_01,web3bugs,OptimisticLedgerLib,settleAccount,erroneous_accounting,True,1.116,False,False,25.365806102752686,,True,True,12.046666666666667
+web3bugs_62_H_08,web3bugs,Stream,updateStreamInternal,inconsistent_state_updates,True,4.4198,False,False,95.95652461051941,,False,,
+web3bugs_70_H_10,web3bugs,LiquidityBasedTWAP,syncVaderPrice,inconsistent_state_updates,True,3.5981,False,True,498.68739891052246,price-manipulation,True,False,19.066666666666666
+web3bugs_77_H_01,web3bugs,MathLib,calculateLiquidityTokenQtyForSingleAssetEntry,erroneous_accounting,True,0.3526,False,True,176.8213722705841,price-manipulation,False,,
+web3bugs_78_H_02,web3bugs,RebaseProxy,mint,erroneous_accounting,True,0.5859,False,True,573.2391350269318,price-manipulation,False,,

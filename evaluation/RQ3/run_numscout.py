@@ -59,7 +59,13 @@ def flatten_sol(contest_number: str, project_root: str, target_sol: str, solc_ve
     # Derive relative path of target .sol within the project
     # target_sol format: "45/contracts/market/UToken.sol"
     # project_root format: "45"
-    rel_sol = target_sol.replace(f"{contest_number}/", "", 1) if contest_number else target_sol
+    # Remove project_root prefix (not just contest_number) to get the path relative to CWD
+    if project_root and target_sol.startswith(project_root + "/"):
+        rel_sol = target_sol[len(project_root) + 1:]
+    elif contest_number and target_sol.startswith(contest_number + "/"):
+        rel_sol = target_sol[len(contest_number) + 1:]
+    else:
+        rel_sol = target_sol
 
     flat_file = WORK_DIR / f"{Path(target_sol).stem}_flat.sol"
 

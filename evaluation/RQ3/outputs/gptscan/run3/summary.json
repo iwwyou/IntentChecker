@@ -1,206 +1,86 @@
 [
   {
-    "case_id": "numscout_WANGMI",
+    "case_id": "web3bugs_56_H_02",
     "tool": "gptscan",
     "detected": true,
     "detected_patterns": [
-      "no-slippage-limit-check"
+      "price-manipulation",
+      "price-manipulation"
     ],
-    "time": 31.912768363952637,
+    "time": 554.3739447593689,
     "status": "ok"
   },
   {
-    "case_id": "numscout_Nokon",
+    "case_id": "web3bugs_58_H_02",
+    "tool": "gptscan",
+    "detected": true,
+    "detected_patterns": [
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation"
+    ],
+    "time": 345.59126830101013,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_60_H_01",
     "tool": "gptscan",
     "detected": false,
     "detected_patterns": [],
-    "time": 21.589406728744507,
+    "time": 20.850528240203857,
     "status": "ok"
   },
   {
-    "case_id": "numscout_SwordCrowdsale",
+    "case_id": "web3bugs_77_H_01",
     "tool": "gptscan",
     "detected": false,
     "detected_patterns": [],
-    "time": 1.7742633819580078,
+    "time": 180.4743299484253,
     "status": "ok"
   },
   {
-    "case_id": "numscout_BoostToken_operator",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation"
-    ],
-    "time": 68.26718854904175,
-    "status": "ok"
-  },
-  {
-    "case_id": "numscout_BoostToken_indivisible",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation"
-    ],
-    "time": 64.91962313652039,
-    "status": "ok"
-  },
-  {
-    "case_id": "numscout_HIT",
+    "case_id": "web3bugs_62_H_08",
     "tool": "gptscan",
     "detected": false,
     "detected_patterns": [],
-    "time": 8.836273908615112,
+    "time": 95.0280225276947,
     "status": "ok"
   },
   {
-    "case_id": "web3bugs_45_H_01",
+    "case_id": "web3bugs_70_H_10",
     "tool": "gptscan",
     "detected": true,
     "detected_patterns": [
-      "wrong-order-interest",
+      "front-running",
+      "first-deposit",
       "price-manipulation",
-      "price-manipulation"
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "first-deposit",
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "price-manipulation",
+      "price-manipulation",
+      "price-manipulation",
+      "no-slippage-limit-check",
+      "no-slippage-limit-check",
+      "first-deposit"
     ],
-    "time": 284.4217619895935,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_101_H_01",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "unauthorized-transfer",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 778.7658298015594,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_47_H_02",
-    "tool": "gptscan",
-    "detected": false,
-    "detected_patterns": [],
-    "time": 11.303019285202026,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_78_H_02",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation",
-      "approval-not-clear",
-      "price-manipulation",
-      "price-manipulation",
-      "approval-not-clear",
-      "price-manipulation",
-      "approval-not-clear",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 590.707793712616,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_5_H_07",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "insecure-vote-calculation",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 582.5031440258026,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_5_H_08",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "insecure-vote-calculation",
-      "insecure-vote-calculation",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "wrong-order-interest",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 606.1442286968231,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_5_H_12",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "no-slippage-limit-check",
-      "no-slippage-limit-check",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 599.0962779521942,
-    "status": "ok"
-  },
-  {
-    "case_id": "web3bugs_51_H_02",
-    "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 117.78379726409912,
+    "time": 525.1027009487152,
     "status": "ok"
   }
 ]

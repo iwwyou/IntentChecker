@@ -514,8 +514,8 @@ Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChec
 
 \begin{figure}[t]
     \centering
-    \resizebox{\linewidth}{!}{\input{figure/architecture_tikz}}
-    \caption{System architecture of IntentChecker. Dashed boxes denote modules reused from \textsc{SolQDebug}; solid boxes denote new components; the thicker-bordered Layer~3 is the core contribution.}
+    \includegraphics[width=\linewidth]{figure/architecture_drawio.png}
+    \caption{System architecture of IntentChecker. Layers~1--2 (Parsing and Analysis Modules) are reused from \textsc{SolQDebug}; Layer~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}
     \label{fig:architecture}
 \end{figure}
 
@@ -525,7 +525,7 @@ IntentChecker receives three types of input:
 \begin{itemize}
     \item \textbf{Statement}---individual Solidity statements provided incrementally as the developer writes code.
     \item \textbf{Intent Annotation}---\texttt{@During} and \texttt{@Post} specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives that provide concrete or symbolic value ranges at program points where the actual value is unknown to the analyzer. This category includes \textsc{SolQDebug}'s original \texttt{@StateVar} (storage variables) and \texttt{@LocalVar} (function parameters and local variables), as well as the \texttt{@IReturn} annotation introduced in §\ref{sec:prelim:extension}(c) for interface call return values.
+    \item \textbf{Debug Annotation}---variable initialization directives that provide concrete or symbolic value ranges at program points where the actual value is unknown to the analyzer. This category includes \textsc{SolQDebug}'s original \texttt{@GlobalVar} (constructor-initialized storage variables), \texttt{@StateVar} (storage variables modified at runtime), and \texttt{@LocalVar} (function parameters and local variables), as well as the \texttt{@IReturn} annotation introduced in §\ref{sec:prelim:extension}(c) for interface call return values.
 \end{itemize}
 
 \smallskip
@@ -545,9 +545,9 @@ The Analysis Module performs incremental abstract interpretation over the interv
 For every library and interface referenced from the target source file, the Analysis Module either loads a pre-analyzed \emph{Dependency CFG}---a serialized \texttt{LibraryCFG} or \texttt{ContractCFG} object produced once and cached---or constructs one on-the-fly when the source is locally available.
 When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterwards; this mechanism is reused without modification for the new \texttt{@IReturn} annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a \texttt{@StateVar} declaration.
 
-The Validation Engine is \textsc{IntentChecker}'s core contribution on top of this extended analyzer.
-It receives the computed variable intervals from the Analysis Module along with the parsed intent annotations.
-For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, risk score, and violated regions as described above.
+The Validation Engine (Layer~3) is \textsc{IntentChecker}'s core contribution on top of this extended analyzer.
+It receives two inputs from the lower layers: \emph{parsed intent clauses} from the Parsing Module, which encode the relational constraints declared in \texttt{@During}/\texttt{@Post} annotations, and \emph{computed variable intervals} from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
+For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, risk score, and violated regions as described above.
 
 \subsection{Motivating Examples}
 
