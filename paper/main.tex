@@ -106,7 +106,7 @@
 
 \begin{document}
 
-\title[Solidity Intent Checker]{IntentChecker: Validating Developer Intentions in Solidity via Intent Annotation to Mitigate Numeric Logic error}
+\title[Solidity Intent Checker]{IntentChecker: A Debugging Assistant for Validating Developer Intent to Mitigate Numeric Logic Errors in Solidity}
 
 \author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
 
@@ -122,25 +122,27 @@
 
 
 \abstract{
-Numeric logic errors in smart contracts---where program behavior diverges from developer intent---remain among the most difficult vulnerabilities to mitigate.
-Existing detection tools such as NumScout and GPTScan operate in post-hoc auditing contexts and rely on pre-defined pattern catalogs, which inevitably exclude the developer's actual intent and provide orthogonal coverage across tools.
-As a result, at the time when code is being written, no tool currently allows developers to declare their intended numeric behavior and validate it directly within the editor.
-This paper presents \textsc{IntentChecker}, a development-time intent validation tool that fills this gap by extending \textsc{SolQDebug}, our prior interactive debugger for Solidity.
-\textsc{IntentChecker} introduces (i) an intent annotation model with two annotation types---\texttt{@During} for intended relationships at specific program points within a function and \texttt{@Post} for intended relationships after function execution---and (ii) a validation engine that checks whether interval-domain abstract execution satisfies the declared intent, producing a graded signal of \textit{Satisfied}, \textit{Warning}, or \textit{Violated} together with a risk score and the sub-intervals in which the intent may be violated.
-To enable realistic cross-contract analysis, we extend \textsc{SolQDebug}'s single-contract scope to a multi-contract single-transaction scope that handles inheritance, libraries, interfaces, and a practically useful subset of inline assembly, and we introduce an \texttt{@IReturn} debug annotation that bridges the remaining cross-deployment gap.
-We evaluate \textsc{IntentChecker} on 89 real-world numeric logic errors drawn from Web3Bugs and NumScout, and position it against existing detection tools in terms of signal characteristics, analysis latency, and coverage complementarity.
+Smart contract development lacks the mature debugging infrastructure available in traditional software engineering.
+In particular, numeric logic errors---where program behavior diverges from developer intent---are difficult to address.
+Whether such errors are present depends on the developer's intended numeric behavior, which is not expressed in the code itself.
+Existing detection tools, designed to operate from source code alone in a testing context, rely on pre-defined vulnerability patterns and offer no mechanism for developers to declare and validate numeric intent during development.
+Errors not covered by these patterns therefore have no practical way of early prevention.
+This paper presents IntentChecker, a development-time intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
+We propose an intent model with two types: @During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution.
+A validation engine then checks whether the intervals computed by abstract interpretation satisfy the declared intent and reports a validation result together with a risk score.
+We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing pattern-based tools, with analysis latency suitable for interactive development.
 }
 
-\keywords{Smart Contract Development, Solidity, Numeric Logic Error, Intent Annotations, Abstract Interpretation, Developer Tools}
+\keywords{Solidity, Numeric Logic Error, Debugging Assistant, Intent Model, Intent Validation}
 
 \maketitle
 
 \section{Introduction}
 
-Smart contracts are immutable once deployed, and the earlier a bug is caught, the cheaper it is to fix~\citep{flyinointment}.
-This is especially true for \emph{numeric logic errors}---bugs in which a function executes without raising any compile-time or runtime exception but nevertheless produces values that violate the developer's intended numerical behavior.
-Because the divergence is between code and intent rather than code and language rules, compilers, type checkers, and generic static analyzers are structurally blind to this class of bugs.
-A recent empirical study~\citep{defisecurity} confirms this observation in practice: practitioners identified logic errors as the most difficult vulnerability type to detect, and reported that existing security tools are least effective against them.
+The debugging toolchain available to smart contract developers remains far less mature than what traditional software engineering provides, and the immutability of deployed contracts further amplifies the cost of bugs that go undetected~\citep{flyinointment}.
+This immaturity is particularly acute for \emph{numeric logic errors}---bugs in which a function executes without raising any compile-time or runtime exception but nevertheless produces values that violate the developer's intended numerical behavior.
+Because correctness hinges on what the developer intended for a given computation---information that the source code does not capture---compilers, type checkers, and generic static analyzers are structurally blind to this class of bugs.
+A recent empirical study~\citep{defisecurity} confirms this in practice: practitioners identified logic errors as the most difficult vulnerability type to detect, and reported that existing security tools are least effective against them.
 
 Several recent tools---most notably NumScout~\citep{numscout} and GPTScan~\citep{gptscan}---explicitly target numeric logic errors.
 These tools face an \textbf{inherent difficulty of the detection paradigm} rather than a mere engineering gap.

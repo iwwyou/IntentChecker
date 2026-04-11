@@ -138,7 +138,8 @@
       "Bash(/c/Users/isjeon/NumScout/venv/Scripts/python.exe /c/Users/isjeon/NumScout/tool.py --help)",
       "Bash(npx.cmd sol-merger:*)",
       "Bash(npm list:*)",
-      "Bash(.venv/Scripts/python.exe evaluation/RQ3/check_numscout.py)"
+      "Bash(.venv/Scripts/python.exe evaluation/RQ3/check_numscout.py)",
+      "Bash(C:/Users/isjeon/NumScout/venv/Scripts/python.exe C:/Users/isjeon/NumScout/tool.py --help)"
     ],
     "deny": [],
     "ask": []

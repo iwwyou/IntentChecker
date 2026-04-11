@@ -3,9 +3,9 @@
 \providecommand\hyper@newdestlabel[2]{}
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
-\Newlabel{1}{1}
 \citation{flyinointment}
 \citation{defisecurity}
+\Newlabel{1}{1}
 \citation{numscout}
 \citation{gptscan}
 \citation{solqdebug}
@@ -111,8 +111,8 @@
 \newlabel{sec:rq3}{{5.4}{33}{RQ3: Comparison with Existing Detection Tools}{subsection.5.4}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Signal characterization of the four compared tools.}}{34}{table.caption.26}\protected@file@percent }
 \newlabel{tab:rq3-signal}{{10}{34}{Signal characterization of the four compared tools}{table.caption.26}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Detection results on the 20 mitigated cases. {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 51}\,=\,detected, {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 55}\,=\,not detected, \textcolor {gray}{N/A}\,=\,not evaluable (no type file for ScType; flatten failure for NumScout). GPTScan column uses the \emph  {strict} criterion: the tool must detect the same bug type, not merely report a finding on the same file.}}{34}{table.caption.28}\protected@file@percent }
-\newlabel{tab:rq3-detection}{{11}{34}{Detection results on the 20 mitigated cases. \ding {51}\,=\,detected, \ding {55}\,=\,not detected, \textcolor {gray}{N/A}\,=\,not evaluable (no type file for ScType; flatten failure for NumScout). GPTScan column uses the \emph {strict} criterion: the tool must detect the same bug type, not merely report a finding on the same file}{table.caption.28}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Mitigation results on the 20 RQ1-mitigated cases. {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 51}\,=\,mitigated (tool produced an actionable signal for the target bug), {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope.}}{34}{table.caption.28}\protected@file@percent }
+\newlabel{tab:rq3-mitigation}{{11}{34}{Mitigation results on the 20 RQ1-mitigated cases. \ding {51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding {55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope}{table.caption.28}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc  {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case.}}{35}{figure.caption.29}\protected@file@percent }
 \newlabel{fig:rq3-time}{{6}{35}{Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case}{figure.caption.29}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Threats to Validity}{36}{subsection.5.5}\protected@file@percent }
@@ -127,11 +127,11 @@
 \newlabel{sec:disc:guidelines}{{6.3}{39}{Practical Annotation Guidelines}{subsection.6.3}{}}
 \citation{highguard}
 \citation{smartpulse}
+\citation{consolidating}
+\citation{smartinv}
 \@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{40}{section.7}\protected@file@percent }
 \newlabel{sec:related}{{7}{40}{Related Works}{section.7}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{40}{subsection.7.1}\protected@file@percent }
-\citation{consolidating}
-\citation{smartinv}
 \citation{exploitablebugs}
 \citation{accountingerrors}
 \citation{defiranger,defiguard,pomabuster,secplf,defitainter}
@@ -140,12 +140,12 @@
 \citation{scribble}
 \citation{mythx}
 \citation{mythril}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{41}{subsection.7.2}\protected@file@percent }
 \citation{smartace}
 \citation{scribble}
 \citation{seahorn}
 \citation{libfuzzer}
 \citation{klee}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{41}{subsection.7.2}\protected@file@percent }
 \citation{idealist}
 \citation{solvent}
 \citation{making}
@@ -158,9 +158,9 @@
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
 \bibcite{defisecurity}{{4}{2024}{{Chaliasos et~al.}}{{}}}
+\bibcite{numscout}{{5}{2025}{{Chen et~al.}}{{}}}
 \@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{43}{section.8}\protected@file@percent }
 \newlabel{sec:conclusion}{{8}{43}{Conclusion}{section.8}{}}
-\bibcite{numscout}{{5}{2025}{{Chen et~al.}}{{}}}
 \bibcite{mythril}{{6}{2025a}{{Consensys Diligence}}{{}}}
 \bibcite{mythx}{{7}{2025b}{{Consensys Diligence}}{{}}}
 \bibcite{scribble}{{8}{2025c}{{Consensys Diligence}}{{}}}
