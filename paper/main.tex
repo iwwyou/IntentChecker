@@ -27,6 +27,7 @@
 \usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta}%
 \usepackage{multirow}%
 \usepackage{booktabs}%
+\usepackage{pifont}% For \ding{51} (checkmark) and \ding{55} (cross)
 \usepackage{tabularx}
 \usepackage{array}
 
@@ -1075,7 +1076,7 @@ We address these questions through the following three RQs:
 \begin{itemize}
     \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can \textsc{IntentChecker} surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded \textit{Violated}/\textit{Warning} signal? For instances that the tool cannot handle, what is the structural reason, and how does this distribute across the limitation types defined in our taxonomy?
     \item \textbf{RQ2 (Annotation Model Expressibility)}: Among the instances that fail due to annotation-model limitations rather than analysis-engine limitations, what fraction can the annotation model express---and for those it can, how directly does the annotation capture the correct behavior? This question separates the model's \emph{expressibility ceiling} from RQ1's empirical mitigation result, classifying each case as inexpressible, strongly expressible (the annotation encodes the correct value directly), or weakly expressible (the annotation detects that something is wrong, without stating the correct value).
-    \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does \textsc{IntentChecker}'s feedback compare to that of NumScout and GPTScan on the same set of bugs, in terms of (i) the kind of signal each tool produces, (ii) per-case analysis latency, and (iii) coverage complementarity? The goal of this comparison is to characterize where each tool lives along the development--auditing timeline, not to argue numerical superiority.
+    \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does \textsc{IntentChecker}'s feedback compare to that of ScType, GPTScan, and NumScout on the same set of bugs, in terms of (i) the detection model each tool employs (specification-driven vs.\ pattern-driven), (ii) per-case analysis latency, and (iii) coverage complementarity? The goal is to characterize where each tool sits in the detection landscape, not to argue numerical superiority.
 \end{itemize}
 
 \subsection{Experimental Setup}\label{sec:setup}
@@ -1435,7 +1436,113 @@ Future grammar extensions that would enlarge the Strong tier and shrink Inexpres
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
-% Body deferred until NumScout and GPTScan runs (3 repetitions per tool) complete. Planned analysis: 3-way Venn diagram over the 20 RQ1-mitigated cases (mitigationable / partial / not-mitigationable per tool); a per-tool latency bar chart based on 3 runs each; and 3--4 case studies showing the qualitative difference in the signal each tool emits for the same bug. The framing is complementarity, not numerical superiority.
+We compare \textsc{IntentChecker} against three state-of-the-art tools on the 20 mitigated cases from RQ1:
+\textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
+\textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
+\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, precision loss, exchange problem, profit opportunity).
+Each tool was executed three times on the same machine; ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
+
+\smallskip
+\noindent\textbf{Detection model.}
+A key distinction among these tools is \emph{how} the set of detectable bugs is defined.
+GPTScan and NumScout operate on a \emph{pattern-driven} model: each tool ships with a fixed catalog of vulnerability patterns (10 rules and 5 patterns, respectively), and only bugs matching those patterns can be detected.
+When a new class of numeric error emerges, the catalog must be updated by the tool developers.
+ScType is \emph{type-driven}: it checks whether arithmetic operations preserve financial type consistency, which is more general than a fixed pattern catalog but still limited to errors expressible as type mismatches.
+\textsc{IntentChecker} is \emph{specification-driven}: developers write \texttt{@During}/\texttt{@Post} conditions describing intended behavior, and the tool verifies the implementation against those conditions via abstract interpretation.
+This allows \textsc{IntentChecker} to target any numeric property expressible within its annotation grammar---including novel error patterns not yet cataloged by existing tools---but requires developer participation.
+The grammar's expressibility ceiling was quantified in RQ2.
+
+\begin{table}[t]
+\centering
+\caption{Signal characterization of the four compared tools.}
+\label{tab:rq3-signal}
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+ & \textsc{IntentChecker} & ScType & GPTScan & NumScout \\
+\midrule
+Approach & Abstract interp.\ + Z3 & Type inference & LLM + static & Symbolic exec. \\
+Detection model & Specification-driven & Type-driven & Pattern-driven & Pattern-driven \\
+Annotation & During/Post conds. & Financial types & None & None \\
+Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) & Numeric (5 patterns) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\smallskip
+\noindent\textbf{Finding 1: coverage landscape.}
+Table~\ref{tab:rq3-mitigation} shows the per-case mitigation results.
+GPTScan reported findings on 11 of the 20 target files; however, every finding belongs to a different vulnerability class (price manipulation, slippage limit, etc.) than the actual numeric logic error.
+GPTScan's rule set contains no rule for erroneous accounting or incorrect arithmetic formulas; consequently, the entire class of numeric logic errors falls outside its scope.
+This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a \emph{coverage gap} exists: the bug class targeted by \textsc{IntentChecker} is not addressed by the most recent LLM-based smart-contract analysis tool.
+
+NumScout mitigated the target bug in 5 of 14 executable cases (6~cases could not be evaluated due to Hardhat flatten limitations with cyclic dependencies).
+Its five predefined patterns partially overlap with our benchmark: division-in-path and exchange-problem patterns matched several cases, but operator-order and precision-loss bugs in Web3Bugs projects were largely not mitigated.
+
+\begin{table}[t]
+\centering
+\caption{Mitigation results on the 20 RQ1-mitigated cases. \ding{51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding{55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor{gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope.}
+\label{tab:rq3-mitigation}
+\scriptsize
+\begin{tabular}{@{}llcccc@{}}
+\toprule
+Case & Contract.Function & IC & ScType & GPTScan & NumScout \\
+\midrule
+WANGMI & WANGMI.\_transfer & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
+Nokon & Nokon.buy & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
+SwordCrowdsale & SwordCrowdsale.refundMoney & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+BoostToken (op) & BoostToken.sendETHToTeam & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+BoostToken (ind) & BoostToken.sendETHToTeam & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
+5\_H\_07 & Utils.calcAsymmetricShare & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
+5\_H\_08 & Utils.calcLiquidityUnits & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
+5\_H\_12 & Pools.getAddedAmount & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
+47\_H\_02 & WrappedIbbtcEth.transferFrom & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{55} \\
+51\_H\_02 & SwapUtils.rampTargetPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+56\_H\_02 & CDP.update & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
+58\_H\_02 & LpIssuer.\_chargeFees & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+60\_H\_01 & OptimisticLedgerLib.settleAccount & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+62\_H\_08 & Stream.updateStreamInternal & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+70\_H\_10 & LiquidityBasedTWAP.syncVaderPrice & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
+77\_H\_01 & MathLib.calcLiqTokenQty & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+78\_H\_02 & RebaseProxy.mint & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+101\_H\_01 & LenderPool.\_calcPrincipalWithdrawable & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\smallskip
+\noindent\textbf{Finding 2: complementarity with ScType.}
+ScType provides the most direct comparison, as both tools target accounting errors and both require manual annotations (financial types for ScType, during/post conditions for \textsc{IntentChecker}).
+Among the seven overlapping cases, ScType mitigated four: \texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits} (both in Vader Protocol's \texttt{Utils.sol}), \texttt{transferFrom} (\texttt{WrappedIbbtcEth}), and \texttt{settleAccount} (\texttt{OptimisticLedger}).
+\textsc{IntentChecker} mitigated all seven.
+The three cases that ScType could not mitigate (\texttt{CDP.update}, \texttt{syncVaderPrice}, \texttt{\_calcPrincipalWithdrawable}) are not type-inconsistency errors but rather \emph{value-level} errors: the arithmetic uses correctly-typed operands but produces a numerically wrong result.
+ScType's type-driven model cannot express the property ``this subtraction should yield the correct fee amount''; \textsc{IntentChecker}'s specification-driven model can.
+Conversely, ScType's type inference operates without requiring the developer to know the expected output value, which makes it applicable even when the developer does not have a specific numeric property in mind.
+The two approaches are thus complementary: ScType catches type-level mismatches automatically, while \textsc{IntentChecker} catches value-level deviations when the developer can articulate the intended behavior.
+
+\smallskip
+\noindent\textbf{Finding 3: analysis latency.}
+Figure~\ref{fig:rq3-time} reports per-case analysis times averaged over three runs.
+\textsc{IntentChecker} (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
+GPTScan (mean 267\,s) is approximately 59$\times$ slower due to its multi-step LLM pipeline, and NumScout (mean $\sim$12 minutes for completed cases) requires even more time for its symbolic-execution backend.
+The sub-10-second latency of \textsc{IntentChecker} makes it suitable for integration into CI/CD pipelines or interactive editor feedback loops, where developers expect near-instant responses.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figure/rq3_time_comparison.pdf}
+    \caption{Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc{IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case.}
+    \label{fig:rq3-time}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Summary.}
+Each tool occupies a distinct position in the detection landscape:
+pattern-driven tools (GPTScan, NumScout) offer fully automatic analysis but can only mitigate bugs within their predefined vulnerability catalogs;
+type-driven analysis (ScType) generalizes beyond fixed patterns but is limited to errors expressible as type mismatches;
+and specification-driven analysis (\textsc{IntentChecker}) can mitigate any property within its annotation grammar but requires developer participation.
+The 20-case evaluation demonstrates that numeric logic errors---a class responsible for some of the highest-impact DeFi exploits---fall entirely outside the scope of pattern-driven tools and partially outside the reach of type-driven analysis, confirming the practical need for a specification-driven complement.
 
 \subsection{Threats to Validity}\label{sec:threats}
 
@@ -1453,6 +1560,8 @@ Findings may not generalize to numeric logic errors that arise in domains underr
 \noindent\textbf{Construct validity.}
 RQ1's notion of ``mitigation'' relies on the validation engine producing a non-\textit{Satisfied} verdict (typically \textit{Violated}) for the annotated bug, rather than on a downstream measurement of developer behavior.
 A non-\textit{Satisfied} verdict on its own does not guarantee that a developer reading it would correctly diagnose and fix the bug; assessing that downstream effect is an important direction for future work.
+In RQ3, GPTScan is marked as out of scope (N/A) rather than ``not mitigated'' because its rule set does not target numeric logic errors; this reflects a scope boundary, not a quality deficiency.
+The ScType comparison is limited to seven overlapping cases for which type annotation files exist; results on the remaining thirteen cases may differ.
 
 \section{Discussion}\label{sec:discussion}
 

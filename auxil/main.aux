@@ -48,36 +48,36 @@
 \newlabel{alg:process-ireturn}{{1}{11}{ProcessIReturn: Annotation Registration}{algorithm.1}{}}
 \@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces ResolveIReturn: Interface Call Value Resolution}}{12}{algorithm.2}\protected@file@percent }
 \newlabel{alg:resolve-ireturn}{{2}{12}{ResolveIReturn: Interface Call Value Resolution}{algorithm.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker. Dashed boxes denote modules reused from \textsc  {SolQDebug}; solid boxes denote new components; the thicker-bordered Layer~3 is the core contribution.}}{13}{figure.caption.4}\protected@file@percent }
-\newlabel{fig:architecture}{{1}{13}{System architecture of IntentChecker. Dashed boxes denote modules reused from \textsc {SolQDebug}; solid boxes denote new components; the thicker-bordered Layer~3 is the core contribution}{figure.caption.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System architecture of IntentChecker. Layers~1--2 (Parsing and Analysis Modules) are reused from \textsc  {SolQDebug}; Layer~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}}{13}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:architecture}{{1}{13}{System architecture of IntentChecker. Layers~1--2 (Parsing and Analysis Modules) are reused from \textsc {SolQDebug}; Layer~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module}{figure.caption.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {4}The Design of IntentChecker}{13}{section.4}\protected@file@percent }
 \newlabel{sec:design}{{4}{13}{The Design of IntentChecker}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture}{13}{subsection.4.1}\protected@file@percent }
 \citation{solqdebug}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Motivating Examples}{14}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Motivating Examples}{15}{subsection.4.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Operator Order Issue (BoostToken)}{15}{subsubsection.4.2.1}\protected@file@percent }
 \newlabel{lst:compute-example}{{1}{15}{BoostToken: operator order issue in fee distribution (simplified)}{lstlisting.1}{}}
 \@writefile{lol}{\contentsline {lstlisting}{\numberline {1}{\ignorespaces BoostToken: operator order issue in fee distribution (simplified).}}{15}{lstlisting.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Exchange Rate Validation (Nokon)}{15}{subsubsection.4.2.2}\protected@file@percent }
 \newlabel{lst:transfer-example}{{2}{15}{Nokon: exchange rate calculation with operator order issue (simplified)}{lstlisting.2}{}}
 \@writefile{lol}{\contentsline {lstlisting}{\numberline {2}{\ignorespaces Nokon: exchange rate calculation with operator order issue (simplified).}}{15}{lstlisting.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Minting Invariant with Interface Call (Web3Bugs~\#78)}{15}{subsubsection.4.2.3}\protected@file@percent }
-\newlabel{lst:output-example}{{3}{15}{Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified)}{lstlisting.3}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified).}}{15}{lstlisting.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Minting Invariant with Interface Call (Web3Bugs~\#78)}{16}{subsubsection.4.2.3}\protected@file@percent }
+\newlabel{lst:output-example}{{3}{16}{Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified)}{lstlisting.3}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}{\ignorespaces Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified).}}{16}{lstlisting.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Intent Model}{16}{subsection.4.3}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Grammar of intent annotations.}}{17}{figure.caption.5}\protected@file@percent }
 \newlabel{fig:intent-grammar}{{2}{17}{Grammar of intent annotations}{figure.caption.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Validation Engine}{18}{subsection.4.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}Validation Targets}{18}{subsubsection.4.4.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{19}{table.caption.7}\protected@file@percent }
-\newlabel{tab:interval-mapping}{{2}{19}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.2}State Determination and Risk Scoring}{19}{subsubsection.4.4.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Mapping of clause types to interval comparison inputs. Here, $\mathit  {exp}_1$ and $\mathit  {exp}_2$ denote evaluated intent expressions; \textit  {return value} is the value returned by the current return statement; \textit  {return value}$[n]$ is the $n$-th element when the function returns a tuple.}}{20}{table.caption.7}\protected@file@percent }
+\newlabel{tab:interval-mapping}{{2}{20}{Mapping of clause types to interval comparison inputs. Here, $\mathit {exp}_1$ and $\mathit {exp}_2$ denote evaluated intent expressions; \textit {return value} is the value returned by the current return statement; \textit {return value}$[n]$ is the $n$-th element when the function returns a tuple}{table.caption.7}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt  {in}/\texttt  {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}}{20}{table.caption.9}\protected@file@percent }
 \newlabel{tab:op-formulas}{{3}{20}{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max (0, \cdot )$. For \texttt {in}/\texttt {not\,in}, $|L \cap R|$ denotes the count of $L$-values within the range of $R$}{table.caption.9}{}}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}Algorithm Verification}{20}{subsubsection.4.4.3}\protected@file@percent }
-\newlabel{sec:alg-verification}{{4.4.3}{20}{Algorithm Verification}{subsubsection.4.4.3}{}}
 \@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Interval Comparison with Risk Score}}{21}{algorithm.3}\protected@file@percent }
 \newlabel{alg:interval-compare}{{3}{21}{Interval Comparison with Risk Score}{algorithm.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.3}Algorithm Verification}{21}{subsubsection.4.4.3}\protected@file@percent }
+\newlabel{sec:alg-verification}{{4.4.3}{21}{Algorithm Verification}{subsubsection.4.4.3}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{22}{table.caption.11}\protected@file@percent }
 \newlabel{tab:logic-combination}{{4}{22}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{22}{figure.caption.12}\protected@file@percent }
@@ -109,24 +109,30 @@
 \newlabel{tab:rq2-tiers}{{9}{32}{RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph {Inexpressible}: no annotation yields a non-\textit {Satisfied} verdict even with full bug awareness. \emph {Strong}: the annotation encodes the correct value directly. \emph {Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value}{table.caption.24}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}RQ3: Comparison with Existing Detection Tools}{33}{subsection.5.4}\protected@file@percent }
 \newlabel{sec:rq3}{{5.4}{33}{RQ3: Comparison with Existing Detection Tools}{subsection.5.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Threats to Validity}{33}{subsection.5.5}\protected@file@percent }
-\newlabel{sec:threats}{{5.5}{33}{Threats to Validity}{subsection.5.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{33}{section.6}\protected@file@percent }
-\newlabel{sec:discussion}{{6}{33}{Discussion}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Annotation Authoring Burden and Future Automation}{33}{subsection.6.1}\protected@file@percent }
-\newlabel{sec:disc:burden}{{6.1}{33}{Annotation Authoring Burden and Future Automation}{subsection.6.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Remaining Technical Limitations}{35}{subsection.6.2}\protected@file@percent }
-\newlabel{sec:disc:tech}{{6.2}{35}{Remaining Technical Limitations}{subsection.6.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Practical Annotation Guidelines}{36}{subsection.6.3}\protected@file@percent }
-\newlabel{sec:disc:guidelines}{{6.3}{36}{Practical Annotation Guidelines}{subsection.6.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Signal characterization of the four compared tools.}}{34}{table.caption.26}\protected@file@percent }
+\newlabel{tab:rq3-signal}{{10}{34}{Signal characterization of the four compared tools}{table.caption.26}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Detection results on the 20 mitigated cases. {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 51}\,=\,detected, {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 55}\,=\,not detected, \textcolor {gray}{N/A}\,=\,not evaluable (no type file for ScType; flatten failure for NumScout). GPTScan column uses the \emph  {strict} criterion: the tool must detect the same bug type, not merely report a finding on the same file.}}{34}{table.caption.28}\protected@file@percent }
+\newlabel{tab:rq3-detection}{{11}{34}{Detection results on the 20 mitigated cases. \ding {51}\,=\,detected, \ding {55}\,=\,not detected, \textcolor {gray}{N/A}\,=\,not evaluable (no type file for ScType; flatten failure for NumScout). GPTScan column uses the \emph {strict} criterion: the tool must detect the same bug type, not merely report a finding on the same file}{table.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc  {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case.}}{35}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:rq3-time}{{6}{35}{Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case}{figure.caption.29}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Threats to Validity}{36}{subsection.5.5}\protected@file@percent }
+\newlabel{sec:threats}{{5.5}{36}{Threats to Validity}{subsection.5.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{36}{section.6}\protected@file@percent }
+\newlabel{sec:discussion}{{6}{36}{Discussion}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Annotation Authoring Burden and Future Automation}{36}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:disc:burden}{{6.1}{36}{Annotation Authoring Burden and Future Automation}{subsection.6.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Remaining Technical Limitations}{38}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:disc:tech}{{6.2}{38}{Remaining Technical Limitations}{subsection.6.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Practical Annotation Guidelines}{39}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:disc:guidelines}{{6.3}{39}{Practical Annotation Guidelines}{subsection.6.3}{}}
 \citation{highguard}
 \citation{smartpulse}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{40}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{40}{Related Works}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{40}{subsection.7.1}\protected@file@percent }
 \citation{consolidating}
 \citation{smartinv}
 \citation{exploitablebugs}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{37}{section.7}\protected@file@percent }
-\newlabel{sec:related}{{7}{37}{Related Works}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{37}{subsection.7.1}\protected@file@percent }
 \citation{accountingerrors}
 \citation{defiranger,defiguard,pomabuster,secplf,defitainter}
 \citation{defitail,midnight}
@@ -134,30 +140,30 @@
 \citation{scribble}
 \citation{mythx}
 \citation{mythril}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{41}{subsection.7.2}\protected@file@percent }
 \citation{smartace}
 \citation{scribble}
 \citation{seahorn}
 \citation{libfuzzer}
 \citation{klee}
 \citation{idealist}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{38}{subsection.7.2}\protected@file@percent }
 \citation{solvent}
 \citation{making}
 \citation{oyente}
 \citation{mythril}
 \citation{securify}
 \citation{solhint}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Tools for Strengthening Security During Development Phase}{39}{subsection.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Tools for Strengthening Security During Development Phase}{42}{subsection.7.3}\protected@file@percent }
 \bibcite{secplf}{{1}{2024}{{Arora et~al.}}{{}}}
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
 \bibcite{defisecurity}{{4}{2024}{{Chaliasos et~al.}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{43}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{43}{Conclusion}{section.8}{}}
 \bibcite{numscout}{{5}{2025}{{Chen et~al.}}{{}}}
 \bibcite{mythril}{{6}{2025a}{{Consensys Diligence}}{{}}}
 \bibcite{mythx}{{7}{2025b}{{Consensys Diligence}}{{}}}
 \bibcite{scribble}{{8}{2025c}{{Consensys Diligence}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{40}{section.8}\protected@file@percent }
-\newlabel{sec:conclusion}{{8}{40}{Conclusion}{section.8}{}}
 \bibcite{highguard}{{9}{2024}{{Eshghie et~al.}}{{}}}
 \bibcite{seahorn}{{10}{2015}{{Gurfinkel et~al.}}{{}}}
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
@@ -185,4 +191,4 @@
 \bibcite{exploitablebugs}{{33}{2023}{{Zhang et~al.}}{{}}}
 \bibcite{dappscan}{{34}{2024}{{Zheng et~al.}}{{}}}
 \bibcite{defiattacks}{{35}{2023}{{Zhou et~al.}}{{}}}
-\gdef \@abspage@last{43}
+\gdef \@abspage@last{46}

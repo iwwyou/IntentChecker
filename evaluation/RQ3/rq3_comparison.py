@@ -3,7 +3,7 @@ RQ3 Comparison Analysis: IntentChecker vs GPTScan vs ScType
 ============================================================
 Produces:
   1. CSV comparison table  (rq3_comparison_table.csv)
-  2. Figures               (figures/{detection_heatmap,time_comparison,detection_rate}.pdf)
+  2. Figures               (figures/{detection_heatmap,time_comparison,detection_rate}.pdf/.png)
   3. Markdown summary      (rq3_comparison_summary.md)
 
 Re-runnable.  NumScout column can be added later by extending TOOLS list.
@@ -32,7 +32,7 @@ SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
 FIG_DIR = BASE / "figures"
 FIG_DIR.mkdir(exist_ok=True)
 
-TOOLS = ["IntentChecker", "GPTScan (strict)", "GPTScan (loose)", "ScType"]
+TOOLS = ["IntentChecker", "ScType", "GPTScan (strict)", "GPTScan (loose)", "NumScout"]
 
 # The 7 ScType-overlapping annotated cases
 SCTYPE_OVERLAP_CASES = {
@@ -55,28 +55,49 @@ def load_annotated_cases():
 # =====================================================================
 # 2. Load IntentChecker results from RQ2 CSV
 # =====================================================================
-def load_intentchecker(annotated_ids):
-    """Return {case_id: {"detected": bool, "time": float}}"""
+def load_intentchecker(annotated_cases):
+    """Return {case_id: {"detected": bool, "time": float}}
+
+    annotated_cases: dict {case_id: row_from_case_mapping}
+    """
     ic = {}
-    # Map RQ2 CSV 'case' column to case_id
-    # numscout cases use the contract name, web3bugs use case_id directly
-    rq2_map = {}
+    # Load all RQ2 rows (may have duplicate case names with different categories)
+    rq2_rows = []
     if RQ2_CSV.exists():
         with open(RQ2_CSV, encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                rq2_map[row["case"]] = row
+                rq2_rows.append(row)
 
-    for cid in annotated_ids:
-        # Try exact match first, then try extracting contract name
-        rq2_key = cid
-        if cid.startswith("numscout_"):
-            # e.g. numscout_WANGMI -> WANGMI, numscout_BoostToken_operator -> BoostToken
-            parts = cid.split("_", 1)[1]
-            # RQ2 uses contract name: WANGMI, Nokon, SwordCrowdsale, BoostToken, HIT
-            # For cases like numscout_BoostToken_operator, the RQ2 key is "BoostToken"
-            rq2_key = parts
+    def find_rq2_row(case_name, category=None):
+        """Find best matching RQ2 row by case name and optionally category."""
+        candidates = [r for r in rq2_rows if r["case"] == case_name]
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        # Multiple rows with same case name (e.g., BoostToken): match by category
+        if category:
+            for c in candidates:
+                if c.get("category", "") == category:
+                    return c
+        return candidates[0]
 
-        row = rq2_map.get(rq2_key)
+    for cid, case_info in annotated_cases.items():
+        row = None
+        pattern = case_info.get("pattern", "")
+
+        # Try exact match first (e.g., web3bugs_5_H_07)
+        row = find_rq2_row(cid, category=cid)
+        if row is None and cid.startswith("numscout_"):
+            # numscout_WANGMI -> try "WANGMI"
+            # numscout_BoostToken_operator -> try "BoostToken" with category matching pattern
+            contract_name = case_info.get("contract_name", "")
+            # Try contract name with pattern as category (RQ2 uses pattern as category)
+            row = find_rq2_row(contract_name, category=pattern)
+            if row is None:
+                # Fallback: try without category filter
+                row = find_rq2_row(contract_name)
+
         if row:
             detected = row.get("result", "") == "VIOLATED"
             time_sec = float(row.get("analysis_time_sec", 0))
@@ -97,7 +118,8 @@ def load_gptscan(annotated_cases):
         meta_file = GPTSCAN_DIR / f"{cid}.json.metadata.json"
 
         if not result_file.exists():
-            gpt[cid] = {"strict": False, "loose": False, "time": None, "patterns": []}
+            gpt[cid] = {"strict": False, "loose": False, "time": None, "patterns": [],
+                        "file_patterns": []}
             continue
 
         with open(result_file, encoding="utf-8") as f:
@@ -146,12 +168,13 @@ def load_gptscan(annotated_cases):
 # =====================================================================
 def load_sctype(annotated_ids):
     """Return {case_id: {"detected": bool, "applicable": bool,
-                         "times": [run1,run2,run3], "avg_time": float}}"""
+                         "times": [run1,run2,run3], "avg_time": float, "stdev_time": float}}"""
     sc = {}
     for cid in annotated_ids:
         applicable = cid in SCTYPE_OVERLAP_CASES
         if not applicable:
-            sc[cid] = {"detected": None, "applicable": False, "times": [], "avg_time": None}
+            sc[cid] = {"detected": None, "applicable": False,
+                       "times": [], "avg_time": None, "stdev_time": None}
             continue
 
         detected_runs = []
@@ -168,16 +191,17 @@ def load_sctype(annotated_ids):
                     times.append(entry.get("time", 0))
                     break
 
-        # Use majority vote: detected if detected in any run (since it is deterministic,
-        # all runs should agree, but handle edge cases)
+        # Deterministic tool: all runs should agree, but use majority as safeguard
         detected = any(detected_runs) if detected_runs else False
-        avg_time = sum(times) / len(times) if times else None
+        avg_time = float(np.mean(times)) if times else None
+        stdev_time = float(np.std(times, ddof=1)) if len(times) > 1 else None
 
         sc[cid] = {
             "detected": detected,
             "applicable": True,
             "times": times,
             "avg_time": avg_time,
+            "stdev_time": stdev_time,
         }
     return sc
 
@@ -211,6 +235,7 @@ def build_table(annotated_cases, ic_data, gpt_data, sc_data):
             "SC_applicable": sc.get("applicable", False),
             "SC_detected": sc.get("detected"),
             "SC_time": sc.get("avg_time"),
+            "SC_stdev": sc.get("stdev_time"),
         }
         rows.append(row)
     return rows
@@ -223,7 +248,7 @@ def write_csv(rows, path):
         "case_id", "source", "contract", "function", "pattern",
         "IC_detected", "IC_time",
         "GPT_strict", "GPT_loose", "GPT_time", "GPT_patterns",
-        "SC_applicable", "SC_detected", "SC_time",
+        "SC_applicable", "SC_detected", "SC_time", "SC_stdev",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -235,33 +260,50 @@ def write_csv(rows, path):
 # 7. Figures
 # =====================================================================
 
-def fig_detection_heatmap(rows, path):
-    """20 cases x 4 columns heatmap (IC, GPTStrict, GPTLoose, ScType)."""
-    case_ids = [r["case_id"] for r in rows]
-    # Shorten labels for display
-    short_ids = []
-    for c in case_ids:
-        if c.startswith("numscout_"):
-            short_ids.append(c.replace("numscout_", "NS:"))
-        elif c.startswith("web3bugs_"):
-            short_ids.append(c.replace("web3bugs_", "W3B:"))
-        else:
-            short_ids.append(c)
+def _shorten_case_id(case_id):
+    """Shorten case IDs for figure labels.
+    web3bugs_5_H_07 -> 5_H_07
+    numscout_WANGMI -> WANGMI
+    numscout_BoostToken_operator -> BoostToken_op
+    numscout_BoostToken_indivisible -> BoostToken_ind
+    """
+    if case_id.startswith("numscout_"):
+        name = case_id[len("numscout_"):]
+        # Further shorten long numscout names
+        short_map = {
+            "BoostToken_operator": "BoostToken_op",
+            "BoostToken_indivisible": "BoostToken_ind",
+            "SwordCrowdsale": "SwordCrowdsale",
+        }
+        return short_map.get(name, name)
+    elif case_id.startswith("web3bugs_"):
+        return case_id[len("web3bugs_"):]
+    return case_id
 
-    tools = ["IntentChecker", "GPTScan\n(strict)", "GPTScan\n(loose)", "ScType"]
+
+def fig_detection_heatmap(rows, path):
+    """20 cases x 4 columns heatmap: IntentChecker, ScType, GPTScan(strict), NumScout(placeholder)."""
+    case_ids = [r["case_id"] for r in rows]
+    short_ids = [_shorten_case_id(c) for c in case_ids]
+
+    tools = ["IntentChecker", "ScType", "GPTScan\n(strict)", "NumScout"]
     n_cases = len(rows)
     n_tools = len(tools)
 
     # Build matrix: 1=detected, 0=not detected, -1=N/A
     mat = np.zeros((n_cases, n_tools))
     for i, r in enumerate(rows):
+        # IntentChecker
         mat[i, 0] = 1 if r["IC_detected"] else 0
-        mat[i, 1] = 1 if r["GPT_strict"] else 0
-        mat[i, 2] = 1 if r["GPT_loose"] else 0
+        # ScType
         if not r["SC_applicable"]:
-            mat[i, 3] = -1  # N/A
+            mat[i, 1] = -1  # N/A
         else:
-            mat[i, 3] = 1 if r["SC_detected"] else 0
+            mat[i, 1] = 1 if r["SC_detected"] else 0
+        # GPTScan (strict)
+        mat[i, 2] = 1 if r["GPT_strict"] else 0
+        # NumScout placeholder: all N/A
+        mat[i, 3] = -1
 
     # Custom colormap: N/A=light gray, not detected=salmon, detected=mediumseagreen
     cmap = mcolors.ListedColormap(["#D3D3D3", "#F08080", "#3CB371"])
@@ -331,7 +373,8 @@ def fig_time_comparison(rows, sc_data, path):
         if data["applicable"] and data["times"]:
             sc_all_times.extend(data["times"])
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5), gridspec_kw={"width_ratios": [2, 1]})
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5),
+                             gridspec_kw={"width_ratios": [2, 1]})
 
     # -- Left panel: box plot (all three tools) --
     ax = axes[0]
@@ -364,14 +407,16 @@ def fig_time_comparison(rows, sc_data, path):
     ax2 = axes[1]
     means = [np.mean(d) if d else 0 for d in box_data]
     labels_short = ["IC", "ScType", "GPTScan"]
-    bars = ax2.bar(labels_short, means, color=colors, alpha=0.7, edgecolor="black", linewidth=0.5)
+    bars = ax2.bar(labels_short, means, color=colors, alpha=0.7,
+                   edgecolor="black", linewidth=0.5)
     ax2.set_ylabel("Mean Analysis Time (seconds)", fontsize=11)
     ax2.set_title("Average Time", fontsize=12, fontweight="bold")
     ax2.grid(axis="y", alpha=0.3)
 
     for bar, val in zip(bars, means):
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2,
-                 f"{val:.1f}s", ha="center", va="bottom", fontsize=9, fontweight="bold")
+                 f"{val:.1f}s", ha="center", va="bottom", fontsize=9,
+                 fontweight="bold")
 
     fig.tight_layout()
     fig.savefig(path, dpi=300, bbox_inches="tight")
@@ -381,7 +426,7 @@ def fig_time_comparison(rows, sc_data, path):
 
 
 def fig_detection_rate(rows, path):
-    """Bar chart of detection rates."""
+    """Bar chart of detection rates with NumScout placeholder."""
     n = len(rows)
 
     # IntentChecker: all 20 detected
@@ -398,37 +443,50 @@ def fig_detection_rate(rows, path):
     sc_n = len(sc_applicable)
     sc_detected = sum(1 for r in sc_applicable if r["SC_detected"])
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 5))
 
-    # Groups
+    # Groups (with NumScout placeholder)
     groups = [
         ("IntentChecker", ic_detected, n, "#4CAF50"),
+        ("ScType", sc_detected, sc_n, "#2196F3"),
         ("GPTScan\n(strict)", gpt_strict, n, "#FF9800"),
         ("GPTScan\n(loose)", gpt_loose, n, "#FFB74D"),
-        ("ScType", sc_detected, sc_n, "#2196F3"),
+        ("NumScout\n(TBD)", None, None, "#CCCCCC"),
     ]
 
     x = np.arange(len(groups))
     width = 0.6
     for i, (label, det, total, color) in enumerate(groups):
-        rate = det / total * 100 if total > 0 else 0
-        bar = ax.bar(i, rate, width, color=color, alpha=0.8, edgecolor="black", linewidth=0.5)
-        ax.text(i, rate + 2, f"{det}/{total}\n({rate:.0f}%)",
-                ha="center", va="bottom", fontsize=10, fontweight="bold")
+        if det is None:
+            # Placeholder
+            bar = ax.bar(i, 0, width, color=color, alpha=0.4,
+                         edgecolor="gray", linewidth=0.5, linestyle="--")
+            ax.text(i, 5, "TBD", ha="center", va="bottom", fontsize=10,
+                    fontweight="bold", color="#888888")
+        else:
+            rate = det / total * 100 if total > 0 else 0
+            bar = ax.bar(i, rate, width, color=color, alpha=0.8,
+                         edgecolor="black", linewidth=0.5)
+            ax.text(i, rate + 2, f"{det}/{total}\n({rate:.1f}%)",
+                    ha="center", va="bottom", fontsize=10, fontweight="bold")
 
     ax.set_xticks(x)
     ax.set_xticklabels([g[0] for g in groups], fontsize=11)
     ax.set_ylabel("Detection Rate (%)", fontsize=12)
-    ax.set_ylim(0, 120)
-    ax.set_title("Detection Rate Comparison on Annotated Cases", fontsize=13, fontweight="bold")
+    ax.set_ylim(0, 125)
+    ax.set_title("Detection Rate Comparison on Annotated Cases",
+                 fontsize=13, fontweight="bold")
     ax.axhline(y=100, color="gray", linestyle="--", alpha=0.3)
     ax.grid(axis="y", alpha=0.3)
 
     # Add note about ScType denominator
-    ax.annotate(f"* ScType evaluated on {sc_n} overlapping cases only;\n"
-                f"  13 cases have no type annotations (N/A)",
-                xy=(0.5, -0.18), xycoords="axes fraction", ha="center",
-                fontsize=8, style="italic", color="#555555")
+    ax.annotate(
+        f"* ScType evaluated on {sc_n} overlapping cases only; "
+        f"{n - sc_n} cases have no type annotations (N/A)\n"
+        f"* NumScout results will be added in a future update",
+        xy=(0.5, -0.15), xycoords="axes fraction", ha="center",
+        fontsize=8, style="italic", color="#555555",
+    )
 
     fig.tight_layout()
     fig.savefig(path, dpi=300, bbox_inches="tight")
@@ -463,25 +521,57 @@ def write_summary(rows, ic_data, gpt_data, sc_data, path):
         return (f"mean={np.mean(times):.1f}s, median={np.median(times):.1f}s, "
                 f"min={np.min(times):.1f}s, max={np.max(times):.1f}s")
 
+    # IC time note
+    ic_times_available = sum(1 for r in rows if r["IC_time"] is not None)
+    ic_time_note = ""
+    if ic_times_available < n:
+        ic_time_note = (
+            f"\n\n> Note: IntentChecker timing data available for {ic_times_available}/{n} cases. "
+            f"Cases with shared contract names (e.g., BoostToken used for two different patterns) "
+            f"share the same analysis time from RQ2."
+        )
+
+    # Heatmap-style detection matrix for markdown
+    detection_matrix_lines = []
+    for r in rows:
+        cid = r["case_id"]
+        short = _shorten_case_id(cid)
+        ic_mark = "Y" if r["IC_detected"] else "N"
+        sc_mark = "Y" if r["SC_detected"] else ("N" if r["SC_applicable"] else "N/A")
+        gpt_s_mark = "Y" if r["GPT_strict"] else "N"
+        gpt_l_mark = "Y" if r["GPT_loose"] else "N"
+        detection_matrix_lines.append(
+            f"| {short} | {r['contract']}.{r['function']} | {ic_mark} | {sc_mark} | {gpt_s_mark} | {gpt_l_mark} | TBD |"
+        )
+
     # ScType per-case detail
     sc_detail_lines = []
     for r in rows:
         cid = r["case_id"]
+        short = _shorten_case_id(cid)
         if r["SC_applicable"]:
             det = "Detected" if r["SC_detected"] else "Not detected"
             t = f"{r['SC_time']:.1f}s" if r['SC_time'] is not None else "N/A"
-            sc_detail_lines.append(f"| {cid} | {det} | {t} |")
+            sd = f" ({r['SC_stdev']:.2f})" if r.get('SC_stdev') is not None else ""
+            sc_detail_lines.append(f"| {short} | {det} | {t}{sd} |")
         else:
-            sc_detail_lines.append(f"| {cid} | N/A (no type file) | - |")
+            sc_detail_lines.append(f"| {short} | N/A (no type file) | - |")
 
     # GPTScan loose detail
     gpt_detail_lines = []
     for r in rows:
         cid = r["case_id"]
+        short = _shorten_case_id(cid)
         loose = "File match" if r["GPT_loose"] else "No match"
         patterns = r["GPT_patterns"] if r["GPT_patterns"] else "-"
         t = f"{r['GPT_time']:.0f}s" if r["GPT_time"] is not None else "N/A"
-        gpt_detail_lines.append(f"| {cid} | {loose} | {patterns} | {t} |")
+        gpt_detail_lines.append(f"| {short} | {loose} | {patterns} | {t} |")
+
+    # Speed ratio
+    if ic_times and gpt_times:
+        speed_ratio = np.mean(gpt_times) / np.mean(ic_times)
+    else:
+        speed_ratio = 0
 
     md = f"""# RQ3: Comparison Analysis Summary
 
@@ -491,31 +581,43 @@ Comparison of **IntentChecker** against **GPTScan** and **ScType** on **{n} anno
 containing numeric logic errors (erroneous accounting, inconsistent state updates, etc.)
 in Solidity smart contracts.
 
+- **IntentChecker**: Symbolic abstract interpretation with Z3 solver, guided by developer-specified intent annotations (pre/post-conditions).
+- **ScType**: Static type-checking for financial type consistency, requiring per-contract type annotation files.
+- **GPTScan**: LLM-based multi-step analysis pipeline targeting DeFi-specific vulnerability patterns (price manipulation, slippage, etc.).
+- **NumScout**: _(Results pending; placeholder included for future update.)_
+
 ---
 
 ## 1. Detection Rates
 
-| Tool | Detected | Total | Rate |
-|------|----------|-------|------|
-| IntentChecker | {ic_detected} | {n} | {ic_detected/n*100:.0f}% |
-| GPTScan (strict) | {gpt_strict} | {n} | {gpt_strict/n*100:.0f}% |
-| GPTScan (loose) | {gpt_loose} | {n} | {gpt_loose/n*100:.0f}% |
-| ScType | {sc_detected} | {sc_n} | {sc_detected/sc_n*100:.0f}% |
+| Tool | Detected | Total Evaluated | Rate |
+|------|----------|----------------|------|
+| IntentChecker | {ic_detected} | {n} | {ic_detected/n*100:.1f}% |
+| ScType | {sc_detected} | {sc_n} | {sc_detected/sc_n*100:.1f}% |
+| GPTScan (strict) | {gpt_strict} | {n} | {gpt_strict/n*100:.1f}% |
+| GPTScan (loose) | {gpt_loose} | {n} | {gpt_loose/n*100:.1f}% |
+| NumScout | TBD | TBD | TBD |
 
 **Definitions:**
 - **Strict detection**: The tool identifies the same *type* of bug as the ground truth
-  (erroneous accounting / numeric logic error).
-- **Loose detection**: The tool produces *any* finding on the target file, regardless
+  (erroneous accounting / numeric logic error). GPTScan has no rules for this category,
+  so strict detection is 0%.
+- **Loose detection**: The tool produces *any* finding on the target .sol file, regardless
   of whether the finding matches the actual bug type.
 - **ScType applicability**: Only {sc_n} of {n} cases have ScType type annotation files.
   The remaining {n - sc_n} cases are marked N/A.
 
 ---
 
-## 2. Analysis Time
+## 2. Detection Matrix (all {n} annotated cases)
 
-| Tool | {time_stats(ic_times) if ic_times else "N/A"} |
-|------|{'-' * (len(time_stats(ic_times)) + 2 if ic_times else 6)}|
+| Case | Contract.Function | IC | ScType | GPTScan (strict) | GPTScan (loose) | NumScout |
+|------|-------------------|-----|--------|-------------------|-----------------|----------|
+{chr(10).join(detection_matrix_lines)}
+
+---
+
+## 3. Analysis Time
 
 | Metric | IntentChecker | ScType | GPTScan |
 |--------|---------------|--------|---------|
@@ -523,82 +625,129 @@ in Solidity smart contracts.
 | Median | {np.median(ic_times):.1f}s | {np.median(sc_times_all):.1f}s | {np.median(gpt_times):.0f}s |
 | Min | {np.min(ic_times):.1f}s | {np.min(sc_times_all):.1f}s | {np.min(gpt_times):.0f}s |
 | Max | {np.max(ic_times):.1f}s | {np.max(sc_times_all):.1f}s | {np.max(gpt_times):.0f}s |
+| Samples | {len(ic_times)} | {len(sc_times_all)} (3 runs x {sc_n} cases) | {len(gpt_times)} |
 
-IntentChecker and ScType are orders of magnitude faster than GPTScan.
+GPTScan is ~{speed_ratio:.0f}x slower than IntentChecker on average.
+IntentChecker and ScType are both local analysis tools that complete in seconds.{ic_time_note}
 
 ---
 
-## 3. GPTScan Detail (per annotated case)
+## 4. GPTScan Detail (per annotated case)
 
 GPTScan detects *price-manipulation*, *no-slippage-limit-check*, *first-deposit*, etc.
 These are fundamentally **different bug types** from the numeric logic errors targeted
 in this study. Even when GPTScan produces a finding on the target file (loose match),
 it is identifying a different vulnerability.
 
-| Case ID | Loose Match | Patterns on Target File | Time |
-|---------|-------------|------------------------|------|
+| Case | Loose Match | Patterns on Target File | Time |
+|------|-------------|------------------------|------|
 {chr(10).join(gpt_detail_lines)}
 
 ---
 
-## 4. ScType Detail (per annotated case)
+## 5. ScType Detail (per annotated case)
 
 ScType checks financial type consistency. It can only be applied to contracts where
-type annotation files exist ({sc_n}/{n} cases overlap).
+type annotation files exist ({sc_n}/{n} cases overlap). Times reported are averages
+over 3 runs (stdev in parentheses where available).
 
-| Case ID | Result | Avg Time |
-|---------|--------|----------|
+| Case | Result | Avg Time (stdev) |
+|------|--------|-----------------|
 {chr(10).join(sc_detail_lines)}
 
 ---
 
-## 5. Key Findings
+## 6. Key Findings
 
-### 5.1 Coverage Gap
+### 6.1 Coverage Gap
 GPTScan has **no detection rules** for numeric logic errors (erroneous accounting,
 operator order issues, precision loss, etc.). Its rule set targets price manipulation,
 slippage, and related DeFi-specific patterns. This means GPTScan **structurally cannot
-detect** the class of bugs IntentChecker targets, resulting in 0% strict detection.
+detect** the class of bugs IntentChecker targets, resulting in 0% strict detection rate.
 
-### 5.2 Complementarity with ScType
-- **Overlap**: ScType detected **{sc_detected}/{sc_n}** of the overlapping cases.
+Even in the loose comparison, GPTScan's {gpt_loose}/{n} file-level matches all correspond
+to *different* vulnerability types (e.g., price-manipulation on the same file), not the
+actual numeric logic error.
+
+### 6.2 Complementarity with ScType
+- **Detection overlap**: ScType detected **{sc_detected}/{sc_n}** of the overlapping cases.
   IntentChecker detected all {sc_n}/{sc_n} of the same cases.
 - **Different properties checked**: ScType verifies *financial type consistency*
   (e.g., mixing token types in arithmetic), while IntentChecker verifies
   *developer intent* (pre/post-conditions on numeric values).
 - ScType requires type annotation files per contract; IntentChecker requires
   intent annotations (pre/post-conditions). Both need manual specification,
-  but check orthogonal properties.
+  but check **orthogonal properties**.
 - **Non-overlapping cases**: {n - sc_n} annotated cases cannot be evaluated by ScType
   (no type files), but are all detected by IntentChecker.
+- **False negatives in ScType**: {sc_n - sc_detected} cases where ScType has type files
+  but fails to detect the bug (e.g., the bug is not a type inconsistency).
 
-### 5.3 Speed Comparison
+### 6.3 Speed Comparison
 - IntentChecker ({np.mean(ic_times):.1f}s avg) and ScType ({np.mean(sc_times_all):.1f}s avg)
   are **local analysis tools** that complete in seconds.
-- GPTScan ({np.mean(gpt_times):.0f}s avg) is significantly slower due to its
-  multi-step LLM-based pipeline.
+- GPTScan ({np.mean(gpt_times):.0f}s avg, ~{speed_ratio:.0f}x slower) is significantly
+  slower due to its multi-step LLM-based pipeline.
+- IntentChecker's speed makes it suitable for CI/CD integration and interactive developer
+  workflows.
 
-### 5.4 Annotation Nature
+### 6.4 Annotation Nature
 | Aspect | IntentChecker | ScType | GPTScan |
 |--------|---------------|--------|---------|
 | Annotation needed | Developer intent (pre/post) | Financial types | None |
 | Bug types detected | Numeric logic errors | Type inconsistency | Price manipulation, slippage |
-| Analysis approach | Symbolic (Z3) | Type inference | LLM + static analysis |
+| Analysis approach | Abstract interpretation + Z3 | Type inference | LLM + static analysis |
 | Avg. time | {np.mean(ic_times):.1f}s | {np.mean(sc_times_all):.1f}s | {np.mean(gpt_times):.0f}s |
+| Coverage | {ic_detected}/{n} ({ic_detected/n*100:.0f}%) | {sc_detected}/{sc_n} ({sc_detected/sc_n*100:.0f}%) | {gpt_strict}/{n} (strict: {gpt_strict/n*100:.0f}%) |
 
 ---
 
-## 6. Implications for Paper
+## 7. Implications for Paper
 
 1. **IntentChecker fills a detection gap**: No existing tool specifically targets
-   numeric logic errors via developer intent verification.
+   numeric logic errors via developer intent verification. GPTScan's rule set does
+   not cover this category at all.
 2. **Complementary to ScType**: The two tools check different semantic properties
-   and could be combined for broader coverage.
+   and could be combined for broader coverage. IntentChecker catches all {sc_n - sc_detected}
+   cases that ScType misses among the overlapping set.
 3. **Speed advantage over LLM-based tools**: IntentChecker's symbolic approach
-   provides fast, deterministic analysis suitable for CI/CD integration.
+   provides fast (~{speed_ratio:.0f}x faster than GPTScan), deterministic analysis
+   suitable for CI/CD integration.
 4. **Annotation trade-off**: While IntentChecker requires intent annotations,
    this is analogous to type annotations for ScType. The annotations serve as
-   both specification and documentation.
+   both specification and documentation of developer intent.
+5. **Broader applicability**: IntentChecker works on all {n} cases regardless of
+   contract structure, while ScType is limited to the {sc_n} cases with available
+   type annotation files.
+
+---
+
+## 8. Threats to Validity
+
+1. **Internal validity -- annotation bias**: IntentChecker's 100% detection rate is
+   by design: the 20 cases were annotated with intent specifications that, when
+   violated, confirm the known bug. This reflects the tool's purpose (checking
+   developer-specified properties) but does not measure the effort or correctness
+   of writing annotations.
+2. **Construct validity -- strict vs. loose**: The strict/loose distinction for GPTScan
+   is important. GPTScan was not designed for numeric logic errors, so its 0% strict
+   rate reflects a scope mismatch rather than a quality deficiency.
+3. **External validity -- limited ScType overlap**: Only {sc_n}/{n} cases could be
+   evaluated with ScType due to the availability of type annotation files. Results
+   may differ with a larger overlap set.
+4. **Generalizability**: The {n} annotated cases are drawn from Web3Bugs and NumScout
+   datasets. Results may not generalize to all Solidity codebases or vulnerability types.
+5. **Single-run GPTScan**: GPTScan was executed once (run1). LLM-based tools may
+   produce non-deterministic results across runs, though GPTScan's pipeline includes
+   deterministic static analysis steps.
+
+---
+
+## 9. NumScout (Pending)
+
+NumScout results will be added in a future update. The comparison table, heatmap, and
+detection rate chart include placeholder columns for NumScout. Once NumScout data is
+available, the script can be re-run to produce updated outputs.
 
 ---
 
@@ -622,9 +771,10 @@ def main():
     annotated = load_annotated_cases()
     print(f"Annotated cases: {len(annotated)}")
 
-    ic_data = load_intentchecker(set(annotated.keys()))
+    ic_data = load_intentchecker(annotated)
+    ic_with_time = sum(1 for v in ic_data.values() if v['time'] is not None)
     print(f"IntentChecker results loaded: {len(ic_data)} "
-          f"(with timing: {sum(1 for v in ic_data.values() if v['time'] is not None)})")
+          f"(with timing: {ic_with_time})")
 
     gpt_data = load_gptscan(annotated)
     gpt_found = sum(1 for v in gpt_data.values() if v["time"] is not None)
@@ -639,11 +789,22 @@ def main():
 
     # 3. Quick console summary
     print("\n--- Detection Summary ---")
-    print(f"IntentChecker: {sum(1 for r in rows if r['IC_detected'])}/20")
-    print(f"GPTScan strict: {sum(1 for r in rows if r['GPT_strict'])}/20")
-    print(f"GPTScan loose: {sum(1 for r in rows if r['GPT_loose'])}/20")
+    print(f"IntentChecker: {sum(1 for r in rows if r['IC_detected'])}/{len(rows)}")
+    print(f"GPTScan strict: {sum(1 for r in rows if r['GPT_strict'])}/{len(rows)}")
+    print(f"GPTScan loose: {sum(1 for r in rows if r['GPT_loose'])}/{len(rows)}")
     sc_app = [r for r in rows if r["SC_applicable"]]
     print(f"ScType: {sum(1 for r in sc_app if r['SC_detected'])}/{len(sc_app)} applicable")
+    print(f"NumScout: TBD")
+
+    # Time quick summary
+    ic_times = [r["IC_time"] for r in rows if r["IC_time"] is not None]
+    gpt_times = [r["GPT_time"] for r in rows if r["GPT_time"] is not None]
+    if ic_times:
+        print(f"\nIntentChecker time: mean={np.mean(ic_times):.1f}s, "
+              f"median={np.median(ic_times):.1f}s")
+    if gpt_times:
+        print(f"GPTScan time: mean={np.mean(gpt_times):.0f}s, "
+              f"median={np.median(gpt_times):.0f}s")
 
     # 4. Write outputs
     write_csv(rows, BASE / "rq3_comparison_table.csv")
