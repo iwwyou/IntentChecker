@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "success": true,
+  "message": null,
+  "results": [
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in _updateVaderPrice",
+      "description": "typecheck error: Var name: TMP_3462 Func name: _updateVaderPrice in EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(pairData.foreignAsset))",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+          "function": "_updateVaderPrice",
+          "expression": "EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(pairData.foreignAsset))",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in _addVaderPair",
+      "description": "typecheck error: Var name: TMP_3504 Func name: _addVaderPair in NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(foreignAsset))",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+          "function": "_addVaderPair",
+          "expression": "NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(foreignAsset))",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in _updateUSDVPrice",
+      "description": "typecheck error: Var name: TMP_3535 Func name: _updateUSDVPrice in EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+          "function": "_updateUSDVPrice",
+          "expression": "EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in _addUSDVPair",
+      "description": "typecheck error: Var name: TMP_3577 Func name: _addUSDVPair in NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+          "function": "_addUSDVPair",
+          "expression": "NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    }
+  ]
+}

@@ -35,13 +35,21 @@ GLOBAL_TIMEOUT = 1800  # seconds
 
 
 def switch_solc(version: str):
-    """Copy the correct solc binary into the NumScout venv."""
+    """Copy the correct solc binary into both NumScout venv and global Python Scripts."""
     solc_exe = SOLC_ARTIFACTS / f"solc-{version}" / f"solc-{version}.exe"
-    target = NUMSCOUT_DIR / "venv" / "Scripts" / "solc.exe"
     if not solc_exe.exists():
         print(f"  [ERROR] solc {version} not found at {solc_exe}")
         return False
-    shutil.copy2(solc_exe, target)
+    targets = [
+        NUMSCOUT_DIR / "venv" / "Scripts" / "solc.exe",
+        Path("C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe"),
+    ]
+    for t in targets:
+        try:
+            shutil.copy2(solc_exe, t)
+        except Exception as e:
+            print(f"  [WARN] Failed to copy solc to {t}: {e}")
+    print(f"  solc -> {version}")
     return True
 
 
@@ -150,6 +158,7 @@ def main():
     parser.add_argument("--case", help="Run single case by ID")
     parser.add_argument("--source", choices=["numscout", "web3bugs", "all"], default="all")
     parser.add_argument("--run", help="Run name (output subdirectory)", default="run1")
+    parser.add_argument("--annotated-only", action="store_true", help="Run only 20 annotated cases")
     args = parser.parse_args()
 
     output_dir = SCRIPT_DIR / "outputs" / "numscout" / args.run
@@ -162,6 +171,8 @@ def main():
 
     if args.case:
         cases = [c for c in cases if c["case_id"] == args.case]
+    elif args.annotated_only:
+        cases = [c for c in cases if c["status"] == "annotated"]
     elif args.source != "all":
         cases = [c for c in cases if c["source"] == args.source]
 

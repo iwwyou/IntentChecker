@@ -1,0 +1,589 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "first-deposit",
+            "severity": "HIGH",
+            "title": "MWE-204: Unsafe First Deposit",
+            "description": "First depositor can break minting of shares or drain the liquidity of all users.",
+            "recommendation": "When totalSupply() == 0, send the first min liquidity LP tokens to the zero address to enable share dilution.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\pool\\BasePool.sol",
+                    "range": {
+                        "start": {
+                            "line": 148
+                        },
+                        "end": {
+                            "line": 193
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "front-running",
+            "severity": "HIGH",
+            "title": "MWE-205: Front Running",
+            "description": "Users are required to transfer assets in advance and minting token/liquidity/earning thus could be frontrun.",
+            "recommendation": "Put asset transfering and token minting in the same function to keep atomicity.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\pool\\BasePool.sol",
+                    "range": {
+                        "start": {
+                            "line": 148
+                        },
+                        "end": {
+                            "line": 193
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "first-deposit",
+            "severity": "HIGH",
+            "title": "MWE-204: Unsafe First Deposit",
+            "description": "First depositor can break minting of shares or drain the liquidity of all users.",
+            "recommendation": "When totalSupply() == 0, send the first min liquidity LP tokens to the zero address to enable share dilution.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\pool\\BasePool.sol",
+                    "range": {
+                        "start": {
+                            "line": 148
+                        },
+                        "end": {
+                            "line": 193
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 82
+                        },
+                        "end": {
+                            "line": 114
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\pool\\BasePool.sol",
+                    "range": {
+                        "start": {
+                            "line": 213
+                        },
+                        "end": {
+                            "line": 252
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\x-vader\\XVader.sol",
+                    "range": {
+                        "start": {
+                            "line": 45
+                        },
+                        "end": {
+                            "line": 54
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\pool\\BasePool.sol",
+                    "range": {
+                        "start": {
+                            "line": 288
+                        },
+                        "end": {
+                            "line": 378
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 349
+                        },
+                        "end": {
+                            "line": 367
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 393
+                        },
+                        "end": {
+                            "line": 437
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 393
+                        },
+                        "end": {
+                            "line": 437
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 243
+                        },
+                        "end": {
+                            "line": 258
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 393
+                        },
+                        "end": {
+                            "line": 437
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 243
+                        },
+                        "end": {
+                            "line": 258
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex\\router\\VaderRouter.sol",
+                    "range": {
+                        "start": {
+                            "line": 452
+                        },
+                        "end": {
+                            "line": 496
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\pool\\BasePoolV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 203
+                        },
+                        "end": {
+                            "line": 246
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\pool\\BasePoolV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 479
+                        },
+                        "end": {
+                            "line": 533
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\x-vader\\XVader.sol",
+                    "range": {
+                        "start": {
+                            "line": 25
+                        },
+                        "end": {
+                            "line": 41
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\pool\\BasePoolV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 479
+                        },
+                        "end": {
+                            "line": 533
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\tokens\\USDV.sol",
+                    "range": {
+                        "start": {
+                            "line": 66
+                        },
+                        "end": {
+                            "line": 98
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\pool\\VaderPoolV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 153
+                        },
+                        "end": {
+                            "line": 194
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\pool\\VaderPoolV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 206
+                        },
+                        "end": {
+                            "line": 246
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\dex-v2\\router\\VaderRouterV2.sol",
+                    "range": {
+                        "start": {
+                            "line": 113
+                        },
+                        "end": {
+                            "line": 150
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+                    "range": {
+                        "start": {
+                            "line": 150
+                        },
+                        "end": {
+                            "line": 189
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+                    "range": {
+                        "start": {
+                            "line": 113
+                        },
+                        "end": {
+                            "line": 148
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\lbt\\LiquidityBasedTWAP.sol",
+                    "range": {
+                        "start": {
+                            "line": 353
+                        },
+                        "end": {
+                            "line": 383
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 35
+                        },
+                        "end": {
+                            "line": 80
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 186
+                        },
+                        "end": {
+                            "line": 212
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 249
+                        },
+                        "end": {
+                            "line": 285
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "no-slippage-limit-check",
+            "severity": "HIGH",
+            "title": "MWE-206: No Slippage Limit Check",
+            "description": "No slippage limit check was performed to prevent sandwich attacks.",
+            "recommendation": "Add slippage limit check when do liquidity-related operations.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 288
+                        },
+                        "end": {
+                            "line": 312
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 314
+                        },
+                        "end": {
+                            "line": 345
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\mocks\\MockUniswapV2Router.sol",
+                    "range": {
+                        "start": {
+                            "line": 546
+                        },
+                        "end": {
+                            "line": 581
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "first-deposit",
+            "severity": "HIGH",
+            "title": "MWE-204: Unsafe First Deposit",
+            "description": "First depositor can break minting of shares or drain the liquidity of all users.",
+            "recommendation": "When totalSupply() == 0, send the first min liquidity LP tokens to the zero address to enable share dilution.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\70\\contracts\\x-vader\\XVader.sol",
+                    "range": {
+                        "start": {
+                            "line": 25
+                        },
+                        "end": {
+                            "line": 41
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}

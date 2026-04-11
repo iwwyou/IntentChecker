@@ -1,0 +1,93 @@
+[
+  {
+    "case_id": "web3bugs_5_H_07",
+    "tool": "sctype",
+    "detected": true,
+    "detected_patterns": [
+      "typecheck-error"
+    ],
+    "findings": [
+      "typecheck error: Var name: TMP_1013 Func name: calcShare in IF part > total",
+      "typecheck error: Var name: TMP_1076 Func name: calcCoverage in NEW VARIABLE _depositValue = B0 + (T0 * B1) / T1",
+      "typecheck error: Var name: TMP_1066 Func name: calcAsymmetricShare in NEW VARIABLE numerator = ((part1 * part2) - part3) + part4",
+      "typecheck error: Var name: TMP_1039 Func name: calcLiquidityUnits in NEW VARIABLE _units = (((P * part1) + part2) / part3)"
+    ],
+    "time": 8.68,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_5_H_08",
+    "tool": "sctype",
+    "detected": true,
+    "detected_patterns": [
+      "typecheck-error"
+    ],
+    "findings": [
+      "typecheck error: Var name: TMP_1013 Func name: calcShare in IF part > total",
+      "typecheck error: Var name: TMP_1076 Func name: calcCoverage in NEW VARIABLE _depositValue = B0 + (T0 * B1) / T1",
+      "typecheck error: Var name: TMP_1066 Func name: calcAsymmetricShare in NEW VARIABLE numerator = ((part1 * part2) - part3) + part4",
+      "typecheck error: Var name: TMP_1039 Func name: calcLiquidityUnits in NEW VARIABLE _units = (((P * part1) + part2) / part3)"
+    ],
+    "time": 8.82,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_47_H_02",
+    "tool": "sctype",
+    "detected": true,
+    "detected_patterns": [
+      "typecheck-error"
+    ],
+    "findings": [
+      "typecheck error: Var name: REF_27 Func name: _approve in EXPRESSION _allowances[owner][spender] = amount",
+      "typecheck error: Var name: TMP_88 Func name: transferFrom in ENTRY_POINT"
+    ],
+    "time": 3.06,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_56_H_02",
+    "tool": "sctype",
+    "detected": false,
+    "detected_patterns": [],
+    "findings": [],
+    "time": 21.52,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_60_H_01",
+    "tool": "sctype",
+    "detected": true,
+    "detected_patterns": [
+      "typecheck-error"
+    ],
+    "findings": [
+      "typecheck error: Var name: REF_165 Func name: settleAccount in EXPRESSION self.balances[account] = newBalance.abs()"
+    ],
+    "time": 10.45,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_70_H_10",
+    "tool": "sctype",
+    "detected": false,
+    "detected_patterns": [],
+    "findings": [
+      "typecheck error: Var name: TMP_3462 Func name: _updateVaderPrice in EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(pairData.foreignAsset))",
+      "typecheck error: Var name: TMP_3504 Func name: _addVaderPair in NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.VADER)]) + (reserveForeign * getChainlinkPrice(foreignAsset))",
+      "typecheck error: Var name: TMP_3535 Func name: _updateUSDVPrice in EXPRESSION currentLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))",
+      "typecheck error: Var name: TMP_3577 Func name: _addUSDVPair in NEW VARIABLE pairLiquidityEvaluation = (reserveNative * previousPrices[uint256(Paths.USDV)]) + (reserveForeign * getChainlinkPrice(address(foreignAsset)))"
+    ],
+    "time": 18.12,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_101_H_01",
+    "tool": "sctype",
+    "detected": false,
+    "detected_patterns": [],
+    "findings": [],
+    "time": 22.01,
+    "status": "ok"
+  }
+]

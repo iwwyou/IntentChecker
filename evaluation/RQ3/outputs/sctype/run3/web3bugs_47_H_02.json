@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "success": true,
+  "message": null,
+  "results": [
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in _approve",
+      "description": "typecheck error: Var name: REF_27 Func name: _approve in EXPRESSION _allowances[owner][spender] = amount",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\47\\contracts\\WrappedIbbtcEth.sol",
+          "function": "_approve",
+          "expression": "EXPRESSION _allowances[owner][spender] = amount",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in transferFrom",
+      "description": "typecheck error: Var name: TMP_88 Func name: transferFrom in ENTRY_POINT",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\47\\contracts\\WrappedIbbtcEth.sol",
+          "function": "transferFrom",
+          "expression": "ENTRY_POINT",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    }
+  ]
+}

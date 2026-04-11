@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "success": true,
+  "message": null,
+  "results": [
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in calcShare",
+      "description": "typecheck error: Var name: TMP_1013 Func name: calcShare in IF part > total",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+          "function": "calcShare",
+          "expression": "IF part > total",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in calcCoverage",
+      "description": "typecheck error: Var name: TMP_1076 Func name: calcCoverage in NEW VARIABLE _depositValue = B0 + (T0 * B1) / T1",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+          "function": "calcCoverage",
+          "expression": "NEW VARIABLE _depositValue = B0 + (T0 * B1) / T1",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in calcAsymmetricShare",
+      "description": "typecheck error: Var name: TMP_1066 Func name: calcAsymmetricShare in NEW VARIABLE numerator = ((part1 * part2) - part3) + part4",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+          "function": "calcAsymmetricShare",
+          "expression": "NEW VARIABLE numerator = ((part1 * part2) - part3) + part4",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    },
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in calcLiquidityUnits",
+      "description": "typecheck error: Var name: TMP_1039 Func name: calcLiquidityUnits in NEW VARIABLE _units = (((P * part1) + part2) / part3)",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\5\\vader-protocol\\contracts\\Utils.sol",
+          "function": "calcLiquidityUnits",
+          "expression": "NEW VARIABLE _units = (((P * part1) + part2) / part3)",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    }
+  ]
+}

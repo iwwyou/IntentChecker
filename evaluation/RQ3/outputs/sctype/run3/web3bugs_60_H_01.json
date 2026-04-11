@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "success": true,
+  "message": null,
+  "results": [
+    {
+      "code": "typecheck-error",
+      "severity": "HIGH",
+      "title": "ScType typecheck error in settleAccount",
+      "description": "typecheck error: Var name: REF_165 Func name: settleAccount in EXPRESSION self.balances[account] = newBalance.abs()",
+      "recommendation": "Review the arithmetic expression for potential type inconsistency.",
+      "affectedFiles": [
+        {
+          "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\60\\protocol\\contracts\\collateral\\types\\OptimisticLedger.sol",
+          "function": "settleAccount",
+          "expression": "EXPRESSION self.balances[account] = newBalance.abs()",
+          "range": {
+            "start": {
+              "line": 0
+            },
+            "end": {
+              "line": 0
+            }
+          },
+          "highlights": []
+        }
+      ]
+    }
+  ]
+}

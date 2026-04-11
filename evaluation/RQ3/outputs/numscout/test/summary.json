@@ -1,0 +1,12 @@
+[
+  {
+    "case_id": "numscout_WANGMI",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1801.1677978038788,
+    "status": "ok"
+  }
+]

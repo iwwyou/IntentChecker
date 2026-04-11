@@ -252,6 +252,7 @@ def main():
     _DEFAULT_KEY = "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"
     parser.add_argument("--key", help="OpenAI API key", default=os.environ.get("OPENAI_API_KEY", _DEFAULT_KEY))
     parser.add_argument("--run", help="Run name (output subdirectory)", default="run1")
+    parser.add_argument("--annotated-only", action="store_true", help="Run only 20 annotated cases")
     args = parser.parse_args()
 
     if not args.key:
@@ -268,6 +269,8 @@ def main():
 
     if args.case:
         cases = [c for c in cases if c["case_id"] == args.case]
+    elif args.annotated_only:
+        cases = [c for c in cases if c["status"] == "annotated"]
     elif args.source != "all":
         cases = [c for c in cases if c["source"] == args.source]
 

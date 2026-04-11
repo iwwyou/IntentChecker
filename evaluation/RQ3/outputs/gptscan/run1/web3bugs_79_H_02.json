@@ -1,0 +1,94 @@
+{
+    "version": "1.1.0",
+    "success": true,
+    "message": null,
+    "results": [
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\79\\contracts\\LaunchEvent.sol",
+                    "range": {
+                        "start": {
+                            "line": 216
+                        },
+                        "end": {
+                            "line": 287
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\79\\contracts\\RocketJoeStaking.sol",
+                    "range": {
+                        "start": {
+                            "line": 158
+                        },
+                        "end": {
+                            "line": 176
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\79\\contracts\\RocketJoeStaking.sol",
+                    "range": {
+                        "start": {
+                            "line": 96
+                        },
+                        "end": {
+                            "line": 112
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        },
+        {
+            "code": "price-manipulation",
+            "severity": "HIGH",
+            "title": "MWE-200: Insecure LP Token Value Calculation",
+            "description": "Liquidity token value/price can be manipulated to cause flashloan attacks.",
+            "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
+            "affectedFiles": [
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\79\\contracts\\RocketJoeStaking.sol",
+                    "range": {
+                        "start": {
+                            "line": 181
+                        },
+                        "end": {
+                            "line": 188
+                        }
+                    },
+                    "highlights": []
+                },
+                {
+                    "filePath": "C:\\Users\\isjeon\\Web3Bugs\\contracts\\79\\contracts\\RocketJoeStaking.sol",
+                    "range": {
+                        "start": {
+                            "line": 96
+                        },
+                        "end": {
+                            "line": 112
+                        }
+                    },
+                    "highlights": []
+                }
+            ]
+        }
+    ]
+}
