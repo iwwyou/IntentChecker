@@ -43,7 +43,7 @@ web3bugs_35_H_08,web3bugs,ConcentratedLiquidityPool,mint;burn,erroneous_accounti
 web3bugs_35_H_11,web3bugs,Ticks,cross,erroneous_accounting,not_detectable,35,35/trident,35/trident/contracts/libraries/concentratedPool/Ticks.sol,0.8.0
 web3bugs_39_H_02,web3bugs,Swivel,exitVaultFillingVaultInitiate,erroneous_accounting,not_detectable,39,39,39/gost/build/swivel/Swivel.sol,0.8.4
 web3bugs_44_H_02,web3bugs,Swap,fillZrxQuote,erroneous_accounting,not_detectable,44,44,44/contracts/swap/Swap.sol,0.8.0
-web3bugs_51_H_02,web3bugs,SwapUtils,rampTargetPrice,erroneous_accounting,annotated,51,51/customswap,51/customswap/contracts/SwapUtils.sol,0.6.12
+web3bugs_51_H_02,web3bugs,Swap,rampTargetPrice,erroneous_accounting,annotated,51,51/customswap,51/customswap/contracts/Swap.sol,0.6.12
 web3bugs_51_H_04,web3bugs,SwapUtils,getYC,erroneous_accounting,not_detectable,51,51/customswap,51/customswap/contracts/SwapUtils.sol,0.6.12
 web3bugs_52_H_04,web3bugs,TwapOracle,consult,erroneous_accounting,not_detectable,52,52,52/contracts/twap/TwapOracle.sol,0.8.9
 web3bugs_52_H_15,web3bugs,VaderRouter,_swap,erroneous_accounting,not_detectable,52,52,52/contracts/dex/router/VaderRouter.sol,0.8.9
@@ -53,7 +53,7 @@ web3bugs_56_H_02,web3bugs,CDP,update,erroneous_accounting,annotated,56,56,56/con
 web3bugs_58_H_02,web3bugs,LpIssuer,_chargeFees,erroneous_accounting,annotated,58,58/mellow-vaults,58/mellow-vaults/contracts/LpIssuer.sol,0.8.9
 web3bugs_59_H_04,web3bugs,AuctionBurnReserveSkew,getPegDeltaFrequency,erroneous_accounting,not_detectable,59,59/src,59/src/contracts/AuctionBurnReserveSkew.sol,0.6.6
 web3bugs_59_H_05,web3bugs,AuctionEscapeHatch,exitEarly,erroneous_accounting,not_detectable,59,59/src,59/src/contracts/AuctionEscapeHatch.sol,0.6.6
-web3bugs_60_H_01,web3bugs,OptimisticLedgerLib,settleAccount,erroneous_accounting,annotated,60,60/protocol,60/protocol/contracts/collateral/types/OptimisticLedger.sol,0.8.10
+web3bugs_60_H_01,web3bugs,Collateral,settleAccount,erroneous_accounting,annotated,60,60/protocol,60/protocol/contracts/collateral/Collateral.sol,0.8.10
 web3bugs_61_H_01,web3bugs,CreditLine,_borrowTokensToLiquidate,erroneous_accounting,not_detectable,61,61,61/contracts/CreditLine/CreditLine.sol,0.7.6
 web3bugs_61_H_04,web3bugs,YearnYield,getTokensForShares,erroneous_accounting,not_detectable,61,61,61/contracts/yield/YearnYield.sol,0.7.6
 web3bugs_62_H_01,web3bugs,Stream,recoverTokens,erroneous_accounting,not_detectable,62,62/Streaming,62/Streaming/src/Locke.sol,0.8.0
@@ -64,12 +64,12 @@ web3bugs_70_H_05,web3bugs,LiquidityBasedTWAP,_calculateUSDVPrice,erroneous_accou
 web3bugs_70_H_08,web3bugs,VaderReserve,reimburseImpermanentLoss,erroneous_accounting,not_detectable,70,70,70/contracts/reserve/VaderReserve.sol,0.8.9
 web3bugs_70_H_09,web3bugs,USDV,mint,erroneous_accounting,not_detectable,70,70,70/contracts/tokens/USDV.sol,0.8.9
 web3bugs_71_H_11,web3bugs,PoolTemplate,resume,erroneous_accounting,not_detectable,71,71,71/contracts/PoolTemplate.sol,0.8.7
-web3bugs_77_H_01,web3bugs,MathLib,calculateLiquidityTokenQtyForSingleAssetEntry,erroneous_accounting,annotated,77,77/elasticswap,77/elasticswap/src/libraries/MathLib.sol,0.8.4
+web3bugs_77_H_01,web3bugs,Exchange,calculateLiquidityTokenQtyForSingleAssetEntry,erroneous_accounting,annotated,77,77/elasticswap,77/elasticswap/src/contracts/Exchange.sol,0.8.4
 web3bugs_79_H_02,web3bugs,LaunchEvent,createPair,erroneous_accounting,not_detectable,79,79,79/contracts/LaunchEvent.sol,0.8.0
 web3bugs_113_H_05,web3bugs,NFTPairWithOracle,_lend,erroneous_accounting,not_detectable,113,113,113/contracts/NFTPairWithOracle.sol,0.6.12
 web3bugs_36_H_02,web3bugs,Basket,auctionBurn,inconsistent_state_updates,not_detectable,36,36/contracts,36/contracts/contracts/Basket.sol,0.8.7
 web3bugs_58_H_04,web3bugs,AaveVault,tvl,inconsistent_state_updates,not_detectable,58,58/mellow-vaults,58/mellow-vaults/contracts/AaveVault.sol,0.8.9
-web3bugs_62_H_08,web3bugs,Stream,updateStreamInternal,inconsistent_state_updates,annotated,62,62/Streaming,62/Streaming/src/Locke.sol,0.8.0
+web3bugs_62_H_08,web3bugs,Stream,updateStreamInternal,inconsistent_state_updates,annotated,62,62/Streaming,62/Streaming/src/Locke.sol,0.8.10
 web3bugs_65_H_01,web3bugs,Basket,handleFees,inconsistent_state_updates,not_detectable,65,65/contracts,65/contracts/contracts/Basket.sol,0.8.7
 web3bugs_70_H_10,web3bugs,LiquidityBasedTWAP,syncVaderPrice,inconsistent_state_updates,annotated,70,70,70/contracts/lbt/LiquidityBasedTWAP.sol,0.8.9
 web3bugs_83_H_01,web3bugs,MasterChef,add,inconsistent_state_updates,not_detectable,83,83,83/contracts/MasterChef.sol,0.8.11

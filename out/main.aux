@@ -80,60 +80,66 @@
 \newlabel{sec:alg-verification}{{4.4.3}{21}{Algorithm Verification}{subsubsection.4.4.3}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Three-valued logic combination rules for compound clauses. S\,=\,\textit  {satisfied}, V\,=\,\textit  {violated}, W\,=\,\textit  {warning}.}}{22}{table.caption.11}\protected@file@percent }
 \newlabel{tab:logic-combination}{{4}{22}{Three-valued logic combination rules for compound clauses. S\,=\,\textit {satisfied}, V\,=\,\textit {violated}, W\,=\,\textit {warning}}{table.caption.11}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{22}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:interval-topologies}{{3}{22}{Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints}{figure.caption.12}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration.}}{23}{table.caption.14}\protected@file@percent }
-\newlabel{tab:rq1-results}{{5}{23}{Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration}{table.caption.14}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Evaluation}{23}{section.5}\protected@file@percent }
-\newlabel{sec:evaluation}{{5}{23}{Evaluation}{section.5}{}}
+\newlabel{lem:region-gt}{{1}{22}{Region sizes for $>$}{theorem.1}{}}
+\newlabel{lem:tw-gt}{{2}{23}{Sum over $T_w$ for $>$}{theorem.2}{}}
+\newlabel{thm:sound-gt}{{3}{23}{Soundness for $>$}{theorem.3}{}}
+\newlabel{cor:sound-other}{{4}{23}{Soundness for $\geq , <, \leq $}{theorem.4}{}}
+\newlabel{thm:sound-eq}{{5}{23}{Soundness for $=$ and $\neq $}{theorem.5}{}}
+\newlabel{thm:sound-in}{{6}{24}{Soundness for \texttt {in} and \texttt {not\,in}}{theorem.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints.}}{25}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:interval-topologies}{{3}{25}{Eleven topological configurations of two integer intervals, grouped by the number of shared endpoints: (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case). Overlapping regions appear as blended color; dashed vertical lines indicate shared endpoints}{figure.caption.12}{}}
 \citation{numscout}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration.}}{26}{table.caption.14}\protected@file@percent }
+\newlabel{tab:rq1-results}{{5}{26}{Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times $ 8 operators per configuration}{table.caption.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Evaluation}{26}{section.5}\protected@file@percent }
+\newlabel{sec:evaluation}{{5}{26}{Evaluation}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Experimental Setup}{26}{subsection.5.1}\protected@file@percent }
+\newlabel{sec:setup}{{5.1}{26}{Experimental Setup}{subsection.5.1}{}}
 \citation{flyinointment}
 \citation{exploitablebugs}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Experimental Setup}{24}{subsection.5.1}\protected@file@percent }
-\newlabel{sec:setup}{{5.1}{24}{Experimental Setup}{subsection.5.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Benchmark dataset composition.}}{25}{table.caption.16}\protected@file@percent }
-\newlabel{tab:dataset}{{6}{25}{Benchmark dataset composition}{table.caption.16}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}RQ1: Mitigation}{25}{subsection.5.2}\protected@file@percent }
-\newlabel{sec:rq1}{{5.2}{25}{RQ1: Mitigation}{subsection.5.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements).}}{27}{table.caption.18}\protected@file@percent }
-\newlabel{tab:rq1-annotations}{{7}{27}{Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements)}{table.caption.18}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time.}}{28}{table.caption.20}\protected@file@percent }
-\newlabel{tab:rq1-timing}{{8}{28}{Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time}{table.caption.20}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient.}}{29}{figure.caption.21}\protected@file@percent }
-\newlabel{fig:rq1-scatter}{{4}{29}{Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient}{figure.caption.21}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Limitation breakdown for the 55 \textit  {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph  {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}}{30}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:rq1-limitations}{{5}{30}{Limitation breakdown for the 55 \textit {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5)}{figure.caption.22}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}RQ2: Annotation Model Expressibility}{30}{subsection.5.3}\protected@file@percent }
-\newlabel{sec:rq2}{{5.3}{30}{RQ2: Annotation Model Expressibility}{subsection.5.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph  {Inexpressible}: no annotation yields a non-\textit  {Satisfied} verdict even with full bug awareness. \emph  {Strong}: the annotation encodes the correct value directly. \emph  {Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value.}}{32}{table.caption.24}\protected@file@percent }
-\newlabel{tab:rq2-tiers}{{9}{32}{RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph {Inexpressible}: no annotation yields a non-\textit {Satisfied} verdict even with full bug awareness. \emph {Strong}: the annotation encodes the correct value directly. \emph {Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value}{table.caption.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}RQ3: Comparison with Existing Detection Tools}{33}{subsection.5.4}\protected@file@percent }
-\newlabel{sec:rq3}{{5.4}{33}{RQ3: Comparison with Existing Detection Tools}{subsection.5.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Signal characterization of the four compared tools.}}{34}{table.caption.26}\protected@file@percent }
-\newlabel{tab:rq3-signal}{{10}{34}{Signal characterization of the four compared tools}{table.caption.26}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Mitigation results on the 20 RQ1-mitigated cases. {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 51}\,=\,mitigated (tool produced an actionable signal for the target bug), {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope.}}{34}{table.caption.28}\protected@file@percent }
-\newlabel{tab:rq3-mitigation}{{11}{34}{Mitigation results on the 20 RQ1-mitigated cases. \ding {51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding {55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope}{table.caption.28}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc  {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case.}}{35}{figure.caption.29}\protected@file@percent }
-\newlabel{fig:rq3-time}{{6}{35}{Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case}{figure.caption.29}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Threats to Validity}{36}{subsection.5.5}\protected@file@percent }
-\newlabel{sec:threats}{{5.5}{36}{Threats to Validity}{subsection.5.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{36}{section.6}\protected@file@percent }
-\newlabel{sec:discussion}{{6}{36}{Discussion}{section.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Annotation Authoring Burden and Future Automation}{36}{subsection.6.1}\protected@file@percent }
-\newlabel{sec:disc:burden}{{6.1}{36}{Annotation Authoring Burden and Future Automation}{subsection.6.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Remaining Technical Limitations}{38}{subsection.6.2}\protected@file@percent }
-\newlabel{sec:disc:tech}{{6.2}{38}{Remaining Technical Limitations}{subsection.6.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Practical Annotation Guidelines}{39}{subsection.6.3}\protected@file@percent }
-\newlabel{sec:disc:guidelines}{{6.3}{39}{Practical Annotation Guidelines}{subsection.6.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Benchmark dataset composition.}}{28}{table.caption.16}\protected@file@percent }
+\newlabel{tab:dataset}{{6}{28}{Benchmark dataset composition}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}RQ1: Mitigation}{28}{subsection.5.2}\protected@file@percent }
+\newlabel{sec:rq1}{{5.2}{28}{RQ1: Mitigation}{subsection.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements).}}{29}{table.caption.18}\protected@file@percent }
+\newlabel{tab:rq1-annotations}{{7}{29}{Intent clause forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements)}{table.caption.18}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time.}}{30}{table.caption.20}\protected@file@percent }
+\newlabel{tab:rq1-timing}{{8}{30}{Per-case analysis time on the 20 mitigated cases (mean $\pm $ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time}{table.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient.}}{31}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:rq1-scatter}{{4}{31}{Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient}{figure.caption.21}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Limitation breakdown for the 55 \textit  {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph  {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}}{32}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:rq1-limitations}{{5}{32}{Limitation breakdown for the 55 \textit {not\_detectable} instances. Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover. Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter \emph {would} distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5)}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}RQ2: Annotation Model Expressibility}{33}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:rq2}{{5.3}{33}{RQ2: Annotation Model Expressibility}{subsection.5.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph  {Inexpressible}: no annotation yields a non-\textit  {Satisfied} verdict even with full bug awareness. \emph  {Strong}: the annotation encodes the correct value directly. \emph  {Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value.}}{35}{table.caption.24}\protected@file@percent }
+\newlabel{tab:rq2-tiers}{{9}{35}{RQ2 expressibility classification of the 34 annotation-model limitation cases (L4--L5). \emph {Inexpressible}: no annotation yields a non-\textit {Satisfied} verdict even with full bug awareness. \emph {Strong}: the annotation encodes the correct value directly. \emph {Weak}: the annotation provides an awareness signal (change detection) without encoding the correct value}{table.caption.24}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Signal characterization of the four compared tools.}}{36}{table.caption.26}\protected@file@percent }
+\newlabel{tab:rq3-signal}{{10}{36}{Signal characterization of the four compared tools}{table.caption.26}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}RQ3: Comparison with Existing Detection Tools}{36}{subsection.5.4}\protected@file@percent }
+\newlabel{sec:rq3}{{5.4}{36}{RQ3: Comparison with Existing Detection Tools}{subsection.5.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Mitigation results on the 20 RQ1-mitigated cases. {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 51}\,=\,mitigated (tool produced an actionable signal for the target bug), {\fontfamily  {pzd}\fontencoding  {U}\fontseries  {m}\fontshape  {n}\selectfont  \char 55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope.}}{37}{table.caption.28}\protected@file@percent }
+\newlabel{tab:rq3-mitigation}{{11}{37}{Mitigation results on the 20 RQ1-mitigated cases. \ding {51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding {55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor {gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope}{table.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc  {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case.}}{38}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:rq3-time}{{6}{38}{Analysis time comparison across three tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. \textsc {IntentChecker} and ScType complete in seconds; GPTScan's LLM pipeline requires minutes per case}{figure.caption.29}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.5}Threats to Validity}{39}{subsection.5.5}\protected@file@percent }
+\newlabel{sec:threats}{{5.5}{39}{Threats to Validity}{subsection.5.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Discussion}{39}{section.6}\protected@file@percent }
+\newlabel{sec:discussion}{{6}{39}{Discussion}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Annotation Authoring Burden and Future Automation}{39}{subsection.6.1}\protected@file@percent }
+\newlabel{sec:disc:burden}{{6.1}{39}{Annotation Authoring Burden and Future Automation}{subsection.6.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Remaining Technical Limitations}{41}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:disc:tech}{{6.2}{41}{Remaining Technical Limitations}{subsection.6.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Practical Annotation Guidelines}{42}{subsection.6.3}\protected@file@percent }
+\newlabel{sec:disc:guidelines}{{6.3}{42}{Practical Annotation Guidelines}{subsection.6.3}{}}
 \citation{highguard}
 \citation{smartpulse}
 \citation{consolidating}
 \citation{smartinv}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{40}{section.7}\protected@file@percent }
-\newlabel{sec:related}{{7}{40}{Related Works}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{40}{subsection.7.1}\protected@file@percent }
 \citation{exploitablebugs}
 \citation{accountingerrors}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Related Works}{43}{section.7}\protected@file@percent }
+\newlabel{sec:related}{{7}{43}{Related Works}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Numeric Logic Error Detection in Solidity}{43}{subsection.7.1}\protected@file@percent }
 \citation{defiranger,defiguard,pomabuster,secplf,defitainter}
 \citation{defitail,midnight}
 \citation{accountingerrors}
@@ -145,25 +151,25 @@
 \citation{seahorn}
 \citation{libfuzzer}
 \citation{klee}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{41}{subsection.7.2}\protected@file@percent }
 \citation{idealist}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Specification-based Smart Contract Verification}{44}{subsection.7.2}\protected@file@percent }
 \citation{solvent}
 \citation{making}
 \citation{oyente}
 \citation{mythril}
 \citation{securify}
 \citation{solhint}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Tools for Strengthening Security During Development Phase}{42}{subsection.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Tools for Strengthening Security During Development Phase}{45}{subsection.7.3}\protected@file@percent }
 \bibcite{secplf}{{1}{2024}{{Arora et~al.}}{{}}}
 \bibcite{solvent}{{2}{2024}{{Bartoletti et~al.}}{{}}}
 \bibcite{klee}{{3}{2008}{{Cadar et~al.}}{{}}}
 \bibcite{defisecurity}{{4}{2024}{{Chaliasos et~al.}}{{}}}
 \bibcite{numscout}{{5}{2025}{{Chen et~al.}}{{}}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{43}{section.8}\protected@file@percent }
-\newlabel{sec:conclusion}{{8}{43}{Conclusion}{section.8}{}}
 \bibcite{mythril}{{6}{2025a}{{Consensys Diligence}}{{}}}
 \bibcite{mythx}{{7}{2025b}{{Consensys Diligence}}{{}}}
 \bibcite{scribble}{{8}{2025c}{{Consensys Diligence}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{46}{section.8}\protected@file@percent }
+\newlabel{sec:conclusion}{{8}{46}{Conclusion}{section.8}{}}
 \bibcite{highguard}{{9}{2024}{{Eshghie et~al.}}{{}}}
 \bibcite{seahorn}{{10}{2015}{{Gurfinkel et~al.}}{{}}}
 \bibcite{solqdebug}{{11}{2025}{{Jeon et~al.}}{{}}}
@@ -191,4 +197,4 @@
 \bibcite{exploitablebugs}{{33}{2023}{{Zhang et~al.}}{{}}}
 \bibcite{dappscan}{{34}{2024}{{Zheng et~al.}}{{}}}
 \bibcite{defiattacks}{{35}{2023}{{Zhou et~al.}}{{}}}
-\gdef \@abspage@last{46}
+\gdef \@abspage@last{49}

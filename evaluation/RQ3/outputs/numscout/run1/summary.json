@@ -1,10 +1,10 @@
 [
   {
-    "case_id": "numscout_BoostToken_operator",
+    "case_id": "web3bugs_78_H_02",
     "tool": "numscout",
     "detected": false,
     "detected_patterns": [],
-    "time": 1860.0845167636871,
+    "time": 2400.0696749687195,
     "status": "timeout"
   }
 ]

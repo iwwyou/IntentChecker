@@ -86,7 +86,69 @@ def flatten_sol(contest_number: str, project_root: str, target_sol: str, solc_ve
     }
     env.update(dummy_vars)
 
-    # Try hardhat flatten
+    def _dedupe(content: str) -> str:
+        """Remove duplicate SPDX/pragma lines and duplicate top-level declarations."""
+        import re
+        lines = content.splitlines(keepends=True)
+        seen_spdx = False
+        seen_pragma = False
+        out = []
+        for l in lines:
+            if "SPDX-License" in l:
+                if seen_spdx:
+                    continue
+                seen_spdx = True
+            if l.strip().startswith("pragma solidity"):
+                if seen_pragma:
+                    continue
+                seen_pragma = True
+            out.append(l)
+        text = "".join(out)
+
+        # Dedupe top-level contract/library/interface/abstract contract definitions
+        # by tracking brace depth and removing repeat blocks with the same name+kind.
+        decl_re = re.compile(
+            r'^(abstract\s+contract|contract|library|interface)\s+(\w+)',
+            re.MULTILINE,
+        )
+        seen_decls = set()
+        result_chars = []
+        i = 0
+        n = len(text)
+        while i < n:
+            m = decl_re.search(text, i)
+            if not m:
+                result_chars.append(text[i:])
+                break
+            result_chars.append(text[i:m.start()])
+            kind = m.group(1).replace("abstract contract", "contract").strip()
+            name = m.group(2)
+            key = (kind, name)
+            # Find the matching open brace then walk to close
+            j = text.find("{", m.end())
+            if j == -1:
+                result_chars.append(text[m.start():])
+                break
+            depth = 1
+            k = j + 1
+            while k < n and depth > 0:
+                ch = text[k]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                k += 1
+            block_end = k
+            if key in seen_decls:
+                # Skip duplicate block
+                pass
+            else:
+                seen_decls.add(key)
+                result_chars.append(text[m.start():block_end])
+            i = block_end
+        return "".join(result_chars)
+
+    # Try hardhat flatten first
     try:
         result = subprocess.run(
             ["npx.cmd", "hardhat", "flatten", rel_sol],
@@ -95,25 +157,39 @@ def flatten_sol(contest_number: str, project_root: str, target_sol: str, solc_ve
         )
         if result.returncode == 0 and len(result.stdout) > 100:
             content = result.stdout.decode("utf-8", errors="replace")
-            # Remove duplicate SPDX and pragma
-            lines = content.splitlines(keepends=True)
-            seen_spdx = False
-            seen_pragma = False
-            out = []
-            for l in lines:
-                if "SPDX-License" in l:
-                    if seen_spdx:
-                        continue
-                    seen_spdx = True
-                if l.strip().startswith("pragma solidity"):
-                    if seen_pragma:
-                        continue
-                    seen_pragma = True
-                out.append(l)
-            flat_file.write_text("".join(out), encoding="utf-8")
+            flat_file.write_text(_dedupe(content), encoding="utf-8")
             return str(flat_file)
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        if "HH603" in stderr or "circular" in stderr.lower():
+            print(f"  [INFO] hardhat flatten hit cyclic dependency, trying sol-merger")
+        else:
+            print(f"  [WARN] hardhat flatten returncode={result.returncode}")
     except Exception as e:
-        print(f"  [WARN] hardhat flatten failed: {e}")
+        print(f"  [WARN] hardhat flatten exception: {e}")
+
+    # Fallback: sol-merger (handles cyclic dependencies)
+    try:
+        target_path = web3bugs_project / rel_sol
+        if not target_path.exists():
+            print(f"  [ERROR] target file not found: {target_path}")
+            return None
+        result = subprocess.run(
+            ["npx.cmd", "sol-merger", str(target_path), str(WORK_DIR)],
+            capture_output=True, timeout=180, env=env, shell=True
+        )
+        # sol-merger writes to {outputDir}/{basename}
+        merged_file = WORK_DIR / Path(rel_sol).name
+        if merged_file.exists() and merged_file.stat().st_size > 100:
+            content = merged_file.read_text(encoding="utf-8")
+            flat_file.write_text(_dedupe(content), encoding="utf-8")
+            if merged_file != flat_file:
+                merged_file.unlink()
+            print(f"  [OK] sol-merger produced {flat_file.name}")
+            return str(flat_file)
+        stderr = result.stderr.decode("utf-8", errors="replace")[-300:]
+        print(f"  [WARN] sol-merger failed: {stderr}")
+    except Exception as e:
+        print(f"  [WARN] sol-merger exception: {e}")
 
     return None
 
@@ -135,11 +211,20 @@ def run_numscout(sol_file: str, contract_name: str, solc_version: str, output_fi
              "-s", sol_basename, "-cnames", contract_name,
              "-j", "-sv", solc_version, "-glt", str(GLOBAL_TIMEOUT)],
             cwd=str(work),
-            capture_output=True, timeout=GLOBAL_TIMEOUT + 60,
+            capture_output=True, timeout=GLOBAL_TIMEOUT + 600,
             env={**os.environ, "PYTHONUTF8": "1"}
         )
     except subprocess.TimeoutExpired:
         elapsed = time.time() - start
+        # NumScout may have written results before subprocess timeout — check workdir
+        result_file = work / f"{sol_basename}_{contract_name}.json"
+        if result_file.exists():
+            print(f"  [RECOVERED] subprocess timed out but result JSON found in workdir")
+            with open(result_file, encoding="utf-8") as f:
+                data = json.load(f)
+            data["_elapsed_wall"] = elapsed
+            shutil.copy2(result_file, output_file)
+            return data
         return {"error": "timeout", "time": elapsed}
 
     elapsed = time.time() - start
@@ -154,8 +239,15 @@ def run_numscout(sol_file: str, contract_name: str, solc_version: str, output_fi
         shutil.copy2(result_file, output_file)
         return data
     else:
-        stderr = result.stderr.decode("utf-8", errors="replace")[-500:]
-        return {"error": "no_output", "time": elapsed, "stderr": stderr}
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        # Detect known NumScout limitations
+        if "encoding/hex: invalid byte" in stderr or "incomplete push instruction" in stderr:
+            return {"error": "external_library_linking", "time": elapsed,
+                    "stderr": stderr[-500:]}
+        if "Solidity compilation failed" in stderr or "compilation failed" in stderr.lower():
+            return {"error": "compile_error", "time": elapsed,
+                    "stderr": stderr[-500:]}
+        return {"error": "no_output", "time": elapsed, "stderr": stderr[-500:]}
 
 
 def main():
@@ -184,6 +276,25 @@ def main():
 
     results_summary = []
 
+    def _entry_from_json(cid, json_path, patched=False):
+        """Build a summary entry from an existing result JSON."""
+        try:
+            with open(json_path, encoding="utf-8") as f:
+                data = json.load(f)
+            defects = [k for k, v in data.get("bool_defect", {}).items() if v]
+            return {
+                "case_id": cid, "tool": "numscout",
+                "detected": len(defects) > 0,
+                "detected_patterns": defects,
+                "time": float(data.get("time", 0)),
+                "status": "ok_patched" if patched else "ok",
+                "patched": patched,
+            }
+        except Exception as e:
+            return {"case_id": cid, "tool": "numscout", "detected": False,
+                    "detected_patterns": [], "time": 0,
+                    "status": f"json_read_error: {e}"}
+
     for case in cases:
         cid = case["case_id"]
         source = case["source"]
@@ -191,8 +302,14 @@ def main():
         solc_ver = case["solc_version"]
         output_file = output_dir / f"{cid}.json"
 
+        patched_file = output_dir / f"{cid}_patched.json"
         if output_file.exists():
-            print(f"[SKIP] {cid} — already has result")
+            print(f"[SKIP] {cid} - already has result")
+            results_summary.append(_entry_from_json(cid, output_file))
+            continue
+        if patched_file.exists():
+            print(f"[SKIP] {cid} - has patched result (external library workaround)")
+            results_summary.append(_entry_from_json(cid, patched_file, patched=True))
             continue
 
         print(f"[RUN] {cid} (contract={contract}, solc={solc_ver})")
