@@ -194,8 +194,29 @@ def flatten_sol(contest_number: str, project_root: str, target_sol: str, solc_ve
     return None
 
 
+def _invoke_numscout(work: Path, sol_basename: str, contract_name: str,
+                     solc_version: str, extra_args=None) -> tuple:
+    """Run NumScout once. Returns (result, elapsed, timed_out)."""
+    cmd = [str(NUMSCOUT_VENV_PYTHON), str(NUMSCOUT_DIR / "tool.py"),
+           "-s", sol_basename, "-cnames", contract_name,
+           "-j", "-sv", solc_version, "-glt", str(GLOBAL_TIMEOUT)]
+    if extra_args:
+        cmd.extend(extra_args)
+    start = time.time()
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(work),
+            capture_output=True, timeout=GLOBAL_TIMEOUT + 600,
+            env={**os.environ, "PYTHONUTF8": "1"}
+        )
+        return result, time.time() - start, False
+    except subprocess.TimeoutExpired:
+        return None, time.time() - start, True
+
+
 def run_numscout(sol_file: str, contract_name: str, solc_version: str, output_file: str) -> dict:
-    """Run NumScout on a single .sol file."""
+    """Run NumScout on a single .sol file. On timeout, retry with tight path limits."""
     work = WORK_DIR / f"run_{contract_name}"
     work.mkdir(parents=True, exist_ok=True)
 
@@ -203,51 +224,46 @@ def run_numscout(sol_file: str, contract_name: str, solc_version: str, output_fi
     sol_basename = Path(sol_file).name
     target = work / sol_basename
     shutil.copy2(sol_file, target)
-
-    start = time.time()
-    try:
-        result = subprocess.run(
-            [str(NUMSCOUT_VENV_PYTHON), str(NUMSCOUT_DIR / "tool.py"),
-             "-s", sol_basename, "-cnames", contract_name,
-             "-j", "-sv", solc_version, "-glt", str(GLOBAL_TIMEOUT)],
-            cwd=str(work),
-            capture_output=True, timeout=GLOBAL_TIMEOUT + 600,
-            env={**os.environ, "PYTHONUTF8": "1"}
-        )
-    except subprocess.TimeoutExpired:
-        elapsed = time.time() - start
-        # NumScout may have written results before subprocess timeout — check workdir
-        result_file = work / f"{sol_basename}_{contract_name}.json"
-        if result_file.exists():
-            print(f"  [RECOVERED] subprocess timed out but result JSON found in workdir")
-            with open(result_file, encoding="utf-8") as f:
-                data = json.load(f)
-            data["_elapsed_wall"] = elapsed
-            shutil.copy2(result_file, output_file)
-            return data
-        return {"error": "timeout", "time": elapsed}
-
-    elapsed = time.time() - start
-
-    # Find result JSON (filename uses _ instead of : on Windows)
     result_file = work / f"{sol_basename}_{contract_name}.json"
-    if result_file.exists():
+
+    def _load_and_copy(elapsed, tag=""):
         with open(result_file, encoding="utf-8") as f:
             data = json.load(f)
         data["_elapsed_wall"] = elapsed
-        # Copy to output
+        if tag:
+            data["_run_tag"] = tag
         shutil.copy2(result_file, output_file)
         return data
+
+    # Attempt 1: default settings
+    # Remove any stale result from previous runs so we can detect fresh output.
+    if result_file.exists():
+        result_file.unlink()
+    result, elapsed, timed_out = _invoke_numscout(work, sol_basename, contract_name, solc_version)
+    if result_file.exists():
+        return _load_and_copy(elapsed)
+    if timed_out:
+        print(f"  [WARN] default run timed out ({elapsed:.0f}s), retrying with -ll 2 -dl 100")
     else:
         stderr = result.stderr.decode("utf-8", errors="replace")
-        # Detect known NumScout limitations
         if "encoding/hex: invalid byte" in stderr or "incomplete push instruction" in stderr:
-            return {"error": "external_library_linking", "time": elapsed,
-                    "stderr": stderr[-500:]}
+            return {"error": "external_library_linking", "time": elapsed, "stderr": stderr[-500:]}
         if "Solidity compilation failed" in stderr or "compilation failed" in stderr.lower():
-            return {"error": "compile_error", "time": elapsed,
-                    "stderr": stderr[-500:]}
-        return {"error": "no_output", "time": elapsed, "stderr": stderr[-500:]}
+            return {"error": "compile_error", "time": elapsed, "stderr": stderr[-500:]}
+        # No result and not a known compile/linking failure — try tight limits too
+        print(f"  [WARN] no output ({elapsed:.0f}s), retrying with -ll 2 -dl 100")
+
+    # Attempt 2: tight symbolic-execution limits (loop limit 2, depth limit 100)
+    result2, elapsed2, timed_out2 = _invoke_numscout(
+        work, sol_basename, contract_name, solc_version,
+        extra_args=["-ll", "2", "-dl", "100"],
+    )
+    if result_file.exists():
+        return _load_and_copy(elapsed2, tag="ll2_dl100")
+    if timed_out2:
+        return {"error": "timeout", "time": elapsed + elapsed2}
+    stderr2 = result2.stderr.decode("utf-8", errors="replace")
+    return {"error": "no_output", "time": elapsed + elapsed2, "stderr": stderr2[-500:]}
 
 
 def main():

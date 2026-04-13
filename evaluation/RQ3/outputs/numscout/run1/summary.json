@@ -1,10 +1,227 @@
 [
   {
+    "case_id": "numscout_WANGMI",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1801.9487946033478,
+    "evm_coverage": 29.4,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "numscout_Nokon",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "operator_order_issue",
+      "exchange_problem",
+      "exchange_rounding"
+    ],
+    "time": 126.58069324493408,
+    "evm_coverage": 99.7,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "numscout_SwordCrowdsale",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 0.16418933868408203,
+    "evm_coverage": 99.7,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "numscout_BoostToken_operator",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "operator_order_issue",
+      "indivisible_amount"
+    ],
+    "time": 999.1855392456055,
+    "evm_coverage": 31.4,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "numscout_BoostToken_indivisible",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "operator_order_issue",
+      "indivisible_amount"
+    ],
+    "time": 999.1855392456055,
+    "evm_coverage": 31.4,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "numscout_HIT",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "exchange_problem",
+      "exchange_rounding",
+      "profit_opportunity"
+    ],
+    "time": 703.9490189552307,
+    "evm_coverage": 98.7,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_45_H_01",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 294.4342362880707,
+    "evm_coverage": 63.4,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_101_H_01",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1800.5132160186768,
+    "evm_coverage": 26.9,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_47_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 272.8530898094177,
+    "evm_coverage": 91.2,
+    "status": "ok",
+    "patched": false
+  },
+  {
     "case_id": "web3bugs_78_H_02",
     "tool": "numscout",
     "detected": false,
     "detected_patterns": [],
-    "time": 2400.0696749687195,
-    "status": "timeout"
+    "time": 1328.8921275138855,
+    "evm_coverage": 54.6,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_5_H_07",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1482.0451474189758,
+    "evm_coverage": 76.8,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_5_H_08",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1461.1515078544617,
+    "evm_coverage": 76.8,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_5_H_12",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 48.414461851119995,
+    "evm_coverage": 50.8,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_51_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1816.0544972419739,
+    "evm_coverage": 15.4,
+    "status": "ok_patched",
+    "patched": true
+  },
+  {
+    "case_id": "web3bugs_56_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 0.039896488189697266,
+    "evm_coverage": 100.0,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_58_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 14.381352663040161,
+    "evm_coverage": 41.4,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_60_H_01",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 103.81183362007141,
+    "evm_coverage": 47.6,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_77_H_01",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path",
+      "operator_order_issue"
+    ],
+    "time": 1808.6344537734985,
+    "evm_coverage": 59.1,
+    "status": "ok_patched",
+    "patched": true
+  },
+  {
+    "case_id": "web3bugs_62_H_08",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 329.145619392395,
+    "evm_coverage": 58.5,
+    "status": "ok",
+    "patched": false
+  },
+  {
+    "case_id": "web3bugs_70_H_10",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 44.12987184524536,
+    "evm_coverage": 47.3,
+    "status": "ok",
+    "patched": false
   }
 ]

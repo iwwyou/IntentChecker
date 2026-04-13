@@ -20,7 +20,7 @@ in Solidity smart contracts.
 | IntentChecker | 20 | 20 | 100.0% |
 | ScType | 4 | 7 | 57.1% |
 | GPTScan (strict) | 0 | 20 | 0.0% |
-| GPTScan (loose) | 11 | 20 | 55.0% |
+| GPTScan (loose) | 9 | 20 | 45.0% |
 | NumScout | TBD | TBD | TBD |
 
 **Definitions:**
@@ -47,16 +47,16 @@ in Solidity smart contracts.
 | 101_H_01 | LenderPool._calculatePrincipalWithdrawable | Y | N | N | Y | TBD |
 | 45_H_01 | UToken.borrow | Y | N/A | N | Y | TBD |
 | 47_H_02 | WrappedIbbtcEth.transferFrom | Y | Y | N | N | TBD |
-| 51_H_02 | SwapUtils.rampTargetPrice | Y | N/A | N | Y | TBD |
+| 51_H_02 | Swap.rampTargetPrice | Y | N/A | N | N | TBD |
 | 56_H_02 | CDP.update | Y | N | N | N | TBD |
 | 58_H_02 | LpIssuer._chargeFees | Y | N/A | N | Y | TBD |
 | 5_H_07 | Utils.calcAsymmetricShare | Y | Y | N | Y | TBD |
 | 5_H_08 | Utils.calcLiquidityUnits | Y | Y | N | Y | TBD |
 | 5_H_12 | Pools.getAddedAmount | Y | N/A | N | Y | TBD |
-| 60_H_01 | OptimisticLedgerLib.settleAccount | Y | Y | N | N | TBD |
+| 60_H_01 | Collateral.settleAccount | Y | Y | N | N | TBD |
 | 62_H_08 | Stream.updateStreamInternal | Y | N/A | N | N | TBD |
 | 70_H_10 | LiquidityBasedTWAP.syncVaderPrice | Y | N | N | Y | TBD |
-| 77_H_01 | MathLib.calculateLiquidityTokenQtyForSingleAssetEntry | Y | N/A | N | Y | TBD |
+| 77_H_01 | Exchange.calculateLiquidityTokenQtyForSingleAssetEntry | Y | N/A | N | N | TBD |
 | 78_H_02 | RebaseProxy.mint | Y | N/A | N | Y | TBD |
 
 ---
@@ -94,7 +94,7 @@ it is identifying a different vulnerability.
 | 101_H_01 | File match | price-manipulation; wrong-order-interest | 750s |
 | 45_H_01 | File match | price-manipulation | 271s |
 | 47_H_02 | No match | - | 12s |
-| 51_H_02 | File match | no-slippage-limit-check; price-manipulation | 129s |
+| 51_H_02 | No match | - | 129s |
 | 56_H_02 | No match | - | 621s |
 | 58_H_02 | File match | price-manipulation | 390s |
 | 5_H_07 | File match | price-manipulation | 543s |
@@ -103,7 +103,7 @@ it is identifying a different vulnerability.
 | 60_H_01 | No match | - | 25s |
 | 62_H_08 | No match | - | 96s |
 | 70_H_10 | File match | price-manipulation | 499s |
-| 77_H_01 | File match | price-manipulation | 177s |
+| 77_H_01 | No match | - | 177s |
 | 78_H_02 | File match | price-manipulation | 573s |
 
 ---
@@ -147,7 +147,7 @@ operator order issues, precision loss, etc.). Its rule set targets price manipul
 slippage, and related DeFi-specific patterns. This means GPTScan **structurally cannot
 detect** the class of bugs IntentChecker targets, resulting in 0% strict detection rate.
 
-Even in the loose comparison, GPTScan's 11/20 file-level matches all correspond
+Even in the loose comparison, GPTScan's 9/20 file-level matches all correspond
 to *different* vulnerability types (e.g., price-manipulation on the same file), not the
 actual numeric logic error.
 

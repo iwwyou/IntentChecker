@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  13 APR 2026 14:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (MiKTeX 25.4) (preloaded format=pdflatex 2025.10.22)  13 APR 2026 16:41
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1423,12 +1423,6 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [6]
-Underfull \hbox (badness 3919) in paragraph at lines 334--336
-\OT1/cmr/m/n/10 This section reviews the parts of \OT1/cmr/m/sc/10.03749 SolQDe
--bug \OT1/cmr/m/n/10 ([][]Jeon et al.[][], [][]2025[][]) that
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1444,12 +1438,6 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [9]
-Underfull \hbox (badness 1117) in paragraph at lines 413--414
-\OT1/cmr/m/n/10 Both pat-terns may tar-get struc-tured return val-ues, includ-i
-ng struct mem-bers
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1457,15 +1445,14 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
  [10]
 Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
 put line 429.
-LaTeX Font Info:    Trying to load font information for OMS+cmtt on input line 
-495.
-LaTeX Font Info:    No file OMScmtt.fd. on input line 495.
+LaTeX Font Info:    Trying to load font information for OMS+cmr on input line 4
+95.
 
-
-LaTeX Font Warning: Font shape `OMS/cmtt/m/n' undefined
-(Font)              using `OMS/cmsy/m/n' instead
-(Font)              for symbol `textbraceleft' on input line 495.
-
+(C:\Users\isjeon\AppData\Local\Programs\MiKTeX\tex/latex/base\omscmr.fd
+File: omscmr.fd 2024/11/19 v2.5n Standard LaTeX font definitions
+)
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10.03749> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 495.
 
 
 
@@ -1477,7 +1464,7 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [12]
-<figure/architecture_drawio.png, id=312, 969.6225pt x 616.3025pt>
+<figure/architecture_drawio.png, id=322, 969.6225pt x 616.3025pt>
 File: figure/architecture_drawio.png Graphic file (type png)
 <use figure/architecture_drawio.png>
 Package pdftex.def Info: figure/architecture_drawio.png  used on input line 522
@@ -1519,11 +1506,6 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [18]
-Overfull \hbox (6.29893pt too wide) in paragraph at lines 836--857
- [] 
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1544,9 +1526,9 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [22]
-
-Package amsthm Warning: The \qedhere command may not work correctly here on inp
-ut line 984.
+Overfull \hbox (3.71017pt too wide) in paragraph at lines 994--1015
+ [] 
+ []
 
 
 
@@ -1559,26 +1541,14 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [24]
-LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 1170.
-
-
-LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 1170.
-
-
-LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
-(Font)              size <5> substituted on input line 1170.
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [25]
-Underfull \hbox (badness 10000) in paragraph at lines 1192--1193
-[]\OT1/cmr/bx/n/10.03749 RQ3 (Com-par-i-son with Exist-ing Detec-tion Tools)\OT
-1/cmr/m/n/10 : How does
- []
+
+Package amsthm Warning: The \qedhere command may not work correctly here on inp
+ut line 1138.
 
 
 
@@ -1596,6 +1566,17 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [28]
+LaTeX Font Info:    Calculating math sizes for size <8.03> on input line 1332.
+
+
+LaTeX Font Warning: Font shape `U/rsfs/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 1332.
+
+
+LaTeX Font Warning: Font shape `U/stmry/m/n' in size <4.015> not available
+(Font)              size <5> substituted on input line 1332.
+
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1606,34 +1587,27 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [30]
-<figure/rq1_scatter.pdf, id=533, 508.38437pt x 310.56836pt>
-File: figure/rq1_scatter.pdf Graphic file (type pdf)
-<use figure/rq1_scatter.pdf>
-Package pdftex.def Info: figure/rq1_scatter.pdf  used on input line 1382.
-(pdftex.def)             Requested size: 372.0pt x 227.25323pt.
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [31 <./figure/rq1_scatter.pdf>]
+ [31]
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [32]
-Underfull \hbox (badness 1292) in paragraph at lines 1458--1459
-\OT1/cmr/m/n/10 and \OT1/cmtt/m/n/10.03749 Entry op Exit \OT1/cmr/m/n/10 both s
-uc-ceed in both ver-sions, and \OT1/cmr/m/sc/10.03749 IntentChecker\OT1/cmr/m/n
-/10 's
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [33]
+<figure/rq1_scatter.pdf, id=588, 508.38437pt x 310.56836pt>
+File: figure/rq1_scatter.pdf Graphic file (type pdf)
+<use figure/rq1_scatter.pdf>
+Package pdftex.def Info: figure/rq1_scatter.pdf  used on input line 1544.
+(pdftex.def)             Requested size: 372.0pt x 227.25323pt.
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1643,54 +1617,53 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [35]
-Overfull \hbox (76.83615pt too wide) in paragraph at lines 1568--1583
- [] 
- []
-
-
+ [35 <./figure/rq1_scatter.pdf>]
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [36]
-Overfull \hbox (41.34494pt too wide) in paragraph at lines 1595--1626
- [] 
- []
-
-
-Underfull \hbox (badness 5431) in paragraph at lines 1629--1637
-\OT1/cmtt/m/n/10.03749 calcLiquidityUnits \OT1/cmr/m/n/10 (both in Vader Pro-to
--col's \OT1/cmtt/m/n/10.03749 Utils.sol\OT1/cmr/m/n/10 ), \OT1/cmtt/m/n/10.0374
-9 transferFrom
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [37]
-<figure/rq3_time_comparison.pdf, id=629, 715.09952pt x 316.1446pt>
-File: figure/rq3_time_comparison.pdf Graphic file (type pdf)
-<use figure/rq3_time_comparison.pdf>
-Package pdftex.def Info: figure/rq3_time_comparison.pdf  used on input line 164
-7.
-(pdftex.def)             Requested size: 372.0pt x 164.45885pt.
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [38 <./figure/rq3_time_comparison.pdf>]
+ [38]
+Underfull \hbox (badness 3281) in paragraph at lines 1721--1729
+\OT1/cmr/m/n/10 sub-set we applied two classes of adjust-ments, both exter-nal 
+to the bugs
+ []
+
+
+Underfull \hbox (badness 1117) in paragraph at lines 1721--1729
+\OT1/cmr/m/n/10 under study. First, a source-level bug in Num-Scout's seman-tic
+ ana-lyzer (fea-
+ []
+
+
+Underfull \hbox (badness 1406) in paragraph at lines 1721--1729
+\OT1/cmr/m/n/10 code and fails with ``incom-plete push instruc-tion'' errors wh
+en the byte-code
+ []
+
+
+Underfull \hbox (badness 1596) in paragraph at lines 1721--1729
+\OT1/cmr/m/n/10 at deploy time. Two of our cases (51[]H[]02, Swap.rampTargetPri
+ce; 77[]H[]01,
+ []
+
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [39]
-Underfull \hbox (badness 1314) in paragraph at lines 1719--1723
-\OT1/cmr/bx/n/10.03749 Developer study. \OT1/cmr/m/n/10 This paper eval-u-ates 
-\OT1/cmr/m/sc/10.03749 IntentChecker \OT1/cmr/m/n/10 through struc-tural
+Overfull \hbox (76.83615pt too wide) in paragraph at lines 1740--1755
+ [] 
  []
 
 
@@ -1699,11 +1672,16 @@ Underfull \hbox (badness 1314) in paragraph at lines 1719--1723
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [40]
-Underfull \hbox (badness 1354) in paragraph at lines 1738--1744
-\OT1/cmr/bx/n/10.03749 Non-arithmetic Yul and other unsup-ported Solid-ity con-
-structs. \OT1/cmr/m/n/10 The
+Overfull \hbox (41.34494pt too wide) in paragraph at lines 1768--1799
+ [] 
  []
 
+<figure/rq3_time_comparison.pdf, id=684, 787.6914pt x 316.1446pt>
+File: figure/rq3_time_comparison.pdf Graphic file (type pdf)
+<use figure/rq3_time_comparison.pdf>
+Package pdftex.def Info: figure/rq3_time_comparison.pdf  used on input line 182
+0.
+(pdftex.def)             Requested size: 372.0pt x 149.30193pt.
 
 
 
@@ -1719,87 +1697,33 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
- [43]
+ [43 <./figure/rq3_time_comparison.pdf>]
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [44]
+Underfull \hbox (badness 1354) in paragraph at lines 1913--1919
+\OT1/cmr/bx/n/10.03749 Non-arithmetic Yul and other unsup-ported Solid-ity con-
+structs. \OT1/cmr/m/n/10 The
+ []
+
+
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [45]
-Underfull \hbox (badness 1112) in paragraph at lines 1889--1890
-[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
-funds against ora-cle
- []
-
-
-Underfull \hbox (badness 5622) in paragraph at lines 1895--1896
-[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
-tion of high-
- []
-
-
-Underfull \hbox (badness 1603) in paragraph at lines 1898--1899
-[]\OT1/cmr/m/n/10 Chaliasos, S., et al.: Smart con-tract and defi secu-rity too
-ls: Do they meet
- []
-
-
-Underfull \hbox (badness 3482) in paragraph at lines 1898--1899
-\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 1
---13 (2024).
- []
-
-
-Underfull \hbox (badness 1442) in paragraph at lines 1904--1905
-[]\OT1/cmr/m/n/10 Consensys Dili-gence: Mythril. [][]$https : / / github . com 
-/ ConsenSysDiligence / mythril$[][]
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [46]
-Underfull \hbox (badness 1867) in paragraph at lines 1913--1914
-\OT1/cmr/m/n/10 con-tracts. In: Pro-ceed-ings of the 39th IEEE/ACM Inter-na-tio
-nal Con-fer-
- []
-
-
-Underfull \hbox (badness 2221) in paragraph at lines 1913--1914
-\OT1/cmr/m/n/10 ence on Auto-mated Soft-ware Engi-neer-ing (ASE), pp. 2378--238
-1 (2024).
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [47]
-Underfull \hbox (badness 2005) in paragraph at lines 1970--1971
-[]\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
--tion attacks. IEEE
- []
-
-
-Underfull \hbox (badness 2573) in paragraph at lines 1973--1974
-[]\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
-g Price Ora-cle
- []
-
-
-Underfull \hbox (badness 1867) in paragraph at lines 1973--1974
-\OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
- (2024).
- []
-
-
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -1810,6 +1734,92 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
  [49]
+Underfull \hbox (badness 1082) in paragraph at lines 2043--2044
+\OT1/cmr/m/n/10 SolQDe-bug with (i) an intent model---two anno-ta-tion types (@
+Dur-ing/@Post)
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [50]
+Underfull \hbox (badness 1112) in paragraph at lines 2064--2065
+[]\OT1/cmr/m/n/10 Arora, S., et al.: Sec-PLF: Secure pro-to-cols for loan-able 
+funds against ora-cle
+ []
+
+
+Underfull \hbox (badness 5622) in paragraph at lines 2070--2071
+[]\OT1/cmr/m/n/10 Cadar, C., et al.: KLEE: unas-sisted and auto-matic gen-er-a-
+tion of high-
+ []
+
+
+Underfull \hbox (badness 1603) in paragraph at lines 2073--2074
+[]\OT1/cmr/m/n/10 Chaliasos, S., et al.: Smart con-tract and defi secu-rity too
+ls: Do they meet
+ []
+
+
+Underfull \hbox (badness 3482) in paragraph at lines 2073--2074
+\OT1/cmr/m/n/10 na-tional Con-fer-ence on Soft-ware Engi-neer-ing (ICSE), pp. 1
+--13 (2024).
+ []
+
+
+Underfull \hbox (badness 1442) in paragraph at lines 2079--2080
+[]\OT1/cmr/m/n/10 Consensys Dili-gence: Mythril. [][]$https : / / github . com 
+/ ConsenSysDiligence / mythril$[][]
+ []
+
+
+Underfull \hbox (badness 1867) in paragraph at lines 2088--2089
+\OT1/cmr/m/n/10 con-tracts. In: Pro-ceed-ings of the 39th IEEE/ACM Inter-na-tio
+nal Con-fer-
+ []
+
+
+Underfull \hbox (badness 2221) in paragraph at lines 2088--2089
+\OT1/cmr/m/n/10 ence on Auto-mated Soft-ware Engi-neer-ing (ASE), pp. 2378--238
+1 (2024).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [51]
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [52]
+Underfull \hbox (badness 2005) in paragraph at lines 2145--2146
+[]\OT1/cmr/m/n/10 Wu, S., et al.: Defi-ranger: Detect-ing defi price manip-u-la
+-tion attacks. IEEE
+ []
+
+
+Underfull \hbox (badness 2573) in paragraph at lines 2148--2149
+[]\OT1/cmr/m/n/10 Xi, R., Wang, Z., Pat-tabi-ra-man, K.: POMA-Buster: Detect-in
+g Price Ora-cle
+ []
+
+
+Underfull \hbox (badness 1867) in paragraph at lines 2148--2149
+\OT1/cmr/m/n/10 IEEE Sym-po-sium on Secu-rity and Pri-vacy (SP), pp. 3923--3942
+ (2024).
+ []
+
+
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+ [53]
 (C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\out\main.aux)
  ***********
 LaTeX2e <2025-06-01> patch level 1
@@ -1824,60 +1834,57 @@ LaTeX Font Warning: Size substitutions with differences
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 76D7775B65740A56253C1E60B4F3FCD7;6888.
+(rerunfilecheck)             Checksum: B7656056406C47CFC0C021ADB7979F3A;7097.
  ) 
 Here is how much of TeX's memory you used:
- 28045 strings out of 468081
- 511350 string characters out of 5425304
- 909453 words of memory out of 5000000
- 56018 multiletter control sequences out of 15000+600000
- 663363 words of font info for 179 fonts, out of 8000000 for 9000
+ 28069 strings out of 468081
+ 511847 string characters out of 5425304
+ 906097 words of memory out of 5000000
+ 56032 multiletter control sequences out of 15000+600000
+ 662163 words of font info for 172 fonts, out of 8000000 for 9000
  1151 hyphenation exceptions out of 8191
- 90i,13n,93p,1012b,1206s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,15n,93p,1077b,1206s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\isjeon\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi602\tcr
 m1000.pk><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
 onts/cm/cmbx10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/p
 ublic/amsfonts/cm/cmbx12.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fon
 ts/type1/public/amsfonts/cm/cmbx8.pfb><C:/Users/isjeon/AppData/Local/Programs/M
 iKTeX/fonts/type1/public/amsfonts/cm/cmbx9.pfb><C:/Users/isjeon/AppData/Local/P
-rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmbxti10.pfb><C:/Users/isjeon/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users
-/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb
-><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cme
-xtra/cmex9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publi
-c/amsfonts/cm/cmitt10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/
-type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiK
-TeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C:/Users/isjeon/AppData/Local/Pro
-grams/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/isjeon/AppData/
-Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/isjeon
-/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Use
-rs/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pf
-b><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm
-/cmr17.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/am
-sfonts/cm/cmr5.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/p
-ublic/amsfonts/cm/cmr7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts
-/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKT
-eX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Progr
-ams/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/isjeon/AppData/L
-ocal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy5.pfb><C:/Users/isjeon/
-AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/User
-s/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy8.pfb
-><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/
-cmsy9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/ams
-fonts/cm/cmti10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/
-public/amsfonts/cm/cmti7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fon
-ts/type1/public/amsfonts/cm/cmti9.pfb><C:/Users/isjeon/AppData/Local/Programs/M
-iKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb><C:/Users/isjeon/AppData/Local/
-Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt8.pfb><C:/Users/isjeon/AppDa
-ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb><C:/Users/isj
-eon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msam10.pf
-b><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/sy
-mbols/msbm10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/urw
-/zapfding/uzdr.pfb>
+rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><C:/Users/isjeon/AppD
+ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/i
+sjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cmextra/cmex9.p
+fb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/c
+m/cmmi10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/
+amsfonts/cm/cmmi5.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type
+1/public/amsfonts/cm/cmmi7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/f
+onts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/isjeon/AppData/Local/Programs
+/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/isjeon/AppData/Local
+/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/isjeon/AppD
+ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/Users/is
+jeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/
+Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.
+pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
+cm/cmr8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/a
+msfonts/cm/cmr9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/
+public/amsfonts/cm/cmsy10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fo
+nts/type1/public/amsfonts/cm/cmsy5.pfb><C:/Users/isjeon/AppData/Local/Programs/
+MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/isjeon/AppData/Local/
+Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy8.pfb><C:/Users/isjeon/AppDa
+ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/isj
+eon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:
+/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmti
+7.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
+s/cm/cmti9.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/publi
+c/amsfonts/cm/cmtt10.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTeX/fonts/t
+ype1/public/amsfonts/cm/cmtt8.pfb><C:/Users/isjeon/AppData/Local/Programs/MiKTe
+X/fonts/type1/public/amsfonts/symbols/msam10.pfb><C:/Users/isjeon/AppData/Local
+/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/Users/isjeo
+n/AppData/Local/Programs/MiKTeX/fonts/type1/public/hoekwater/stmary10.pfb><C:/U
+sers/isjeon/AppData/Local/Programs/MiKTeX/fonts/type1/urw/zapfding/uzdr.pfb>
 Output written on C:/Users\isjeon\PycharmProjects\pythonProject\SolidityGuardia
-n\out\main.pdf (49 pages, 835546 bytes).
+n\out\main.pdf (53 pages, 824240 bytes).
 PDF statistics:
- 1044 PDF objects out of 1200 (max. 8388607)
- 196 named destinations out of 1000 (max. 500000)
- 300 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 1113 PDF objects out of 1200 (max. 8388607)
+ 206 named destinations out of 1000 (max. 500000)
+ 316 words of extra memory for PDF output out of 10000 (max. 10000000)
 

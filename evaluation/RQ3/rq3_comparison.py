@@ -29,8 +29,10 @@ CASE_CSV = BASE / "case_mapping.csv"
 RQ2_CSV = BASE.parent / "RQ2" / "rq2_results.csv"
 GPTSCAN_DIR = BASE / "outputs" / "gptscan" / "run1"
 SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
+NUMSCOUT_SUMMARY = BASE / "outputs" / "numscout" / "run1" / "summary.json"
 FIG_DIR = BASE / "figures"
 FIG_DIR.mkdir(exist_ok=True)
+PAPER_FIG_DIR = PROJECT_ROOT / "paper" / "figure"
 
 TOOLS = ["IntentChecker", "ScType", "GPTScan (strict)", "GPTScan (loose)", "NumScout"]
 
@@ -206,9 +208,36 @@ def load_sctype(annotated_ids):
     return sc
 
 # =====================================================================
+# 4b. Load NumScout results (run1 summary)
+# =====================================================================
+def load_numscout(annotated_ids):
+    """Return {case_id: {"detected": bool, "time": float, "patched": bool,
+                         "patterns": list, "evm_coverage": float, "status": str}}"""
+    ns = {cid: {"detected": False, "time": None, "patched": False,
+                "patterns": [], "evm_coverage": None, "status": "no_result"}
+          for cid in annotated_ids}
+    if not NUMSCOUT_SUMMARY.exists():
+        return ns
+    with open(NUMSCOUT_SUMMARY, encoding="utf-8") as f:
+        data = json.load(f)
+    for entry in data:
+        cid = entry["case_id"]
+        if cid not in ns:
+            continue
+        ns[cid] = {
+            "detected": bool(entry.get("detected", False)),
+            "time": entry.get("time"),
+            "patched": bool(entry.get("patched", False)),
+            "patterns": entry.get("detected_patterns", []),
+            "evm_coverage": entry.get("evm_coverage"),
+            "status": entry.get("status", "ok"),
+        }
+    return ns
+
+# =====================================================================
 # 5. Build comparison table
 # =====================================================================
-def build_table(annotated_cases, ic_data, gpt_data, sc_data):
+def build_table(annotated_cases, ic_data, gpt_data, sc_data, ns_data):
     """Return list of dicts for CSV and analysis."""
     rows = []
     for cid in sorted(annotated_cases.keys()):
@@ -216,6 +245,7 @@ def build_table(annotated_cases, ic_data, gpt_data, sc_data):
         ic = ic_data.get(cid, {})
         gp = gpt_data.get(cid, {})
         sc = sc_data.get(cid, {})
+        ns = ns_data.get(cid, {})
 
         row = {
             "case_id": cid,
@@ -236,6 +266,12 @@ def build_table(annotated_cases, ic_data, gpt_data, sc_data):
             "SC_detected": sc.get("detected"),
             "SC_time": sc.get("avg_time"),
             "SC_stdev": sc.get("stdev_time"),
+            # NumScout
+            "NS_detected": ns.get("detected", False),
+            "NS_time": ns.get("time"),
+            "NS_patched": ns.get("patched", False),
+            "NS_patterns": "; ".join(ns.get("patterns", [])),
+            "NS_evm_coverage": ns.get("evm_coverage"),
         }
         rows.append(row)
     return rows
@@ -249,6 +285,7 @@ def write_csv(rows, path):
         "IC_detected", "IC_time",
         "GPT_strict", "GPT_loose", "GPT_time", "GPT_patterns",
         "SC_applicable", "SC_detected", "SC_time", "SC_stdev",
+        "NS_detected", "NS_time", "NS_patched", "NS_patterns", "NS_evm_coverage",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -373,18 +410,22 @@ def fig_time_comparison(rows, sc_data, path):
         if data["applicable"] and data["times"]:
             sc_all_times.extend(data["times"])
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5),
+    # NumScout times (single run, 20 cases)
+    ns_times = [r["NS_time"] for r in rows if r["NS_time"] is not None]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5),
                              gridspec_kw={"width_ratios": [2, 1]})
 
-    # -- Left panel: box plot (all three tools) --
+    # -- Left panel: box plot (all four tools) --
     ax = axes[0]
-    box_data = [ic_times, sc_all_times, gpt_times]
+    box_data = [ic_times, sc_all_times, gpt_times, ns_times]
     box_labels = [
         f"IntentChecker\n(n={len(ic_times)})",
         f"ScType\n(n={len(sc_all_times)})",
         f"GPTScan\n(n={len(gpt_times)})",
+        f"NumScout\n(n={len(ns_times)})",
     ]
-    colors = ["#4CAF50", "#2196F3", "#FF9800"]
+    colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0"]
 
     bp = ax.boxplot(box_data, tick_labels=box_labels, patch_artist=True, widths=0.5,
                     medianprops=dict(color="black", linewidth=1.5))
@@ -398,7 +439,7 @@ def fig_time_comparison(rows, sc_data, path):
     ax.grid(axis="y", alpha=0.3)
 
     # Annotate medians
-    medians = [np.median(d) for d in box_data]
+    medians = [np.median(d) if d else 0 for d in box_data]
     for i, med in enumerate(medians):
         ax.text(i + 1, med * 1.3, f"{med:.1f}s", ha="center", va="bottom",
                 fontsize=9, fontweight="bold", color=colors[i])
@@ -406,12 +447,13 @@ def fig_time_comparison(rows, sc_data, path):
     # -- Right panel: bar chart of averages --
     ax2 = axes[1]
     means = [np.mean(d) if d else 0 for d in box_data]
-    labels_short = ["IC", "ScType", "GPTScan"]
+    labels_short = ["IC", "ScType", "GPTScan", "NumScout"]
     bars = ax2.bar(labels_short, means, color=colors, alpha=0.7,
                    edgecolor="black", linewidth=0.5)
     ax2.set_ylabel("Mean Analysis Time (seconds)", fontsize=11)
     ax2.set_title("Average Time", fontsize=12, fontweight="bold")
     ax2.grid(axis="y", alpha=0.3)
+    ax2.tick_params(axis="x", labelsize=9)
 
     for bar, val in zip(bars, means):
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2,
@@ -784,8 +826,14 @@ def main():
     sc_applicable = sum(1 for v in sc_data.values() if v["applicable"])
     print(f"ScType results loaded: {len(sc_data)} (applicable: {sc_applicable})")
 
+    ns_data = load_numscout(set(annotated.keys()))
+    ns_with_time = sum(1 for v in ns_data.values() if v["time"] is not None)
+    ns_detected = sum(1 for v in ns_data.values() if v["detected"])
+    print(f"NumScout results loaded: {len(ns_data)} "
+          f"(with timing: {ns_with_time}, detected: {ns_detected})")
+
     # 2. Build table
-    rows = build_table(annotated, ic_data, gpt_data, sc_data)
+    rows = build_table(annotated, ic_data, gpt_data, sc_data, ns_data)
 
     # 3. Quick console summary
     print("\n--- Detection Summary ---")
@@ -794,24 +842,39 @@ def main():
     print(f"GPTScan loose: {sum(1 for r in rows if r['GPT_loose'])}/{len(rows)}")
     sc_app = [r for r in rows if r["SC_applicable"]]
     print(f"ScType: {sum(1 for r in sc_app if r['SC_detected'])}/{len(sc_app)} applicable")
-    print(f"NumScout: TBD")
+    print(f"NumScout: {sum(1 for r in rows if r['NS_detected'])}/{len(rows)}")
 
     # Time quick summary
     ic_times = [r["IC_time"] for r in rows if r["IC_time"] is not None]
     gpt_times = [r["GPT_time"] for r in rows if r["GPT_time"] is not None]
+    ns_times = [r["NS_time"] for r in rows if r["NS_time"] is not None]
     if ic_times:
         print(f"\nIntentChecker time: mean={np.mean(ic_times):.1f}s, "
               f"median={np.median(ic_times):.1f}s")
     if gpt_times:
         print(f"GPTScan time: mean={np.mean(gpt_times):.0f}s, "
               f"median={np.median(gpt_times):.0f}s")
+    if ns_times:
+        print(f"NumScout time: mean={np.mean(ns_times):.0f}s, "
+              f"median={np.median(ns_times):.0f}s")
 
     # 4. Write outputs
     write_csv(rows, BASE / "rq3_comparison_table.csv")
     fig_detection_heatmap(rows, FIG_DIR / "detection_heatmap.pdf")
-    fig_time_comparison(rows, sc_data, FIG_DIR / "time_comparison.pdf")
+    time_fig_path = FIG_DIR / "time_comparison.pdf"
+    fig_time_comparison(rows, sc_data, time_fig_path)
     fig_detection_rate(rows, FIG_DIR / "detection_rate.pdf")
     write_summary(rows, ic_data, gpt_data, sc_data, BASE / "rq3_comparison_summary.md")
+
+    # 5. Copy the time-comparison figure into the paper directory under the
+    # filename referenced by main.tex (fig:rq3-time).
+    if PAPER_FIG_DIR.exists():
+        import shutil
+        paper_time_pdf = PAPER_FIG_DIR / "rq3_time_comparison.pdf"
+        paper_time_png = PAPER_FIG_DIR / "rq3_time_comparison.png"
+        shutil.copyfile(time_fig_path, paper_time_pdf)
+        shutil.copyfile(str(time_fig_path).replace(".pdf", ".png"), paper_time_png)
+        print(f"[OK] Copied time figure to: {paper_time_pdf}")
 
     print("\n" + "=" * 60)
     print("All outputs generated successfully.")

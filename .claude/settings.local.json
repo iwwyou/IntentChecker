@@ -160,7 +160,11 @@
       "Bash(C:/Users/isjeon/NumScout/venv/Scripts/python.exe C:/Users/isjeon/NumScout/tool.py -s Exchange_patched.sol -cnames Exchange -j -sv 0.8.4 -glt 1800 -ce)",
       "Bash(C:/Users/isjeon/NumScout/venv/Scripts/python.exe C:/Users/isjeon/NumScout/tool.py -s Swap_patched.sol -cnames Swap -j -sv 0.6.12 -glt 1800 -ce)",
       "Bash(cp \"C:/Users/isjeon/.solc-select/artifacts/solc-0.6.12/solc-0.6.12.exe\" \"C:/Users/isjeon/NumScout/venv/Scripts/solc.exe\")",
-      "Bash(cp \"C:/Users/isjeon/.solc-select/artifacts/solc-0.6.12/solc-0.6.12.exe\" \"C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe\")"
+      "Bash(cp \"C:/Users/isjeon/.solc-select/artifacts/solc-0.6.12/solc-0.6.12.exe\" \"C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe\")",
+      "Bash(PYTHONUTF8=1 python rebuild_numscout_summary.py run1)",
+      "Bash(cp \"C:/Users/isjeon/.solc-select/artifacts/solc-0.8.4/solc-0.8.4.exe\" \"C:/Users/isjeon/NumScout/venv/Scripts/solc.exe\")",
+      "Bash(cp \"C:/Users/isjeon/.solc-select/artifacts/solc-0.8.4/solc-0.8.4.exe\" \"C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe\")",
+      "Bash(C:/Users/isjeon/NumScout/venv/Scripts/python.exe C:/Users/isjeon/NumScout/tool.py -s RebaseProxy_flat.sol -cnames RebaseProxy -j -sv 0.8.4 -glt 300 -ll 2 -dl 100)"
     ],
     "deny": [],
     "ask": []

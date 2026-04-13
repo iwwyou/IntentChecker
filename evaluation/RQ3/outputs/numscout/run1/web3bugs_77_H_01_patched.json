@@ -1,0 +1,45 @@
+{
+ "evm_code_coverage": "59.1",
+ "instructions": "9959",
+ "time": "1808.6344537734985",
+ "analysis": {
+  "div_in_path": [
+   [
+    "Exchange_patched.sol:823:9: Warning: Div In Path.\n        isNotExpired(_expirationTimestamp)",
+    "Exchange_patched.sol:831:17: Warning: Div In Path.\n                IERC20(baseToken).balanceOf(address(this))",
+    "Exchange_patched.sol:832:17: Warning: Div In Path.\n                IERC20(quoteToken).balanceOf(address(this))",
+    "Exchange_patched.sol:833:17: Warning: Div In Path.\n                this.totalSupply()",
+    "Exchange_patched.sol:826:13: Warning: Div In Path.\n            MathLib.calculateAddLiquidityQuantities(\r\n            ^\nSpanning multiple lines.",
+    "Exchange_patched.sol:1603:9: Warning: Div In Path.\n        if (requiredQuoteTokenQty <= _quoteTokenQtyDesired) {\r\n        ^\nSpanning multiple lines."
+   ]
+  ],
+  "operator_order_issue": [
+   [
+    "Exchange_patched.sol:823:9: Warning: Operator Order Issue.\n        isNotExpired(_expirationTimestamp)",
+    "Exchange_patched.sol:831:17: Warning: Operator Order Issue.\n                IERC20(baseToken).balanceOf(address(this))",
+    "Exchange_patched.sol:832:17: Warning: Operator Order Issue.\n                IERC20(quoteToken).balanceOf(address(this))",
+    "Exchange_patched.sol:833:17: Warning: Operator Order Issue.\n                this.totalSupply()",
+    "Exchange_patched.sol:826:13: Warning: Operator Order Issue.\n            MathLib.calculateAddLiquidityQuantities(\r\n            ^\nSpanning multiple lines.",
+    "Exchange_patched.sol:848:9: Warning: Operator Order Issue.\n        _mint(_liquidityTokenRecipient, tokenQtys.liquidityTokenQty)"
+   ]
+  ],
+  "indivisible_amount": [],
+  "precision_loss_trend": [],
+  "exchange_problem": [],
+  "exchange_rounding": [],
+  "profit_opportunity": []
+ },
+ "bool_defect": {
+  "div_in_path": true,
+  "operator_order_issue": true,
+  "indivisible_amount": false,
+  "precision_loss_trend": false,
+  "exchange_problem": false,
+  "exchange_rounding": false,
+  "profit_opportunity": false
+ },
+ "address": "",
+ "contract_count": 5,
+ "storage_var_count": 13,
+ "pub_fun_count": 20
+}
