@@ -104,7 +104,7 @@ def extract_solc(filepath):
 
 def main():
     # Read dataset
-    dataset_path = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ2/dataset.csv"
+    dataset_path = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ1/dataset.csv"
     rows = []
     with open(dataset_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)

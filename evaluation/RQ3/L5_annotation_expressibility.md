@@ -11,7 +11,7 @@ Bug-awareness-required (L5) 케이스 14건에 대해, **버그를 인지한 상
 | **Strong** (Direct) | Annotation이 올바른 값/관계를 직접 명시하여 buggy code에서 명확한 Violated 발생. Awareness signal이 강함. | `@During var relOp expr`, `@Post var relOp expr` (CommonClause: RelationalCmp) |
 | **Weak** (Indirect) | 변수의 변경 여부 또는 변경 방향만 감지. 정확한 값은 명시하지 않으나 buggy 케이스에서 Violated 또는 partial signal 발생. | `changed(var, true/false)` (VarChangedEval), `var(Entry relOp Exit)` (PostEntryExit) |
 
-이전에 "Not possible"로 분류되었던 11건은 `evaluation/RQ2/limitation_types.md`의 L4 (annotation-inexpressible)로 이동되었다. 해당 케이스들은 bug awareness가 있어도 annotation 모델로 어떤 형태의 signal도 제공할 수 없는 구조적 한계 케이스이다.
+이전에 "Not possible"로 분류되었던 11건은 `evaluation/RQ1/limitation_types.md`의 L4 (annotation-inexpressible)로 이동되었다. 해당 케이스들은 bug awareness가 있어도 annotation 모델로 어떤 형태의 signal도 제공할 수 없는 구조적 한계 케이스이다.
 
 ### Strong vs Weak 구분
 
@@ -389,7 +389,7 @@ checkpoint 호출 시점(line 117)에 배치.
 
 ## Reclassified to L4 (formerly "Not possible" -- 11 cases)
 
-이전 버전에서 "Not possible"로 분류되었던 11건은 `evaluation/RQ2/limitation_types.md`의 L4 (annotation-inexpressible) 카테고리로 이동되었다. 해당 케이스들은 bug awareness가 있어도 IntentChecker의 annotation 모델로 표현 자체가 불가능한 구조적 한계 케이스이며, L5(bug-awareness-required)의 정의("표현은 가능하나 버그 인지를 전제")에 부합하지 않기 때문이다.
+이전 버전에서 "Not possible"로 분류되었던 11건은 `evaluation/RQ1/limitation_types.md`의 L4 (annotation-inexpressible) 카테고리로 이동되었다. 해당 케이스들은 bug awareness가 있어도 IntentChecker의 annotation 모델로 표현 자체가 불가능한 구조적 한계 케이스이며, L5(bug-awareness-required)의 정의("표현은 가능하나 버그 인지를 전제")에 부합하지 않기 때문이다.
 
 ### 재분류 매핑
 
@@ -415,4 +415,4 @@ checkpoint 호출 시점(line 117)에 배치.
 | L5 (전체) | 25건 | **14건** (Strong 7 + Weak 7) |
 | L4 + L5 | 34건 | 34건 (불변) |
 
-상세 설명은 `evaluation/RQ2/limitation_types.md` 참조.
+상세 설명은 `evaluation/RQ1/limitation_types.md` 참조.

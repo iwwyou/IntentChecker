@@ -5,8 +5,8 @@ RQ2 전체 케이스 실행 + CSV 출력
 분석 시간(dependency 제외), intent 타입, 결과를 수집한다.
 
 Usage:
-    python evaluation/RQ2/run_all.py                # 전체 실행 + CSV 출력
-    python evaluation/RQ2/run_all.py --case Nokon   # 특정 케이스만
+    python evaluation/RQ1/run_all.py                # 전체 실행 + CSV 출력
+    python evaluation/RQ1/run_all.py --case Nokon   # 특정 케이스만
 """
 
 import subprocess, sys, os, json, re, csv, time
@@ -193,7 +193,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="RQ2 전체 실행")
     parser.add_argument("--case", help="특정 케이스만 실행 (부분 매칭)")
-    parser.add_argument("--csv", default="evaluation/RQ2/rq2_results.csv", help="CSV 출력 경로")
+    parser.add_argument("--csv", default="evaluation/RQ1/rq2_results.csv", help="CSV 출력 경로")
     args = parser.parse_args()
 
     targets = CASE_JSONS

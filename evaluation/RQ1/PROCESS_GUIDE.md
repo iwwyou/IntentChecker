@@ -15,11 +15,11 @@
 
 ## 데이터셋 구성
 - **총 89건**: Web3Bugs 81건 + Numscout 8건
-- **마스터 인덱스**: `evaluation/RQ2/dataset.csv`
-- **원본 .sol 파일**: `evaluation/RQ2/target_contracts_original/` (89개 파일)
-- **축약 .sol 파일**: `evaluation/RQ2/target_contracts_contraction/` (detectable 건)
-- **의존성 파일**: `evaluation/RQ2/target_contracts/dependencies/` (302개 파일)
-- **dependency 정보 스크립트**: `evaluation/RQ2/collect_dependencies.py`
+- **마스터 인덱스**: `evaluation/RQ1/dataset.csv`
+- **원본 .sol 파일**: `evaluation/RQ1/target_contracts_original/` (89개 파일)
+- **축약 .sol 파일**: `evaluation/RQ1/target_contracts_contraction/` (detectable 건)
+- **의존성 파일**: `evaluation/RQ1/target_contracts/dependencies/` (302개 파일)
+- **dependency 정보 스크립트**: `evaluation/RQ1/collect_dependencies.py`
 
 ## RQ 구조
 - **RQ1**: Validation Algorithm Soundness (interval comparison 알고리즘 검증)
@@ -60,7 +60,7 @@
 1. Contraction 파일 확인 (`target_contracts_contraction/`)
 2. Intent annotation 결정: 타입(@Post/@During), 대상 변수, 표현식, 삽입 라인
 3. Debug annotation 결정: 필요한 변수, 삽입 라인
-4. **Z3 solver 생성** (`evaluation/RQ2/z3_solvers/`): underflow/overflow 방지, require 통과, 버그 경로 진입 조건 등을 Z3 constraint로 모델링하여 안전한 debug annotation 값 도출
+4. **Z3 solver 생성** (`evaluation/RQ1/z3_solvers/`): underflow/overflow 방지, require 통과, 버그 경로 진입 조건 등을 Z3 constraint로 모델링하여 안전한 debug annotation 값 도출
 5. **Annotation 삽입 순서**: Step 1에서 intent annotation 삽입 → Step 2에서 debug annotation 삽입 → interpreter가 둘 다 포함된 상태로 실행
 
 ### Phase 2: 환경 준비
@@ -84,7 +84,7 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
 ### Phase 4: Annotation 명세 (Case JSON 생성)
 각 contracted contract에 대해 case JSON 파일 생성.
 
-**Case JSON 구조** (예: `evaluation/RQ2/cases/div_in_path/WANGMI.json`):
+**Case JSON 구조** (예: `evaluation/RQ1/cases/div_in_path/WANGMI.json`):
 ```json
 {
   "id": "WANGMI",
@@ -173,41 +173,41 @@ python soltotestjson.py [_contraction.sol 경로] -o [_contraction.json 경로]
 **실행 명령:**
 ```bash
 # 개별 케이스 실행 (main.py에 JSON 경로 전달)
-python main.py evaluation/RQ2/cases/web3bugs_56_H_02/web3bugs_56_H_02.json
+python main.py evaluation/RQ1/cases/web3bugs_56_H_02/web3bugs_56_H_02.json
 
 # 전체 regression 확인 (bash)
-for d in evaluation/RQ2/cases/*/; do name=$(basename "$d"); json="$d${name}.json"; if [ -f "$json" ]; then echo "=== $name ===" && python -u main.py "$json" 2>&1 | grep -iE "INTENT VIOLATION|INTENT WARNING|POST INTENT|Traceback" | head -3; fi; done
+for d in evaluation/RQ1/cases/*/; do name=$(basename "$d"); json="$d${name}.json"; if [ -f "$json" ]; then echo "=== $name ===" && python -u main.py "$json" 2>&1 | grep -iE "INTENT VIOLATION|INTENT WARNING|POST INTENT|Traceback" | head -3; fi; done
 ```
 
 ## 핵심 파일 경로
 | 파일 | 경로 | 설명 |
 |------|------|------|
 | 논문 | `paper/main.tex` | 메인 논문 파일 |
-| 데이터셋 CSV | `evaluation/RQ2/dataset.csv` | 89건 마스터 인덱스 |
-| 타겟 계약 | `evaluation/RQ2/target_contracts/*.sol` | 원본 .sol 파일 |
-| 의존성 | `evaluation/RQ2/target_contracts/dependencies/` | import 의존성 파일 |
-| 케이스 JSON | `evaluation/RQ2/cases/{category}/{name}.json` | 실행 케이스 |
-| 결과 | `evaluation/RQ2/results/` | 실행 결과 JSON/CSV |
-| Runner | `evaluation/RQ2/runner.py` | RQ2 실행 스크립트 |
+| 데이터셋 CSV | `evaluation/RQ1/dataset.csv` | 89건 마스터 인덱스 |
+| 타겟 계약 | `evaluation/RQ1/target_contracts/*.sol` | 원본 .sol 파일 |
+| 의존성 | `evaluation/RQ1/target_contracts/dependencies/` | import 의존성 파일 |
+| 케이스 JSON | `evaluation/RQ1/cases/{category}/{name}.json` | 실행 케이스 |
+| 결과 | `evaluation/RQ1/results/` | 실행 결과 JSON/CSV |
+| Runner | `evaluation/RQ1/runner.py` | RQ2 실행 스크립트 |
 | Sol→JSON 변환 | `soltotestjson.py` | .sol → JSON 변환기 |
-| Dependency 수집 | `evaluation/RQ2/collect_dependencies.py` | import 정보 수집 |
+| Dependency 수집 | `evaluation/RQ1/collect_dependencies.py` | import 정보 수집 |
 | Grammar | `Parser/Solidity.g4` | Intent annotation 문법 정의 |
-| Annotation 계획 | `evaluation/RQ2/annotation_plans.md` | 케이스별 annotation 계획/분석 기록 |
-| Limitation 유형 | `evaluation/RQ2/limitation_types.md` | not_detectable 한계 유형 정의/분류 |
-| 추가 구현 사항 | `evaluation/RQ2/code_modification_issues.md` | IntentChecker 코드 수정 필요 사항 추적 |
-| Z3 솔버 | `evaluation/RQ2/z3_solvers/` | debug annotation 값 생성용 Z3 constraint solver |
-| 원본 계약 | `evaluation/RQ2/target_contracts_original/` | 원본 .sol 파일 |
-| 축약 계약 | `evaluation/RQ2/target_contracts_contraction/` | 축약된 .sol 파일 (detectable 건) |
+| Annotation 계획 | `evaluation/RQ1/annotation_plans.md` | 케이스별 annotation 계획/분석 기록 |
+| Limitation 유형 | `evaluation/RQ1/limitation_types.md` | not_detectable 한계 유형 정의/분류 |
+| 추가 구현 사항 | `evaluation/RQ1/code_modification_issues.md` | IntentChecker 코드 수정 필요 사항 추적 |
+| Z3 솔버 | `evaluation/RQ1/z3_solvers/` | debug annotation 값 생성용 Z3 constraint solver |
+| 원본 계약 | `evaluation/RQ1/target_contracts_original/` | 원본 .sol 파일 |
+| 축약 계약 | `evaluation/RQ1/target_contracts_contraction/` | 축약된 .sol 파일 (detectable 건) |
 
 ## Numscout 기존 contraction 예시
 | 파일 | 경로 |
 |------|------|
 | WANGMI sol | `Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.sol` |
 | WANGMI json | `Dataset/Numscout/contraction/div_in_path/WANGMI_contraction.json` |
-| WANGMI case | `evaluation/RQ2/cases/div_in_path/WANGMI.json` |
-| BoostToken case | `evaluation/RQ2/cases/operator_order_issue/BoostToken.json` |
-| Nokon case | `evaluation/RQ2/cases/exchange_problem/Nokon.json` |
-| SwordCrowdsale case | `evaluation/RQ2/cases/greedy_contract/SwordCrowdsale.json` |
+| WANGMI case | `evaluation/RQ1/cases/div_in_path/WANGMI.json` |
+| BoostToken case | `evaluation/RQ1/cases/operator_order_issue/BoostToken.json` |
+| Nokon case | `evaluation/RQ1/cases/exchange_problem/Nokon.json` |
+| SwordCrowdsale case | `evaluation/RQ1/cases/greedy_contract/SwordCrowdsale.json` |
 
 ## Threats to Validity에 포함할 내용
 1. **연구자 작성 annotation ≠ 개발자 의도**: 실험에서 사용된 intent annotation은 연구자가 bug report와 원본 코드를 기반으로 작성한 것이며, 실제 개발자의 의도와 다를 수 있다.
@@ -748,7 +748,7 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | `Analyzer/ContractAnalyzer.py` | 상태변수 copy 추가, `_find_interface_name_for_var`에 `interface_var_types` fallback |
 | `Utils/CFG.py` | `FunctionCFG.interface_var_types` 필드 추가 |
 | `Dependencies/contracts/78_OZ_ERC20.sol` | OZ ERC20 축약 버전 (pkl 생성용) |
-| `evaluation/RQ2/generate_case_jsons.py` | 78_H_02, 42_H_01 추가, BEGIN/END 자동 생성 |
+| `evaluation/RQ1/generate_case_jsons.py` | 78_H_02, 42_H_01 추가, BEGIN/END 자동 생성 |
 | 전체 JSON 19개 | `@Debugging END` startLine 수정 |
 
 ---
@@ -795,7 +795,7 @@ dependency pkl 전부 준비, using/assembly/overloading 지원 완료.
 | 파일 | 변경 |
 |------|------|
 | `Interpreter/Engine.py` | exit_env 캡처 순서 변경, 복합자료구조 전파, callee 파라미터 skip, ireturn_registry 전파 |
-| `evaluation/RQ2/cases/web3bugs_78_H_02/web3bugs_78_H_02.json` | `@LocalVar to = symbolicAddress 10` 추가, startLine shift |
+| `evaluation/RQ1/cases/web3bugs_78_H_02/web3bugs_78_H_02.json` | `@LocalVar to = symbolicAddress 10` 추가, startLine shift |
 
 ### 70_H_10 해결: ERROR → VIOLATED
 

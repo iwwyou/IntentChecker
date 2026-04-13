@@ -1,6 +1,6 @@
 """
 Collect dependency information (import paths, pragma versions) for all 81
-Web3Bugs target contracts in evaluation/RQ2/target_contracts/.
+Web3Bugs target contracts in evaluation/RQ1/target_contracts/.
 
 For each web3bugs_*.sol file this script extracts:
   - All import paths (both plain and destructured `import { X } from "path"`)

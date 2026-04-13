@@ -18,7 +18,7 @@
 ### 개별 케이스 실행
 ```bash
 # main.py에 JSON 경로 전달 (subprocess)
-PYTHONIOENCODING=utf-8 python main.py "evaluation/RQ2/cases/web3bugs_47_H_02/web3bugs_47_H_02.json"
+PYTHONIOENCODING=utf-8 python main.py "evaluation/RQ1/cases/web3bugs_47_H_02/web3bugs_47_H_02.json"
 
 # Python에서 subprocess로 실행
 import subprocess, sys, os
@@ -34,7 +34,7 @@ err = result.stderr.decode('utf-8', errors='replace')
 
 ### 전체 회귀 테스트
 ```bash
-for f in evaluation/RQ2/cases/*/*.json; do
+for f in evaluation/RQ1/cases/*/*.json; do
   name=$(basename "$f" .json)
   result=$(PYTHONIOENCODING=utf-8 python main.py "$f" 2>&1 | \
     grep -oE "INTENT (VIOLATION|SATISFIED|WARNING)|INTENT VIOLATED|POST INTENT VIOLATED" | head -1)
@@ -54,8 +54,8 @@ python Dependencies/main.py  # Dependencies 전체 재분석 + pkl 생성
 
 ## 데이터셋 구성
 - **총 89건**: Web3Bugs 81건 + Numscout 8건
-- **마스터 인덱스**: `evaluation/RQ2/dataset.csv`
-- **케이스 JSON**: `evaluation/RQ2/cases/{category}/{name}.json`
+- **마스터 인덱스**: `evaluation/RQ1/dataset.csv`
+- **케이스 JSON**: `evaluation/RQ1/cases/{category}/{name}.json`
 
 ## 핵심 파일 경로
 | 파일 | 경로 | 설명 |
@@ -72,7 +72,7 @@ python Dependencies/main.py  # Dependencies 전체 재분석 + pkl 생성
 | Visitor | `Analyzer/EnhancedSolidityVisitor.py` | ANTLR parse tree → IR |
 | CFG 구조 | `Utils/CFG.py` | ContractCFG, LibraryCFG, FunctionCFG |
 | 논문 | `paper/main.tex` | 메인 논문 파일 |
-| v1 가이드 | `evaluation/RQ2/PROCESS_GUIDE.md` | 세션 1~7 상세 기록 (아키텍처, grammar, 구현 이력) |
+| v1 가이드 | `evaluation/RQ1/PROCESS_GUIDE.md` | 세션 1~7 상세 기록 (아키텍처, grammar, 구현 이력) |
 
 ## Intent Annotation 문법
 ```
@@ -333,8 +333,8 @@ python Dependencies/main.py  # Dependencies 전체 재분석 + pkl 생성
 | `Evaluation.py:1886` | overload fallback 제거 → `find_library_function(base_type, func_name, n_args=n_args)` 직접 호출 |
 | `Dependencies/main.py` | Phase 1 `glob`→`rglob`, interface 서브폴더 prefix 지원, Phase 3 수동 분석 순서, 에러 출력 |
 | `main.py` | ifc_ prefix 숫자 제거, `[TIMING]` 출력 추가 |
-| `evaluation/RQ2/run_all.py` | 신규 — 전체 케이스 실행 + CSV 출력 스크립트 |
-| `evaluation/RQ2/runner.py` | 삭제 (구버전) |
+| `evaluation/RQ1/run_all.py` | 신규 — 전체 케이스 실행 + CSV 출력 스크립트 |
+| `evaluation/RQ1/runner.py` | 삭제 (구버전) |
 | `dataset.csv` | 42_H_01: annotated → not_detectable |
 
 #### Input JSON 수정
@@ -526,11 +526,11 @@ L 53 | return _principalWithdrawable
 **프로젝트 venv python 사용 필수**:
 ```bash
 # 옳음
-.venv/Scripts/python.exe evaluation/RQ2/run_all.py
+.venv/Scripts/python.exe evaluation/RQ1/run_all.py
 .venv/Scripts/python.exe main.py <case>.json
 
 # 위험 — global python 3.10은 networkx 2.5.1 (falcon-analyzer가 downgrade)
-python evaluation/RQ2/run_all.py
+python evaluation/RQ1/run_all.py
 ```
 
 `main.py load_dependencies()`의 `except Exception: pass`가 pkl 로딩 실패를 silently 삼키므로, 잘못된 python으로 돌리면 library CFG가 통째로 빠진 채 분석이 돌아감. 에러 은폐를 제거할지 여부는 추후 논의.

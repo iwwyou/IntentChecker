@@ -16,7 +16,7 @@
 - `PostEntryExit`는 `intentValue '(' ENTRY relOp EXIT ')'`이며, 도구 레벨에서 "PostEntryExit의 intentValue에 산술식 사용 미지원"이라는 제약이 문서에 명시됨.
 - `@During commonClause`에서 `changed(var, false)`의 의미(함수 시작부터 현재 지점까지 불변)는 문법상 허용되지만 tool-specific 해석이며 문법 자체로는 확인 불가.
 
-검증 제약: Web3Bugs 원본 `contracts/` 디렉토리 파일을 직접 Read/Grep할 수 없어 `evaluation/RQ2/target_contracts_original/*.sol`(RQ2 재포장 파일)과 `Web3Bugs/reports/*.md`를 교차 확인하였다.
+검증 제약: Web3Bugs 원본 `contracts/` 디렉토리 파일을 직접 Read/Grep할 수 없어 `evaluation/RQ1/target_contracts_original/*.sol`(RQ2 재포장 파일)과 `Web3Bugs/reports/*.md`를 교차 확인하였다.
 
 ## Summary
 - Total: 25
@@ -183,7 +183,7 @@ if (floorPrice > (wavaxReserve * 10**token.decimals()) / tokenAllocated) {
 **Problems (Major)**:
 
 1. **Annotation의 변수 지시 불명확**: `@Post reserveForeign(Entry > Exit)`의 `reserveForeign`은 local 변수인지 state (`pairInfo[foreignAsset].reserveForeign`)인지 모호. PostEntryExit의 의미(Entry/Exit storage comparison)에는 local이 들어갈 수 없으므로 state를 의도한 것이어야 하며, 올바른 표현은 `@Post pairInfo[foreignAsset].reserveForeign(Entry > Exit)`.
-2. **Cross-document 불일치**: `evaluation/RQ2/limitation_types.md` line 250의 E5(`missing-dependency`) 목록에 `web3bugs_52_H_23`가 명시됨 (`E5 | missing-dependency | 분석에 필요한 외부 라이브러리 ... | web3bugs_52_H_23, web3bugs_16_H_04`). 그러나 L5 doc은 이 케이스를 Indirect로 분류(이전에 Not possible이었다가 승격). `BasePoolV2`가 import로만 존재하여 `_update`의 state 작성 의미를 분석할 수 없다면 이는 L5보다 E5에 속함.
+2. **Cross-document 불일치**: `evaluation/RQ1/limitation_types.md` line 250의 E5(`missing-dependency`) 목록에 `web3bugs_52_H_23`가 명시됨 (`E5 | missing-dependency | 분석에 필요한 외부 라이브러리 ... | web3bugs_52_H_23, web3bugs_16_H_04`). 그러나 L5 doc은 이 케이스를 Indirect로 분류(이전에 Not possible이었다가 승격). `BasePoolV2`가 import로만 존재하여 `_update`의 state 작성 의미를 분석할 수 없다면 이는 L5보다 E5에 속함.
 3. **doc 내 "이전 분류: Not possible → Indirect 승격"** 코멘트는 재검토 필요함을 인정한 흔적으로 보이나, 승격 근거("state variable 재검토에서 `reserveForeign`이 `_update()`를 통해 storage에 기록되는 것을 확인")는 파일로부터 직접 입증되지 않음.
 
 **권고**: 

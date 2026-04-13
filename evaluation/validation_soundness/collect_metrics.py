@@ -9,15 +9,15 @@ For each case, collects:
   - Annotation metrics: @StateVar/@LocalVar/@GlobalVar/@IReturn, @During/@Post
 
 Outputs:
-  - evaluation/RQ1/rq1_metrics.csv                 (merged per-case metrics)
-  - evaluation/RQ1/rq1_correlations.csv            (Pearson correlation with mean time)
-  - evaluation/RQ1/rq2_run{i}.csv                  (snapshot of each run)
-  - evaluation/RQ1/plots/analysis_time_factors.png (scatter plots, optional)
+  - evaluation/validation_soundness/rq1_metrics.csv                 (merged per-case metrics)
+  - evaluation/validation_soundness/rq1_correlations.csv            (Pearson correlation with mean time)
+  - evaluation/validation_soundness/rq2_run{i}.csv                  (snapshot of each run)
+  - evaluation/validation_soundness/plots/analysis_time_factors.png (scatter plots, optional)
 
 Usage:
-    .venv/Scripts/python.exe evaluation/RQ1/collect_metrics.py             # use existing CSV
-    .venv/Scripts/python.exe evaluation/RQ1/collect_metrics.py --runs 3    # run 3 times, average
-    .venv/Scripts/python.exe evaluation/RQ1/collect_metrics.py --runs 1    # single run
+    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py             # use existing CSV
+    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 3    # run 3 times, average
+    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 1    # single run
 """
 
 import argparse
@@ -32,12 +32,12 @@ from collections import defaultdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-RQ2_DIR = PROJECT_ROOT / "evaluation" / "RQ2"
-RQ2_RESULTS = RQ2_DIR / "rq2_results.csv"
-RQ1_DIR = PROJECT_ROOT / "evaluation" / "RQ1"
-OUT_CSV = RQ1_DIR / "rq1_metrics.csv"
-CORR_CSV = RQ1_DIR / "rq1_correlations.csv"
-PLOTS_DIR = RQ1_DIR / "plots"
+MAIN_EVAL_DIR = PROJECT_ROOT / "evaluation" / "RQ1"
+MAIN_RESULTS = MAIN_EVAL_DIR / "rq2_results.csv"
+SOUNDNESS_DIR = PROJECT_ROOT / "evaluation" / "validation_soundness"
+OUT_CSV = SOUNDNESS_DIR / "rq1_metrics.csv"
+CORR_CSV = SOUNDNESS_DIR / "rq1_correlations.csv"
+PLOTS_DIR = SOUNDNESS_DIR / "plots"
 
 # Same 20 cases as run_all.py
 CASE_JSONS = [
@@ -200,7 +200,7 @@ def extract_source_metrics(json_path: Path) -> dict:
 # run_all.py result loading
 # ─────────────────────────────────────────────────────────────
 
-def load_rq2_results(csv_path: Path = RQ2_RESULTS) -> dict:
+def load_rq2_results(csv_path: Path = MAIN_RESULTS) -> dict:
     """Return {(case_name, category): {analysis_time_sec, result}} from a results CSV.
 
     Uses (case, category) as the key because some target contracts (e.g., BoostToken)
@@ -221,7 +221,7 @@ def load_rq2_results(csv_path: Path = RQ2_RESULTS) -> dict:
 
 def run_rq2_evaluation() -> None:
     """Invoke run_all.py to regenerate rq2_results.csv."""
-    runner = RQ2_DIR / "run_all.py"
+    runner = MAIN_EVAL_DIR / "run_all.py"
     print(f"[info] Running {runner} ...")
     subprocess.run([sys.executable, str(runner)], check=False)
 
@@ -238,14 +238,14 @@ def run_rq2_n_times(n: int) -> dict:
         print(f"\n========== run {i}/{n} ==========")
         run_rq2_evaluation()
 
-        if not RQ2_RESULTS.exists():
-            print(f"[error] {RQ2_RESULTS} not produced after run {i}")
+        if not MAIN_RESULTS.exists():
+            print(f"[error] {MAIN_RESULTS} not produced after run {i}")
             continue
 
         # Snapshot
-        snapshot = RQ1_DIR / f"rq2_run{i}.csv"
+        snapshot = SOUNDNESS_DIR / f"rq2_run{i}.csv"
         snapshot.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(RQ2_RESULTS, snapshot)
+        shutil.copy(MAIN_RESULTS, snapshot)
         print(f"[ok] snapshot → {snapshot}")
 
         # Collect timings
@@ -279,7 +279,7 @@ def collect_rows(case_jsons: list[str], rq2_agg: dict) -> list[dict]:
     """Build per-case rows. rq2_agg may be from a single run or aggregated over N."""
     rows = []
     for rel in case_jsons:
-        path = RQ2_DIR / rel
+        path = MAIN_EVAL_DIR / rel
         case_name = path.stem.replace("_input", "")
         category = path.parent.name
         # Display name disambiguates collisions like BoostToken (operator vs indivisible)
@@ -440,12 +440,12 @@ def main():
             print("[error] No timings collected. Aborting.")
             sys.exit(1)
     else:
-        if not RQ2_RESULTS.exists():
-            print(f"[info] {RQ2_RESULTS} not found. Running run_all.py once ...")
+        if not MAIN_RESULTS.exists():
+            print(f"[info] {MAIN_RESULTS} not found. Running run_all.py once ...")
             run_rq2_evaluation()
         rq2_agg = load_rq2_results()
         if not rq2_agg:
-            print(f"[error] {RQ2_RESULTS} still missing. Aborting.")
+            print(f"[error] {MAIN_RESULTS} still missing. Aborting.")
             sys.exit(1)
 
     missing = []

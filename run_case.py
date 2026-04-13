@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-RQ2 케이스 JSON 파일을 IntentChecker로 실행하고 결과를 출력.
+Run an IntentChecker case JSON file and print results.
 
 Usage:
     python run_case.py <case.json>
-    python run_case.py evaluation/RQ2/cases/web3bugs_5_H_07/web3bugs_5_H_07.json
+    python run_case.py evaluation/RQ1/cases/web3bugs_5_H_07/web3bugs_5_H_07.json
 """
 import json, sys, pathlib
 

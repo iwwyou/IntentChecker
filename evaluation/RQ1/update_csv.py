@@ -1,6 +1,6 @@
 import csv
 
-csv_path = "evaluation/RQ2/dataset.csv"
+csv_path = "evaluation/RQ1/dataset.csv"
 
 # Data from agents: id -> (contract, function, bug_line)
 updates = {

@@ -3,8 +3,8 @@ import os
 import re
 import shutil
 
-csv_path = "evaluation/RQ2/dataset.csv"
-output_dir = "evaluation/RQ2/target_contracts"
+csv_path = "evaluation/RQ1/dataset.csv"
+output_dir = "evaluation/RQ1/target_contracts"
 web3bugs_repo = "C:/Users/isjeon/Web3Bugs/contracts"
 
 os.makedirs(output_dir, exist_ok=True)

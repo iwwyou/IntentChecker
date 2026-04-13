@@ -26,7 +26,7 @@ import numpy as np
 BASE = Path(__file__).resolve().parent                       # evaluation/RQ3
 PROJECT_ROOT = BASE.parent.parent                            # SolidityGuardian
 CASE_CSV = BASE / "case_mapping.csv"
-RQ2_CSV = BASE.parent / "RQ2" / "rq2_results.csv"
+RQ2_CSV = BASE.parent / "RQ1" / "rq2_results.csv"
 GPTSCAN_DIR = BASE / "outputs" / "gptscan" / "run1"
 SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
 NUMSCOUT_SUMMARY = BASE / "outputs" / "numscout" / "run1" / "summary.json"

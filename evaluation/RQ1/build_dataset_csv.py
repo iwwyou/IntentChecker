@@ -1,4 +1,4 @@
-"""Build evaluation/RQ2/dataset.csv master index."""
+"""Build evaluation/RQ1/dataset.csv master index."""
 import csv, re, os
 from collections import Counter
 
@@ -185,7 +185,7 @@ fieldnames = [
     "id", "source", "source_label", "contract", "function",
     "bug_line", "pattern", "description", "source_file", "status",
 ]
-outpath = "evaluation/RQ2/dataset.csv"
+outpath = "evaluation/RQ1/dataset.csv"
 
 with open(outpath, "w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=fieldnames)
