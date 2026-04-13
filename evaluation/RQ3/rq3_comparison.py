@@ -24,7 +24,7 @@ import numpy as np
 
 # ── paths ──────────────────────────────────────────────────────────────
 BASE = Path(__file__).resolve().parent                       # evaluation/RQ3
-PROJECT_ROOT = BASE.parent.parent                            # SolidityGuardian
+PROJECT_ROOT = BASE.parent.parent                            # repo root
 CASE_CSV = BASE / "case_mapping.csv"
 RQ2_CSV = BASE.parent / "RQ1" / "rq2_results.csv"
 GPTSCAN_DIR = BASE / "outputs" / "gptscan" / "run1"

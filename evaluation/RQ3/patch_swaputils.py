@@ -1,7 +1,9 @@
 import re
 import sys
+from pathlib import Path
 
-path = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ3/workdir_numscout_patched/run_Swap/Swap_patched.sol"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+path = str(_SCRIPT_DIR / "workdir_numscout_patched" / "run_Swap" / "Swap_patched.sol")
 with open(path, encoding='utf-8', newline='') as f:
     text = f.read()
 

@@ -1,9 +1,10 @@
 #!/bin/bash
-# RQ3 Setup: Install npm dependencies for Web3Bugs projects
-# Run from any directory - uses absolute paths
+# RQ3 Setup: Install npm dependencies for Web3Bugs projects.
+# Override WEB3BUGS_CONTRACTS env var to point at a different Web3Bugs clone.
 
-WEB3BUGS="C:/Users/isjeon/Web3Bugs/contracts"
-LOG="C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ3/setup_log.txt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB3BUGS="${WEB3BUGS_CONTRACTS:-C:/Users/isjeon/Web3Bugs/contracts}"
+LOG="$SCRIPT_DIR/setup_log.txt"
 
 echo "=== RQ3 dependency setup started at $(date) ===" > "$LOG"
 

@@ -4,12 +4,16 @@ BoostToken operator_order_issue 테스트
 - 테스트 케이스: amount=65 일 때 precision loss 탐지
 """
 
+from pathlib import Path
+
 from Analyzer.ContractAnalyzer import ContractAnalyzer
 from Analyzer.DebugUnitAnalyzer import DebugBatchManager
 from Analyzer.EnhancedSolidityVisitor import EnhancedSolidityVisitor
 from Utils.Helper import ParserHelpers
 import json
 import time
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
 
 def load_json_inputs(json_path):
     """JSON 파일에서 입력 레코드 로드"""
@@ -23,7 +27,7 @@ def main():
     batch_mgr = DebugBatchManager(contract_analyzer, snapman)
 
     # 2. JSON 입력 파일 로드 (원본 contraction 파일)
-    json_path = r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\Dataset\Numscout\contraction\operator_order_issue\BoostToken_contraction.json"
+    json_path = str(_PROJECT_ROOT / "Dataset" / "Numscout" / "contraction" / "operator_order_issue" / "BoostToken_contraction.json")
     records = load_json_inputs(json_path)
 
     print("=" * 60)

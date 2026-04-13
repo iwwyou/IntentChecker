@@ -10,8 +10,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
 
-WEB3BUGS_PATH = Path(r"C:\Users\isjeon\Web3Bugs")
-OUTPUT_PATH = Path(r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\Dataset")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+WEB3BUGS_PATH = Path(os.environ.get("WEB3BUGS_ROOT", r"C:\Users\isjeon\Web3Bugs"))
+OUTPUT_PATH = _PROJECT_ROOT / "Dataset"
 
 
 @dataclass

@@ -3,14 +3,18 @@ Solidity 0.8 이상 버전의 contract만 필터링
 """
 import json
 import csv
+import os
 import re
 from pathlib import Path
 from collections import defaultdict
 
-# 경로 설정
-NUMSCOUT_DIR = Path(r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+NUMSCOUT_DIR = Path(os.environ.get(
+    "NUMSCOUT_EXPERIMENT_DIR",
+    r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run",
+))
 SAMPLES_DIR = NUMSCOUT_DIR / "95_samples"
-OUTPUT_DIR = Path(r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\analysis")
+OUTPUT_DIR = _PROJECT_ROOT / "analysis"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 def parse_solidity_version(version_str):

@@ -1,4 +1,3 @@
-# SolidityGuardian/Analyzers/ContractAnalyzer.py
 from Utils.CFG import *
 from Domain.AddressSet import address_manager, AddressSet
 from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval

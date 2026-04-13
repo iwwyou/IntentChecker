@@ -1,4 +1,3 @@
-# SolidityGuardian/Utils/CFG.py
 import networkx as nx
 from typing import Any
 from Domain.IR import *

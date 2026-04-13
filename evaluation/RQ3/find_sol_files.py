@@ -5,10 +5,14 @@ and generate case_mapping.csv for RQ3.
 import os
 import re
 import csv
+from pathlib import Path
 
-WEB3BUGS_BASE = "C:/Users/isjeon/Web3Bugs/contracts"
-NUMSCOUT_BASE = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/Dataset/Numscout"
-OUTPUT_CSV = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ3/case_mapping.csv"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+
+WEB3BUGS_BASE = os.environ.get("WEB3BUGS_CONTRACTS", "C:/Users/isjeon/Web3Bugs/contracts")
+NUMSCOUT_BASE = str(_PROJECT_ROOT / "Dataset" / "Numscout")
+OUTPUT_CSV = str(_SCRIPT_DIR / "case_mapping.csv")
 
 # Project root subdirectories (relative to contest folder)
 PROJECT_ROOTS = {
@@ -104,7 +108,7 @@ def extract_solc(filepath):
 
 def main():
     # Read dataset
-    dataset_path = "C:/Users/isjeon/PycharmProjects/pythonProject/SolidityGuardian/evaluation/RQ1/dataset.csv"
+    dataset_path = str(_PROJECT_ROOT / "evaluation" / "RQ1" / "dataset.csv")
     rows = []
     with open(dataset_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)

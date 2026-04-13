@@ -1,4 +1,3 @@
-# SolidityGuardian/Analyzer/CFGSerializer.py
 import json
 import pathlib
 from typing import Dict, Any, Union

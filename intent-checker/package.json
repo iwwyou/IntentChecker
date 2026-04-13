@@ -1,6 +1,6 @@
 {
-  "name": "solidity-guardian",
-  "displayName": "Solidity-Guardian",
+  "name": "intent-checker",
+  "displayName": "IntentChecker",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -14,7 +14,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "solidity-guardian.helloWorld",
+        "command": "intent-checker.helloWorld",
         "title": "Hello World"
       }
     ]

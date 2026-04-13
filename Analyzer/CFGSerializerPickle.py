@@ -1,4 +1,3 @@
-# SolidityGuardian/Analyzer/CFGSerializerPickle.py
 import pickle
 import pathlib
 from typing import Dict, Union

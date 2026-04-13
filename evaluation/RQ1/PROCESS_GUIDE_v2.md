@@ -1,7 +1,7 @@
 # RQ2 실험 수행 프로세스 가이드 v2
 
 ## 프로젝트 개요
-- **프로젝트**: SolidityGuardian (IntentChecker)
+- **프로젝트**: IntentChecker
 - **목적**: Solidity 스마트 컨트랙트의 numeric logic vulnerability를 개발자 의도(intent annotation) 기반으로 탐지/완화하는 정적 분석 도구
 - **분석 방법**: Abstract interpretation (interval domain) + developer-provided debug/intent annotations
 - **논문**: `paper/main.tex`
@@ -378,7 +378,7 @@ python Dependencies/main.py  # Dependencies 전체 재분석 + pkl 생성
 | 환경 | networkx 버전 |
 |------|--------------|
 | Global Python 3.10 | **2.5.1** (`falcon-analyzer`가 downgrade) |
-| SolidityGuardian `.venv` | **3.4.2** |
+| IntentChecker `.venv` | **3.4.2** |
 
 - `Dependencies/objectfile/` pkl들은 venv의 3.4.2로 생성됨
 - global python으로 로드 시 `'DiGraph' object has no attribute '_adj'` in `NodeView.__setstate__` 실패

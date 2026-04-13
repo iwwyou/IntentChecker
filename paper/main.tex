@@ -520,7 +520,7 @@ Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChec
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figure/architecture_drawio.png}
-    \caption{System architecture of IntentChecker. Layers~1--2 (Parsing and Analysis Modules) are reused from SolQDebug; Layer~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}
+    \caption{System architecture of IntentChecker. Phases~1--2 (Parsing and Analysis Modules) are reused from SolQDebug; Phase~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}
     \label{fig:architecture}
 \end{figure}
 
@@ -550,8 +550,8 @@ The Analysis Module performs incremental abstract interpretation over the interv
 For every library and interface referenced from the target source file, the Analysis Module either loads a pre-analyzed Dependency CFG---a serialized LibraryCFG or ContractCFG object produced once and cached---or constructs one on-the-fly when the source is locally available.
 When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterwards; this mechanism is reused without modification for the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
 
-The Validation Engine (Layer~3) is IntentChecker's core contribution on top of this extended analyzer.
-It receives two inputs from the lower layers: parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
+The Validation Engine (Phase~3) is IntentChecker's core contribution on top of this extended analyzer.
+It receives two inputs from the earlier phases: parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
 For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, risk score, and violated regions as described above.
 
 \subsection{Motivating Examples}
@@ -1342,6 +1342,8 @@ The 100\% pass rate across all configurations and width profiles cross-validates
 \end{tabular*}
 \end{table}
 
+This completes the design and verification of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
+
 \section{Evaluation}\label{sec:evaluation}
 
 The validation algorithm itself was already verified in §\ref{sec:alg-verification}, where we proved that the closed-form expressions of Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly and cross-validated this proof against brute-force ground truth across every topological configuration of two integer intervals.
@@ -2050,12 +2052,20 @@ The primary practical limitation is the annotation authoring burden, which futur
 On the analyzer side, extending Yul support and multi-transaction reasoning would close the remaining technical limitations.
 More broadly, this work adds ``edit-time intent validator'' as a third category alongside pattern-based detectors and formal verifiers in the design space for numeric logic error tools.
 
-\newif\ifshowack
-\showackfalse
+\section*{Acknowledgements}
+This work was supported by the Institute of Information \& communications Technology Planning \& Evaluation (IITP) grant funded by the Korean government (MSIT) (RS-2021-II210177, High Assurance of Smart Contract for Secure Software Development Life Cycle), the Technology development Program (RS-2025-25455127) funded by the Ministry of SMEs and Startups (MSS, Korea), and the ``Regional Innovation System \& Education (RISE)'' through the Seoul RISE Center, funded by the Ministry of Education (MOE) and the Seoul Metropolitan Government (2025-RISE-01-003-01).
 
-\ifshowack
-  \section*{Acknowledgment}
-\fi
+\section*{Author Contributions}
+Inseong Jeon participated in conceptualization, methodology design, system implementation, data collection, experiments, and manuscript writing. Sundeuk Kim and Hyunwoo Kim assisted in experiments, data collection and analysis, and contributed to manuscript writing. Hoh Peter In provided resources, assisted in editing the manuscript, and supervised the entire project. All authors reviewed and approved the final version of the manuscript.
+
+\section*{Data Availability}
+The benchmark of 89 real-world numeric logic error instances curated from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}, along with the IntentChecker implementation~\citep{intentchecker}, evaluation scripts, and experimental results, are available at \url{https://github.com/iwwyou/IntentChecker.git}.
+
+\section*{Declarations}
+
+\noindent\textbf{Competing interests} The authors declare no competing interests.
+
+\noindent\textbf{Ethical approval} Not applicable since there are no human and/or animal studies included in this paper.
 
 
 \begin{thebibliography}{99}
@@ -2092,6 +2102,9 @@ Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Con
 
 \bibitem[Jeon et~al.(2025)]{solqdebug}
 Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in Smart Contract Development (2025). https://doi.org/10.21203/rs.3.rs-8077153/v1
+
+\bibitem[Jeon et~al.(2026)]{intentchecker}
+Jeon, I., et al.: IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accessed April 2026
 
 \bibitem[Kong et~al.(2023)]{defitainter}
 Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124

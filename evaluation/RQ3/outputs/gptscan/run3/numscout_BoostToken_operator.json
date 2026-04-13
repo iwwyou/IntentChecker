@@ -11,7 +11,7 @@
             "recommendation": "Do not use AMM pool or custom liquidity calculation to caculate LP token value/price.",
             "affectedFiles": [
                 {
-                    "filePath": "C:\\Users\\isjeon\\PycharmProjects\\pythonProject\\SolidityGuardian\\evaluation\\RQ3\\workdir_gptscan\\numscout_BoostToken_operator\\4E0fCa55a6C3A94720ded91153A27F60E26B9AA8_BoostToken.sol",
+                    "filePath": "<repo>\\evaluation\\RQ3\\workdir_gptscan\\numscout_BoostToken_operator\\4E0fCa55a6C3A94720ded91153A27F60E26B9AA8_BoostToken.sol",
                     "range": {
                         "start": {
                             "line": 1029
@@ -23,7 +23,7 @@
                     "highlights": []
                 },
                 {
-                    "filePath": "C:\\Users\\isjeon\\PycharmProjects\\pythonProject\\SolidityGuardian\\evaluation\\RQ3\\workdir_gptscan\\numscout_BoostToken_operator\\4E0fCa55a6C3A94720ded91153A27F60E26B9AA8_BoostToken.sol",
+                    "filePath": "<repo>\\evaluation\\RQ3\\workdir_gptscan\\numscout_BoostToken_operator\\4E0fCa55a6C3A94720ded91153A27F60E26B9AA8_BoostToken.sol",
                     "range": {
                         "start": {
                             "line": 1002

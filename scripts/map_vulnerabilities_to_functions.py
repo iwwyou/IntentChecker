@@ -2,14 +2,18 @@
 NumScout 취약점 라인을 함수에 매핑하는 스크립트
 """
 import json
+import os
 import re
 from pathlib import Path
 from collections import defaultdict
 
-# 경로 설정
-NUMSCOUT_DIR = Path(r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+NUMSCOUT_DIR = Path(os.environ.get(
+    "NUMSCOUT_EXPERIMENT_DIR",
+    r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run",
+))
 SAMPLES_DIR = NUMSCOUT_DIR / "95_samples"
-OUTPUT_DIR = Path(r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\analysis")
+OUTPUT_DIR = _PROJECT_ROOT / "analysis"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 def parse_function_ranges(sol_file):

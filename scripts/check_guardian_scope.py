@@ -3,15 +3,19 @@ Guardian scope 제약 확인 스크립트
 - Multi contract (library만)
 - Single transaction
 """
+import os
 import re
 import json
 from pathlib import Path
 from collections import defaultdict
 
-# 경로 설정
-NUMSCOUT_DIR = Path(r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+NUMSCOUT_DIR = Path(os.environ.get(
+    "NUMSCOUT_EXPERIMENT_DIR",
+    r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run",
+))
 SAMPLES_DIR = NUMSCOUT_DIR / "95_samples"
-OUTPUT_DIR = Path(r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\analysis")
+OUTPUT_DIR = _PROJECT_ROOT / "analysis"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 def check_external_calls(contract_code):

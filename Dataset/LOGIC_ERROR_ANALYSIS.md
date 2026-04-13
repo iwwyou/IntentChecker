@@ -253,7 +253,7 @@ Logic Error
 
 ---
 
-## 8. Mapping to SolidityGuardian Implementation
+## 8. Mapping to IntentChecker Implementation
 
 ### 8.1 Currently Implemented
 | Pattern | Example | Implementation |

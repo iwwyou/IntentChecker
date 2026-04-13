@@ -1,7 +1,7 @@
 # RQ2 실험 수행 프로세스 가이드
 
 ## 프로젝트 개요
-- **프로젝트**: SolidityGuardian (IntentChecker)
+- **프로젝트**: IntentChecker
 - **목적**: Solidity 스마트 컨트랙트의 numeric logic vulnerability를 개발자 의도(intent annotation) 기반으로 탐지/완화하는 정적 분석 도구
 - **분석 방법**: Abstract interpretation (interval domain) + developer-provided debug/intent annotations
 - **논문**: `paper/main.tex`

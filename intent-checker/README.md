@@ -1,6 +1,6 @@
-# solidity-guardian README
+# intent-checker README
 
-This is the README for your extension "solidity-guardian". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "intent-checker". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 

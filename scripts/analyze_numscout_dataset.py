@@ -7,10 +7,13 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-# 경로 설정
-NUMSCOUT_DIR = Path(r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+NUMSCOUT_DIR = Path(os.environ.get(
+    "NUMSCOUT_EXPERIMENT_DIR",
+    r"C:\Users\isjeon\NumScout\NumScout\Experiment\95_Samples_Run",
+))
 SAMPLES_DIR = NUMSCOUT_DIR / "95_samples"
-OUTPUT_DIR = Path(r"C:\Users\isjeon\PycharmProjects\pythonProject\SolidityGuardian\analysis")
+OUTPUT_DIR = _PROJECT_ROOT / "analysis"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 def extract_function_name(warning_text):
