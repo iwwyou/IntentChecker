@@ -53,8 +53,9 @@ evaluation/RQ3/workdir_gptscan/
 evaluation/RQ3/workdir_numscout/
 # Keep workdir_numscout_patched/ — hand-crafted library-inlined contracts required for reproducibility
 
-# ---- RQ3: cloned third-party tools (installed by setup script) ----
+# ---- RQ3: cloned third-party tools and dataset (installed by setup script) ----
 evaluation/RQ3/tools/
+evaluation/RQ3/web3bugs/
 
 # ---- Other build / log artifacts ----
 *.log

@@ -1,22 +1,25 @@
 """
 RQ3: Run GPTScan on all 75 cases.
-Usage: C:/Users/isjeon/GPTScan/venv/Scripts/python.exe run_gptscan.py [--case CASE_ID]
 
 GPTScan analyzes source directories using GPT + static analysis.
 - NumScout cases: single .sol file in a temp folder
 - Web3Bugs cases: full project directory (needs hardhat compile first)
 
-Requires:
-  - GPTScan venv: C:/Users/isjeon/GPTScan/venv
-  - GPTScan code: C:/Users/isjeon/GPTScan/src
-  - solc binaries: C:/Users/isjeon/.solc-select/artifacts/solc-{version}/solc-{version}.exe
-  - Web3Bugs projects: C:/Users/isjeon/Web3Bugs/contracts/{N}/ (with node_modules)
+Requires (installed by setup_rq3_tools.sh):
+  - GPTScan tree at evaluation/RQ3/tools/gptscan/ with its own venv
+Requires on the host:
+  - solc binaries installed via solc-select (default: ~/.solc-select/artifacts,
+    override with $SOLC_ARTIFACTS)
+  - Web3Bugs contracts dir (default: evaluation/RQ3/web3bugs/contracts if the
+    setup script was run with the ``web3bugs`` target, otherwise ~/Web3Bugs/contracts;
+    override with $WEB3BUGS_CONTRACTS)
   - OpenAI API key (passed via --key or OPENAI_API_KEY env var)
 """
 
 import csv
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -33,37 +36,106 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-GPTSCAN_SRC = Path("C:/Users/isjeon/GPTScan/src")
-GPTSCAN_VENV_PYTHON = Path("C:/Users/isjeon/GPTScan/venv/Scripts/python.exe")
-SOLC_ARTIFACTS = Path("C:/Users/isjeon/.solc-select/artifacts")
-WEB3BUGS_DIR = Path("C:/Users/isjeon/Web3Bugs/contracts")
+IS_WINDOWS = platform.system() == "Windows"
+
+
+def _tool_venv_python(tool_dir: Path) -> Path:
+    """Return the python executable inside a tool's venv on either Unix or Windows."""
+    candidates = [
+        tool_dir / "venv" / "Scripts" / "python.exe",
+        tool_dir / "venv" / "bin" / "python",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]  # best guess; we'll surface a clear error at invocation
+
+
+def _default_solc_artifacts() -> Path:
+    return Path.home() / ".solc-select" / "artifacts"
+
+
+def _default_web3bugs_contracts() -> Path:
+    in_repo = SCRIPT_DIR / "web3bugs" / "contracts"
+    if in_repo.exists():
+        return in_repo
+    return Path.home() / "Web3Bugs" / "contracts"
+
+
+def _which(name: str) -> str:
+    hit = shutil.which(name)
+    if hit:
+        return hit
+    if IS_WINDOWS:
+        hit = shutil.which(name + ".cmd")
+        if hit:
+            return hit
+    return name
+
+
+GPTSCAN_DIR = SCRIPT_DIR / "tools" / "gptscan"
+GPTSCAN_SRC = GPTSCAN_DIR / "src"
+GPTSCAN_VENV_PYTHON = _tool_venv_python(GPTSCAN_DIR)
+GPTSCAN_VENV_DIR = GPTSCAN_DIR / "venv"
+SOLC_ARTIFACTS = Path(os.environ.get("SOLC_ARTIFACTS", str(_default_solc_artifacts())))
+WEB3BUGS_DIR = Path(os.environ.get("WEB3BUGS_CONTRACTS", str(_default_web3bugs_contracts())))
+NPX = _which("npx")
 CASE_MAPPING = SCRIPT_DIR / "case_mapping.csv"
 OUTPUT_DIR = SCRIPT_DIR / "outputs" / "gptscan"
 WORK_DIR = SCRIPT_DIR / "workdir_gptscan"
 TIMEOUT = 1800  # seconds per case
 
 
-def switch_solc(version: str):
-    """Copy the correct solc binary into ALL locations where subprocess might find it.
+def _find_solc_binary(version: str) -> Path | None:
+    root = SOLC_ARTIFACTS / f"solc-{version}"
+    for c in [root / f"solc-{version}.exe", root / f"solc-{version}"]:
+        if c.exists():
+            return c
+    return None
 
-    Python subprocess inherits the parent's PATH, and when run_gptscan.py is invoked
-    from a non-activated shell, the GPTScan venv's Scripts/ is not in PATH. We therefore
-    overwrite solc.exe in every candidate PATH location so the subprocess always picks
-    up the correct version regardless of PATH order.
+
+def switch_solc(version: str):
+    """Mirror the versioned solc binary into the GPTScan venv so the subprocess picks
+    it up regardless of the caller's PATH. Also tries ``solc-select use`` for
+    portability on hosts where it's installed.
+
+    SOLC_COPY_TARGETS (pathsep-separated) can be set to copy solc into extra
+    locations, e.g. when a site-wide Python Scripts dir is on PATH.
     """
-    solc_exe = SOLC_ARTIFACTS / f"solc-{version}" / f"solc-{version}.exe"
-    if not solc_exe.exists():
-        print(f"  [ERROR] solc {version} not found at {solc_exe}")
+    solc_bin = _find_solc_binary(version)
+    if solc_bin is None:
+        print(
+            f"  [ERROR] solc {version} not found under {SOLC_ARTIFACTS}. "
+            f"Run `solc-select install {version}` or set SOLC_ARTIFACTS."
+        )
         return False
 
-    targets = [
-        Path("C:/Users/isjeon/GPTScan/venv/Scripts/solc.exe"),
-        Path("C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe"),
-    ]
+    solc_select = shutil.which("solc-select")
+    if solc_select:
+        try:
+            subprocess.run(
+                [solc_select, "use", version], check=False, capture_output=True
+            )
+        except Exception as e:
+            print(f"  [WARN] solc-select use {version} failed: {e}")
+
+    if IS_WINDOWS:
+        targets = [GPTSCAN_VENV_DIR / "Scripts" / "solc.exe"]
+    else:
+        targets = [GPTSCAN_VENV_DIR / "bin" / "solc"]
+    extra = os.environ.get("SOLC_COPY_TARGETS", "")
+    if extra:
+        for p in extra.split(os.pathsep):
+            p = p.strip()
+            if p:
+                targets.append(Path(p))
+
     for target in targets:
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(solc_exe, target)
+            shutil.copy2(solc_bin, target)
+            if not IS_WINDOWS:
+                target.chmod(0o755)
         except Exception as e:
             print(f"  [WARN] failed to copy solc to {target}: {e}")
     return True
@@ -114,9 +186,9 @@ def compile_hardhat(project_root: str) -> bool:
 
     try:
         result = subprocess.run(
-            ["npx.cmd", "hardhat", "compile"],
+            [NPX, "hardhat", "compile"],
             cwd=str(project_dir),
-            capture_output=True, timeout=180, env=env, shell=True
+            capture_output=True, timeout=180, env=env, shell=IS_WINDOWS
         )
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace")[-300:]
@@ -131,9 +203,12 @@ def run_gptscan(source_dir: str, output_file: str, api_key: str) -> dict:
     """Run GPTScan on a source directory."""
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
-    # Ensure GPTScan venv's Scripts dir (with the current solc.exe) is first in PATH
-    venv_scripts = str(Path("C:/Users/isjeon/GPTScan/venv/Scripts"))
-    env["PATH"] = venv_scripts + os.pathsep + env.get("PATH", "")
+    # Ensure the GPTScan venv's bin/Scripts dir (with the current solc) is first in PATH
+    if IS_WINDOWS:
+        venv_bin = str(GPTSCAN_VENV_DIR / "Scripts")
+    else:
+        venv_bin = str(GPTSCAN_VENV_DIR / "bin")
+    env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
 
     start = time.time()
     # Stream subprocess output line-by-line so GPTScan's internal progress is visible

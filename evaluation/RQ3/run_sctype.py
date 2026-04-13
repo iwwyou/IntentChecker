@@ -1,7 +1,18 @@
-"""Run ScType on RQ3 cases. Uses ScType venv at C:/Users/isjeon/ScType/venv."""
+"""Run ScType on RQ3 cases.
+
+The ScType tree and its venv are installed by evaluation/RQ3/setup_rq3_tools.sh
+into evaluation/RQ3/tools/sctype/. Type-annotation files are committed under
+evaluation/RQ3/sctype_typefiles/ (copied from ScType's Benchmark_subset/).
+
+Env vars:
+  SOLC_ARTIFACTS       — solc-select artifacts dir (default: ~/.solc-select/artifacts)
+  WEB3BUGS_CONTRACTS   — Web3Bugs contracts dir (default: evaluation/RQ3/web3bugs/contracts
+                         if present, else ~/Web3Bugs/contracts)
+"""
 import csv
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -12,15 +23,38 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 
 # ── Paths ──────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-WEB3BUGS_ROOT = Path("C:/Users/isjeon/Web3Bugs/contracts")
-SCTYPE_VENV = Path("C:/Users/isjeon/ScType/venv/Scripts")
-SCTYPE_SLITHER = SCTYPE_VENV / "slither.exe"
-TYPEFILE_ROOT = Path("C:/Users/isjeon/ScType/Benchmark_subset")
-SOLC_DIR = Path("C:/Users/isjeon/.solc-select/artifacts")
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent
+IS_WINDOWS = platform.system() == "Windows"
 
-OUTPUT_BASE = PROJECT_ROOT / "evaluation" / "RQ3" / "outputs" / "sctype"
-CASE_MAPPING_CSV = PROJECT_ROOT / "evaluation" / "RQ3" / "case_mapping.csv"
+
+def _default_solc_artifacts() -> Path:
+    return Path.home() / ".solc-select" / "artifacts"
+
+
+def _default_web3bugs_contracts() -> Path:
+    in_repo = SCRIPT_DIR / "web3bugs" / "contracts"
+    if in_repo.exists():
+        return in_repo
+    return Path.home() / "Web3Bugs" / "contracts"
+
+
+def _venv_bin_dir(tool_dir: Path) -> Path:
+    """Return the venv's bin/Scripts directory (platform-aware)."""
+    if IS_WINDOWS:
+        return tool_dir / "venv" / "Scripts"
+    return tool_dir / "venv" / "bin"
+
+
+SCTYPE_DIR = SCRIPT_DIR / "tools" / "sctype"
+SCTYPE_VENV = _venv_bin_dir(SCTYPE_DIR)
+SCTYPE_SLITHER = SCTYPE_VENV / ("slither.exe" if IS_WINDOWS else "slither")
+TYPEFILE_ROOT = SCRIPT_DIR / "sctype_typefiles"
+SOLC_DIR = Path(os.environ.get("SOLC_ARTIFACTS", str(_default_solc_artifacts())))
+WEB3BUGS_ROOT = Path(os.environ.get("WEB3BUGS_CONTRACTS", str(_default_web3bugs_contracts())))
+
+OUTPUT_BASE = SCRIPT_DIR / "outputs" / "sctype"
+CASE_MAPPING_CSV = SCRIPT_DIR / "case_mapping.csv"
 
 # ── ScType case mapping ────────────────────────────────────────────
 # Each case maps to its ScType configuration.
@@ -79,22 +113,48 @@ def load_case_mapping():
     return mapping
 
 
+def _find_solc_binary(version: str):
+    root = SOLC_DIR / f"solc-{version}"
+    for c in [root / f"solc-{version}.exe", root / f"solc-{version}", root / "solc.exe", root / "solc"]:
+        if c.exists():
+            return c
+    return None
+
+
 def switch_solc(version: str):
-    """Copy the right solc binary to ScType venv Scripts."""
-    solc_bin = SOLC_DIR / f"solc-{version}" / f"solc-{version}.exe"
-    if not solc_bin.exists():
-        solc_bin = SOLC_DIR / f"solc-{version}" / "solc.exe"
-    if not solc_bin.exists():
-        print(f"  [WARN] solc {version} not found at {solc_bin}")
+    """Copy the right solc binary into the ScType venv so slither picks it up.
+
+    Also tries ``solc-select use`` for hosts where solc-select is on PATH.
+    """
+    solc_bin = _find_solc_binary(version)
+    if solc_bin is None:
+        print(
+            f"  [WARN] solc {version} not found under {SOLC_DIR}. "
+            f"Run `solc-select install {version}` or set SOLC_ARTIFACTS."
+        )
         return False
 
-    targets = [
-        SCTYPE_VENV / "solc.exe",
-        Path("C:/Users/isjeon/AppData/Local/Programs/Python/Python310/Scripts/solc.exe"),
-    ]
+    solc_select = shutil.which("solc-select")
+    if solc_select:
+        try:
+            subprocess.run([solc_select, "use", version], check=False, capture_output=True)
+        except Exception as e:
+            print(f"  [WARN] solc-select use {version} failed: {e}")
+
+    target = SCTYPE_VENV / ("solc.exe" if IS_WINDOWS else "solc")
+    extra = os.environ.get("SOLC_COPY_TARGETS", "")
+    targets = [target]
+    if extra:
+        for p in extra.split(os.pathsep):
+            p = p.strip()
+            if p:
+                targets.append(Path(p))
     for t in targets:
         try:
+            t.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(solc_bin, t)
+            if not IS_WINDOWS:
+                t.chmod(0o755)
         except Exception as e:
             print(f"  [WARN] Failed to copy solc to {t}: {e}")
     print(f"  solc switched to {version}")
@@ -232,12 +292,14 @@ def run_sctype(case_id: str, case_cfg: dict, case_meta: dict, output_dir: Path):
     artifacts_dir = hardhat_root / "artifacts" / "build-info"
     if not artifacts_dir.exists():
         print(f"  Compiling with hardhat...")
+        npx_cmd = shutil.which("npx") or (shutil.which("npx.cmd") if IS_WINDOWS else None) or "npx"
         compile_proc = subprocess.run(
-            ["npx.cmd", "hardhat", "compile"],
+            [npx_cmd, "hardhat", "compile"],
             cwd=str(hardhat_root),
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=300,
             env={**os.environ, "HARDHAT_NETWORK": "hardhat"},
+            shell=IS_WINDOWS,
         )
         if compile_proc.returncode != 0:
             print(f"  [WARN] Hardhat compile issue: {compile_proc.stderr[-200:]}")

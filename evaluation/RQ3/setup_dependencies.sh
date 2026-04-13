@@ -1,10 +1,21 @@
 #!/bin/bash
-# RQ3 Setup: Install npm dependencies for Web3Bugs projects.
-# Override WEB3BUGS_CONTRACTS env var to point at a different Web3Bugs clone.
+# RQ3 Setup: Install npm/yarn dependencies for each Web3Bugs contest project.
+# Resolution order for the Web3Bugs contracts root:
+#   1. $WEB3BUGS_CONTRACTS (if set)
+#   2. $SCRIPT_DIR/web3bugs/contracts (populated by
+#      `bash setup_rq3_tools.sh web3bugs`)
+#   3. ~/Web3Bugs/contracts (historical default)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WEB3BUGS="${WEB3BUGS_CONTRACTS:-C:/Users/isjeon/Web3Bugs/contracts}"
+if [ -n "${WEB3BUGS_CONTRACTS:-}" ]; then
+  WEB3BUGS="$WEB3BUGS_CONTRACTS"
+elif [ -d "$SCRIPT_DIR/web3bugs/contracts" ]; then
+  WEB3BUGS="$SCRIPT_DIR/web3bugs/contracts"
+else
+  WEB3BUGS="$HOME/Web3Bugs/contracts"
+fi
 LOG="$SCRIPT_DIR/setup_log.txt"
+echo "Using Web3Bugs contracts dir: $WEB3BUGS"
 
 echo "=== RQ3 dependency setup started at $(date) ===" > "$LOG"
 

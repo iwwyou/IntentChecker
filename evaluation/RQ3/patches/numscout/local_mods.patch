@@ -1,0 +1,21 @@
+diff --git a/feature_detector/semantic_analysis.py b/feature_detector/semantic_analysis.py
+old mode 100755
+new mode 100644
+index 50a8ef5..9d44d98
+--- a/feature_detector/semantic_analysis.py
++++ b/feature_detector/semantic_analysis.py
+@@ -152,11 +152,11 @@ def precision_loss_analysis(
+                     token_address = stack[3]
+                     from_param = path_conditions_and_vars["Ia"]
+ 
+-                    check_operator_order_issue(amount, global_state, global_problematic_pcs)
++                    check_operator_order_issue(value, global_state, global_problematic_pcs)
+ 
+                     add_token_flow(
+-                        token_address, from_param, to, amount, global_state, path_conditions_and_vars, global_problematic_pcs
+-                    )                
++                        token_address, from_param, to, value, global_state, path_conditions_and_vars, global_problematic_pcs
++                    )
+ 
+ 
+     
