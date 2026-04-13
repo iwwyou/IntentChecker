@@ -1,0 +1,70 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# ---- IDE / editors ----
+.idea/
+.claude/
+.vs/
+*.swp
+*.swo
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- LaTeX build artifacts ----
+out/
+*.aux
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.toc
+*.lof
+*.lot
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+
+# ---- Node ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Temporary scratch directories ----
+tmp_*/
+temp/
+nul
+
+# ---- RQ3: experiment working directories (regenerated per run) ----
+evaluation/RQ3/workdir_gptscan/
+evaluation/RQ3/workdir_numscout/
+# Keep workdir_numscout_patched/ — hand-crafted library-inlined contracts required for reproducibility
+
+# ---- RQ3: cloned third-party tools (installed by setup script) ----
+evaluation/RQ3/tools/
+
+# ---- Other build / log artifacts ----
+*.log
+blk_trace.txt
+cfg_dump.txt
+setup_log.txt
+
+# ---- Project-specific scratch ----
+check_serialization.py
+safemath_test.json
+boost_indiv_code.json
+logic_error_contracts.json
+web3bugs_*_code.json
