@@ -125,14 +125,14 @@
 
 \abstract{
 Smart contract development lacks the mature debugging infrastructure available in traditional software engineering.
-In particular, numeric logic errors---where program behavior diverges from developer intent---are difficult to address.
-Whether such errors are present depends on the developer's intended numeric behavior, which is not expressed in the code itself.
-Existing detection tools, designed to operate from source code alone in a testing context, rely on pre-defined vulnerability patterns and offer no mechanism for developers to declare and validate numeric intent during development.
-Errors not covered by these patterns therefore have no practical way of early prevention.
+One missing piece is a mechanism for developers to declare their intended numeric behavior and have it checked against actual execution at development time.
+For this reason, numeric logic errors---where program behavior diverges from developer intent---are particularly difficult to address.
+Existing detection tools instead match completed source code against pre-defined vulnerability patterns in a testing or auditing context.
+Errors outside these patterns have no practical path to early prevention.
 This paper presents IntentChecker, a development-time intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
-We propose an intent model with two types: @During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution.
-A validation engine then checks whether the intervals computed by abstract interpretation satisfy the declared intent and reports a validation result together with a risk score.
-We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing pattern-based tools, with analysis latency suitable for interactive development.
+At its core is an intent model pairing two annotation types---@During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution---with a semantics that classifies each clause as Satisfied, Warning, or Violated given the intervals computed by abstract interpretation.
+A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score.
+We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing pattern-based tools, with analysis latency suitable for development-time use.
 }
 
 \keywords{Solidity, Numeric Logic Error, Debugging Assistant, Intent Model, Intent Validation}
@@ -141,47 +141,56 @@ We evaluate IntentChecker on real-world numeric logic errors and show that it pr
 
 \section{Introduction}
 
-The debugging toolchain available to smart contract developers remains far less mature than what traditional software engineering provides, and the immutability of deployed contracts further amplifies the cost of bugs that go undetected~\citep{flyinointment}.
-This immaturity is particularly acute for numeric logic errors---bugs in which a function executes without raising any compile-time or runtime exception but nevertheless produces values that violate the developer's intended numerical behavior.
-Because correctness hinges on what the developer intended for a given computation---information that the source code does not capture---compilers, type checkers, and generic static analyzers are structurally blind to this class of bugs.
-A recent empirical study~\citep{defisecurity} confirms this in practice: practitioners identified logic errors as the most difficult vulnerability type to detect, and reported that existing security tools are least effective against them.
+The debugging toolchain available to smart contract developers remains far less mature than what traditional software engineering provides.
+Our prior work, SolQDebug~\citep{solqdebug}, addressed this immaturity by performing statement-level interval-domain abstract interpretation at development time, eliminating the compile-deploy-trace cycle that traditionally makes Solidity debugging slow.
+SolQDebug's output, however, stops at reporting raw intervals---leaving correctness judgment entirely to the developer---and its analysis remains confined to a single contract and a single transaction.
 
-Several recent tools---most notably NumScout~\citep{numscout} and GPTScan~\citep{gptscan}---explicitly target numeric logic errors.
-These tools face an \textbf{inherent difficulty of the detection paradigm} rather than a mere engineering gap.
-First, without access to the developer's actual intent, any detector must fall back on a curated catalog of codified patterns (e.g., division-in-path, operator order, wrong checkpoint order).
-Second, because these catalogs are necessarily incomplete, tool coverage is orthogonal: error patterns targeted by GPTScan are missed by NumScout, and vice versa, and no single tool can be expected to unify them.
-These are not failures of any specific tool but structural consequences of attempting to detect intent-dependent bugs without an explicit representation of that intent.
+With correctness judgment left to the developer, logic errors---bugs where program behavior diverges from developer intent---are particularly hard to catch, since neither the compiler nor the runtime raises any signal.
+A recent empirical study~\citep{defisecurity} confirms this difficulty: practitioners identified logic errors as the most difficult vulnerability type to detect, and reported that existing security tools are least effective against them.
+Several tools~\citep{numscout, gptscan, accountingerrors} explicitly target this class of bugs and represent the current state of the art.
+Yet they all operate on completed code in an auditing or testing context, so the developer's intent is never part of their input.
+Any detector in this setting must substitute a fixed catalog of code patterns for intent, which keeps detection a matter of matching code against shapes enumerated in advance by the catalog authors, rather than against whatever intent the developer writing the contract actually has in mind.
 
-Compounding the above difficulty is a second, \textbf{temporal} limitation.
-Both NumScout and GPTScan are designed to run over completed code in auditing or testing contexts, after the function under inspection is fully written.
-At edit time, when the developer's intent is still fresh in mind and iteration cost is lowest, there is currently no tool that lets the developer declare ``I expect variable $v$ to stay within range $R$ at this point'' and immediately see whether that intent is consistent with the abstract execution of the function being written.
-This edit-time gap is the central problem this paper addresses.
+This methodology mismatch is most consequential for numeric computation, which lies at the core of most smart contract business logic.
+Our analysis of 120 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,022 non-trivial functions, shows numeric types appearing in 82\% of them (Table~\ref{tab:variable_distribution}).
+Because token transfers, fee calculations, and balance updates all rest on numeric computation, and because each contract encodes its own arithmetic invariants, this is exactly where the gap between general-purpose patterns and contract-specific intent is widest.
+Developer preferences point the same way: that same empirical study~\citep{defisecurity} further reports a clear preference for IDE-integrated tools such as extensions and linters over standalone analyzers, and a strong prioritization of low false negatives (92.3\%) over low false positives (50\%)---indicating that this gap should be closed during development rather than after.
+These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
 
-Our starting point for closing this gap is SolQDebug~\citep{solqdebug}, our previously published interactive debugger for Solidity.
-SolQDebug provides the missing piece of infrastructure: an interactive parser and an incremental control-flow-graph builder that together drive interval-domain abstract interpretation at statement-level granularity, accepting developer-supplied range annotations (@StateVar, @LocalVar) to inject symbolic inputs.
-However, SolQDebug only observes variable intervals; it does not validate any intended relationships between them, and its analysis scope is restricted to a single contract and a single transaction.
-SolQDebug's own conclusion explicitly leaves numerical defects detection for future work.
-This paper realizes that future work.
-
-We present IntentChecker, a development-time intent validation tool that builds on SolQDebug's interactive analysis infrastructure and adds three contributions.
-First, we introduce an intent model---a formal specification language consisting of two annotation types that align with the stages of variable flow in a function body, together with a denotational semantics that maps each clause to a tri-valued validation outcome against the abstract states produced by the interpreter. @During annotations specify intended relationships that must hold at specific program points within a function, while @Post annotations specify intended relationships that must hold after the function completes execution.
-Second, we develop a validation engine that maps each annotation clause to an interval-domain comparison and produces a graded signal of Satisfied, Violated, or Warning, together with a separately computed risk score on a 0--10 scale and the sub-intervals in which the intent may be violated.
-The underlying comparison primitive is mathematically proved sound against the set-theoretic specification of the intent model and cross-validated against brute-force ground truth across all possible topological configurations of two integer intervals.
-Third, we extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction, adding support for inherited contracts, library delegatecalls, interface-typed variables, and a practically useful arithmetic subset of inline assembly, and we introduce a new @IReturn debug annotation that injects range bindings into interface call return values, preserving the same ``unknown value, developer-specified range'' semantics already used by SolQDebug's existing debug annotations.
-
-To ground our motivation in concrete numbers, we analyzed 1,023 non-trivial functions from DAppSCAN-source~\citep{dappscan} (see Table~\ref{tab:variable_distribution}) and found that numeric variable types appear in 82\% of these functions, with uint alone used in 78\%.
-Since numeric computations form the core of smart contract business logic---handling token transfers, fee calculations, and balance updates---explicitly specifying developer intent for these operations is both necessary and, as our evaluation shows, practical.
+We present IntentChecker, a development-time intent validation tool for Solidity built on SolQDebug's interactive analysis infrastructure and extended from SolQDebug's single-contract scope to a multi-contract single-transaction scope.
+At its core is an intent model that pairs two annotation types---@During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution---with a semantics that classifies each clause as Satisfied, Warning, or Violated given the intervals computed by abstract interpretation.
+A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification and cross-validated against brute-force ground truth across all topological configurations of two integer intervals.
 
 We evaluate IntentChecker on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
 The evaluation organizes itself around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
 Importantly, our positioning with respect to existing tools is complementary rather than competitive: IntentChecker fills a distinct place in the development workflow by enabling intent-driven validation during editing, and is intended to coexist with auditing-time detectors rather than replace them.
+
+\begin{table}[!t]
+    \centering
+    \caption{Distribution of Variable Types in Smart Contract Functions}
+    \label{tab:variable_distribution}
+    \small
+    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcc}
+        \hline
+        \textbf{Category} & \textbf{Count} & \textbf{Percentage (\%)} \\
+        \hline
+        Contracts analyzed & 101 & --- \\
+        Functions considered for analysis & 1{,}023 & 100.00 \\
+        \hline
+        Functions using \textbf{uint} & 798 & 78.01 \\
+        Functions using \textbf{int} & 5 & 0.49 \\
+        Functions using \textbf{uint} and \textbf{int} & 42 & 4.11 \\
+        Functions using other types & 178 & 17.40 \\
+        \hline
+    \end{tabular*}
+\end{table}
 
 \smallskip
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
     \item We present an intent model with a formal denotational semantics defining each clause form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics and cross-validated against brute-force ground truth, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item We extend SolQDebug's single-contract single-transaction analysis scope to a multi-contract single-transaction scope that handles inheritance, libraries via delegatecall, interfaces, and a subset of inline assembly, and we introduce the @IReturn debug annotation to bridge the remaining cross-deployment gap (§\ref{sec:prelim}).
+    \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
     \item We evaluate IntentChecker on 89 real-world numeric logic errors and position it against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
 \end{itemize}
 
@@ -192,27 +201,6 @@ Section~\ref{sec:design} presents the design of IntentChecker, including its int
 Section~\ref{sec:evaluation} presents evaluation results across the three research questions.
 Section~\ref{sec:discussion} discusses the annotation authoring burden and remaining technical limitations.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
-
-\begin{table}[!t]
-    \centering
-    \caption{Distribution of Variable Types in Smart Contract Functions}
-    \label{tab:variable_distribution}
-    \small
-    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcc}
-        \hline
-        \textbf{Category} & \textbf{Number of Functions} & \textbf{Percentage (\%)} \\
-        \hline
-        \textbf{Total Functions Analyzed} & 1524 & \\
-        Excluded Functions & 501 & \\
-        \textbf{Functions Considered for Analysis} & 1023 & \\
-        \hline
-        Functions using \textbf{uint} & 798 & 78.00587 \\
-        Functions using \textbf{int} & 5 & 0.48876 \\
-        Functions using \textbf{uint} and \textbf{int} & 41 & 4.10557 \\
-        Functions using other types & 178 & 17.39980 \\
-        \hline
-    \end{tabular*}
-\end{table}
 
 \section{Background}\label{sec:background}
 \subsection{Numeric Logic Errors in Solidity}
@@ -336,7 +324,7 @@ Readers familiar with SolQDebug may skip §\ref{sec:prelim}.1 and proceed direct
 
 \subsection{SolQDebug Recap}\label{sec:prelim:recap}
 
-SolQDebug is an edit-time debugging assistant for Solidity that provides statement-level feedback through interval-domain abstract interpretation.
+SolQDebug is a development-time debugging assistant for Solidity that provides statement-level feedback through interval-domain abstract interpretation.
 It addresses two forms of inefficiency in traditional Solidity debugging: the temporal cost of the compile--deploy--setup--trace cycle in tools such as Remix IDE, and the iterative cost imposed by the non-reversible state model of the EVM.
 Both inefficiencies are resolved by performing the entire analysis inside the editor, without contacting any blockchain node.
 
@@ -1994,7 +1982,7 @@ and flash loan attacks~\citep{defitail,midnight}.
 The numeric logic error detectors above and IntentChecker occupy distinct points along the development--auditing timeline rather than competing on the same axis.
 NumScout, GPTScan, SmartInv, and the type-system approach of \citet{accountingerrors} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments.
 IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor.
-Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ edit-time validation), their coverage is necessarily complementary, and §\ref{sec:rq3} characterizes that complementarity rather than arguing numerical superiority.
+Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary, and §\ref{sec:rq3} characterizes that complementarity rather than arguing numerical superiority.
 
 \subsection{Specification-based Smart Contract Verification}
 Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
@@ -2024,9 +2012,9 @@ generating counterexamples when violations are detected to help developers under
 
 While specification-based approaches formalise contract-level properties in dedicated specification languages---Scribble's annotation language, Idealist's loop and call invariants, Solvent's SMT-encoded liquidity properties---and discharge verification obligations over completed code, IntentChecker's intent model occupies a different point in the design space with three distinguishing characteristics.
 First, its annotation language targets value-level numeric intent on individual variables at specific program points, not contract-level invariants or temporal properties.
-Second, its denotational semantics (§\ref{sec:intent-semantics}) maps each clause form to a tri-valued validation outcome over the abstract states produced by interval-domain analysis, giving the annotation language a formal foundation comparable in rigor to the specification languages above while remaining cheap enough to evaluate at edit time.
+Second, its denotational semantics (§\ref{sec:intent-semantics}) maps each clause form to a tri-valued validation outcome over the abstract states produced by interval-domain analysis, giving the annotation language a formal foundation comparable in rigor to the specification languages above while remaining cheap enough to evaluate at development time.
 Third, because IntentChecker performs interval-domain analysis that tracks actual value ranges through library function calls (e.g., SafeMath operations) rather than treating libraries as black boxes, it can validate intent over step-by-step numeric computations rather than only over post-condition-style abstract properties.
-The two approaches are therefore complementary in workflow stage (edit-time vs.\ audit/verification-time), in granularity (value-level vs.\ contract-level), and in the specification style they support.
+The two approaches are therefore complementary in workflow stage (development-time vs.\ audit/verification-time), in granularity (value-level vs.\ contract-level), and in the specification style they support.
 
 \subsection{Tools for Strengthening Security During Development Phase}
 Development-phase security tools integrate vulnerability detection directly into the coding workflow, enabling developers to identify and address security issues as they write code rather than in post-development analysis.
@@ -2044,13 +2032,13 @@ IntentChecker also extends SolQDebug's analysis scope beyond a single contract t
 
 We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each clause to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics and cross-validated against brute-force ground truth, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
-On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated verdicts at edit-time speeds (mean 3.69\,s per case).
+On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated verdicts at interactive speeds (mean 3.69\,s per case).
 RQ2's expressibility analysis showed that 14 of the 34 intent-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the intent model.
-IntentChecker's positioning relative to existing detection tools is complementary: it fills the edit-time gap that auditing-time tools structurally cannot occupy.
+IntentChecker's positioning relative to existing detection tools is complementary: it fills the development-time gap that auditing-time tools structurally cannot occupy.
 
 The primary practical limitation is the annotation authoring burden, which future work can address through LLM-assisted annotation suggestion (lowering the L5 bug-awareness ceiling) and auto-repair from violated regions.
 On the analyzer side, extending Yul support and multi-transaction reasoning would close the remaining technical limitations.
-More broadly, this work adds ``edit-time intent validator'' as a third category alongside pattern-based detectors and formal verifiers in the design space for numeric logic error tools.
+More broadly, this work adds ``development-time intent validator'' as a third category alongside pattern-based detectors and formal verifiers in the design space for numeric logic error tools.
 
 \section*{Acknowledgements}
 This work was supported by the Institute of Information \& communications Technology Planning \& Evaluation (IITP) grant funded by the Korean government (MSIT) (RS-2021-II210177, High Assurance of Smart Contract for Secure Software Development Life Cycle), the Technology development Program (RS-2025-25455127) funded by the Ministry of SMEs and Startups (MSS, Korea), and the ``Regional Innovation System \& Education (RISE)'' through the Seoul RISE Center, funded by the Ministry of Education (MOE) and the Seoul Metropolitan Government (2025-RISE-01-003-01).
