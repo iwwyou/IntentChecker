@@ -152,7 +152,7 @@ Yet they all operate on completed code in an auditing or testing context, so the
 Any detector in this setting must substitute a fixed catalog of code patterns for intent, which keeps detection a matter of matching code against shapes enumerated in advance by the catalog authors, rather than against whatever intent the developer writing the contract actually has in mind.
 
 This methodology mismatch is most consequential for numeric computation, which lies at the core of most smart contract business logic.
-Our analysis of 120 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,022 non-trivial functions, shows numeric types appearing in 82\% of them (Table~\ref{tab:variable_distribution}).
+Our analysis~\citep{dappscananalysis} of 101 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,023 non-trivial functions, shows numeric types appearing in 82\% of them (Table~\ref{tab:variable_distribution}).
 Because token transfers, fee calculations, and balance updates all rest on numeric computation, and because each contract encodes its own arithmetic invariants, this is exactly where the gap between general-purpose patterns and contract-specific intent is widest.
 Developer preferences point the same way: that same empirical study~\citep{defisecurity} further reports a clear preference for IDE-integrated tools such as extensions and linters over standalone analyzers, and a strong prioritization of low false negatives (92.3\%) over low false positives (50\%)---indicating that this gap should be closed during development rather than after.
 These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
@@ -2091,8 +2091,11 @@ Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Con
 \bibitem[Jeon et~al.(2025)]{solqdebug}
 Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in Smart Contract Development (2025). https://doi.org/10.21203/rs.3.rs-8077153/v1
 
-\bibitem[Jeon et~al.(2026)]{intentchecker}
-Jeon, I., et al.: IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accessed April 2026
+\bibitem[IntentChecker(2026a)]{intentchecker}
+IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026b)]{dappscananalysis}
+IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/DappSCAN_contract_analysis} (2026). Accessed April 2026
 
 \bibitem[Kong et~al.(2023)]{defitainter}
 Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124
