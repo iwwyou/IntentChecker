@@ -1,3 +1,119 @@
+diff --git a/GPT-Pruning/CodeSplit/CodeSplitter.py b/GPT-Pruning/CodeSplit/CodeSplitter.py
+old mode 100755
+new mode 100644
+diff --git a/GPT-Pruning/CodeSplit/FunctionExtractor.py b/GPT-Pruning/CodeSplit/FunctionExtractor.py
+old mode 100755
+new mode 100644
+diff --git a/GPT-Pruning/CodeSplit/SubgraphSplitter.py b/GPT-Pruning/CodeSplit/SubgraphSplitter.py
+old mode 100755
+new mode 100644
+diff --git a/cfg_builder/basicblock.py b/cfg_builder/basicblock.py
+old mode 100755
+new mode 100644
+diff --git a/cfg_builder/execution_states.py b/cfg_builder/execution_states.py
+old mode 100755
+new mode 100644
+diff --git a/cfg_builder/opcodes.py b/cfg_builder/opcodes.py
+old mode 100755
+new mode 100644
+diff --git a/cfg_builder/sym_exec.py b/cfg_builder/sym_exec.py
+old mode 100755
+new mode 100644
+index 605c9fa..c5dc237
+--- a/cfg_builder/sym_exec.py
++++ b/cfg_builder/sym_exec.py
+@@ -922,7 +922,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
+                 sym_exec_block(
+                     new_params, left_branch, block, depth, func_call, current_func_name
+                 )
+-        except TimeoutError:
++        except (TimeoutError, KeyboardInterrupt):
+             raise
+         except Exception as e:
+             if global_params.DEBUG_MODE:
+@@ -960,7 +960,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
+                 sym_exec_block(
+                     new_params, right_branch, block, depth, func_call, current_func_name
+                 )
+-        except TimeoutError:
++        except (TimeoutError, KeyboardInterrupt):
+             raise
+         except Exception as e:
+             if global_params.DEBUG_MODE:
+@@ -2377,22 +2377,36 @@ class TimeoutError(Exception):
+ 
+ 
+ class Timeout:
+-    """Timeout class using ALARM signal."""
++    """Timeout class using ALARM signal (Unix) or threading.Timer (Windows)."""
+ 
+     def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
+         self.sec = sec
+         self.error_message = error_message
++        self._timer = None
+ 
+     def __enter__(self):
+-        signal.signal(signal.SIGALRM, self._handle_timeout)
+-        signal.alarm(self.sec)
++        if hasattr(signal, 'SIGALRM'):
++            signal.signal(signal.SIGALRM, self._handle_timeout)
++            signal.alarm(self.sec)
++        else:
++            import threading
++            self._timer = threading.Timer(self.sec, self._timeout_thread)
++            self._timer.daemon = True
++            self._timer.start()
+ 
+     def __exit__(self, *args):
+-        signal.alarm(0)  # disable alarm
++        if hasattr(signal, 'SIGALRM'):
++            signal.alarm(0)
++        elif self._timer:
++            self._timer.cancel()
+ 
+     def _handle_timeout(self, signum, frame):
+         raise TimeoutError(self.error_message)
+ 
++    def _timeout_thread(self):
++        import _thread
++        _thread.interrupt_main()
++
+ 
+ def do_nothing():
+     pass
+@@ -2432,7 +2446,7 @@ def run_build_cfg_and_analyze(timeout_cb=do_nothing):
+         with Timeout(sec=global_params.GLOBAL_TIMEOUT):
+             build_cfg_and_analyze()
+         log.debug("Done Symbolic execution")
+-    except TimeoutError:
++    except (TimeoutError, KeyboardInterrupt):
+         g_timeout = True
+         timeout_cb()
+ 
+diff --git a/cfg_builder/utils.py b/cfg_builder/utils.py
+old mode 100755
+new mode 100644
+diff --git a/cfg_builder/vargenerator.py b/cfg_builder/vargenerator.py
+old mode 100755
+new mode 100644
+diff --git a/defect_identifier/defect.py b/defect_identifier/defect.py
+old mode 100755
+new mode 100644
+diff --git a/defect_identifier/identifier.py b/defect_identifier/identifier.py
+old mode 100755
+new mode 100644
+index 79cfa85..ad978a6
+--- a/defect_identifier/identifier.py
++++ b/defect_identifier/identifier.py
+@@ -249,7 +249,7 @@ class Identifier:
+ 
+         log.info("\t====== Analysis Completed ======")
+         if global_params.STORE_RESULT:
+-            result_file = g_disasm_file.split(".evm.disasm")[0] + ".json"
++            result_file = g_disasm_file.split(".evm.disasm")[0].replace(":", "_") + ".json"
+             with open(result_file, "w") as of:
+                 of.write(json.dumps(results, indent=1))
+             log.info("Wrote results to %s.", result_file)
 diff --git a/feature_detector/semantic_analysis.py b/feature_detector/semantic_analysis.py
 old mode 100755
 new mode 100644
@@ -19,3 +135,45 @@ index 50a8ef5..9d44d98
  
  
      
+diff --git a/global_params.py b/global_params.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/__init__.py b/inputter/__init__.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/ast/__init__.py b/inputter/ast/__init__.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/ast/ast_helper.py b/inputter/ast/ast_helper.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/ast/ast_walker.py b/inputter/ast/ast_walker.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/ast/ast_walker_old.py b/inputter/ast/ast_walker_old.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/input_helper.py b/inputter/input_helper.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/slot_map.py b/inputter/slot_map.py
+old mode 100755
+new mode 100644
+diff --git a/inputter/source_map.py b/inputter/source_map.py
+old mode 100755
+new mode 100644
+diff --git a/tool.py b/tool.py
+old mode 100755
+new mode 100644
+index 31b0fc2..e4178bf
+--- a/tool.py
++++ b/tool.py
+@@ -23,7 +23,7 @@ def cmd_exists(cmd):
+     """
+     return (
+         subprocess.call(
+-            "type " + cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
++            "where " + cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+         )
+         == 0
+     )

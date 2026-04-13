@@ -1,20 +1,10 @@
 [
   {
-    "case_id": "web3bugs_58_H_02",
+    "case_id": "numscout_Nokon",
     "tool": "gptscan",
-    "detected": true,
-    "detected_patterns": [
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation",
-      "price-manipulation"
-    ],
-    "time": 440.2120580673218,
+    "detected": false,
+    "detected_patterns": [],
+    "time": 32.218705892562866,
     "status": "ok"
   }
 ]

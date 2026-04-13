@@ -1,0 +1,11 @@
+[
+  {
+    "case_id": "web3bugs_56_H_02",
+    "tool": "sctype",
+    "detected": false,
+    "detected_patterns": [],
+    "findings": [],
+    "time": 37.9,
+    "status": "ok"
+  }
+]

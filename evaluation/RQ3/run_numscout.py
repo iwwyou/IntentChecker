@@ -98,8 +98,16 @@ def switch_solc(version: str):
 
     Strategy:
       1. Try `solc-select use <version>` (preferred, portable).
-      2. Mirror the solc binary from $SOLC_ARTIFACTS into the NumScout venv so
-         any direct ``solc`` invocation inside NumScout's subprocess finds it.
+      2. Mirror the solc binary into the NumScout venv AND into the
+         host Python's ``Scripts`` directory (Windows only). On Windows,
+         CreateProcess does NOT respect PATH overrides for executable
+         lookup — it searches the calling process's application
+         directory first, which for sub-subprocesses launched by
+         crytic-compile resolves to the host Python install. Mirroring
+         solc.exe there is the only reliable way to make CryticCompile
+         pick up the right version.
+      3. Extra mirror targets can be appended via SOLC_COPY_TARGETS
+         (pathsep-separated absolute paths).
     """
     solc_bin = _find_solc_binary(version)
     if solc_bin is None:
@@ -122,9 +130,17 @@ def switch_solc(version: str):
     # (2) Mirror into the tool venv's bin/Scripts directory.
     venv_root = NUMSCOUT_DIR / "venv"
     if IS_WINDOWS:
-        targets = [venv_root / "Scripts" / "solc.exe"]
+        bin_name = "solc.exe"
+        targets = [venv_root / "Scripts" / bin_name]
+        # Also mirror into the host Python's Scripts dir, which is what
+        # CreateProcess resolves to first when crytic-compile spawns a
+        # nested subprocess.
+        import sysconfig
+        host_scripts = Path(sysconfig.get_path("scripts"))
+        targets.append(host_scripts / bin_name)
     else:
-        targets = [venv_root / "bin" / "solc"]
+        bin_name = "solc"
+        targets = [venv_root / "bin" / bin_name]
     extra = os.environ.get("SOLC_COPY_TARGETS", "")
     if extra:
         for p in extra.split(os.pathsep):
@@ -292,13 +308,21 @@ def _invoke_numscout(work: Path, sol_basename: str, contract_name: str,
            "-j", "-sv", solc_version, "-glt", str(GLOBAL_TIMEOUT)]
     if extra_args:
         cmd.extend(extra_args)
+
+    # Prepend the NumScout venv's bin/Scripts directory to PATH so the
+    # version-pinned solc.exe (mirrored by switch_solc) wins over any
+    # other solc on the system PATH.
+    venv_bin = NUMSCOUT_DIR / "venv" / ("Scripts" if IS_WINDOWS else "bin")
+    sub_env = {**os.environ, "PYTHONUTF8": "1"}
+    sub_env["PATH"] = str(venv_bin) + os.pathsep + sub_env.get("PATH", "")
+
     start = time.time()
     try:
         result = subprocess.run(
             cmd,
             cwd=str(work),
             capture_output=True, timeout=GLOBAL_TIMEOUT + 600,
-            env={**os.environ, "PYTHONUTF8": "1"}
+            env=sub_env,
         )
         return result, time.time() - start, False
     except subprocess.TimeoutExpired:

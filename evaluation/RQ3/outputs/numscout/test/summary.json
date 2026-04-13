@@ -1,12 +1,14 @@
 [
   {
-    "case_id": "numscout_WANGMI",
+    "case_id": "numscout_Nokon",
     "tool": "numscout",
     "detected": true,
     "detected_patterns": [
-      "div_in_path"
+      "operator_order_issue",
+      "exchange_problem",
+      "exchange_rounding"
     ],
-    "time": 1801.1677978038788,
+    "time": 177.70305109024048,
     "status": "ok"
   }
 ]
