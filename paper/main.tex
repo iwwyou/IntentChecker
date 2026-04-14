@@ -196,7 +196,7 @@ Importantly, our positioning with respect to existing tools is complementary rat
 
 The remainder of this paper is organized as follows.
 Section~\ref{sec:background} motivates the development-time intent validation problem and surveys the structural limitations of existing detection tools.
-Section~\ref{sec:prelim} recaps SolQDebug and describes the scope extensions required for intent validation over multi-contract code.
+Section~\ref{sec:prelim} reviews the SolQDebug foundations and describes the scope extensions required for intent validation over multi-contract code.
 Section~\ref{sec:design} presents the design of IntentChecker, including its intent model and validation engine.
 Section~\ref{sec:evaluation} presents evaluation results across the three research questions.
 Section~\ref{sec:discussion} discusses the annotation authoring burden and remaining technical limitations.
@@ -302,45 +302,39 @@ The next section reviews the SolQDebug foundation on which IntentChecker is buil
 \section{Preliminaries: SolQDebug Foundations and Scope Extension}\label{sec:prelim}
 
 This section presents the analysis foundation that IntentChecker's intent validation builds upon: a development-time pipeline producing the interval-domain abstract states that the validation engine consumes.
-§\ref{sec:prelim:recap} recaps the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on, and §\ref{sec:prelim:extension} introduces the scope extensions we add for multi-contract single-transaction analysis.
-Readers familiar with SolQDebug may skip §\ref{sec:prelim:recap} and proceed directly to §\ref{sec:prelim:extension}.
+§\ref{sec:prelim:foundations} reviews the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on, and §\ref{sec:prelim:extension} introduces the scope extensions we add for multi-contract single-transaction analysis.
+Readers familiar with SolQDebug may skip §\ref{sec:prelim:foundations} and proceed directly to §\ref{sec:prelim:extension}.
 
-\subsection{SolQDebug Recap}\label{sec:prelim:recap}
+\subsection{SolQDebug Foundations}\label{sec:prelim:foundations}
 
 SolQDebug is a development-time debugging assistant for Solidity that provides statement-level feedback through interval-domain abstract interpretation.
 It addresses two forms of inefficiency in traditional Solidity debugging: the temporal cost of the compile--deploy--setup--trace cycle in tools such as Remix IDE, and the iterative cost imposed by the non-reversible state model of the EVM.
 Both inefficiencies are resolved by performing the entire analysis inside the editor, without contacting any blockchain node.
+To keep this in-editor operation responsive as code is being written, SolQDebug extends the Solidity ANTLR grammar with seven specialized entry rules that accept partial code fragments---a lone else branch, a function header without a body, a single statement inside an existing block, and so on---and maintains an incremental control-flow graph so that abstract interpretation can resume from the edit point rather than restart on every edit.
+Finally, SolQDebug preserves the analyzer's state before a debug annotation is applied and restores it afterwards, so that ranges can be injected and retracted without invalidating previously computed intervals.
 
 \smallskip
-\noindent\textbf{Interactive parsing and incremental CFG.}
-SolQDebug extends the Solidity ANTLR grammar with seven specialized entry rules that accept partial code fragments---a lone else branch, a function header without a body, a single statement inside an existing block, and so on.
-As the developer types or edits code, only the affected region is re-parsed, and the corresponding nodes are inserted into an incremental control-flow graph via a line-to-node index.
-Abstract interpretation then resumes from the edit point, reusing previously computed intervals for nodes whose inputs have not changed.
-
-\smallskip
-\noindent\textbf{Debug annotations and the ``unknown value, injected range'' semantics.}
-Because abstract interpretation over completely unconstrained inputs produces overly conservative results, SolQDebug lets developers supply range information for variables whose actual values are unknown to the analyzer.
-Two debug annotation families cover this role:
+\noindent\textbf{Debug annotations: specifying entry-point values as bounded ranges.}
+SolQDebug's analysis takes as input the bounded ranges that the developer supplies for each entry-point value the function reads.
+Given these inputs, interval-domain abstract interpretation runs through the function and reports the intervals each variable reaches during execution, giving the developer a concrete view of how the function behaves under the chosen scenario.
+Debug annotations are how these inputs are supplied; three families cover the three sources of entry-point values:
 \begin{itemize}
-    \item @StateVar---for global and state variables whose values are determined by prior transactions (e.g., totalSupply, a user's balance, a lending pool's reserves). SolQDebug has no way to know what value these variables hold at the start of the function being debugged; the developer declares a representative range instead.
-    \item @LocalVar---for function parameters and locally declared variables whose values are determined by the caller or by earlier computation. This is how the developer specifies the test cases under which the function should be analyzed.
+    \item @GlobalVar---for EVM execution-context variables such as msg.value, msg.sender, and block.timestamp, whose values are supplied by the enclosing transaction and its block rather than by contract storage or function parameters. The developer declares a representative range reflecting the invocation context under which the function is expected to execute.
+    \item @StateVar---for state variables held in contract storage, whose values are determined by prior transactions (e.g., totalSupply, a user's balance, a lending pool's reserves). SolQDebug has no way to know what value these variables hold at the start of the function being debugged; the developer declares a representative range instead.
+    \item @LocalVar---for function parameters whose values are supplied by the caller. This is how the developer specifies the test cases under which the function should be analyzed. Variables declared inside the function body are not injectable, because overriding values the analyzer computes from the code itself would break soundness.
 \end{itemize}
-Both annotations share a single, unifying semantics: at each program point where the analyzer would otherwise have only $\top$ (``any value''), the developer explicitly injects a bounded range.
-The analyzer then proceeds to compute intervals for downstream program points under that injected range, giving the developer a line-by-line view of how the function behaves for the chosen inputs.
+In all three cases, the developer supplies a bounded range for each entry-point value, and the analyzer proceeds under those ranges.
+Values the developer chooses not to constrain remain at $\top$ (``any value'') and propagate through the analysis as such---the result is still sound, just too wide to be informative for debugging.
 
 \smallskip
-\noindent\textbf{Output semantics: range in, range out.}
-SolQDebug's output for each annotated path is a table of intervals---one per variable per line---reflecting what the abstract execution computed.
-SolQDebug itself makes no judgment about whether these intervals are ``correct'': it neither compares them against any specification nor flags any of them as buggy.
-It is, in the strict sense, a debugger: it shows the developer what happens, and leaves the interpretation to the developer.
-IntentChecker's validation engine is precisely the layer that adds such interpretation on top of this ``range in, range out'' foundation.
+\noindent\textbf{Range in, range out: no built-in judgment.}
+SolQDebug makes no judgment about whether the intervals it computes are ``correct''. It neither compares them against any specification nor flags any as buggy, and their interpretation is left to the developer.
+Adding this interpretation layer on top of SolQDebug's ``range in, range out'' foundation is the role of IntentChecker's validation engine (§\ref{sec:design}).
 
 \smallskip
 \noindent\textbf{Analysis scope.}
-SolQDebug's published scope is deliberately narrow: single contract, single transaction.
-A function in the target contract is analyzed under the assumption that its state variables hold the values declared by @StateVar, and that only that function executes.
-Inter-contract calls, inheritance, and library invocations are explicitly out of scope and are left to future work in the SolQDebug paper.
-The next subsection describes how IntentChecker extends this scope to handle the realistic multi-contract code that real numeric logic errors tend to live in.
+SolQDebug analyzes a single contract for a single transaction.
+Inter-contract calls, inheritance, and library invocations are out of this scope; the next subsection describes how IntentChecker extends the analysis to handle the realistic multi-contract code where real numeric logic errors tend to live.
 
 \subsection{Scope Extension for Multi-Contract Single-Transaction Analysis}\label{sec:prelim:extension}
 
