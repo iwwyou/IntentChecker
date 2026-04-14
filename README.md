@@ -121,7 +121,7 @@ file:
 | `solc-select` | versioned Solidity binaries (`0.6.12`–`0.8.10`) | `pipx install solc-select && solc-select install 0.6.12 0.7.6 0.8.0 0.8.3 0.8.4 0.8.10` |
 | Node + `npm` / `yarn` | hardhat compilation of Web3Bugs projects | https://nodejs.org/, then `bash evaluation/RQ3/setup_dependencies.sh` |
 | Web3Bugs clone | per-contest source contracts | `bash evaluation/RQ3/setup_rq3_tools.sh web3bugs` (clones into `evaluation/RQ3/web3bugs/`) |
-| OpenAI API key | GPTScan uses GPT-4 internally | `export OPENAI_API_KEY=sk-...` |
+| OpenAI API key | GPTScan uses GPT-4 internally | Supply it via `--key sk-...`, `export OPENAI_API_KEY=sk-...`, or the interactive prompt `run_gptscan.py` shows when neither is set. No key is bundled in the repo. |
 
 ### Configurable paths (env vars)
 

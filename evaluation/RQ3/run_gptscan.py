@@ -13,7 +13,9 @@ Requires on the host:
   - Web3Bugs contracts dir (default: evaluation/RQ3/web3bugs/contracts if the
     setup script was run with the ``web3bugs`` target, otherwise ~/Web3Bugs/contracts;
     override with $WEB3BUGS_CONTRACTS)
-  - OpenAI API key (passed via --key or OPENAI_API_KEY env var)
+  - OpenAI API key: resolved from (in order) the ``--key`` flag, the
+    ``OPENAI_API_KEY`` environment variable, or an interactive
+    ``getpass()`` prompt. No hardcoded default is shipped.
 """
 
 import csv
@@ -318,21 +320,52 @@ def run_gptscan(source_dir: str, output_file: str, api_key: str) -> dict:
         return {"error": "no_output", "time": elapsed, "tail": tail}
 
 
+def _resolve_api_key(cli_key: str | None) -> str:
+    """Resolve the OpenAI API key from (in priority order):
+      1. the ``--key`` CLI flag
+      2. the ``OPENAI_API_KEY`` environment variable
+      3. an interactive getpass() prompt (stdin must be a TTY)
+
+    Never falls back to a hardcoded default.
+    """
+    key = cli_key or os.environ.get("OPENAI_API_KEY", "")
+    if key:
+        return key.strip()
+    if not sys.stdin.isatty():
+        print(
+            "ERROR: OpenAI API key required.\n"
+            "       Pass it with --key sk-... or export OPENAI_API_KEY before running.\n"
+            "       (stdin is not a TTY, so an interactive prompt is unavailable.)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        import getpass
+        key = getpass.getpass("Enter your OpenAI API key (input hidden): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.", file=sys.stderr)
+        sys.exit(1)
+    if not key:
+        print("ERROR: no OpenAI API key provided.", file=sys.stderr)
+        sys.exit(1)
+    return key
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Run GPTScan on RQ3 cases")
     parser.add_argument("--case", help="Run single case by ID")
     parser.add_argument("--source", choices=["numscout", "web3bugs", "all"], default="all")
-    # TODO: Remove this key before committing to public repo
-    _DEFAULT_KEY = "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"
-    parser.add_argument("--key", help="OpenAI API key", default=os.environ.get("OPENAI_API_KEY", _DEFAULT_KEY))
+    parser.add_argument(
+        "--key",
+        help="OpenAI API key (falls back to $OPENAI_API_KEY, then an interactive prompt)",
+        default=None,
+    )
     parser.add_argument("--run", help="Run name (output subdirectory)", default="run1")
     parser.add_argument("--annotated-only", action="store_true", help="Run only 20 annotated cases")
     args = parser.parse_args()
 
-    if not args.key:
-        print("ERROR: OpenAI API key required. Use --key or set OPENAI_API_KEY env var.")
-        sys.exit(1)
+    args.key = _resolve_api_key(args.key)
 
     output_dir = SCRIPT_DIR / "outputs" / "gptscan" / args.run
     output_dir.mkdir(parents=True, exist_ok=True)

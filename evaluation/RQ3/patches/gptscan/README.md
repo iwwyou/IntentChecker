@@ -56,7 +56,15 @@ evaluation/RQ3/tools/gptscan/
 `evaluation/RQ3/run_gptscan.py` invokes the venv automatically. It also
 needs:
 
-- An OpenAI API key (`--key sk-...` or `OPENAI_API_KEY` in env)
+- **An OpenAI API key.** The repo ships **no default key** — the script
+  resolves one from, in priority order:
+  1. The `--key sk-...` CLI flag
+  2. The `OPENAI_API_KEY` environment variable
+  3. An interactive `getpass()` prompt (hidden input) when neither of
+     the above is set and stdin is a TTY
+  If none of the three is provided, the script exits with an error.
+  GPTScan itself makes GPT-4 calls per case, so review OpenAI's current
+  per-token pricing before launching a full run.
 - `solc-select` with the per-case Solidity versions installed
   (`solc-select install 0.6.12 0.7.6 0.8.0 0.8.3 0.8.4 0.8.10 ...`)
 - The Web3Bugs dataset cloned at `evaluation/RQ3/web3bugs/contracts/`
