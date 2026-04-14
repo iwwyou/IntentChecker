@@ -210,15 +210,15 @@ Building on these findings, numeric logic errors can be defined as follows:
 
 \begin{definition}[Numeric Logic Error]
 Bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
-but violate the developer's intended numerical or state relationships during function execution.
+but violate the developer's intended relationships among numerical values during function execution.
 \end{definition}
 
 These errors can manifest in different execution contexts.
 Single-transaction errors occur within the execution of a single function call---where computation, function calls, and output generation happen in one atomic sequence.
 In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
-Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, where attackers exploit state changes across multiple function invocations.
+Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, which manifest only through state changes accumulated across multiple function invocations.
 
-This paper focuses on single-transaction function execution, as this aligns with the development-phase validation model where developers can immediately verify individual function behaviors against their intentions.
+This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. This focus is shaped by our broader goal: a development-phase debugging assistant that surfaces logic errors as developers write each function, where the developer's intent is still available as a direct input. Multiple-transaction errors are left to future work.
 The representative single-transaction numeric logic error patterns identified in prior work are summarized below:
 
 \begin{itemize}
@@ -246,81 +246,64 @@ The representative single-transaction numeric logic error patterns identified in
 
 Despite their diversity, these error patterns share a common root: the actual behavior diverges from what the developer intended.
 A straightforward consequence is that any tool that hopes to flag such bugs reliably must reason about the intended behavior, not only the written code.
-The next subsection examines how existing tools handle---or rather, fail to handle---this requirement.
+The next subsection examines existing tools for numeric logic errors in light of this requirement.
 
-\subsection{Limitations of Current Work}
+\subsection{Structural Constraints of Existing Tools}
 
-Several tools explicitly target numeric logic errors.
-NumScout~\citep{numscout} catalogs six numerical defect patterns (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, and Profit Opportunity) and detects them through LLM-pruned symbolic execution.
-GPTScan~\citep{gptscan} addresses a different group of logic vulnerabilities, including several accounting-related patterns, by combining GPT-based scenario matching with lightweight program analysis.
-Other works~\citep{accountingerrors,smartinv} take closely related approaches.
-These tools represent the current state of the art and have meaningfully advanced the field.
-However, when viewed through the lens of the problem defined in §\ref{sec:background}.1, they share two structural limitations that are not engineering oversights but rather direct consequences of their design.
-
-\smallskip
-\noindent\textbf{(1) Operation context: post-hoc auditing rather than development.}
-Existing numeric logic error detection tools are designed to run over completed code, and are positioned within auditing or testing workflows.
-They accept a contract (or a set of contracts) and emit findings as a report.
-They do not run inside the developer's editor as code is being written, nor do they accept developer-supplied specifications about the intended behavior of the function currently under the cursor.
-As a consequence, the developer's intent is not part of the input at all.
-Any detector operating in this context must recover intent indirectly: either by hard-coding intent assumptions as ``patterns'' that describe what buggy code looks like (NumScout), or by asking a language model to infer intent from code, comments, and public documentation (GPTScan, SmartInv~\citep{smartinv}).
-Both strategies work only to the extent that the assumed intent coincides with the actual developer intent in the specific contract being analyzed.
+Several tools target numeric logic errors.
+NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
+GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
+SCType~\citep{accountingerrors} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
+These tools represent the current state of the art and have meaningfully advanced the field for auditing and testing workflows.
+For the development-phase debugging assistant goal articulated in §\ref{sec:background}.1, however, they share two structural constraints rooted in their design.
 
 \smallskip
-\noindent\textbf{(2) Approach: pattern-based coverage is orthogonal across tools.}
-Because the operation context rules out direct access to intent, each tool must commit to a fixed catalog of patterns.
-These catalogs are necessarily incomplete: NumScout's six numerical defect patterns and GPTScan's accounting-related patterns target disjoint regions of the bug space.
-A bug matching a NumScout pattern is, in general, not matched by GPTScan, and vice versa.
-The problem is not that one catalog is better than the other; it is that neither catalog can be extended to cover all intent-dependent bugs, because intent itself is not expressible as a static pattern over code.
-This orthogonality means that ``adding another pattern-based tool'' cannot in principle converge on full coverage.
+\noindent\textbf{(1) Analysis input: source code at audit time, with the developer no longer in the loop.}
+Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
+They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
+Because these tools run downstream of authoring, the developer of the code under analysis is no longer in the loop, and they take no input beyond what is listed above.
 
 \smallskip
-\noindent\textbf{These two limitations are structural, not tool-specific.}
-We emphasize that we do not characterize the above limitations as failures of NumScout or GPTScan.
-Both tools are well-engineered within the design space they chose.
-The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---has an upper bound, and the field has largely reached it.
-To go further, one must either enlarge the input (ask the developer to supply their intent) or move the tool earlier in time (run it during editing, when the developer is still available to supply that intent).
+\noindent\textbf{(2) Detection criteria authored by the tool designer, not the developer.}
+Within these input constraints, the developer's intent for the specific function never enters the analysis; each tool instead matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{accountingerrors}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
+These criteria describe what counts as buggy code in general, not what counts as a violation of the specific developer's intent for the function being analyzed; a bug is therefore caught only to the extent that it happens to fit a shape the tool designer anticipated.
+This distinction is methodological, not quantitative: however rich the criteria, they are chosen by tool designers with no access to that specific intent.
+
+\smallskip
+\noindent\textbf{These two constraints are structural, not tool-specific.}
+We do not characterize the above constraints as failures of any specific tool; the tools cited above are well-engineered within the design space they chose.
+The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---requires intent to be guessed rather than supplied, which is a constraint on what can be expressed as input, not on how well the guessing is implemented.
+To step outside this constraint, one must either enlarge the input (ask the developer to supply their intent) or move the tool earlier in time (run it during editing, when the developer is still available to supply that intent).
 The approach taken in this paper is to do both.
 
 \subsection{Proposed Overview}\label{sec:proposed-overview}
 
-The structural limitations above suggest a complementary direction rather than a competing one.
-If existing detectors cannot see the developer's intent, a tool that sits in the editor and explicitly asks the developer to declare their intent can fill the remaining space without contradicting the existing tools' strengths.
-Our prior work, SolQDebug~\citep{solqdebug}, already provides much of the infrastructure needed for such a tool: an interactive parser, an incremental control-flow graph, and interval-domain abstract interpretation that accepts developer-supplied range annotations (@StateVar, @LocalVar) and produces line-level feedback as code is being written.
-What SolQDebug does not do is validate any intended relationships between the computed intervals, and its analysis scope is confined to a single contract and a single transaction.
+The two structural constraints above suggest a complementary direction rather than a competing one.
+A tool that runs alongside the developer in the editor and lets the developer declare their intent directly can fill the design-space gap without contradicting the strengths of existing detectors.
+IntentChecker realizes this direction by addressing each constraint with a dedicated component.
 
-IntentChecker takes SolQDebug as its foundation and adds three things.
-First, it introduces an intent model---two annotation types, @During and @Post, together with a grammar of clauses that lets developers declare what numeric relationships should hold at specific program points and after function execution, and a denotational semantics that assigns each clause a tri-valued validation outcome against the abstract states produced by the interpreter.
-Second, it introduces a validation engine that reads the intervals computed by the extended abstract interpreter, compares them against the declared intent, and produces a graded result: Satisfied when the intent holds for all values in the intervals, Violated when it fails for all values, and Warning when it holds for some and fails for others.
-Each result is accompanied by a risk score on a 0--10 scale and, for non-Satisfied results, by the sub-interval in which the intent may be violated.
-Third, it extends the analysis scope to cover multi-contract single-transaction code: inherited contracts, libraries invoked via using directives and delegatecall, interface-typed variables, and a practically useful arithmetic subset of inline assembly.
-To handle return values from interface calls whose implementation code is unavailable, we introduce @IReturn, a new debug annotation that uses the same ``inject a range at an unknown point'' semantics already used by SolQDebug's existing @StateVar and @LocalVar annotations.
+\smallskip
+\noindent\textbf{(1) Analysis input: source code at development time, with the developer in the loop.}
+IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written.
+This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, removing the post-hoc boundary that prevents existing tools from receiving developer input.
 
-Given an intent clause $l \mathrel{op} r$ where $l$ ranges over interval $L$ and $r$ ranges over interval $R$, the validation result is deterministically categorized into one of three states:
+\smallskip
+\noindent\textbf{(2) Detection criteria authored by the developer, via intent annotations.}
+On top of this foundation, IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each clause to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
+A validation engine reads these intervals, compares them against the declared intent, and reports the verdict together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
 
-\[
-  \textbf{Satisfied} \quad \Longleftrightarrow \quad
-    \forall\, l \in L,\; \forall\, r \in R:\; l \mathrel{op}\, r \text{ holds}
-\]
+\smallskip
+For these two components to operate on realistic DeFi code, we additionally extend SolQDebug's single-contract single-transaction analysis to a multi-contract single-transaction scope covering inheritance, libraries invoked via using directives and delegatecall, interface-typed variables, and a practically useful arithmetic subset of inline assembly.
 
-\[
-  \textbf{Violated} \quad \Longleftrightarrow \quad
-    \forall\, l \in L,\; \forall\, r \in R:\; l \mathrel{op}\, r \text{ fails}
-\]
-
-\[
-  \textbf{Warning} \quad \Longleftrightarrow \quad
-    \text{neither Satisfied nor Violated}
-\]
-
-Unlike warnings from pattern-based static analyzers, which are heuristic indicators that a known buggy shape may be present, IntentChecker's Warning is a precise statement: the declared intent holds for some combinations of values in $L$ and $R$ but not others, and the tool reports exactly which sub-intervals fall into the violating region.
-In this sense IntentChecker is best understood as an awareness tool rather than a detector: its goal is not to pronounce ``this is a bug'' but to bring the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
-The next section describes the SolQDebug foundation and the scope extensions in detail, and Section~\ref{sec:design} presents the intent annotation grammar and the validation engine.
+\smallskip
+This design positions IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
+The next section reviews the SolQDebug foundation on which IntentChecker is built.
 
 \section{Preliminaries: SolQDebug Foundations and Scope Extension}\label{sec:prelim}
 
-This section reviews the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on and describes the scope extensions we introduce to support intent validation over realistic multi-contract Solidity code.
-Readers familiar with SolQDebug may skip §\ref{sec:prelim}.1 and proceed directly to §\ref{sec:prelim}.2.
+This section presents the analysis foundation that IntentChecker's intent validation builds upon: a development-time pipeline producing the interval-domain abstract states that the validation engine consumes.
+§\ref{sec:prelim:recap} recaps the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on, and §\ref{sec:prelim:extension} introduces the scope extensions we add for multi-contract single-transaction analysis.
+Readers familiar with SolQDebug may skip §\ref{sec:prelim:recap} and proceed directly to §\ref{sec:prelim:extension}.
 
 \subsection{SolQDebug Recap}\label{sec:prelim:recap}
 
@@ -2084,6 +2067,9 @@ Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2025)
 
 \bibitem[Eshghie et~al.(2024)]{highguard}
 Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
+
+\bibitem[Feist et~al.(2019)]{slither}
+Feist, J., Grieco, G., Groce, A.: Slither: A static analysis framework for smart contracts. In: 2019 IEEE/ACM 2nd International Workshop on Emerging Trends in Software Engineering for Blockchain (WETSEB), pp. 8--15 (2019). https://doi.org/10.1109/WETSEB.2019.00008
 
 \bibitem[Gurfinkel et~al.(2015)]{seahorn}
 Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Conference on Computer Aided Verification, pp. 343--361 (2015). \url{https://doi.org/10.1007/978-3-319-21690-4_20}
