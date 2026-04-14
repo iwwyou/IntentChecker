@@ -23,6 +23,7 @@ desktop.ini
 
 # ---- LaTeX build artifacts ----
 out/
+auxil/
 *.aux
 *.synctex.gz
 *.fls
