@@ -274,9 +274,6 @@ class Evaluation :
 
     def find_function_in_hierarchy(self, contract_cfg, function_name: str):
         """
-        현재 컨트랙트와 부모 체인에서 함수를 검색한다 (상속 지원).
-        Solidity의 C3 linearization 순서를 따른다.
-
         Args:
             contract_cfg: 현재 컨트랙트 CFG
             function_name: 찾을 함수 이름

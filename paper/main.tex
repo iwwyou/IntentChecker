@@ -338,34 +338,28 @@ Inter-contract calls, inheritance, and library invocations are out of this scope
 
 \subsection{Scope Extension for Multi-Contract Single-Transaction Analysis}\label{sec:prelim:extension}
 
-Real-world numeric logic errors rarely occur in single-contract code: most of the Web3Bugs and NumScout benchmark cases involve inherited contracts, library calls, or interface-typed variables.
-Validating intent over such code requires extending SolQDebug's analysis scope from single contract to multi-contract single-transaction, where a single atomic transaction may touch several contracts located in the same source file or its immediate dependencies, but is still confined to one execution step.
-This subsection describes the four extensions required to make this scope practical: (a) a deployment-unit model for identifying which contracts share storage with the target, (b) library and using-directive handling, (c) interface-typed variables and the @IReturn debug annotation, and (d) a practically useful subset of inline assembly.
+This subsection details the three extensions that realize the multi-contract single-transaction scope introduced in §\ref{sec:proposed-overview}.
+The scope admits a single atomic transaction touching several contracts in the same source file or its immediate dependencies, while remaining confined to one execution step; the extensions are (a) a deployment-unit model covering in-scope contract resolution, (b) interface-typed variables and the @IReturn debug annotation, and (c) a practically useful subset of inline assembly.
 
 \smallskip
-\noindent\textbf{(a) Deployment-unit scope.}
-IntentChecker treats as ``in-scope'' everything that shares storage with the target contract in a single EVM execution: the target contract itself, all inherited parents resolved via C3 linearization, and any libraries invoked through delegatecall via Solidity's using for directive.
-These all run under the same address(this) and over the same storage, so debug annotations on the target contract's state variables can be reused without reinterpretation whenever the analyzer steps into an inherited function or a library function.
-External contracts---i.e., separately deployed contracts invoked through an address or an interface-typed variable---are out-of-scope by default, because their storage is a different deployment unit that SolQDebug's debug annotations cannot reach.
-Extension (c) below describes how @IReturn allows a restricted form of data injection across this deployment boundary for view and pure interface calls.
+\noindent\textbf{(a) Deployment unit and in-scope resolution.}
+Because IntentChecker debugs one function at a time, during analysis it may step into code that the target function calls---inherited parent functions and library functions invoked via Solidity's using for directive.
+For the debug annotations the developer placed on the target contract's state variables to remain valid inside such code, the called code must execute over the same storage as the target.
+This holds for inherited parents, whose state variables are compiled into the target's own storage layout, and for libraries invoked via delegatecall, which run under the target's address;
+we call this collection---target contract, inherited parents, and storage-sharing libraries---the target's deployment unit, and IntentChecker treats all of it as in-scope.
+External contracts---separately deployed contracts invoked through an address or an interface-typed variable---are out of this deployment unit by default, because their storage sits at a different address that the target's debug annotations cannot reach.
+Extension (b) below describes how @IReturn allows a restricted form of data injection across this deployment boundary for view and pure interface calls.
 
 \smallskip
-\noindent\textbf{(b) Library and interface handling.}
-For each Solidity construct in the target source file, IntentChecker pre-builds a dedicated CFG:
-contracts are stored as ContractCFG, libraries as LibraryCFG, and interfaces as ContractCFG instances marked with a dedicated flag whose functions consist of an empty entry-to-exit body (interfaces carry no implementation).
-When a using LibraryName for T directive is encountered, the corresponding LibraryCFG is attached to the declaring contract's set of using-libraries, and subsequent method-call resolution on values of type T walks this set to find the matching library function overload.
-Inherited functions are resolved via the same C3 linearization order used by the Solidity compiler, ensuring that overrides behave as they would at runtime.
-Library function bodies are analyzed in-place, reusing the debug annotations of the target contract since a library invoked via delegatecall shares storage with its caller.
-
-\smallskip
-\noindent\textbf{(c) @IReturn: Interface Return Value Debug Annotation.}
+\noindent\textbf{(b) @IReturn: Interface Return Value Debug Annotation.}
 Interface-typed variables (e.g., IOracle oracle) present a structural problem that debug annotations on state or local variables cannot solve: the implementation code behind the interface is not present in the source file at all, so SolQDebug's abstract interpreter must return $\top$ for any value derived from an interface call.
 This $\top$ then propagates into every downstream computation, defeating the purpose of intent validation for any function that reads an oracle or queries an external token contract.
 
-Our observation is that this situation is semantically identical to the case that @StateVar and @LocalVar already handle.
-In all three cases, the analyzer encounters a program point at which the actual value is unknown because its origin lies outside the analysis scope: @StateVar handles unknown storage values left behind by prior transactions, @LocalVar handles unknown inputs supplied by the caller, and a fourth kind of unknown---the return value of an interface call---can be handled by the same ``inject a developer-specified range at the unknown point'' mechanism.
-This is consistent with the underlying philosophy of debugging: the developer chooses a particular execution path to inspect, declares the inputs relevant to that path, and observes the line-by-line output.
-An interface return value is simply another input to the path under analysis; it only happens to originate from beyond a deployment-unit boundary rather than from a local variable or a storage slot.
+Our observation is that this situation is semantically identical to the cases that @GlobalVar, @StateVar, and @LocalVar already handle.
+In all three cases, the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view---@GlobalVar for transaction and block context values, @StateVar for storage values left by prior transactions, and @LocalVar for function parameters supplied by the caller.
+An interface call's return value is a fourth instance of the same pattern and admits the same mechanism, with the developer supplying a bounded range and the analyzer proceeding under it.
+This matches the philosophy of debugging that SolQDebug embodies, where the developer supplies the inputs defining the scenario to inspect and the analyzer reports how the function behaves under them.
+An interface return value is simply another such input; it only happens to be encountered mid-function when control reaches the call site, rather than at function entry from transaction context, a storage slot, or a function parameter.
 
 We formalize this intuition as @IReturn, a new debug annotation that lets the developer bind a range to the return value of a specific interface function.
 Two surface syntaxes are supported:
@@ -387,7 +381,7 @@ Restricting @IReturn to view/pure functions avoids this unsoundness: by definiti
 \smallskip
 \noindent Registration.
 Algorithm~\ref{alg:process-ireturn} describes how an @IReturn annotation is validated and registered.
-Like @StateVar, @LocalVar, and @GlobalVar, @IReturn annotations are processed as part of the batch annotation phase: the developer writes all debug annotations, and the analyzer then interprets the target function from its start block with all registered values in effect.
+Like @GlobalVar, @StateVar, and @LocalVar, @IReturn annotations are processed as part of the batch annotation phase: the developer writes all debug annotations, and the analyzer then interprets the target function from its start block with all registered values in effect.
 The key difference is the view/pure check (line~4): if the target function is state-modifying, registration is rejected with a diagnostic, preventing the unsound model described above.
 
 \begin{algorithm}[t]
@@ -456,7 +450,7 @@ If a match is found, the registered value is assembled---potentially following a
 \end{algorithm}
 
 \smallskip
-\noindent\textbf{(d) Arithmetic-focused inline assembly support.}
+\noindent\textbf{(c) Arithmetic-focused inline assembly support.}
 Solidity's inline assembly (assembly \{ ... \}) is written in Yul and frequently appears in arithmetic-heavy code, particularly in high-precision fixed-point libraries such as FullMath or ABDKMath.
 SolQDebug originally treated any inline assembly block as a single opaque region, leaving all affected variables at $\top$.
 IntentChecker implements a dedicated Yul visitor that recognizes the subset of Yul used for arithmetic computation and translates it into the same expression IR used by the rest of the analyzer.
@@ -467,13 +461,13 @@ bitwise and, or, xor;
 shifts shl, shr, sar;
 the unary not and iszero;
 and the three-argument mulmod and addmod, which are expanded into the corresponding Solidity expressions $(a \cdot b) \bmod n$ and $(a + b) \bmod n$.
-This coverage is deliberately chosen to capture the arithmetic that high-precision libraries typically express in Yul to bypass Solidity's overflow checks, while avoiding the control-flow and memory features (if, for, switch, mload/mstore, sload/sstore) whose abstract semantics would require separate engineering beyond the scope of this paper.
+This coverage captures the arithmetic that high-precision libraries typically express in Yul to bypass Solidity's overflow checks, while avoiding the control-flow and memory features (if, for, switch, mload/mstore, sload/sstore) whose abstract semantics would require separate engineering beyond the scope of this paper.
 Yul built-ins outside the supported subset (e.g., keccak256, call, log0) are handled conservatively by leaving their results at $\top$, preserving soundness.
 Section~\ref{sec:discussion} discusses why we chose this particular subset and what the remaining unsupported features mean for the analysis.
 
 \smallskip
 \noindent\textbf{Summary.}
-Taken together, these four extensions transform SolQDebug's single-contract single-transaction sandbox into an analysis scope that covers the ways modern Solidity contracts are actually structured: multiple contracts per source file, library-mediated arithmetic, oracle-style interface calls, and hand-written Yul for performance-critical fixed-point math.
+Taken together, these three extensions transform SolQDebug's single-contract single-transaction sandbox into an analysis scope that covers the ways modern Solidity contracts are actually structured: multiple contracts per source file, library-mediated arithmetic, oracle-style interface calls, and hand-written Yul for performance-critical fixed-point math.
 All extensions preserve SolQDebug's ``range in, range out'' character; none of them introduce a notion of correctness on their own.
 Building the intent validation layer on top of this extended analyzer is the subject of the next section.
 
