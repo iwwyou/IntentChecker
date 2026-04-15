@@ -159,7 +159,7 @@ These observations together motivate a development-time tool that runs while the
 
 To that end, we present IntentChecker, a development-time intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
 The intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
-A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification over all topological configurations of two integer intervals.
+A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification and cross-validated against brute-force ground truth across all topological configurations of two integer intervals.
 
 We evaluate IntentChecker on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
 The evaluation organizes itself around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
@@ -189,7 +189,7 @@ Importantly, our positioning with respect to existing tools is complementary rat
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
-    \item We present an intent model with a formal denotational semantics defining each clause form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
+    \item We present an intent model with a formal denotational semantics defining each clause form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics and cross-validated against brute-force ground truth, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
     \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
     \item We evaluate IntentChecker on 89 real-world numeric logic errors and position it against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
 \end{itemize}
@@ -510,18 +510,18 @@ The complete intent model supporting these annotations is defined in the followi
 
 \subsection{Intent Model}\label{sec:intent-model}
 
-The semantic core of the intent model is a function
+The intent model is realised as a function
 \[
-\mathit{IntentCheck} \;:\; \mathit{Source} \times \mathit{Annotation}^* \;\to\; \{S, V, W\}^*
+\mathit{IntentCheck} \;:\; \mathit{Source} \times \mathit{Annotation}^* \;\to\; \bigl(\{S, V, W\} \times [0, 10]\bigr)^*
 \]
-that, given a source fragment $P$ (in the sense of §\ref{sec:prelim:extension}) and a sequence of intent annotations $A = (a_1, \ldots, a_n)$ placed at program points within $P$, returns for each $a_i$ a tri-valued verdict
+that, given a source fragment $P$ (in the sense of §\ref{sec:prelim:extension}) and a sequence of intent annotations $A = (a_1, \ldots, a_n)$ placed at program points within $P$, returns for each $a_i$ a pair
 \[
-\mathit{IntentCheck}(P, A)[i] \;=\; \mathcal{V}\llbracket a_i \rrbracket(\Gamma_i) \;\in\; \{S, V, W\}
+\mathit{IntentCheck}(P, A)[i] \;=\; \bigl(\mathcal{V}\llbracket a_i \rrbracket(\Gamma_i),\; r_i\bigr)
 \]
-(satisfied, violated, warning).
-Section~\ref{sec:intent-semantics} fixes the grammar of intent annotations and defines both the denotational function $\mathcal{V}\llbracket\cdot\rrbracket$ and the validation context $\Gamma_i$, which is materialised from the abstract interpreter's output on $P$ at $a_i$'s annotated line.
-Section~\ref{sec:validation-engine} describes the executable procedures that realise $\mathit{IntentCheck}$ and, in addition, produce a risk score in $[0, 10]$ and the sub-intervals of the input range in which the comparison may fail; these auxiliary outputs support warning ranking and developer feedback but lie outside the semantic claim.
-Section~\ref{sec:soundness} establishes the soundness of the interval comparison primitive that underlies $\mathit{IntentCheck}$.
+consisting of a semantic verdict in $\{S, V, W\}$ (satisfied, violated, warning) and a risk score $r_i \in [0, 10]$.
+Section~\ref{sec:intent-semantics} fixes the grammar of intent annotations and defines the denotational function $\mathcal{V}\llbracket\cdot\rrbracket$ together with the validation context $\Gamma_i$, which is materialised from the abstract interpreter's output on $P$ at $a_i$'s annotated line.
+Section~\ref{sec:validation-engine} describes the executable procedures that compute the two coordinates of each output pair---the interval comparison algorithm for the verdict and the risk-scoring procedure for $r_i$.
+Section~\ref{sec:soundness} establishes the soundness of the interval comparison primitive, on which the computability of $\mathcal{V}\llbracket\cdot\rrbracket$ rests.
 
 \subsubsection{Syntax and Semantics}\label{sec:intent-semantics}
 
@@ -529,8 +529,8 @@ Section~\ref{sec:soundness} establishes the soundness of the interval comparison
 \centering
 \small
 \begin{tabular}{@{}r@{\quad}c@{\quad}l@{}}
-duringIntent & $\rightarrow$ & // @During duringClause \\[2pt]
-postIntent & $\rightarrow$ & // @Post postClause \\[6pt]
+duringIntent & $\rightarrow$ & // @During duringClause (logicOp duringClause)* \\[2pt]
+postIntent & $\rightarrow$ & // @Post postClause (logicOp postClause)* \\[6pt]
 
 duringClause & $\rightarrow$ & intentValue (before relOp after) \\
 & $|$ & intentValue (assign relOp current) \\
@@ -555,6 +555,7 @@ arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ ( ar
 varRef & $\rightarrow$ & identifier subAccess* \\
 subAccess & $\rightarrow$ & . identifier $|$ [ expr ] \\[6pt]
 
+logicOp & $\rightarrow$ & \&\& $|$ || \\
 relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $|$ not in \\
 \end{tabular}
 \caption{Grammar of intent annotations.}
@@ -564,8 +565,8 @@ relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $
 \smallskip
 \noindent\textbf{Annotation syntax overview.}
 Figure~\ref{fig:intent-grammar} presents the grammar of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
-Each annotation begins with a marker (@During or @Post) followed by a single clause.
-Intent values support arithmetic expressions over variable references with member and index access, numeric literals, and inline intervals $[a, b]$; relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in; the implication operator ${=}{>}$ is a truthiness-based atomic form discussed below.
+Each annotation begins with a marker (@During or @Post) followed by one or more clauses, which can be combined via the logical connectives \&\& (conjunction), || (disjunction), and ${=}{>}$ (implication).
+Intent values support arithmetic expressions over variable references with member and index access, numeric literals, and inline intervals $[a, b]$; relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in.
 Rather than describe each clause form in prose, we now specify the meaning of every syntactic form as a denotational function $\mathcal{V}\llbracket\cdot\rrbracket$ that maps a clause to a tri-valued outcome in $\{S, V, W\}$ (satisfied, violated, warning) under a validation context $\Gamma$.
 Throughout this subsection we use the point-wise convention $\mathcal{V}\llbracket \varphi \rrbracket(\Gamma) = s$ to specify, for each syntactic form of $\varphi$, the state $s$ produced by applying the meaning function to context $\Gamma$.
 
@@ -633,26 +634,45 @@ W & \text{otherwise.}
 \end{cases}
 \]
 For $\mathit{op} \in \{\text{in}, \text{not\,in}\}$, the set-membership interpretation replaces the pointwise comparison: $l \mathrel{\text{in}} r$ holds iff $l \in R$, regardless of the particular $r$, and not\,in is its complement.
-Algorithm~\ref{alg:interval-compare} implements $\text{Cmp}^*$ exactly via the closed-form expressions of Table~\ref{tab:op-formulas}, with the formal argument deferred to §\ref{sec:soundness}.
+By Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, \ref{thm:sound-in}, and Corollary~\ref{cor:state-consistency}, Algorithm~\ref{alg:interval-compare} implements $\text{Cmp}^*$ exactly via the closed-form expressions of Table~\ref{tab:op-formulas}.
 The semantics thus has a sound computable realisation; conversely, $\text{Cmp}^*$ gives an algorithm-independent specification of what the validation engine is required to compute.
 
 \smallskip
-\noindent\textbf{Truthiness implication primitive.}
-The implication operator ${=}{>}$ is an atomic form whose two sides are intent-value expressions rather than full clauses; its meaning is a truthiness-based set-theoretic primitive
+\noindent\textbf{Three-valued logic operators.}
+Compound clauses combine sub-clauses via the connectives
 \[
-\text{Impl}^* : \mathcal{I} \times \mathcal{I} \to \{S, V, W\},
+\wedge_K,\; \vee_K,\; \supset_K \;:\; \{S, V, W\}^2 \to \{S, V, W\},
 \]
-defined as
-\[
-\text{Impl}^*(L, R) \;=\;
-\begin{cases}
-S & \text{if } L = \{0\}, \\[2pt]
-S & \text{if } 0 \notin L \text{ and } 0 \notin R, \\[2pt]
-V & \text{if } 0 \notin L \text{ and } R = \{0\}, \\[2pt]
-W & \text{otherwise.}
-\end{cases}
-\]
-Intuitively, an interval $X$ is truthy when $0 \notin X$ and falsy when $X = \{0\}$; $\text{Impl}^*(L, R)$ returns $S$ when $L$ is falsy (so the implication holds vacuously) or when both sides are truthy, $V$ when $L$ is truthy yet $R$ is definitely zero, and $W$ when the truthiness of either side is undetermined.
+which coincide with Kleene's strong three-valued logic and match the combination tables of Table~\ref{tab:logic-combination}.
+Treating $W$ as the third truth value ``unknown,'' $\wedge_K$ yields $S$ only when both arguments are $S$, yields $V$ whenever any argument is $V$, and yields $W$ otherwise; $\vee_K$ and $\supset_K$ are defined dually.
+
+\begin{table}[t]
+\centering
+\caption{Three-valued logic combination rules for compound clauses. S\,=\,satisfied, V\,=\,violated, W\,=\,warning.}
+\label{tab:logic-combination}
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c|ccc}
+\toprule
+\&\& & S & V & W \\
+\midrule
+S & S & V & W \\
+V & V & V & V \\
+W & W & V & W \\
+\midrule\midrule
+|| & S & V & W \\
+\midrule
+S & S & S & S \\
+V & S & V & W \\
+W & S & W & W \\
+\midrule\midrule
+${=}{>}$ & S & V & W \\
+\midrule
+S & S & V & W \\
+V & S & S & S \\
+W & W & W & W \\
+\bottomrule
+\end{tabular*}
+\end{table}
 
 \smallskip
 \noindent\textbf{Meaning function.}
@@ -690,16 +710,25 @@ The following equations apply uniformly to clauses appearing in either @During o
 \mathcal{V}\llbracket \text{return}[n]\ \mathit{op}\ v \rrbracket(\Gamma)
     &= \text{Cmp}^*\bigl(R(\ell_{\text{ret}})[n],\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), v)\bigr), \\[3pt]
 \mathcal{V}\llbracket e_l\ \mathit{op}\ e_r \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr), \\[3pt]
-\mathcal{V}\llbracket e_l \Rightarrow e_r \rrbracket(\Gamma)
-    &= \text{Impl}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr),
+    &= \text{Cmp}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr),
 \end{align*}
 where $\ell_{\text{ret}}$ is the return-statement line selected by the annotation: in @During, the statement on the annotated line itself; in @Post, the join of all return values recorded in $R$.
 
 \smallskip
+\noindent Compound clauses.
+\begin{align*}
+\mathcal{V}\llbracket \varphi_1\ \text{\&\&}\ \varphi_2 \rrbracket(\Gamma)
+    &= \mathcal{V}\llbracket \varphi_1 \rrbracket(\Gamma) \;\wedge_K\; \mathcal{V}\llbracket \varphi_2 \rrbracket(\Gamma), \\[3pt]
+\mathcal{V}\llbracket \varphi_1\ \text{||}\ \varphi_2 \rrbracket(\Gamma)
+    &= \mathcal{V}\llbracket \varphi_1 \rrbracket(\Gamma) \;\vee_K\; \mathcal{V}\llbracket \varphi_2 \rrbracket(\Gamma), \\[3pt]
+\mathcal{V}\llbracket \varphi_1 \Rightarrow \varphi_2 \rrbracket(\Gamma)
+    &= \mathcal{V}\llbracket \varphi_1 \rrbracket(\Gamma) \;\supset_K\; \mathcal{V}\llbracket \varphi_2 \rrbracket(\Gamma).
+\end{align*}
+
+\smallskip
 \noindent\textbf{Connection to the algorithm.}
-The validation engine of Section~\ref{sec:validation-engine} computes $\mathcal{V}\llbracket \varphi \rrbracket(\Gamma)$ by dispatching on the clause form: relational clauses invoke Algorithm~\ref{alg:interval-compare} with intervals selected according to the equations above, and implication clauses invoke the closed-form truthiness check of $\text{Impl}^*$.
-The soundness argument of §\ref{sec:soundness} establishes that the state returned by Algorithm~\ref{alg:interval-compare} is exactly the state assigned by $\text{Cmp}^*$, so the engine's output agrees with the semantic definition on every well-formed input.
+The validation engine of Section~\ref{sec:validation-engine} computes $\mathcal{V}\llbracket \varphi \rrbracket(\Gamma)$ by traversing the clause structure: for each atomic clause it invokes Algorithm~\ref{alg:interval-compare} with intervals selected according to the equations above; for each compound clause it applies the Kleene combination tables.
+By Corollary~\ref{cor:state-consistency}, the state returned by Algorithm~\ref{alg:interval-compare} is exactly the state assigned by $\text{Cmp}^*$, so the engine's output agrees with the semantic definition on every well-formed input.
 Algorithm~\ref{alg:interval-compare} additionally computes the true probability $p_{\mathit{true}}$, which Algorithm~\ref{alg:risk-score} consumes to rank warnings for presentation; risk scoring is therefore a downstream concern that does not affect the semantic claim.
 
 \subsubsection{Validation Engine}\label{sec:validation-engine}
@@ -812,7 +841,7 @@ Within each band, the score is computed as $\mathit{base} + (1 - p_{\mathit{true
 
 \subsubsection{Soundness of Interval Comparison}\label{sec:soundness}
 
-We establish the correctness of Algorithm~\ref{alg:interval-compare} through a case-by-case mathematical proof, showing that the closed-form expressions in Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly for every operator and every relative position of two integer intervals.
+We establish the correctness of Algorithm~\ref{alg:interval-compare} in two complementary ways: a mathematical soundness proof showing that the closed-form expressions in Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly, and an empirical cross-validation against brute-force ground truth across a comprehensive battery of test cases.
 
 \smallskip
 \noindent\textbf{Definitions.}
@@ -836,11 +865,106 @@ T_w &= L \setminus (T_s \cup T_v).
 \end{align*}
 The decomposition is exhaustive: for fixed $l \in L$, the truth value of $l \mathrel{op} r$ is monotonic in $r$, so it is either always true ($l \in T_s$), always false ($l \in T_v$), or transitions exactly once as $r$ ranges over $R$ ($l \in T_w$).
 
+\begin{lemma}[Region sizes for $>$]\label{lem:region-gt}
+For $op = ${} $>$, in the warning case ($l_{\min} \leq r_{\max}$ and $l_{\max} > r_{\min}$),
+\[
+|T_s| = \max(0,\, l_{\max} - r_{\max}), \qquad
+|T_v| = \max(0,\, r_{\min} - l_{\min} + 1).
+\]
+\end{lemma}
+
+\begin{proof}
+$T_s = \{l \in L : l > r_{\max}\} = L \cap [r_{\max}+1, \infty) = [\max(l_{\min}, r_{\max}+1),\, l_{\max}]$, whose cardinality is $\max(0, l_{\max} - r_{\max})$. Similarly, $T_v = L \cap (-\infty, r_{\min}] = [l_{\min},\, \min(l_{\max}, r_{\min})]$, with cardinality $\max(0, r_{\min} - l_{\min} + 1)$.
+\end{proof}
+
+\begin{lemma}[Sum over $T_w$ for $>$]\label{lem:tw-gt}
+Under the same assumptions, let $T_w = [l_w^-, l_w^+]$ and define $a = l_w^- - r_{\min}$, $b = l_w^+ - r_{\min}$. Then
+\[
+\sum_{l \in T_w} \big|\{r \in R : l > r\}\big| \;=\; \frac{(a + b)\, |T_w|}{2}.
+\]
+\end{lemma}
+
+\begin{proof}
+For $l \in T_w$ we have $r_{\min} < l \leq r_{\max}$, so $\{r \in R : r < l\} = [r_{\min},\, l - 1]$, with cardinality $l - r_{\min}$. Summing over $l \in T_w$ yields an arithmetic progression:
+\[
+\sum_{l = l_w^-}^{l_w^+} (l - r_{\min}) \;=\; \sum_{k = a}^{b} k \;=\; \frac{(a + b)(b - a + 1)}{2} \;=\; \frac{(a + b)\, |T_w|}{2}. \qedhere
+\]
+\end{proof}
+
+\begin{theorem}[Soundness for $>$]\label{thm:sound-gt}
+For $op = ${} $>$, $p_{\mathit{func}} = p_{\mathit{true}}$.
+\end{theorem}
+
+\begin{proof}
+Case 1 ($l_{\min} > r_{\max}$). Every pair satisfies $l > r$, so $N_{\mathit{sat}} = n_L \cdot n_R$ and $p_{\mathit{true}} = 1$. Algorithm~\ref{alg:interval-compare} takes the satisfied early return and outputs $p_{\mathit{func}} = 1$.
+
+Case 2 ($l_{\max} \leq r_{\min}$). No pair satisfies $l > r$, so $N_{\mathit{sat}} = 0$ and $p_{\mathit{true}} = 0$. The algorithm takes the violated early return and outputs $p_{\mathit{func}} = 0$.
+
+Case 3 (warning case). Decompose
+\[
+N_{\mathit{sat}} \;=\; \sum_{l \in L} \big|\{r \in R : l > r\}\big| \;=\; \underbrace{|T_s| \cdot n_R}_{l \in T_s} \;+\; \underbrace{\textstyle\sum_{l \in T_w} (l - r_{\min})}_{l \in T_w} \;+\; \underbrace{0}_{l \in T_v},
+\]
+where the first term uses the fact that every $l \in T_s$ satisfies $l > r$ for every $r \in R$. By Lemma~\ref{lem:tw-gt}, the middle sum equals $(a + b)\, |T_w| / 2$. Dividing by $n_L \cdot n_R$ gives
+\[
+p_{\mathit{true}} \;=\; \frac{|T_s|}{n_L} \;+\; \frac{(a + b)\, |T_w|}{2\, n_L\, n_R} \;=\; \frac{|T_s| + E_w}{n_L},
+\]
+where $E_w = (a + b)\, |T_w| / (2\, n_R)$ is exactly the quantity computed by Algorithm~\ref{alg:interval-compare}. Hence $p_{\mathit{func}} = p_{\mathit{true}}$.
+\end{proof}
+
+\begin{corollary}[Soundness for $\geq, <, \leq$]\label{cor:sound-other}
+The remaining comparison operators $op \in \{\geq, <, \leq\}$ admit symmetric proofs: the strict inequality is replaced by its non-strict counterpart, or the roles of $L$ and $R$ are swapped. The closed forms of $|T_s|$ and $|T_v|$ in Table~\ref{tab:op-formulas} arise from Lemma~\ref{lem:region-gt} via these substitutions, and the contribution from $T_w$ is computed by the same arithmetic-series argument as Lemma~\ref{lem:tw-gt}, yielding $p_{\mathit{func}} = p_{\mathit{true}}$ in each case.
+\end{corollary}
+
+\begin{theorem}[Soundness for $=$ and $\neq$]\label{thm:sound-eq}
+For $op \in \{=, \neq\}$, $p_{\mathit{func}} = p_{\mathit{true}}$.
+\end{theorem}
+
+\begin{proof}
+For $op = ${} $=$, each value $v \in L \cap R$ contributes exactly one satisfying pair $(v, v)$, and no other pair satisfies $l = r$. Hence $N_{\mathit{sat}} = |L \cap R|$ and
+\[
+p_{\mathit{true}}(=) \;=\; \frac{|L \cap R|}{n_L \cdot n_R}.
+\]
+When $n_R > 1$, Algorithm~\ref{alg:interval-compare} branches on $|T_s| / (n_L \cdot n_R)$, with $|T_s| = |L \cap R|$ from Table~\ref{tab:op-formulas}, matching $p_{\mathit{true}}$. The case $op = \neq$ follows by complementation: $p_{\mathit{true}}(\neq) = 1 - p_{\mathit{true}}(=) = 1 - |T_v| / (n_L \cdot n_R)$, which is exactly the complementary expression noted in Table~\ref{tab:op-formulas}.
+
+When $n_R = 1$, the algorithm bypasses the dedicated $n_R > 1$ branch and falls through to the general comparison path. The warning region $T_w$ is then necessarily empty (since $|T_s| + |T_v| = |L \cap R| + (n_L - |L \cap R|) = n_L$), so $E_w = 0$ and the formula reduces to $|T_s| / n_L = |L \cap R| / n_L$. Direct calculation confirms this equals $p_{\mathit{true}}$ when $n_R = 1$: each $l \in L$ contributes one satisfying pair iff $l = r_{\min}$, giving $N_{\mathit{sat}} = |L \cap R|$ and $p_{\mathit{true}} = |L \cap R| / n_L$.
+\end{proof}
+
+\begin{theorem}[Soundness for in and not\,in]\label{thm:sound-in}
+For $op \in \{\text{in}, \text{not\,in}\}$, $p_{\mathit{func}} = p_{\mathit{true}}$.
+\end{theorem}
+
+\begin{proof}
+The semantics of in treats $R$ as a set: $l \in R$ holds iff $r_{\min} \leq l \leq r_{\max}$, independent of any particular $r$. Each $l \in L \cap R$ therefore yields $n_R$ satisfying pairs (one for every $r$), so $N_{\mathit{sat}} = |L \cap R| \cdot n_R$ and
+\[
+p_{\mathit{true}}(\text{in}) \;=\; \frac{|L \cap R| \cdot n_R}{n_L \cdot n_R} \;=\; \frac{|L \cap R|}{n_L} \;=\; \frac{|T_s|}{n_L},
+\]
+which matches the algorithm's branch for in. The case not\,in is the complement, $1 - p_{\mathit{true}}(\text{in})$.
+\end{proof}
+
+\begin{corollary}[State consistency]\label{cor:state-consistency}
+Algorithm~\ref{alg:interval-compare} returns $(\mathit{state}, p_{\mathit{true}})$ where $\mathit{state}$ matches the set-theoretic definition of the comparison primitive $\text{Cmp}^*$ given in Section~\ref{sec:intent-semantics}: $\mathit{state} = \mathit{satisfied}$ iff every pair $(l, r) \in L \times R$ satisfies $l \mathrel{op} r$; $\mathit{state} = \mathit{violated}$ iff no pair does; and $\mathit{state} = \mathit{warning}$ otherwise.
+\end{corollary}
+
+\begin{proof}
+By Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, and~\ref{thm:sound-in}, Algorithm~\ref{alg:interval-compare} computes $p_{\mathit{true}}$ exactly under the uniform distribution. The state branches are then determined by the boundary cases of $p_{\mathit{true}}$: $p_{\mathit{true}} = 1$ iff every pair satisfies the comparison (the set-theoretic satisfied condition), $p_{\mathit{true}} = 0$ iff no pair satisfies (the violated condition), and $0 < p_{\mathit{true}} < 1$ iff both satisfying and non-satisfying pairs exist (the warning condition). These three cases match the corresponding early-return and fall-through branches of the algorithm.
+\end{proof}
+
 \smallskip
-\noindent\textbf{Case analysis space.}
-The relative position of two integer intervals $L$ and $R$ falls into exactly one of eleven topological configurations, determined by how their endpoints relate.
+\noindent\textbf{Compositional soundness.}
+Compound clauses are built from atomic clauses via the connectives $\wedge$, $\vee$, and $\Rightarrow$, evaluated under the three-valued logic of Table~\ref{tab:logic-combination}. Treating warning as the third truth value ``unknown,'' these tables coincide with Kleene's strong three-valued logic, a standard result whose soundness with respect to its underlying classical interpretation is well known: a compound clause evaluates to satisfied (resp.\ violated) only when its classical reading would be true (resp.\ false) under every disambiguation of warning. By induction on clause structure, if every atomic sub-clause is evaluated soundly by Algorithm~\ref{alg:interval-compare}, the compound clause is evaluated soundly as well.
+
+\smallskip
+\noindent\textbf{Edge cases.}
+Two boundary conditions deserve mention. (i) Empty intervals. An empty $L$ or $R$ corresponds to an infeasible execution path; the abstract interpreter prunes such branches before invoking Algorithm~\ref{alg:interval-compare}, so the algorithm is never called on empty inputs. (ii) Singleton right interval. When $n_R = 1$, the comparison operators $\{>, \geq, <, \leq\}$ reduce to standard pointwise tests handled by the early returns; the warning region $T_w$ degenerates to at most one element, and Lemma~\ref{lem:tw-gt} continues to hold (the arithmetic series is trivial). The equality operators $\{=, \neq\}$ with $n_R = 1$ are handled by Theorem~\ref{thm:sound-eq}. Together, Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, and~\ref{thm:sound-in}, Corollaries~\ref{cor:sound-other} and~\ref{cor:state-consistency}, and the compositional argument above establish that Algorithm~\ref{alg:interval-compare} computes $p_{\mathit{true}}$ exactly and returns a state matching $\text{Cmp}^*$ for every operator and every well-formed input.
+
+\smallskip
+\noindent\textbf{Empirical cross-validation.}
+To guard against transcription errors and unforeseen edge cases in the formal development above, we additionally verified Algorithm~\ref{alg:interval-compare} on a comprehensive battery of test cases that exhaustively cover the topological configurations of two integer intervals.
+
+\smallskip
+\noindent\textbf{Interval topology.}
+Given two integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$, their relative position falls into exactly one of eleven topological configurations, determined by how the endpoints relate.
 We organize them into three groups based on the number of shared endpoints (Figure~\ref{fig:interval-topologies}): (a) no shared endpoints (six configurations covering separation, partial overlap in either direction, and strict containment in either direction), (b) one shared endpoint (four configurations covering left- or right-shared with $L$ or $R$ being the wider interval), and (c) both shared endpoints (the identical case).
-The early-return conditions of Table~\ref{tab:op-formulas} partition these configurations into satisfied, violated, and warning cases per operator; the lemmas below compute $|T_s|$, $|T_v|$, and the contribution from $T_w$ via max-clamped closed forms that handle every configuration uniformly, so the proof below traverses the three cases rather than enumerating all eleven configurations individually.
 
 \begin{figure}[t]
 \centering
@@ -933,110 +1057,50 @@ The early-return conditions of Table~\ref{tab:op-formulas} partition these confi
 \node[font=\scriptsize, anchor=west] at (21.5, \ly-0.11) {shared};
 
 \end{tikzpicture}
-\caption{The eleven topological configurations of two integer intervals, grouped by the number of shared endpoints:
+\caption{Eleven topological configurations of two integer intervals,
+grouped by the number of shared endpoints:
 (a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case).
 Overlapping regions appear as blended color;
 dashed vertical lines indicate shared endpoints.}
 \label{fig:interval-topologies}
 \end{figure}
 
-\begin{lemma}[Region sizes for $>$]\label{lem:region-gt}
-For $op = ${} $>$, in the warning case ($l_{\min} \leq r_{\max}$ and $l_{\max} > r_{\min}$),
-\[
-|T_s| = \max(0,\, l_{\max} - r_{\max}), \qquad
-|T_v| = \max(0,\, r_{\min} - l_{\min} + 1).
-\]
-\end{lemma}
-
-\begin{proof}
-$T_s = \{l \in L : l > r_{\max}\} = L \cap [r_{\max}+1, \infty) = [\max(l_{\min}, r_{\max}+1),\, l_{\max}]$, whose cardinality is $\max(0, l_{\max} - r_{\max})$. Similarly, $T_v = L \cap (-\infty, r_{\min}] = [l_{\min},\, \min(l_{\max}, r_{\min})]$, with cardinality $\max(0, r_{\min} - l_{\min} + 1)$.
-\end{proof}
-
-\begin{lemma}[Sum over $T_w$ for $>$]\label{lem:tw-gt}
-Under the same assumptions, let $T_w = [l_w^-, l_w^+]$ and define $a = l_w^- - r_{\min}$, $b = l_w^+ - r_{\min}$. Then
-\[
-\sum_{l \in T_w} \big|\{r \in R : l > r\}\big| \;=\; \frac{(a + b)\, |T_w|}{2}.
-\]
-\end{lemma}
-
-\begin{proof}
-For $l \in T_w$ we have $r_{\min} < l \leq r_{\max}$, so $\{r \in R : r < l\} = [r_{\min},\, l - 1]$, with cardinality $l - r_{\min}$. Summing over $l \in T_w$ yields an arithmetic progression:
-\[
-\sum_{l = l_w^-}^{l_w^+} (l - r_{\min}) \;=\; \sum_{k = a}^{b} k \;=\; \frac{(a + b)(b - a + 1)}{2} \;=\; \frac{(a + b)\, |T_w|}{2}. \qedhere
-\]
-\end{proof}
-
-\begin{theorem}[Soundness for $>$]\label{thm:sound-gt}
-For $op = ${} $>$, $p_{\mathit{func}} = p_{\mathit{true}}$.
-\end{theorem}
-
-\begin{proof}
-Case 1 ($l_{\min} > r_{\max}$). Every pair satisfies $l > r$, so $N_{\mathit{sat}} = n_L \cdot n_R$ and $p_{\mathit{true}} = 1$. Algorithm~\ref{alg:interval-compare} takes the satisfied early return and outputs $p_{\mathit{func}} = 1$.
-
-Case 2 ($l_{\max} \leq r_{\min}$). No pair satisfies $l > r$, so $N_{\mathit{sat}} = 0$ and $p_{\mathit{true}} = 0$. The algorithm takes the violated early return and outputs $p_{\mathit{func}} = 0$.
-
-Case 3 (warning case). Decompose
-\[
-N_{\mathit{sat}} \;=\; \sum_{l \in L} \big|\{r \in R : l > r\}\big| \;=\; \underbrace{|T_s| \cdot n_R}_{l \in T_s} \;+\; \underbrace{\textstyle\sum_{l \in T_w} (l - r_{\min})}_{l \in T_w} \;+\; \underbrace{0}_{l \in T_v},
-\]
-where the first term uses the fact that every $l \in T_s$ satisfies $l > r$ for every $r \in R$. By Lemma~\ref{lem:tw-gt}, the middle sum equals $(a + b)\, |T_w| / 2$. Dividing by $n_L \cdot n_R$ gives
-\[
-p_{\mathit{true}} \;=\; \frac{|T_s|}{n_L} \;+\; \frac{(a + b)\, |T_w|}{2\, n_L\, n_R} \;=\; \frac{|T_s| + E_w}{n_L},
-\]
-where $E_w = (a + b)\, |T_w| / (2\, n_R)$ is exactly the quantity computed by Algorithm~\ref{alg:interval-compare}. Hence $p_{\mathit{func}} = p_{\mathit{true}}$.
-\end{proof}
-
-\begin{corollary}[Soundness for $\geq, <, \leq$]\label{cor:sound-other}
-The remaining comparison operators $op \in \{\geq, <, \leq\}$ admit symmetric proofs: the strict inequality is replaced by its non-strict counterpart, or the roles of $L$ and $R$ are swapped. The closed forms of $|T_s|$ and $|T_v|$ in Table~\ref{tab:op-formulas} arise from Lemma~\ref{lem:region-gt} via these substitutions, and the contribution from $T_w$ is computed by the same arithmetic-series argument as Lemma~\ref{lem:tw-gt}, yielding $p_{\mathit{func}} = p_{\mathit{true}}$ in each case.
-\end{corollary}
-
-\begin{theorem}[Soundness for $=$ and $\neq$]\label{thm:sound-eq}
-For $op \in \{=, \neq\}$, $p_{\mathit{func}} = p_{\mathit{true}}$.
-\end{theorem}
-
-\begin{proof}
-For $op = ${} $=$, each value $v \in L \cap R$ contributes exactly one satisfying pair $(v, v)$, and no other pair satisfies $l = r$. Hence $N_{\mathit{sat}} = |L \cap R|$ and
-\[
-p_{\mathit{true}}(=) \;=\; \frac{|L \cap R|}{n_L \cdot n_R}.
-\]
-When $n_R > 1$, Algorithm~\ref{alg:interval-compare} branches on $|T_s| / (n_L \cdot n_R)$, with $|T_s| = |L \cap R|$ from Table~\ref{tab:op-formulas}, matching $p_{\mathit{true}}$. The case $op = \neq$ follows by complementation: $p_{\mathit{true}}(\neq) = 1 - p_{\mathit{true}}(=) = 1 - |T_v| / (n_L \cdot n_R)$, which is exactly the complementary expression noted in Table~\ref{tab:op-formulas}.
-
-When $n_R = 1$, the algorithm bypasses the dedicated $n_R > 1$ branch and falls through to the general comparison path. The warning region $T_w$ is then necessarily empty (since $|T_s| + |T_v| = |L \cap R| + (n_L - |L \cap R|) = n_L$), so $E_w = 0$ and the formula reduces to $|T_s| / n_L = |L \cap R| / n_L$. Direct calculation confirms this equals $p_{\mathit{true}}$ when $n_R = 1$: each $l \in L$ contributes one satisfying pair iff $l = r_{\min}$, giving $N_{\mathit{sat}} = |L \cap R|$ and $p_{\mathit{true}} = |L \cap R| / n_L$.
-\end{proof}
-
-\begin{theorem}[Soundness for in and not\,in]\label{thm:sound-in}
-For $op \in \{\text{in}, \text{not\,in}\}$, $p_{\mathit{func}} = p_{\mathit{true}}$.
-\end{theorem}
-
-\begin{proof}
-The semantics of in treats $R$ as a set: $l \in R$ holds iff $r_{\min} \leq l \leq r_{\max}$, independent of any particular $r$. Each $l \in L \cap R$ therefore yields $n_R$ satisfying pairs (one for every $r$), so $N_{\mathit{sat}} = |L \cap R| \cdot n_R$ and
-\[
-p_{\mathit{true}}(\text{in}) \;=\; \frac{|L \cap R| \cdot n_R}{n_L \cdot n_R} \;=\; \frac{|L \cap R|}{n_L} \;=\; \frac{|T_s|}{n_L},
-\]
-which matches the algorithm's branch for in. The case not\,in is the complement, $1 - p_{\mathit{true}}(\text{in})$.
-\end{proof}
-
-\begin{corollary}[State consistency]\label{cor:state-consistency}
-Algorithm~\ref{alg:interval-compare} returns $(\mathit{state}, p_{\mathit{true}})$ where $\mathit{state}$ matches the set-theoretic definition of the comparison primitive $\text{Cmp}^*$ given in Section~\ref{sec:intent-semantics}: $\mathit{state} = \mathit{satisfied}$ iff every pair $(l, r) \in L \times R$ satisfies $l \mathrel{op} r$; $\mathit{state} = \mathit{violated}$ iff no pair does; and $\mathit{state} = \mathit{warning}$ otherwise.
-\end{corollary}
-
-\begin{proof}
-By Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, and~\ref{thm:sound-in}, Algorithm~\ref{alg:interval-compare} computes $p_{\mathit{true}}$ exactly under the uniform distribution. The state branches are then determined by the boundary cases of $p_{\mathit{true}}$: $p_{\mathit{true}} = 1$ iff every pair satisfies the comparison (the set-theoretic satisfied condition), $p_{\mathit{true}} = 0$ iff no pair satisfies (the violated condition), and $0 < p_{\mathit{true}} < 1$ iff both satisfying and non-satisfying pairs exist (the warning condition). These three cases match the corresponding early-return and fall-through branches of the algorithm.
-\end{proof}
+\smallskip
+\noindent\textbf{Verification method.}
+For each of the eleven topological configurations, we generate five width profiles that systematically vary the interval sizes: Small (width 1--3), Medium (5--10), Large (20--50), Asymmetric-L ($|L| \gg |R|$), and Asymmetric-R ($|R| \gg |L|$).
+Each configuration--profile pair is tested against all eight comparison operators ($>$, $\geq$, $<$, $\leq$, $=$, $\neq$, in, not\,in), yielding $11 \times 5 \times 8 = 440$ test cases.
+For every test case, we compute the ground-truth probability $p_{\mathit{bf}}$ by exhaustively enumerating all $(l, r)$ integer pairs under a uniform distribution and compare it against the value $p_{\mathit{func}}$ returned by Algorithm~\ref{alg:interval-compare}.
+A test passes when $|p_{\mathit{bf}} - p_{\mathit{func}}| < 0.001$.
 
 \smallskip
-\noindent\textbf{Soundness of the implication primitive.}
-The closed-form definition of $\text{Impl}^*$ in §\ref{sec:intent-semantics} is sound by direct case analysis: each case of $\text{Impl}^*(L, R)$ is a disjoint condition over the truthiness of $L$ and $R$, and the returned state matches the set-theoretic characterisation (vacuous when $L = \{0\}$, satisfied when both are truthy, violated when $L$ is truthy and $R = \{0\}$, and warning otherwise). No induction is needed since $\text{Impl}^*$ operates on atomic intervals rather than sub-clauses.
+\noindent\textbf{Result.}
+All 440 test cases pass with an exact match between the brute-force ground truth and the algorithm output (Table~\ref{tab:rq1-results}).
+The 100\% pass rate across all configurations and width profiles cross-validates the soundness proof above, confirming that the closed-form expressions of Table~\ref{tab:op-formulas} indeed compute $p_{\mathit{true}}$ for every possible relative position of two integer intervals, independent of their absolute sizes.
 
-\smallskip
-\noindent\textbf{Edge cases.}
-Two boundary conditions deserve mention. (i) Empty intervals. An empty $L$ or $R$ corresponds to an infeasible execution path; the abstract interpreter prunes such branches before invoking Algorithm~\ref{alg:interval-compare}, so the algorithm is never called on empty inputs. (ii) Singleton right interval. When $n_R = 1$, the comparison operators $\{>, \geq, <, \leq\}$ reduce to standard pointwise tests handled by the early returns; the warning region $T_w$ degenerates to at most one element, and Lemma~\ref{lem:tw-gt} continues to hold (the arithmetic series is trivial). The equality operators $\{=, \neq\}$ with $n_R = 1$ are handled by Theorem~\ref{thm:sound-eq}. Together, Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, and~\ref{thm:sound-in}, Corollaries~\ref{cor:sound-other} and~\ref{cor:state-consistency}, and the case analysis of $\text{Impl}^*$ above establish that Algorithm~\ref{alg:interval-compare} computes $p_{\mathit{true}}$ exactly for every relational operator, and that $\text{Impl}^*$ returns the correct state for every implication clause, on every well-formed input.
+\begin{table}[t]
+\centering
+\caption{Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times$ 8 operators per configuration.}
+\label{tab:rq1-results}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l rrr @{}}
+\toprule
+\textbf{Topology category} & \textbf{Tests} & \textbf{Pass} & \textbf{Fail} \\
+\midrule
+(a) No shared endpoints (6 configurations) & 240 & 240 & 0 \\
+(b) One shared endpoint (4 configurations) & 160 & 160 & 0 \\
+(c) Both shared endpoints (1 configuration) &  40 &  40 & 0 \\
+\midrule
+\textbf{Total} & \textbf{440} & \textbf{440} & \textbf{0} \\
+\bottomrule
+\end{tabular*}
+\end{table}
 
-This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
+This completes the design and verification of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
 
 \section{Evaluation}\label{sec:evaluation}
 
-We evaluate IntentChecker through three research questions that probe its empirical behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools:
+The validation algorithm itself was already verified in §\ref{sec:soundness}, where we proved that the closed-form expressions of Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly and cross-validated this proof against brute-force ground truth across every topological configuration of two integer intervals.
+The remaining questions concern IntentChecker's behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools.
+We address these questions through the following three RQs:
 
 \begin{itemize}
     \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can IntentChecker surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded Violated/Warning signal? For instances that the tool cannot handle, what is the structural reason, and how does this distribute across the limitation types defined in our taxonomy?
@@ -1730,7 +1794,7 @@ IntentChecker also extends SolQDebug's analysis scope beyond a single contract t
 
 \section{Conclusion}\label{sec:conclusion}
 
-We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each clause to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
+We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each clause to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics and cross-validated against brute-force ground truth, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
 On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated verdicts at interactive speeds (mean 3.69\,s per case).
 RQ2's expressibility analysis showed that 14 of the 34 intent-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the intent model.
