@@ -159,7 +159,7 @@ These observations together motivate a development-time tool that runs while the
 
 To that end, we present IntentChecker, a development-time intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
 The intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
-A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification and cross-validated against brute-force ground truth across all topological configurations of two integer intervals.
+A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification over all topological configurations of two integer intervals.
 
 We evaluate IntentChecker on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
 The evaluation organizes itself around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
@@ -189,7 +189,7 @@ Importantly, our positioning with respect to existing tools is complementary rat
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
-    \item We present an intent model with a formal denotational semantics defining each clause form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics and cross-validated against brute-force ground truth, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
+    \item We present an intent model with a formal denotational semantics defining each clause form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
     \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
     \item We evaluate IntentChecker on 89 real-world numeric logic errors and position it against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
 \end{itemize}
@@ -418,7 +418,7 @@ IntentChecker receives three types of input:
     \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
     \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(b) for interface call return values.
 \end{itemize}
-In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file, as described under Internal Modules below.
+In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file.
 
 \smallskip
 \noindent\textbf{Output.}
@@ -431,69 +431,52 @@ For each intent annotation, IntentChecker produces:
 
 \smallskip
 \noindent\textbf{Internal Modules.}
-IntentChecker extends SolQDebug's Parsing Module and Analysis Module to accommodate the new annotation and scope of §\ref{sec:prelim:extension}, and reuses its Snapshot Manager unchanged.
-The Parsing Module uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and delegates to the official Solidity compiler for semantic validation.
-The Analysis Module performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed, and handles the multi-contract scope extensions (inheritance, library resolution via using, interface-typed variables, and the arithmetic Yul subset) described in §\ref{sec:prelim:extension}.
-For the referenced libraries and interfaces mentioned under Input, the Analysis Module either loads a pre-analyzed Dependency CFG produced once and cached, or constructs one on-the-fly when the source is locally available.
-When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterwards.
-The same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
+Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new annotation and scope of §\ref{sec:prelim:extension}, while Phase~3 is IntentChecker's core contribution.
+\begin{itemize}
+    \item \textbf{Phase~1 --- Parsing Module.} Uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and additionally delegates the Solidity source fragments to the official Solidity compiler for semantic validation.
+    \item \textbf{Phase~2 --- Analysis Module.} Performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed. When a debug annotation is received, the Snapshot Manager (reused unchanged from SolQDebug) preserves the current analysis state, allowing the analyzer to overwrite the targeted variable's interval with the developer-supplied range, re-analyze affected code paths, and restore the pre-annotation state afterwards; the same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
+    \item \textbf{Phase~3 --- Validation Engine.} Draws on two signals from the earlier phases---parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point. For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
+\end{itemize}
 
-The Validation Engine (Phase~3) is IntentChecker's core contribution on top of this extended analyzer.
-It draws on two signals from the earlier phases---parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
-For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
+\subsection{Concrete Examples}
 
-\subsection{Motivating Examples}
+This section walks through two examples to illustrate how an annotated function produces a validation verdict.
+The first case demonstrates a mid-execution check via a @During annotation; the second demonstrates a post-execution check via @Post together with an @IReturn annotation for external contract state.
 
-This section illustrates how IntentChecker addresses representative numeric logic errors, using three real-world cases from our evaluation benchmark (§\ref{sec:evaluation}).
-The first two cases demonstrate mid-execution checks via @During annotations; the third demonstrates a post-execution check via @Post.
+\smallskip
+\noindent\textbf{Case 1: @During --- Operator Order Issue.}
+Figure~\ref{fig:operator-order-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
 
-\subsubsection{Operator Order Issue (BoostToken)}
-
-Listing~\ref{lst:compute-example} shows a fee-distribution function that divides before multiplying, causing integer truncation to silently reduce the transferred amount.
-The developer intends the marketing wallet to receive $\lfloor\text{amount} \times 5 / 12\rfloor$, but amount.div(12).mul(5) truncates $\text{amount}/12$ first, losing precision when amount is not a multiple of~12.
-
-\begin{lstlisting}[caption={BoostToken: operator order issue in fee distribution (simplified).}, label={lst:compute-example}]
-function sendETHToTeam(uint256 amount) private {
-    // @LocalVar amount = [68, 68]
-    _devWalletAddress.transfer(amount.div(4));
-    // @During transfer.arg[0] >= amount * 5 / 12
-    _marketingWalletAddress.transfer(amount.div(12).mul(5));
-    // @During transfer.arg[0] >= amount * 2 / 9
-    _dipWalletAddress.transfer(amount.div(9).mul(2));
-    _marketingWalletAddress2.transfer(amount.div(9));
-}
-\end{lstlisting}
-
-The @During transfer.arg[0] >= amount * 5 / 12 annotation expresses the developer's intent that the actual transfer argument should be at least the mathematically correct share.
-With amount\,=\,68, the correct value is $\lfloor 68 \times 5 / 12 \rfloor = 28$, but 68.div(12).mul(5) computes $\lfloor 68/12 \rfloor \times 5 = 5 \times 5 = 25$.
-IntentChecker evaluates the annotation to $[25,25] \geq [28,28]$ and reports Violated with risk score~$10.0$.
-
-\subsubsection{Exchange Rate Validation (Nokon)}
-
-Listing~\ref{lst:transfer-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
-
-\begin{lstlisting}[caption={Nokon: exchange rate calculation with operator order issue (simplified).}, label={lst:transfer-example}]
+\begin{figure}[t]
+\begin{lstlisting}
+// contract state: bool presell; uint256 ethRateFix;
+// helper: function calculateRate() public view returns (uint256);
 function buy() public payable {
     // @GlobalVar msg.value = [50000000000500000, ...]
     // @StateVar presell = true
     require(presell, "presell is closed");
-    uint256 amountToBuy = msg.value / ethRateFix
-                          * calculateRate();
+    uint256 amountToBuy = msg.value / ethRateFix * calculateRate();
     // @During amountToBuy * ethRateFix >= msg.value * 250000
     balances[msg.sender] += amountToBuy;
 }
 \end{lstlisting}
+\caption{Operator order issue in exchange rate calculation (simplified).}
+\label{fig:operator-order-example}
+\end{figure}
 
-The developer's intent is that amountToBuy should satisfy the exchange-rate invariant: the tokens received, times the rate denominator, should be at least the ETH paid times the rate numerator.
-Because msg.value / ethRateFix truncates before multiplication, the invariant is violated for non-round input amounts.
-The @During annotation captures this invariant directly, and IntentChecker reports Violated.
+The developer's intent is that amountToBuy should satisfy the exchange-rate relation---the tokens received, times the rate denominator, should be at least the ETH paid times the rate numerator.
+Because msg.value / ethRateFix truncates before multiplication, this intent is violated for non-round input amounts.
+The @During annotation (line~8) captures this intent directly, and IntentChecker reports Violated.
 
-\subsubsection{Minting Invariant with Interface Call (Web3Bugs~\#78)}
-
-Listing~\ref{lst:output-example} shows a rebasing vault's mint function.
+\smallskip
+\noindent\textbf{Case 2: @Post --- Erroneous Accounting.}
+Figure~\ref{fig:erroneous-accounting-example} shows a rebasing vault's mint function.
 The bug is that minted proxy tokens are computed from the total vault balance (including the just-deposited amount), which inflates the shares beyond the deposited amount when the redeem rate deviates from~1.
 
-\begin{lstlisting}[caption={Web3Bugs \#78-H-02: vault mint with inflated proxy amount (simplified).}, label={lst:output-example}]
+\begin{figure}[t]
+\begin{lstlisting}
+// contract state: uint256 _totalSupply; mapping(address => uint256) _balances;
+// address baseToken; uint256 ONE; function redeemRate() public view returns (uint256);
 function mint(address to, uint256 amount)
     public override returns (uint256) {
     // @LocalVar amount = [500e18, 500e18]
@@ -511,24 +494,36 @@ function mint(address to, uint256 amount)
     _mint(to, proxy);
 }
 \end{lstlisting}
+\caption{Erroneous accounting in vault mint with inflated proxy amount (simplified).}
+\label{fig:erroneous-accounting-example}
+\end{figure}
 
-The @Post \_balances[to] <= amount annotation expresses the invariant that no user should receive more shares than the tokens they deposited.
-The @IReturn debug annotation injects a concrete balance (1500\,e18) for the external balanceOf call, which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(b)).
+The @Post \_balances[to] $\leq$ amount annotation (line~16) expresses the intent that no user should receive more shares than the tokens they deposited.
+The @IReturn debug annotation (lines~8--9) injects the range $[1500\,\text{e}18, 1500\,\text{e}18]$ for the external balanceOf call (line~14), which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(b)).
+The transferFrom (line~11) is state-modifying and therefore cannot carry an @IReturn annotation per §\ref{sec:prelim:extension}(b).
 With these annotations, IntentChecker computes the proxy amount and finds that it exceeds amount, reporting Violated.
 This example demonstrates how @IReturn enables intent validation for functions that depend on external contract state.
 
 \smallskip
-These three examples---drawn from real bugs in the evaluation benchmark---illustrate the two temporal scopes of intent validation: mid-execution checks (@During with relational and argument constraints) and post-execution checks (@Post combined with @IReturn for external state injection).
+These two examples illustrate the two temporal scopes of intent validation---mid-execution checks via @During and post-execution checks via @Post.
 The complete intent model supporting these annotations is defined in the following section.
 
 \subsection{Intent Model}\label{sec:intent-model}
 
-The intent model consists of two complementary components that together determine both what a developer can write and what the written annotation means as a validation judgment.
-Section~\ref{sec:intent-syntax} fixes the concrete grammar of intent annotations and the informal meaning of each clause form, grouped by the two annotation types: @During, which checks conditions at specific program points within a function's execution, and @Post, which checks conditions after the function completes.
-Section~\ref{sec:intent-semantics} then formalises how the validation engine evaluates an annotation against the abstract states produced by the interpreter, giving a denotational definition of each clause form as a tri-valued outcome in $\{S, V, W\}$.
-Together, the syntax specifies the surface language available to developers, and the semantics specifies the mathematical object that every syntactic form denotes.
+The semantic core of the intent model is a function
+\[
+\mathit{IntentCheck} \;:\; \mathit{Source} \times \mathit{Annotation}^* \;\to\; \{S, V, W\}^*
+\]
+that, given a source fragment $P$ (in the sense of §\ref{sec:prelim:extension}) and a sequence of intent annotations $A = (a_1, \ldots, a_n)$ placed at program points within $P$, returns for each $a_i$ a tri-valued verdict
+\[
+\mathit{IntentCheck}(P, A)[i] \;=\; \mathcal{V}\llbracket a_i \rrbracket(\Gamma_i) \;\in\; \{S, V, W\}
+\]
+(satisfied, violated, warning).
+Section~\ref{sec:intent-semantics} fixes the grammar of intent annotations and defines both the denotational function $\mathcal{V}\llbracket\cdot\rrbracket$ and the validation context $\Gamma_i$, which is materialised from the abstract interpreter's output on $P$ at $a_i$'s annotated line.
+Section~\ref{sec:validation-engine} describes the executable procedures that realise $\mathit{IntentCheck}$ and, in addition, produce a risk score in $[0, 10]$ and the sub-intervals of the input range in which the comparison may fail; these auxiliary outputs support warning ranking and developer feedback but lie outside the semantic claim.
+Section~\ref{sec:soundness} establishes the soundness of the interval comparison primitive that underlies $\mathit{IntentCheck}$.
 
-\subsubsection{Syntax}\label{sec:intent-syntax}
+\subsubsection{Syntax and Semantics}\label{sec:intent-semantics}
 
 \begin{figure}[t]
 \centering
@@ -551,7 +546,7 @@ commonClause & $\rightarrow$ & returnExpression relOp intentValue \\
 & $|$ & intentValue relOp ceil( intentValue , $d$ ) \\
 & $|$ & intentValue relOp floor( intentValue , $d$ ) \\
 & $|$ & intentValue relOp intentValue \\
-& $|$ & intentValue => intentValue \\[6pt]
+& $|$ & intentValue ${=}{>}$ intentValue \\[6pt]
 
 intentValue & $\rightarrow$ & arithExpr \\[2pt]
 arithExpr & $\rightarrow$ & arithExpr (+ $|$ -) arithTerm $|$ arithTerm \\
@@ -561,65 +556,18 @@ varRef & $\rightarrow$ & identifier subAccess* \\
 subAccess & $\rightarrow$ & . identifier $|$ [ expr ] \\[6pt]
 
 logicOp & $\rightarrow$ & \&\& $|$ || \\
-relOp & $\rightarrow$ & < $|$ > $|$ <= $|$ >= $|$ == $|$ != $|$ in $|$ not in \\
+relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $|$ not in \\
 \end{tabular}
 \caption{Grammar of intent annotations.}
 \label{fig:intent-grammar}
 \end{figure}
 
 \smallskip
-\noindent\textbf{Annotation Syntax Overview.}
-Figure~\ref{fig:intent-grammar} presents the grammar of intent annotations.
-Intent annotations are embedded in single-line comments, allowing them to coexist with Solidity code without affecting compilation.
-Each annotation begins with a marker (@During or @Post) followed by one or more clauses.
-Multiple clauses can be combined using logical operators: \&\& (conjunction) requires all clauses to hold, while || (disjunction) requires at least one clause to hold.
-
-Intent values within clauses support arithmetic expressions using standard operators (+, -, *, /, \%), variable references with member and index access (e.g., balances[msg.sender]), numeric literals, and inline intervals written as [a, b] to represent value ranges directly.
-Relational operators include <, >, <=, >=, ==, !=, as well as in and not in for interval membership tests.
-
-\smallskip
-\noindent\textbf{@During Annotation.}
-The @During annotation specifies intended relationships at specific program points within a function's execution.
-It supports the following clause types:
-
-\begin{itemize}
-    \item x(before relOp after)---compares the value of variable x immediately before and after an assignment statement. This validates that assignments modify variables as intended (e.g., balance(before > after) asserts that the balance decreases).
-
-    \item x(assign relOp current)---compares the value being assigned to x against its current value. This is useful for validating incremental updates (e.g., counter(assign == current + 1)).
-
-    \item func.arg[n] relOp value---validates the $n$-th argument passed to a function call, ensuring that function calls receive arguments satisfying specified constraints before execution proceeds.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{@Post Annotation.}
-The @Post annotation specifies intended relationships that should hold after function execution completes.
-It supports the following clause types:
-
-\begin{itemize}
-    \item x(entry relOp exit)---compares the value of variable x at function entry against its value at function exit. This validates function-level effects on state variables (e.g., totalSupply(entry == exit) asserts that total supply remains unchanged).
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Common Clauses.}
-Both @During and @Post annotations share the following clause types:
-
-\begin{itemize}
-    \item returnExpression relOp value---validates the expression being returned against a specified value or range.
-
-    \item return[n] relOp value---for functions returning multiple values (tuples), validates the $n$-th return value.
-
-    \item x relOp PercentOf(y, p)---validates that x equals p percent of y, accounting for integer arithmetic. This is particularly useful for fee calculations and token distributions.
-
-    \item x relOp ceil(y, d) and x relOp floor(y, d)---validate rounding behavior, where d specifies the divisor. These clauses help developers express intended rounding directions in division operations.
-
-    \item x relOp y---general relational comparison between two intent values.
-
-    \item x => y---implication clause, asserting that if condition x holds, then condition y must also hold. This enables conditional intent specifications.
-\end{itemize}
-
-\subsubsection{Semantics}\label{sec:intent-semantics}
-
-We specify the meaning of intent annotations as a denotational function $\mathcal{V}\llbracket \cdot \rrbracket$ that maps each clause to a tri-valued validation outcome in $\{S, V, W\}$ (satisfied, violated, warning) under a validation context $\Gamma$.
+\noindent\textbf{Annotation syntax overview.}
+Figure~\ref{fig:intent-grammar} presents the grammar of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
+Each annotation begins with a marker (@During or @Post) followed by one or more clauses, which can be combined via the logical connectives \&\& (conjunction), || (disjunction), and ${=}{>}$ (implication).
+Intent values support arithmetic expressions over variable references with member and index access, numeric literals, and inline intervals $[a, b]$; relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in.
+Rather than describe each clause form in prose, we now specify the meaning of every syntactic form as a denotational function $\mathcal{V}\llbracket\cdot\rrbracket$ that maps a clause to a tri-valued outcome in $\{S, V, W\}$ (satisfied, violated, warning) under a validation context $\Gamma$.
 Throughout this subsection we use the point-wise convention $\mathcal{V}\llbracket \varphi \rrbracket(\Gamma) = s$ to specify, for each syntactic form of $\varphi$, the state $s$ produced by applying the meaning function to context $\Gamma$.
 
 \smallskip
@@ -686,7 +634,7 @@ W & \text{otherwise.}
 \end{cases}
 \]
 For $\mathit{op} \in \{\text{in}, \text{not\,in}\}$, the set-membership interpretation replaces the pointwise comparison: $l \mathrel{\text{in}} r$ holds iff $l \in R$, regardless of the particular $r$, and not\,in is its complement.
-By Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, \ref{thm:sound-in}, and Corollary~\ref{cor:state-consistency}, Algorithm~\ref{alg:interval-compare} implements $\text{Cmp}^*$ exactly via the closed-form expressions of Table~\ref{tab:op-formulas}.
+Algorithm~\ref{alg:interval-compare} implements $\text{Cmp}^*$ exactly via the closed-form expressions of Table~\ref{tab:op-formulas}, with the formal argument deferred to §\ref{sec:soundness}.
 The semantics thus has a sound computable realisation; conversely, $\text{Cmp}^*$ gives an algorithm-independent specification of what the validation engine is required to compute.
 
 \smallskip
@@ -697,6 +645,34 @@ Compound clauses combine sub-clauses via the connectives
 \]
 which coincide with Kleene's strong three-valued logic and match the combination tables of Table~\ref{tab:logic-combination}.
 Treating $W$ as the third truth value ``unknown,'' $\wedge_K$ yields $S$ only when both arguments are $S$, yields $V$ whenever any argument is $V$, and yields $W$ otherwise; $\vee_K$ and $\supset_K$ are defined dually.
+
+\begin{table}[t]
+\centering
+\caption{Three-valued logic combination rules for compound clauses. S\,=\,satisfied, V\,=\,violated, W\,=\,warning.}
+\label{tab:logic-combination}
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c|ccc}
+\toprule
+\&\& & S & V & W \\
+\midrule
+S & S & V & W \\
+V & V & V & V \\
+W & W & V & W \\
+\midrule\midrule
+|| & S & V & W \\
+\midrule
+S & S & S & S \\
+V & S & V & W \\
+W & S & W & W \\
+\midrule\midrule
+${=}{>}$ & S & V & W \\
+\midrule
+S & S & V & W \\
+V & S & S & S \\
+W & W & W & W \\
+\bottomrule
+\end{tabular*}
+\end{table}
 
 \smallskip
 \noindent\textbf{Meaning function.}
@@ -752,125 +728,17 @@ where $\ell_{\text{ret}}$ is the return-statement line selected by the annotatio
 \smallskip
 \noindent\textbf{Connection to the algorithm.}
 The validation engine of Section~\ref{sec:validation-engine} computes $\mathcal{V}\llbracket \varphi \rrbracket(\Gamma)$ by traversing the clause structure: for each atomic clause it invokes Algorithm~\ref{alg:interval-compare} with intervals selected according to the equations above; for each compound clause it applies the Kleene combination tables.
-By Corollary~\ref{cor:state-consistency}, the state returned by Algorithm~\ref{alg:interval-compare} is exactly the state assigned by $\text{Cmp}^*$, so the engine's output agrees with the semantic definition on every well-formed input.
+The soundness argument of §\ref{sec:soundness} establishes that the state returned by Algorithm~\ref{alg:interval-compare} is exactly the state assigned by $\text{Cmp}^*$, so the engine's output agrees with the semantic definition on every well-formed input.
 Algorithm~\ref{alg:interval-compare} additionally computes the true probability $p_{\mathit{true}}$, which Algorithm~\ref{alg:risk-score} consumes to rank warnings for presentation; risk scoring is therefore a downstream concern that does not affect the semantic claim.
 
-\subsection{Validation Engine}\label{sec:validation-engine}
+\subsubsection{Validation Engine}\label{sec:validation-engine}
 
-The Validation Engine validates developer-specified intent annotations against actual program behavior computed through abstract interpretation.
-Given the CFG-based interval analysis from Section~\ref{sec:design}, the engine evaluates each annotation clause and determines whether the intended relationship holds across all possible execution states.
-
-% ── (1) 검증 환경 ──────────────────────────────────────────────
-To perform validation, the engine captures variable environments at specific program points:
-\begin{itemize}
-    \item before\_env: variable state immediately before a statement executes
-    \item after\_env: variable state immediately after a statement executes (referred to as current in assign clauses)
-    \item assign\_env: the value being assigned in an assignment statement
-    \item entry\_env: variable state at function entry
-    \item exit\_env: variable state at function exit, computed by joining all normal termination paths
-\end{itemize}
-
-% ── (2) 어노테이션별 검증 시점 ────────────────────────────────
-\subsubsection{Validation Targets}
-\noindent\textbf{@During Validation.}
-The @During annotation is validated immediately after the associated statement executes:
-\begin{itemize}
-    \item var(before op after): compares before\_env against after\_env for variable var.
-
-    \item var(assign op current): compares assign\_env against the current value of var.
-
-    \item func.arg[n] op value: validates the $n$-th argument passed to the function call.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{@Post Validation.}
-The @Post annotation is validated when function execution completes:
-\begin{itemize}
-    \item var(entry op exit): compares entry\_env against exit\_env for variable var.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Common Clauses.}
-The following clauses can be used in both @During and @Post annotations:
-\begin{itemize}
-    \item returnExpression op value: compares the return value against the evaluated value.
-
-    \item return[n] op value: compares the $n$-th element of a tuple return value against value.
-
-    \item $\mathit{exp}_1$ op PercentOf($\mathit{exp}_2$, p): compares $\mathit{exp}_1$ against $p$\% of $\mathit{exp}_2$.
-
-    \item $\mathit{exp}_1$ op ceil($\mathit{exp}_2$, d) and $\mathit{exp}_1$ op floor($\mathit{exp}_2$, d): compares $\mathit{exp}_1$ against $\mathit{exp}_2$ rounded up or down to the nearest multiple of d.
-
-    \item $\mathit{exp}_1$ op $\mathit{exp}_2$: general comparison between two expressions.
-\end{itemize}
-
-% ── (3) 검증 의미론 + Risk Score ──────────────────────────────
-\subsubsection{State Determination and Risk Scoring}
-The engine compares interval-domain values using Algorithm~\ref{alg:interval-compare}, which returns a pair $(\mathit{state},\, p_{\mathit{true}})$ where $\mathit{state}$ is one of three possible outcomes and $p_{\mathit{true}} \in [0, 1]$ is the true probability of the comparison holding under a uniform distribution assumption:
-\begin{itemize}
-    \item satisfied: the condition holds for all values in the intervals ($p_{\mathit{true}} = 1$).
-    \item violated: the condition fails for all values in the intervals ($p_{\mathit{true}} = 0$).
-    \item warning: the condition holds for some values but not others ($0 < p_{\mathit{true}} < 1$).
-\end{itemize}
-
-The state alone determines the semantic validation result (Section~\ref{sec:intent-semantics}); $p_{\mathit{true}}$ serves as a downstream quantitative signal used only to rank warnings for presentation.
-Algorithm~\ref{alg:risk-score} transforms $(\mathit{state},\, p_{\mathit{true}})$ together with structural information about the violated region into a risk score on a 0--10 scale, where $0.0$ indicates a fully satisfied condition and $10.0$ indicates a definite violation.
-For warning results, the engine classifies the violation pattern into three risk types based on the structure of the violated region: type~1 (single-direction, minor) maps to scores $0.1$--$3.3$; type~2 (single-direction violation) maps to $3.4$--$6.6$; and type~3 (bidirectional violation or equality operators) maps to $6.7$--$9.9$.
-Within each band, the score is computed as $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that lower $p_{\mathit{true}}$ yields a higher score within the band.
-
-\begin{algorithm}[t]
-\caption{Risk Scoring}
-\label{alg:risk-score}
-\begin{algorithmic}[1]
-\State \textbf{Input:} $(\mathit{state},\, p_{\mathit{true}})$ from Algorithm~\ref{alg:interval-compare}, operator $op$, false-region summary $\mathit{regions}$
-\State \textbf{Output:} $\mathit{risk\_score} \in [0.0, 10.0]$
-\Statex
-\If{$\mathit{state} = \mathit{satisfied}$}
-    \State \Return $0.0$
-\ElsIf{$\mathit{state} = \mathit{violated}$}
-    \State \Return $10.0$
-\EndIf
-\Statex
-\Statex // Warning case: classify and scale within band
-\State $\mathit{risk\_type} \gets ClassifyRisk(\mathit{regions},\, op)$
-\State $(\mathit{base},\, \mathit{span}) \gets BandOf(\mathit{risk\_type})$ \Comment{type~1: $(0.1, 3.2)$; type~2: $(3.4, 3.2)$; type~3: $(6.7, 3.2)$}
-\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$
-\State \Return $\mathit{risk\_score}$
-\end{algorithmic}
-\end{algorithm}
-
-% ── (4) 절 유형 → 구간 비교 입력 매핑 ─────────────────────────
-\smallskip
-\noindent\textbf{Clause-to-Interval Mapping.}
-Table~\ref{tab:interval-mapping} shows how each clause type maps to the interval comparison inputs $L$ and $R$ in Algorithm~\ref{alg:interval-compare}.
-
-\begin{table}[t]
-\centering
-\caption{Mapping of clause types to interval comparison inputs. Here, $\mathit{exp}_1$ and $\mathit{exp}_2$ denote evaluated intent expressions; return value is the value returned by the current return statement; return value$[n]$ is the $n$-th element when the function returns a tuple.}
-\label{tab:interval-mapping}
-\small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcc}
-\toprule
-Clause Type & $L$ & $R$ \\
-\midrule
-var(before op after) & before\_env[var] & after\_env[var] \\
-var(assign op current) & assign\_env[var] & after\_env[var] \\
-func.arg[n] op value & arg[n] & value \\
-\midrule
-var(entry op exit) & entry\_env[var] & exit\_env[var] \\
-\midrule
-returnExpression op value & return value & value \\
-return[n] op value & return value$[n]$ & value \\
-$\mathit{exp}_1$ op $\mathit{exp}_2$ & $\mathit{exp}_1$ & $\mathit{exp}_2$ \\
-\bottomrule
-\end{tabular*}
-\end{table}
-
-% ── (5) 구간 비교 알고리즘 ────────────────────────────────────
 \smallskip
 \noindent\textbf{Interval Comparison Algorithm.}
-Algorithm~\ref{alg:interval-compare} presents the interval comparison procedure.
-Given two integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the algorithm partitions $L$ into three regions under a uniform distribution assumption over both intervals:
+Algorithm~\ref{alg:interval-compare} implements the comparison primitive $\text{Cmp}^*$ of §\ref{sec:intent-semantics} as a closed-form procedure over integer intervals.
+In addition to the semantic state $\mathit{state} \in \{S, V, W\}$ required by $\text{Cmp}^*$, the algorithm computes a true probability $p_{\mathit{true}} \in [0, 1]$ under a uniform distribution over $L \times R$; this quantity is not part of the semantic claim but is consumed downstream by the risk-scoring procedure below.
+
+Given two integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the algorithm partitions $L$ into three disjoint regions:
 \begin{itemize}
     \item $T_s$ (satisfied region): values of $L$ for which $l \mathrel{op} r$ holds for all $r \in R$.
     \item $T_v$ (violated region): values of $L$ for which $l \mathrel{op} r$ fails for all $r \in R$.
@@ -941,43 +809,39 @@ The expected true count $E_w$ is therefore computed in closed form as $E_w = (a 
 For equality and inequality operators ($=$, $\neq$), each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, rather than being a definite match.
 The probability is therefore adjusted by the factor $1/n_R$.
 
-% ── (6) 복합 절과 함의 ───────────────────────────────────────
 \smallskip
-\noindent\textbf{Compound Clauses and Implication.}
-Multiple clauses can be combined using logical operators.
-The engine evaluates each clause independently and combines the three-valued results according to Table~\ref{tab:logic-combination}.
+\noindent\textbf{Risk Scoring.}
+Risk scoring is downstream of the semantic claim: §\ref{sec:intent-semantics} has already fixed the validation outcome in terms of $\mathit{state} \in \{S, V, W\}$, and the additional quantity $p_{\mathit{true}}$ returned by Algorithm~\ref{alg:interval-compare} does not refine that outcome.
+Instead, $p_{\mathit{true}}$ is used only to rank warning results, so that developers encountering many potential violations can triage the most severe first.
 
-\begin{table}[t]
-\centering
-\caption{Three-valued logic combination rules for compound clauses. S\,=\,satisfied, V\,=\,violated, W\,=\,warning.}
-\label{tab:logic-combination}
-\small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c|ccc}
-\toprule
-\&\& & S & V & W \\
-\midrule
-S & S & V & W \\
-V & V & V & V \\
-W & W & V & W \\
-\midrule\midrule
-|| & S & V & W \\
-\midrule
-S & S & S & S \\
-V & S & V & W \\
-W & S & W & W \\
-\midrule\midrule
-=> & S & V & W \\
-\midrule
-S & S & V & W \\
-V & S & S & S \\
-W & W & W & W \\
-\bottomrule
-\end{tabular*}
-\end{table}
+Algorithm~\ref{alg:risk-score} transforms $(\mathit{state},\, p_{\mathit{true}})$ together with structural information about the violated region into a risk score on a 0--10 scale, where $0.0$ indicates a fully satisfied condition and $10.0$ indicates a definite violation.
+For warning results, the engine classifies the violation pattern into three risk types based on the structure of the violated region: type~1 (single-direction, minor) maps to scores $0.1$--$3.3$; type~2 (single-direction violation) maps to $3.4$--$6.6$; and type~3 (bidirectional violation or equality operators) maps to $6.7$--$9.9$.
+Within each band, the score is computed as $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that lower $p_{\mathit{true}}$ yields a higher score within the band.
 
-\subsubsection{Algorithm Verification}\label{sec:alg-verification}
+\begin{algorithm}[t]
+\caption{Risk Scoring}
+\label{alg:risk-score}
+\begin{algorithmic}[1]
+\State \textbf{Input:} $(\mathit{state},\, p_{\mathit{true}})$ from Algorithm~\ref{alg:interval-compare}, operator $op$, false-region summary $\mathit{regions}$
+\State \textbf{Output:} $\mathit{risk\_score} \in [0.0, 10.0]$
+\Statex
+\If{$\mathit{state} = \mathit{satisfied}$}
+    \State \Return $0.0$
+\ElsIf{$\mathit{state} = \mathit{violated}$}
+    \State \Return $10.0$
+\EndIf
+\Statex
+\Statex // Warning case: classify and scale within band
+\State $\mathit{risk\_type} \gets ClassifyRisk(\mathit{regions},\, op)$
+\State $(\mathit{base},\, \mathit{span}) \gets BandOf(\mathit{risk\_type})$ \Comment{type~1: $(0.1, 3.2)$; type~2: $(3.4, 3.2)$; type~3: $(6.7, 3.2)$}
+\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$
+\State \Return $\mathit{risk\_score}$
+\end{algorithmic}
+\end{algorithm}
 
-We establish the correctness of Algorithm~\ref{alg:interval-compare} in two complementary ways: a mathematical soundness proof showing that the closed-form expressions in Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly, and an empirical cross-validation against brute-force ground truth across a comprehensive battery of test cases.
+\subsubsection{Soundness of Interval Comparison}\label{sec:soundness}
+
+We establish the correctness of Algorithm~\ref{alg:interval-compare} through a case-by-case mathematical proof, showing that the closed-form expressions in Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly for every operator and every relative position of two integer intervals.
 
 \smallskip
 \noindent\textbf{Definitions.}
@@ -1000,6 +864,110 @@ T_v &= \{l \in L : l \mathrel{op} r \text{ fails for all } r \in R\}, \\
 T_w &= L \setminus (T_s \cup T_v).
 \end{align*}
 The decomposition is exhaustive: for fixed $l \in L$, the truth value of $l \mathrel{op} r$ is monotonic in $r$, so it is either always true ($l \in T_s$), always false ($l \in T_v$), or transitions exactly once as $r$ ranges over $R$ ($l \in T_w$).
+
+\smallskip
+\noindent\textbf{Case analysis space.}
+The relative position of two integer intervals $L$ and $R$ falls into exactly one of eleven topological configurations, determined by how their endpoints relate.
+We organize them into three groups based on the number of shared endpoints (Figure~\ref{fig:interval-topologies}): (a) no shared endpoints (six configurations covering separation, partial overlap in either direction, and strict containment in either direction), (b) one shared endpoint (four configurations covering left- or right-shared with $L$ or $R$ being the wider interval), and (c) both shared endpoints (the identical case).
+The early-return conditions of Table~\ref{tab:op-formulas} partition these configurations into satisfied, violated, and warning cases per operator; the lemmas below compute $|T_s|$, $|T_v|$, and the contribution from $T_w$ via max-clamped closed forms that handle every configuration uniformly, so the proof below traverses the three cases rather than enumerating all eleven configurations individually.
+
+\begin{figure}[t]
+\centering
+\newcommand{\ivcase}[7]{%
+  \draw[ax] ({#1},{#2}) -- ({#1+11.8},{#2});%
+  \fill[Lb] ({#1+#3},{#2}) rectangle ({#1+#4},{#2-\rh});%
+  \fill[Rb] ({#1+#5},{#2}) rectangle ({#1+#6},{#2-\rh});%
+  \node[el] at ({#1+#3},{#2-\rh-\lp}) {$l_{\min}$};%
+  \node[el] at ({#1+#4},{#2-\rh-\lp}) {$l_{\max}$};%
+  \node[er] at ({#1+#5},{#2+\lp}) {$r_{\min}$};%
+  \node[er] at ({#1+#6},{#2+\lp}) {$r_{\max}$};%
+  \node[lbl] at ({#1-0.5},{#2-\lmid}) {#7};%
+}
+\newcommand{\shrmark}[2]{%
+  \draw[shr] ({#1},{#2-\rh-0.08}) -- ({#1},{#2+0.12});%
+}
+\begin{tikzpicture}[x=0.30cm, y=-0.65cm,
+    Lb/.style={fill=blue!45, fill opacity=0.5,
+               draw=blue!70!black, line width=0.4pt},
+    Rb/.style={fill=red!40, fill opacity=0.5,
+               draw=red!55!black, line width=0.4pt},
+    ax/.style={draw=black!60, line width=0.8pt, ->},
+    lbl/.style={font=\scriptsize, anchor=east},
+    glbl/.style={font=\scriptsize\bfseries, anchor=east},
+    sep/.style={draw=black!20, line width=0.3pt, dashed},
+    shr/.style={dashed, black!50, line width=0.5pt},
+    el/.style={font=\tiny, blue!70!black, anchor=south},
+    er/.style={font=\tiny, red!55!black, anchor=north},
+]
+
+\def\rh{0.32}
+\def\xr{15}
+\def\lp{0.06}
+\def\lmid{0.16}
+
+%%% (a) No shared endpoints %%%
+\node[glbl] at (-2, 1.2) {(a)};
+
+\ivcase{0}{0.6}{0}{4}{7}{11}{1-1}
+\ivcase{\xr}{0.6}{7}{11}{0}{4}{1-2}
+
+\ivcase{0}{1.8}{0}{7}{4}{11}{2-1}
+\ivcase{\xr}{1.8}{4}{11}{0}{7}{2-2}
+
+\ivcase{0}{3.0}{0}{11}{3}{8}{3-1}
+\ivcase{\xr}{3.0}{3}{8}{0}{11}{3-2}
+
+%%% Separator (a)/(b) %%%
+\draw[sep] (-2.5, 3.7) -- (\xr+12, 3.7);
+
+%%% (b) One shared endpoint %%%
+\node[glbl] at (-2, 5.0) {(b)};
+
+\ivcase{0}{4.4}{0}{11}{0}{6}{4-1}
+\shrmark{0}{4.4}
+\ivcase{\xr}{4.4}{0}{6}{0}{11}{4-2}
+\shrmark{\xr}{4.4}
+
+\ivcase{0}{5.6}{0}{11}{5}{11}{5-1}
+\shrmark{11}{5.6}
+\ivcase{\xr}{5.6}{5}{11}{0}{11}{5-2}
+\shrmark{\xr+11}{5.6}
+
+%%% Separator (b)/(c) %%%
+\draw[sep] (-2.5, 6.3) -- (\xr+12, 6.3);
+
+%%% (c) Both shared endpoints %%%
+\node[glbl] at (-2, 7.0) {(c)};
+
+\ivcase{0}{7.0}{0}{11}{0}{11}{6}
+\shrmark{0}{7.0}
+\shrmark{11}{7.0}
+
+%%% Legend %%%
+\pgfmathsetmacro{\ly}{8.2}
+\draw[ax] (0,\ly) -- (2.5,\ly);
+\node[font=\scriptsize, anchor=west] at (2.8, \ly) {$\mathbb{Z}$};
+%
+\fill[Lb] (6,\ly) rectangle (7.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (7.5, \ly-0.11) {$L$};
+%
+\fill[Rb] (10,\ly) rectangle (11.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (11.5, \ly-0.11) {$R$};
+%
+\fill[Lb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\fill[Rb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (16, \ly-0.11) {overlap};
+%
+\draw[shr] (21,{\ly-0.28}) -- (21,{\ly+0.08});
+\node[font=\scriptsize, anchor=west] at (21.5, \ly-0.11) {shared};
+
+\end{tikzpicture}
+\caption{The eleven topological configurations of two integer intervals, grouped by the number of shared endpoints:
+(a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case).
+Overlapping regions appear as blended color;
+dashed vertical lines indicate shared endpoints.}
+\label{fig:interval-topologies}
+\end{figure}
 
 \begin{lemma}[Region sizes for $>$]\label{lem:region-gt}
 For $op = ${} $>$, in the warning case ($l_{\min} \leq r_{\max}$ and $l_{\max} > r_{\min}$),
@@ -1093,150 +1061,11 @@ Compound clauses are built from atomic clauses via the connectives $\wedge$, $\v
 \noindent\textbf{Edge cases.}
 Two boundary conditions deserve mention. (i) Empty intervals. An empty $L$ or $R$ corresponds to an infeasible execution path; the abstract interpreter prunes such branches before invoking Algorithm~\ref{alg:interval-compare}, so the algorithm is never called on empty inputs. (ii) Singleton right interval. When $n_R = 1$, the comparison operators $\{>, \geq, <, \leq\}$ reduce to standard pointwise tests handled by the early returns; the warning region $T_w$ degenerates to at most one element, and Lemma~\ref{lem:tw-gt} continues to hold (the arithmetic series is trivial). The equality operators $\{=, \neq\}$ with $n_R = 1$ are handled by Theorem~\ref{thm:sound-eq}. Together, Theorems~\ref{thm:sound-gt}, \ref{thm:sound-eq}, and~\ref{thm:sound-in}, Corollaries~\ref{cor:sound-other} and~\ref{cor:state-consistency}, and the compositional argument above establish that Algorithm~\ref{alg:interval-compare} computes $p_{\mathit{true}}$ exactly and returns a state matching $\text{Cmp}^*$ for every operator and every well-formed input.
 
-\smallskip
-\noindent\textbf{Empirical cross-validation.}
-To guard against transcription errors and unforeseen edge cases in the formal development above, we additionally verified Algorithm~\ref{alg:interval-compare} on a comprehensive battery of test cases that exhaustively cover the topological configurations of two integer intervals.
-
-\smallskip
-\noindent\textbf{Interval topology.}
-Given two integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$, their relative position falls into exactly one of eleven topological configurations, determined by how the endpoints relate.
-We organize them into three groups based on the number of shared endpoints (Figure~\ref{fig:interval-topologies}): (a) no shared endpoints (six configurations covering separation, partial overlap in either direction, and strict containment in either direction), (b) one shared endpoint (four configurations covering left- or right-shared with $L$ or $R$ being the wider interval), and (c) both shared endpoints (the identical case).
-
-\begin{figure}[t]
-\centering
-\newcommand{\ivcase}[7]{%
-  \draw[ax] ({#1},{#2}) -- ({#1+11.8},{#2});%
-  \fill[Lb] ({#1+#3},{#2}) rectangle ({#1+#4},{#2-\rh});%
-  \fill[Rb] ({#1+#5},{#2}) rectangle ({#1+#6},{#2-\rh});%
-  \node[el] at ({#1+#3},{#2-\rh-\lp}) {$l_{\min}$};%
-  \node[el] at ({#1+#4},{#2-\rh-\lp}) {$l_{\max}$};%
-  \node[er] at ({#1+#5},{#2+\lp}) {$r_{\min}$};%
-  \node[er] at ({#1+#6},{#2+\lp}) {$r_{\max}$};%
-  \node[lbl] at ({#1-0.5},{#2-\lmid}) {#7};%
-}
-\newcommand{\shrmark}[2]{%
-  \draw[shr] ({#1},{#2-\rh-0.08}) -- ({#1},{#2+0.12});%
-}
-\begin{tikzpicture}[x=0.30cm, y=-0.65cm,
-    Lb/.style={fill=blue!45, fill opacity=0.5,
-               draw=blue!70!black, line width=0.4pt},
-    Rb/.style={fill=red!40, fill opacity=0.5,
-               draw=red!55!black, line width=0.4pt},
-    ax/.style={draw=black!60, line width=0.8pt, ->},
-    lbl/.style={font=\scriptsize, anchor=east},
-    glbl/.style={font=\scriptsize\bfseries, anchor=east},
-    sep/.style={draw=black!20, line width=0.3pt, dashed},
-    shr/.style={dashed, black!50, line width=0.5pt},
-    el/.style={font=\tiny, blue!70!black, anchor=south},
-    er/.style={font=\tiny, red!55!black, anchor=north},
-]
-
-\def\rh{0.32}
-\def\xr{15}
-\def\lp{0.06}
-\def\lmid{0.16}
-
-%%% (a) No shared endpoints %%%
-\node[glbl] at (-2, 1.2) {(a)};
-
-\ivcase{0}{0.6}{0}{4}{7}{11}{1-1}
-\ivcase{\xr}{0.6}{7}{11}{0}{4}{1-2}
-
-\ivcase{0}{1.8}{0}{7}{4}{11}{2-1}
-\ivcase{\xr}{1.8}{4}{11}{0}{7}{2-2}
-
-\ivcase{0}{3.0}{0}{11}{3}{8}{3-1}
-\ivcase{\xr}{3.0}{3}{8}{0}{11}{3-2}
-
-%%% Separator (a)/(b) %%%
-\draw[sep] (-2.5, 3.7) -- (\xr+12, 3.7);
-
-%%% (b) One shared endpoint %%%
-\node[glbl] at (-2, 5.0) {(b)};
-
-\ivcase{0}{4.4}{0}{11}{0}{6}{4-1}
-\shrmark{0}{4.4}
-\ivcase{\xr}{4.4}{0}{6}{0}{11}{4-2}
-\shrmark{\xr}{4.4}
-
-\ivcase{0}{5.6}{0}{11}{5}{11}{5-1}
-\shrmark{11}{5.6}
-\ivcase{\xr}{5.6}{5}{11}{0}{11}{5-2}
-\shrmark{\xr+11}{5.6}
-
-%%% Separator (b)/(c) %%%
-\draw[sep] (-2.5, 6.3) -- (\xr+12, 6.3);
-
-%%% (c) Both shared endpoints %%%
-\node[glbl] at (-2, 7.0) {(c)};
-
-\ivcase{0}{7.0}{0}{11}{0}{11}{6}
-\shrmark{0}{7.0}
-\shrmark{11}{7.0}
-
-%%% Legend %%%
-\pgfmathsetmacro{\ly}{8.2}
-\draw[ax] (0,\ly) -- (2.5,\ly);
-\node[font=\scriptsize, anchor=west] at (2.8, \ly) {$\mathbb{Z}$};
-%
-\fill[Lb] (6,\ly) rectangle (7.2,{\ly-0.22});
-\node[font=\scriptsize, anchor=west] at (7.5, \ly-0.11) {$L$};
-%
-\fill[Rb] (10,\ly) rectangle (11.2,{\ly-0.22});
-\node[font=\scriptsize, anchor=west] at (11.5, \ly-0.11) {$R$};
-%
-\fill[Lb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
-\fill[Rb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
-\node[font=\scriptsize, anchor=west] at (16, \ly-0.11) {overlap};
-%
-\draw[shr] (21,{\ly-0.28}) -- (21,{\ly+0.08});
-\node[font=\scriptsize, anchor=west] at (21.5, \ly-0.11) {shared};
-
-\end{tikzpicture}
-\caption{Eleven topological configurations of two integer intervals,
-grouped by the number of shared endpoints:
-(a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case).
-Overlapping regions appear as blended color;
-dashed vertical lines indicate shared endpoints.}
-\label{fig:interval-topologies}
-\end{figure}
-
-\smallskip
-\noindent\textbf{Verification method.}
-For each of the eleven topological configurations, we generate five width profiles that systematically vary the interval sizes: Small (width 1--3), Medium (5--10), Large (20--50), Asymmetric-L ($|L| \gg |R|$), and Asymmetric-R ($|R| \gg |L|$).
-Each configuration--profile pair is tested against all eight comparison operators ($>$, $\geq$, $<$, $\leq$, $=$, $\neq$, in, not\,in), yielding $11 \times 5 \times 8 = 440$ test cases.
-For every test case, we compute the ground-truth probability $p_{\mathit{bf}}$ by exhaustively enumerating all $(l, r)$ integer pairs under a uniform distribution and compare it against the value $p_{\mathit{func}}$ returned by Algorithm~\ref{alg:interval-compare}.
-A test passes when $|p_{\mathit{bf}} - p_{\mathit{func}}| < 0.001$.
-
-\smallskip
-\noindent\textbf{Result.}
-All 440 test cases pass with an exact match between the brute-force ground truth and the algorithm output (Table~\ref{tab:rq1-results}).
-The 100\% pass rate across all configurations and width profiles cross-validates the soundness proof above, confirming that the closed-form expressions of Table~\ref{tab:op-formulas} indeed compute $p_{\mathit{true}}$ for every possible relative position of two integer intervals, independent of their absolute sizes.
-
-\begin{table}[t]
-\centering
-\caption{Brute-force verification results, grouped by topological category. Each category aggregates its constituent configurations across 5 width profiles $\times$ 8 operators per configuration.}
-\label{tab:rq1-results}
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l rrr @{}}
-\toprule
-\textbf{Topology category} & \textbf{Tests} & \textbf{Pass} & \textbf{Fail} \\
-\midrule
-(a) No shared endpoints (6 configurations) & 240 & 240 & 0 \\
-(b) One shared endpoint (4 configurations) & 160 & 160 & 0 \\
-(c) Both shared endpoints (1 configuration) &  40 &  40 & 0 \\
-\midrule
-\textbf{Total} & \textbf{440} & \textbf{440} & \textbf{0} \\
-\bottomrule
-\end{tabular*}
-\end{table}
-
-This completes the design and verification of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
+This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
 
 \section{Evaluation}\label{sec:evaluation}
 
-The validation algorithm itself was already verified in §\ref{sec:alg-verification}, where we proved that the closed-form expressions of Table~\ref{tab:op-formulas} compute $p_{\mathit{true}}$ exactly and cross-validated this proof against brute-force ground truth across every topological configuration of two integer intervals.
-The remaining questions concern IntentChecker's behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools.
-We address these questions through the following three RQs:
+We evaluate IntentChecker through three research questions that probe its empirical behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools:
 
 \begin{itemize}
     \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can IntentChecker surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded Violated/Warning signal? For instances that the tool cannot handle, what is the structural reason, and how does this distribute across the limitation types defined in our taxonomy?
@@ -1252,8 +1081,8 @@ We construct a benchmark of 89 real-world numeric logic error instances drawn fr
 NumScout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
 We use the 95-sample subset distributed in NumScout's official repository (Experiment/95\_Samples\_Run), which the authors identify as their main case-level evaluation set.
 We select one representative instance per pattern from the six numerical defect patterns enumerated in NumScout (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, and Profit Opportunity), with two instances for Precision Loss Trend, yielding seven cases.
-We target contracts with compiler pragma >=0.6---the minimum version supported by IntentChecker's Solidity front-end.
-One selected contract carries an older 0.4.x pragma but uses only language constructs that are semantically identical under >=0.6 (no checked-arithmetic difference, no breaking syntax change in the analyzed function); we treat it as compatible with the supported subset.
+We target contracts with compiler pragma $\geq$0.6---the minimum version supported by IntentChecker's Solidity front-end.
+One selected contract carries an older 0.4.x pragma but uses only language constructs that are semantically identical under $\geq$0.6 (no checked-arithmetic difference, no breaking syntax change in the analyzed function); we treat it as compatible with the supported subset.
 
 \smallskip\noindent\textbf{Flyinointment (1 instance).}
 We additionally include one Greedy Contract instance from the dataset of \citet{flyinointment}, which originally introduced the Greedy Contract pattern and is referenced in §\ref{sec:background}.1.
@@ -1580,11 +1409,11 @@ We illustrate one case from each tier to show the qualitative difference in sign
 
 \noindent Inexpressible (L4a) --- web3bugs\_51\_H\_04 (SwapUtils.getYC). The bug is that when a swap crosses a target price, the StableSwap formula switches its amplifier coefficient mid-trade; the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. Constructing this requires computing a split point $dx_1$ that does not appear anywhere in the program and that is not expressible as a closed-form arithmetic combination of in-scope variables (it is the solution to a Newton-method equation). No intentValue expression can capture the correct getY return, so the annotation grammar's intentValue == arithExpr form is unusable here.
 
-\noindent Expressible-Strong (L5b) --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is require(params.ltvBPS >= accepted.ltvBPS, ...); the correct comparison is <= (a lender wants the borrower's LTV to be at most their accepted ceiling). Under bug awareness, the annotation is direct:
+\noindent Expressible-Strong (L5b) --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is require(params.ltvBPS $\geq$ accepted.ltvBPS, ...); the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most their accepted ceiling). Under bug awareness, the annotation is direct:
 \begin{verbatim}
 // @During params.ltvBPS <= accepted.ltvBPS
 \end{verbatim}
-The buggy code admits inputs with params.ltvBPS > accepted.ltvBPS, which violate the annotation cleanly. The annotation is essentially the corrective require.
+The buggy code admits inputs with params.ltvBPS $>$ accepted.ltvBPS, which violate the annotation cleanly. The annotation is essentially the corrective require.
 
 \noindent Expressible-Weak (L5a) --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs transferFrom for an additional \_amount but forgets to update the internal accounting variable totalLocked[\_asset]. Under bug awareness, the developer can write
 \begin{verbatim}
@@ -1809,7 +1638,7 @@ Extending the Yul visitor to handle memory and storage opcodes and the abstract 
 
 \smallskip
 \noindent\textbf{Soundness bounded by debug annotation scope.}
-IntentChecker's analysis is sound within the ranges declared by debug annotations: when the validation engine reports Satisfied, the declared intent provably holds for every combination of values in those ranges---this follows from the set-theoretic definition of the comparison primitive (§\ref{sec:intent-semantics}) and the soundness results of §\ref{sec:alg-verification} applied pointwise to each clause.
+IntentChecker's analysis is sound within the ranges declared by debug annotations: when the validation engine reports Satisfied, the declared intent provably holds for every combination of values in those ranges---this follows from the set-theoretic definition of the comparison primitive (§\ref{sec:intent-semantics}) and the soundness results of §\ref{sec:soundness} applied pointwise to each clause.
 The guarantee does not extend outside those ranges.
 A bug that only manifests at the boundary of a parameter's representable values, but not in the range the developer chose for @LocalVar, will not appear in any verdict.
 This is an inherent characteristic of debugging tools---traditional debuggers also only execute the inputs the developer provides---and we encourage developers to use representative ranges and to iteratively refine them when Warning results draw attention to specific sub-intervals.
@@ -1833,20 +1662,20 @@ We distill three non-obvious guidelines from this observation.
 \noindent\textbf{Guideline 1: Enumerate all state variables a function should affect, not just those it does affect.}
 Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
 Bugs of omission (L5a, 7 cases) arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
-After writing a function, the developer should list every state variable whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,<\,Exit) or @Post changed(var, true)) for each.
+After writing a function, the developer should list every state variable whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
 In our data, this single practice---checking what should change rather than what does change---would have caught 7 of the 14 L5 expressible cases and 5 of the 8 mitigated @Post cases, all without requiring any knowledge of the specific bug.
 
 \smallskip
 \noindent\textbf{Guideline 2: When two state variables should move together, annotate their relationship, not each one in isolation.}
 Several benchmark cases involve accounting pairs (e.g., a per-user balance and a global total, a deposit ledger and a reward tracker) that should stay in sync.
-Annotating each variable independently catches only missing-update bugs; annotating their relationship (e.g., @Post globalTotal(Entry\,-\,Exit) >= userBalance(Entry\,-\,Exit)) catches bugs where both variables are updated but by inconsistent amounts.
+Annotating each variable independently catches only missing-update bugs; annotating their relationship (e.g., @Post globalTotal(Entry\,-\,Exit) $\geq$ userBalance(Entry\,-\,Exit)) catches bugs where both variables are updated but by inconsistent amounts.
 This pattern recurs in 4 of the 20 mitigated cases (all Erroneous Accounting) and is the dominant form in L4d (invariant-masked), where independent annotations on each variable succeed but the cross-variable invariant fails.
 
 \smallskip
 \noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
 Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
 Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
-Writing the intent annotation in the ideal form---@During result >= amount * 5 / 12---causes IntentChecker to compare the truncated code path against the non-truncated reference, surfacing the discrepancy automatically.
+Writing the intent annotation in the ideal form---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the truncated code path against the non-truncated reference, surfacing the discrepancy automatically.
 This pattern accounts for 7 of the 20 mitigated cases (Div In Path, Operator Order Issue, Exchange Problem, and Precision Loss Trend), all of which were caught by annotations that express the mathematically correct expression rather than restating what the code already does.
 
 \section{Related Works}\label{sec:related}
@@ -1930,7 +1759,7 @@ IntentChecker also extends SolQDebug's analysis scope beyond a single contract t
 
 \section{Conclusion}\label{sec:conclusion}
 
-We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each clause to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics and cross-validated against brute-force ground truth, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
+We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each clause to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
 On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated verdicts at interactive speeds (mean 3.69\,s per case).
 RQ2's expressibility analysis showed that 14 of the 34 intent-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the intent model.
