@@ -406,7 +406,7 @@ Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChec
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figure/architecture_drawio.png}
-    \caption{System architecture of IntentChecker. Phases~1--2 (Parsing and Analysis Modules) are reused from SolQDebug; Phase~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}
+    \caption{System architecture of IntentChecker. Phases~1--2 (Parsing and Analysis Modules) are reused and extended from SolQDebug; Phase~3 (Validation Module) is the core contribution of this work. The Validation Engine receives parsed intent clauses from the Parsing Module and computed intervals from the Analysis Module.}
     \label{fig:architecture}
 \end{figure}
 
@@ -414,10 +414,11 @@ Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChec
 \noindent\textbf{Input.}
 IntentChecker receives three types of input:
 \begin{itemize}
-    \item \textbf{Statement}---individual Solidity statements provided incrementally as the developer writes code.
+    \item \textbf{Source Fragment}---Solidity source fragments (block or statement) provided incrementally as the developer writes code, as introduced in §\ref{sec:prelim:foundations}.
     \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives that provide concrete or symbolic value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(b) for interface call return values.
+    \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(b) for interface call return values.
 \end{itemize}
+In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file, as described under Internal Modules below.
 
 \smallskip
 \noindent\textbf{Output.}
@@ -430,15 +431,16 @@ For each intent annotation, IntentChecker produces:
 
 \smallskip
 \noindent\textbf{Internal Modules.}
-The system builds upon SolQDebug~\citep{solqdebug}, whose Parsing Module, Analysis Module, and Snapshot Manager are reused as the basis for IntentChecker's extended analysis.
+IntentChecker extends SolQDebug's Parsing Module and Analysis Module to accommodate the new annotation and scope of §\ref{sec:prelim:extension}, and reuses its Snapshot Manager unchanged.
 The Parsing Module uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and delegates to the official Solidity compiler for semantic validation.
 The Analysis Module performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed, and handles the multi-contract scope extensions (inheritance, library resolution via using, interface-typed variables, and the arithmetic Yul subset) described in §\ref{sec:prelim:extension}.
-For every library and interface referenced from the target source file, the Analysis Module either loads a pre-analyzed Dependency CFG---a serialized LibraryCFG or ContractCFG object produced once and cached---or constructs one on-the-fly when the source is locally available.
-When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterwards; this mechanism is reused without modification for the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
+For the referenced libraries and interfaces mentioned under Input, the Analysis Module either loads a pre-analyzed Dependency CFG produced once and cached, or constructs one on-the-fly when the source is locally available.
+When a debug annotation is received, the Snapshot Manager preserves the current analysis state, allowing the system to apply temporary variable bindings, re-analyze affected code paths, and restore the original state afterwards.
+The same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
 
 The Validation Engine (Phase~3) is IntentChecker's core contribution on top of this extended analyzer.
-It receives two inputs from the earlier phases: parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
-For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the validation result, risk score, and violated regions as described above.
+It draws on two signals from the earlier phases---parsed intent clauses from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point.
+For each clause, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
 
 \subsection{Motivating Examples}
 
