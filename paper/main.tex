@@ -299,13 +299,13 @@ For these two components to operate on realistic DeFi code, we additionally exte
 This design positions IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
 The next section reviews the SolQDebug foundation on which IntentChecker is built.
 
-\section{Preliminaries: SolQDebug Foundations and Scope Extension}\label{sec:prelim}
+\section{SolQDebug and its Scope Extension}\label{sec:prelim}
 
 This section presents the analysis foundation that IntentChecker's intent validation builds upon: a development-time pipeline producing the interval-domain abstract states that the validation engine consumes.
 §\ref{sec:prelim:foundations} reviews the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on, and §\ref{sec:prelim:extension} introduces the scope extensions we add for multi-contract single-transaction analysis.
 Readers familiar with SolQDebug may skip §\ref{sec:prelim:foundations} and proceed directly to §\ref{sec:prelim:extension}.
 
-\subsection{SolQDebug Foundations}\label{sec:prelim:foundations}
+\subsection{SolQDebug}\label{sec:prelim:foundations}
 
 SolQDebug is a development-time debugging assistant for Solidity that provides statement-level feedback through interval-domain abstract interpretation.
 It addresses two forms of inefficiency in traditional Solidity debugging: the temporal cost of the compile--deploy--setup--trace cycle in tools such as Remix IDE, and the iterative cost imposed by the non-reversible state model of the EVM.
@@ -348,6 +348,7 @@ For the debug annotations the developer placed on the target contract's state va
 This holds for inherited parents, whose state variables are compiled into the target's own storage layout, and for libraries invoked via delegatecall, which run under the target's address;
 we call this collection---target contract, inherited parents, and storage-sharing libraries---the target's deployment unit, and IntentChecker treats all of it as in-scope.
 External contracts---separately deployed contracts invoked through an address or an interface-typed variable---are out of this deployment unit by default, because their storage sits at a different address that the target's debug annotations cannot reach.
+This default, however, leaves the analyzer unable to reason about the many DeFi functions that depend on external oracle queries or token balance lookups.
 Extension (b) below describes how @IReturn allows a restricted form of data injection across this deployment boundary for view and pure interface calls.
 
 \smallskip
@@ -355,121 +356,47 @@ Extension (b) below describes how @IReturn allows a restricted form of data inje
 Interface-typed variables (e.g., IOracle oracle) present a structural problem that debug annotations on state or local variables cannot solve: the implementation code behind the interface is not present in the source file at all, so SolQDebug's abstract interpreter must return $\top$ for any value derived from an interface call.
 This $\top$ then propagates into every downstream computation, defeating the purpose of intent validation for any function that reads an oracle or queries an external token contract.
 
-Our observation is that this situation is semantically identical to the cases that @GlobalVar, @StateVar, and @LocalVar already handle.
-In all three cases, the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view---@GlobalVar for transaction and block context values, @StateVar for storage values left by prior transactions, and @LocalVar for function parameters supplied by the caller.
+Our observation is that this situation is semantically identical to what the three existing debug annotations already handle.
+In all three cases, the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view.
 An interface call's return value is a fourth instance of the same pattern and admits the same mechanism, with the developer supplying a bounded range and the analyzer proceeding under it.
 This matches the philosophy of debugging that SolQDebug embodies, where the developer supplies the inputs defining the scenario to inspect and the analyzer reports how the function behaves under them.
-An interface return value is simply another such input; it only happens to be encountered mid-function when control reaches the call site, rather than at function entry from transaction context, a storage slot, or a function parameter.
 
-We formalize this intuition as @IReturn, a new debug annotation that lets the developer bind a range to the return value of a specific interface function.
+Interface calls differ from the other three inputs in one important way---they may modify the external contract's state.
+The analyzer cannot see the interface's implementation, so it cannot model any such effect; it can only substitute the developer's range as the return value.
+A state-modifying interface call would, in general, mutate the callee's storage, and allowing injection on such calls would let the developer specify the return value but silently omit that side effect, producing a model that does not correspond to any real execution.
+We therefore restrict this injection to view and pure interface functions, which Solidity explicitly marks as having no state-modifying side effects, making the developer-supplied range a complete description of the call's observable behavior.
+
+We formalize this intuition as @IReturn, a new debug annotation that lets the developer bind a range to the return value of a view or pure interface function.
 Two surface syntaxes are supported:
 \begin{itemize}
     \item \textbf{Pattern A (variable-qualified).}
-    // @IReturn oracle.getPrice() = [1000, 2000] binds the return value of getPrice on an interface-typed variable (oracle must be declared as some interface type).
+    // @IReturn pool.getPrincipal() = [0, 0] binds the return value of getPrincipal on an interface-typed variable (pool must be declared as some interface type).
     \item \textbf{Pattern B (explicit cast).}
-    // @IReturn IOracle(oracleAddr).getPrice() = [1000, 2000] binds the return value of getPrice when the call is written as an explicit cast of an address variable to an interface type.
+    // @IReturn IERC20(token).balanceOf() = [200, 200] binds the return value of balanceOf when the call is written as an explicit cast of an address variable to an interface type.
 \end{itemize}
-Both patterns may target structured return values, including struct members (...getReserves().reserve0) and tuple elements (...getPair()[0]), which we represent as an access chain so that a single return value can be partially specified and partially left as $\top$.
-
-\smallskip
-\noindent View/pure restriction.
-@IReturn is restricted to view and pure interface functions.
-The reason is that a state-modifying interface call would, in general, alter the state of the external contract whose implementation we do not have, and IntentChecker has no principled way to model the resulting storage mutation in the external deployment unit.
-Allowing @IReturn on state-modifying calls would let the developer specify the return value but silently omit any side effect, producing a model that does not correspond to any real execution.
-Restricting @IReturn to view/pure functions avoids this unsoundness: by definition, a view or pure call has no side effects, so binding its return value is a complete description of its observable behavior.
-
-\smallskip
-\noindent Registration.
-Algorithm~\ref{alg:process-ireturn} describes how an @IReturn annotation is validated and registered.
-Like @GlobalVar, @StateVar, and @LocalVar, @IReturn annotations are processed as part of the batch annotation phase: the developer writes all debug annotations, and the analyzer then interprets the target function from its start block with all registered values in effect.
-The key difference is the view/pure check (line~4): if the target function is state-modifying, registration is rejected with a diagnostic, preventing the unsound model described above.
-
-\begin{algorithm}[t]
-\caption{ProcessIReturn: Annotation Registration}
-\label{alg:process-ireturn}
-\begin{algorithmic}[1]
-\State \textbf{Input:} annotation $\mathit{contractVar}.\mathit{func}(\,).\mathit{chain} = \mathit{value}$
-\State \textbf{Output:} updated IReturn registry $\mathcal{R}$, or error
-\Statex
-\State $I \gets$ resolve $\mathit{contractVar}$ to its declared interface type
-\If{$I$ is undefined} \Return Error(``not an interface variable'') \EndIf
-\State $f \gets$ look up $\mathit{func}$ in interface $I$
-\If{$f$ is undefined} \Return Error(``function not in interface'') \EndIf
-\If{$f$ is not view or pure}
-    \State \Return Error(``@IReturn restricted to view/pure'')
-\EndIf
-\State $\mathcal{R}[(\mathit{contractVar},\; \mathit{func},\; \mathit{chain})] \gets \mathit{value}$
-\end{algorithmic}
-\end{algorithm}
-
-\smallskip
-\noindent Resolution at call sites.
-When the abstract interpreter encounters an interface function call during analysis, it must decide whether to return $\top$ (no information) or a developer-specified value.
-Algorithm~\ref{alg:resolve-ireturn} describes the resolution procedure.
-The registered entries from Algorithm~\ref{alg:process-ireturn} are looked up as a short-circuit check before the interpreter would otherwise default to $\top$.
-Two surface patterns are tried in order: Pattern~A matches by the variable name that holds the interface reference (e.g., oracle.getPrice()), and Pattern~B matches by the explicit interface cast (e.g., IOracle(addr).getPrice()).
-If a match is found, the registered value is assembled---potentially following an access chain for struct members or tuple indices---and returned immediately, preventing $\top$ from propagating into downstream computations.
-
-\begin{algorithm}[t]
-\caption{ResolveIReturn: Interface Call Value Resolution}
-\label{alg:resolve-ireturn}
-\begin{algorithmic}[1]
-\State \textbf{Input:} interface call expression $e = \mathit{base}.\mathit{func}(\ldots)$, IReturn registry $\mathcal{R}$
-\State \textbf{Output:} resolved value or $\top$
-\Statex
-\Statex // Pattern A: variable-qualified (e.g., oracle.getPrice())
-\If{$\mathit{base}$ is an identifier with interface type $I$}
-    \State $\mathit{entries} \gets \{c \mapsto v \mid (\mathit{base}, \mathit{func}, c) \mapsto v \in \mathcal{R}\}$
-    \If{$\mathit{entries} \neq \emptyset$}
-        \State \Return \Call{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
-    \EndIf
-\EndIf
-\Statex
-\Statex // Pattern B: explicit cast (e.g., IERC20(addr).balanceOf())
-\If{$\mathit{base}$ is a cast $I(\mathit{addr})$}
-    \State $\mathit{entries} \gets \{c \mapsto v \mid (I, \mathit{addr}, \mathit{func}, c) \mapsto v \in \mathcal{R}\}$
-    \If{$\mathit{entries} \neq \emptyset$}
-        \State \Return \Call{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
-    \EndIf
-\EndIf
-\Statex
-\State \Return $\top$ \Comment{no registry match; fall back to default}
-\Statex
-\Function{Assemble}{$I$, $\mathit{func}$, $\mathit{entries}$}
-    \If{$\mathit{entries}$ contains only the empty chain $()$}
-        \State \Return $\mathit{entries}[()]$ \Comment{single scalar return}
-    \EndIf
-    \State $\mathit{retType} \gets$ load return type schema of $I.\mathit{func}$ from interface CFG
-    \State $\mathit{val} \gets \top_{\mathit{retType}}$ \Comment{initialize with $\top$ of the declared type}
-    \ForAll{$(c, v) \in \mathit{entries}$}
-        \State set $\mathit{val}$ at access chain $c$ to $v$ \Comment{struct member or tuple index}
-    \EndFor
-    \State \Return $\mathit{val}$
-\EndFunction
-\end{algorithmic}
-\end{algorithm}
+Both patterns may target structured return values through an access chain, including struct members (vault.delayedStrategyParams().performanceFee) and chained interface calls (engine.mochiProfile().maxCollateralFactor()), so that a single return value can be partially specified and partially left as $\top$.
 
 \smallskip
 \noindent\textbf{(c) Arithmetic-focused inline assembly support.}
-Solidity's inline assembly (assembly \{ ... \}) is written in Yul and frequently appears in arithmetic-heavy code, particularly in high-precision fixed-point libraries such as FullMath or ABDKMath.
+Solidity's inline assembly (assembly \{ ... \}) is written in Yul and frequently appears in arithmetic-heavy code, particularly in high-precision libraries such as FullMath or ABDKMath.
 SolQDebug originally treated any inline assembly block as a single opaque region, leaving all affected variables at $\top$.
-IntentChecker implements a dedicated Yul visitor that recognizes the subset of Yul used for arithmetic computation and translates it into the same expression IR used by the rest of the analyzer.
+IntentChecker implements a dedicated Yul visitor that recognizes the subset of Yul used for arithmetic computation and translates it into the same expression representation used by the rest of the analyzer.
 Concretely, the visitor supports variable declarations (let x := expr) and assignments (var := expr) inside a yulBlock, and maps the following Yul built-ins to their Solidity operator counterparts:
-arithmetic add, sub, mul, div/sdiv, mod/smod, exp;
-comparison lt/gt/slt/sgt/eq;
-bitwise and, or, xor;
-shifts shl, shr, sar;
-the unary not and iszero;
-and the three-argument mulmod and addmod, which are expanded into the corresponding Solidity expressions $(a \cdot b) \bmod n$ and $(a + b) \bmod n$.
+\begin{itemize}
+    \item \textbf{Arithmetic}: add, sub, mul, div/sdiv, mod/smod, exp.
+    \item \textbf{Comparison}: lt/gt/slt/sgt/eq.
+    \item \textbf{Bitwise}: and, or, xor.
+    \item \textbf{Shifts}: shl, shr, sar.
+    \item \textbf{Unary}: not, iszero.
+    \item \textbf{Three-argument modular}: mulmod and addmod, which are expanded into $(a \cdot b) \bmod n$ and $(a + b) \bmod n$, respectively.
+\end{itemize}
 This coverage captures the arithmetic that high-precision libraries typically express in Yul to bypass Solidity's overflow checks, while avoiding the control-flow and memory features (if, for, switch, mload/mstore, sload/sstore) whose abstract semantics would require separate engineering beyond the scope of this paper.
 Yul built-ins outside the supported subset (e.g., keccak256, call, log0) are handled conservatively by leaving their results at $\top$, preserving soundness.
-Section~\ref{sec:discussion} discusses why we chose this particular subset and what the remaining unsupported features mean for the analysis.
 
 \smallskip
 \noindent\textbf{Summary.}
-Taken together, these three extensions transform SolQDebug's single-contract single-transaction sandbox into an analysis scope that covers the ways modern Solidity contracts are actually structured: multiple contracts per source file, library-mediated arithmetic, oracle-style interface calls, and hand-written Yul for performance-critical fixed-point math.
-All extensions preserve SolQDebug's ``range in, range out'' character; none of them introduce a notion of correctness on their own.
-Building the intent validation layer on top of this extended analyzer is the subject of the next section.
+Taken together, these three extensions broaden SolQDebug's single-contract single-transaction scope to cover the ways modern Solidity contracts are actually structured: multiple contracts per source file, library-mediated arithmetic, oracle-style interface calls, and hand-written Yul for performance-critical arithmetic.
+All extensions preserve SolQDebug's ``range in, range out'' character, so the intent validation layer built on top of this extended analyzer is the subject of the next section.
 
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
@@ -489,7 +416,7 @@ IntentChecker receives three types of input:
 \begin{itemize}
     \item \textbf{Statement}---individual Solidity statements provided incrementally as the developer writes code.
     \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives that provide concrete or symbolic value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (constructor-initialized storage variables), @StateVar (storage variables modified at runtime), and @LocalVar (function parameters and local variables), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(c) for interface call return values.
+    \item \textbf{Debug Annotation}---variable initialization directives that provide concrete or symbolic value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(b) for interface call return values.
 \end{itemize}
 
 \smallskip
@@ -584,7 +511,7 @@ function mint(address to, uint256 amount)
 \end{lstlisting}
 
 The @Post \_balances[to] <= amount annotation expresses the invariant that no user should receive more shares than the tokens they deposited.
-The @IReturn debug annotation injects a concrete balance (1500\,e18) for the external balanceOf call, which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(c)).
+The @IReturn debug annotation injects a concrete balance (1500\,e18) for the external balanceOf call, which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(b)).
 With these annotations, IntentChecker computes the proxy amount and finds that it exceeds amount, reporting Violated.
 This example demonstrates how @IReturn enables intent validation for functions that depend on external contract state.
 
@@ -1872,7 +1799,7 @@ This is a known boundary of the development-time intent validation approach we h
 
 \smallskip
 \noindent\textbf{Non-arithmetic Yul and other unsupported Solidity constructs.}
-The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(d) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
+The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(c) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
 However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
 The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, address(this).balance (whose value depends on the EVM-level execution context rather than on tracked state), and other built-ins whose results depend on opaque cryptographic or VM-level operations.
 Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Figure~\ref{fig:rq1-limitations}).
