@@ -281,7 +281,6 @@ debugLocalVar
 debugIReturn
     : '//' '@IReturn' identifier '.' identifier '(' ')' ireturnAccessChain? '=' debugValue        # IReturnPatternA
     | '//' '@IReturn' identifier '(' identifier ')' '.' identifier '(' ')' ireturnAccessChain? '=' debugValue   # IReturnPatternB
-    | '//' '@IReturn' identifier '(' ')' ireturnAccessChain? '=' debugValue                       # IReturnPatternC
     ;
 
 ireturnAccessChain
