@@ -772,19 +772,47 @@ Because $\Pi$ is populated differently for @During (states from entry up to the 
 
 \subsubsection{Auxiliary Outputs: Violated Region and Risk Score}\label{sec:validation-engine}
 
+\begin{algorithm}[!t]
+\caption{Auxiliary Outputs Computation for $\text{Cmp}^*$-based Annotations}
+\label{alg:risk-score}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Intervals $L$, $R$, operator $op$, state $j \in \mathbb{J}$
+\State \textbf{Output:} $(\mathit{risk\_score},\; \mathit{regions})$ with $\mathit{risk\_score} \in [0.0, 10.0]$ and $\mathit{regions} = (L_{\mathit{lower}}, L_{\mathit{upper}}, L_{\mathit{overlap}})$
+\Statex
+\Statex \textit{// Step 1: Region partitioning (Table~\ref{tab:op-formulas}; sizes used by $p_{\mathit{true}}$)}
+\State $(|T_s|, |T_v|, |T_w|) \gets \mathit{RegionSizes}(L, R, op)$
+\Statex
+\Statex \textit{// Step 2: Violated-region extraction (Table~\ref{tab:false-regions})}
+\State $\mathit{regions} \gets \mathit{ExtractViolatedRegion}(L, R, op)$
+\Statex
+\Statex \textit{// Step 3: Risk-score composition}
+\If{$j = \mathit{satisfied}$}
+    \State \Return $(0.0,\; \mathit{regions})$
+\ElsIf{$j = \mathit{violated}$}
+    \State \Return $(10.0,\; \mathit{regions})$
+\EndIf
+\Statex \textit{// Warning case: classify and scale within band}
+\State $p \gets p_{\mathit{true}}(L, R, op)$ \Comment{closed form over Step~1 sizes}
+\State $\mathit{risk\_type} \gets \mathit{ClassifyRisk}(\mathit{regions},\, op)$
+\State $(\mathit{base},\, \mathit{span}) \gets \mathit{BandOf}(\mathit{risk\_type})$ \Comment{type~1: $(0.1, 3.2)$; type~2: $(3.4, 3.2)$; type~3: $(6.7, 3.2)$}
+\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p) \times \mathit{span}$
+\State \Return $(\mathit{risk\_score},\; \mathit{regions})$
+\end{algorithmic}
+\end{algorithm}
+
 This subsection presents the executable procedures that accompany the semantic realisation of §\ref{sec:intent-semantics}, producing two auxiliary outputs derived from the same interval analysis that drives $\text{Cmp}^*$:
 \begin{itemize}
-    \item the \textbf{violated region} --- sub-intervals of the input range $L$ that witness the failure of the comparison;
-    \item the \textbf{risk score} on a 0--10 scale, combining state, a true-probability quantity, and the shape of the violated region.
+    \item \textbf{violated region} --- sub-intervals of the input range $L$ that witness the failure of the comparison;
+    \item \textbf{risk score} --- a value on a 0--10 scale combining the state, the true probability, and the shape of the violated region.
 \end{itemize}
 
 Both outputs are downstream of the semantic claim and do not refine the judgment $j \in \mathbb{J}$; they support warning ranking and developer feedback.
 An internal probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ --- the chance that the comparison holds under a uniform distribution over $L \times R$ --- mediates the risk-score computation but is not surfaced separately.
 $\text{Impl}^*$ and $\text{Feasible}^*$ are directly computable from their definitions and need no dedicated algorithm, and the change-detection form iterates $\Pi$ directly.
-The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed in three steps---region-size accounting, violated sub-interval extraction, and risk-score composition---each developed in turn below.
+The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed by Algorithm~\ref{alg:risk-score} in three steps---region partitioning, violated-region extraction, and risk-score composition---each elaborated in turn below.
 
 \smallskip
-\noindent\textbf{Region partition.}
+\noindent\textbf{Step 1: Region partitioning.}
 Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the interpreter partitions $L$ into three disjoint regions:
 \begin{itemize}
     \item $T_s$ (satisfied region): values of $L$ for which $l \mathrel{op} r$ holds for all $r \in R$;
@@ -818,29 +846,8 @@ not\,in & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \c
 \end{table}
 
 \smallskip
-\noindent\textbf{True probability.}
-The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes of Table~\ref{tab:op-formulas}:
-\[
-p_{\mathit{true}}(L, R, op) \;=\;
-\begin{cases}
-|T_s| / n_L & \text{if } op \in \{\text{in}, \text{not\,in}\}, \\[3pt]
-|T_s| / (n_L \cdot n_R) & \text{if } op = \mathord{=} \text{ and } n_R > 1, \\[3pt]
-1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \mathord{\neq} \text{ and } n_R > 1, \\[3pt]
-\bigl(|T_s| + E_w\bigr) / n_L & \text{otherwise.}
-\end{cases}
-\]
-For the comparison operators ($>$, $\geq$, $<$, $\leq$), the warning region $T_w$ is exactly the range of $L$-values whose outcome depends on $R$.
-Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across the warning region, so
-\[
-E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
-\]
-where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
-For $=$ and $\neq$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so the count is scaled by $1/n_R$; when $n_R = 1$ the comparison degenerates to pointwise evaluation and the general case applies with $E_w = 0$.
-This closed-form definition of $p_{\mathit{true}}$ is proved exact in §\ref{sec:soundness}.
-
-\smallskip
-\noindent\textbf{Violated region.}
-Beyond the scalar $p_{\mathit{true}}$, the interpreter extracts the violated region of $L$: sub-intervals of $L$ that witness failure.
+\noindent\textbf{Step 2: Violated-region extraction.}
+The interpreter also extracts the violated region of $L$: sub-intervals of $L$ that witness failure.
 Table~\ref{tab:false-regions} decomposes $L$ into three directional components per operator:
 \begin{itemize}
     \item $L_{\mathit{lower}}$ --- values of $L$ that fall below the acceptable range of $R$;
@@ -874,9 +881,30 @@ $\neq$ & ---                                            & ---                   
 \end{table}
 
 \smallskip
-\noindent\textbf{Risk score.}
-Algorithm~\ref{alg:risk-score} composes the pieces above into the risk score.
-Given $(L, R, op)$ and the state $j$ returned by $\text{Cmp}^*$, it extracts the violated region from Table~\ref{tab:false-regions}, computes $p_{\mathit{true}}$ from the closed-form definition, and maps the triple $(j,\, p_{\mathit{true}},\, \mathit{regions})$ to a score on a 0--10 scale, where $0.0$ indicates a fully satisfied condition and $10.0$ indicates a definite violation.
+\noindent\textbf{Step 3: Risk-score composition.}
+The risk score is a value in $[0.0, 10.0]$ composed from the state $j$ returned by $\text{Cmp}^*$, an internal probability $p_{\mathit{true}}$, and the violated-region decomposition of Table~\ref{tab:false-regions}, with $0.0$ indicating a fully satisfied condition and $10.0$ a definite violation.
+We first define $p_{\mathit{true}}$ as a closed form over the region sizes, then introduce the risk-type classification; both are used by Algorithm~\ref{alg:risk-score}'s warning case.
+
+\smallskip
+\noindent\textit{True probability.}
+The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes of Table~\ref{tab:op-formulas}:
+\[
+p_{\mathit{true}}(L, R, op) \;=\;
+\begin{cases}
+|T_s| / n_L & \text{if } op \in \{\text{in}, \text{not\,in}\}, \\[3pt]
+|T_s| / (n_L \cdot n_R) & \text{if } op = \mathord{=} \text{ and } n_R > 1, \\[3pt]
+1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \mathord{\neq} \text{ and } n_R > 1, \\[3pt]
+\bigl(|T_s| + E_w\bigr) / n_L & \text{otherwise.}
+\end{cases}
+\]
+For the comparison operators ($>$, $\geq$, $<$, $\leq$), the warning region $T_w$ is exactly the range of $L$-values whose outcome depends on $R$.
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across the warning region, so
+\[
+E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
+\]
+where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
+For $=$ and $\neq$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so the count is scaled by $1/n_R$; when $n_R = 1$ the comparison degenerates to pointwise evaluation and the general case applies with $E_w = 0$.
+This closed-form definition of $p_{\mathit{true}}$ is proved exact in §\ref{sec:soundness}.
 
 \smallskip
 \noindent\textit{Risk type classification.}
@@ -888,28 +916,7 @@ For warning results, the engine classifies the violation pattern into three risk
 \end{itemize}
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
 
-\begin{algorithm}[t]
-\caption{Risk Score Computation}
-\label{alg:risk-score}
-\begin{algorithmic}[1]
-\State \textbf{Input:} Intervals $L$, $R$, operator $op$, state $j \in \mathbb{J}$
-\State \textbf{Output:} $(\mathit{risk\_score},\; \mathit{regions})$ where $\mathit{risk\_score} \in [0.0, 10.0]$ and $\mathit{regions} = (L_{\mathit{lower}}, L_{\mathit{upper}}, L_{\mathit{overlap}})$
-\State $\mathit{regions} \gets$ Table~\ref{tab:false-regions} applied to $(L, R, op)$
-\Statex
-\If{$j = \mathit{satisfied}$}
-    \State \Return $(0.0,\; \mathit{regions})$
-\ElsIf{$j = \mathit{violated}$}
-    \State \Return $(10.0,\; \mathit{regions})$
-\EndIf
-\Statex
-\Statex // Warning case: classify and scale within band
-\State $p \gets p_{\mathit{true}}(L, R, op)$ \Comment{closed-form definition above}
-\State $\mathit{risk\_type} \gets ClassifyRisk(\mathit{regions},\, op)$
-\State $(\mathit{base},\, \mathit{span}) \gets BandOf(\mathit{risk\_type})$ \Comment{type~1: $(0.1, 3.2)$; type~2: $(3.4, 3.2)$; type~3: $(6.7, 3.2)$}
-\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p) \times \mathit{span}$
-\State \Return $(\mathit{risk\_score},\; \mathit{regions})$
-\end{algorithmic}
-\end{algorithm}
+
 
 \subsubsection{Soundness of the Semantic Primitives}\label{sec:soundness}
 
