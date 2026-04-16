@@ -578,6 +578,7 @@ Given an annotation $a \in \mathbb{A}$ whose validation context is $\Gamma \in \
 The subsection proceeds as follows.
 Section~\ref{sec:intent-semantics} fixes the grammar of $\mathbb{A}$ and defines $\mathcal{V}\llbracket \cdot \rrbracket$ via three set-theoretic primitives.
 Section~\ref{sec:validation-engine} presents the executable procedures that realise it, with an auxiliary risk score.
+Section~\ref{sec:soundness} proves their soundness.
 
 \subsubsection{Syntax and Semantics}\label{sec:intent-semantics}
 
@@ -813,7 +814,7 @@ Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]
 \end{itemize}
 
 Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
-The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds.
+The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds (proved in §\ref{sec:soundness}).
 Figure~\ref{fig:region-partition} illustrates this partition for the canonical warning configuration of $op = \text{``$>$''}$.
 
 \begin{table}[t]
@@ -1002,6 +1003,8 @@ where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and l
 When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to pointwise evaluation.
 \end{description}
 
+This closed-form definition of $p_{\mathit{true}}$ is proved exact in §\ref{sec:soundness}.
+
 \smallskip
 \noindent\textit{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
 For warning results, the engine classifies the violation pattern into three risk types based on which components of Table~\ref{tab:false-regions} are non-empty:
@@ -1014,6 +1017,289 @@ For warning results, the engine classifies the violation pattern into three risk
 \smallskip
 \noindent\textit{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
+
+\subsubsection{Soundness of the Semantic Primitives}\label{sec:soundness}
+
+We establish soundness along three main theorems covering both the comparison primitive $\text{Cmp}^*$ of §\ref{sec:intent-semantics} and the auxiliary tables of §\ref{sec:validation-engine}, plus three case-analysis paragraphs for the remaining primitives:
+\begin{itemize}
+    \item Theorem~\ref{thm:state-realization} (state realization): Table~\ref{tab:op-formulas}'s satisfied/violated conditions correctly determine the state $j \in \mathbb{J}$ dictated by $\text{Cmp}^*$'s set-theoretic definition.
+    \item Theorem~\ref{thm:p-true-exact} (probability exactness): the closed-form $p_{\mathit{true}}(L, R, op)$ of §\ref{sec:validation-engine} equals the uniform-distribution probability $N_{\mathit{sat}}(L, R, op) / (n_L \cdot n_R)$.
+    \item Theorem~\ref{thm:region-complete} (violated-region completeness): Table~\ref{tab:false-regions}'s sub-intervals $L_{\mathit{lower}}$, $L_{\mathit{upper}}$, $L_{\mathit{overlap}}$ are pairwise disjoint and exhaustively cover $L \setminus T_s$.
+\end{itemize}
+The implication primitive $\text{Impl}^*$, the feasibility primitive $\text{Feasible}^*$, and the change-detection form each admit short direct case analyses at the end of the subsection; the last of these reduces to Theorem~\ref{thm:state-realization} together with the soundness of the reachable-state set $\Pi$ inherited from the base interpreter.
+
+\smallskip
+\noindent\textbf{Definitions.}
+Let $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ be nonempty integer intervals with $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$. For an operator $op$, let
+\[
+N_{\mathit{sat}}(L, R, op) \;=\; \big|\{(l, r) \in L \times R : l \mathrel{op} r\}\big|
+\]
+denote the number of satisfying pairs. Under a uniform distribution over $L \times R$, the true probability of satisfaction is
+\[
+p_{\mathit{true}}(L, R, op) \;=\; \frac{N_{\mathit{sat}}(L, R, op)}{n_L \cdot n_R}.
+\]
+
+\smallskip
+\noindent\textbf{Region partition.}
+For $op \in \{>, \geq, <, \leq\}$, $L$ decomposes into three disjoint regions matching the prose of §\ref{sec:validation-engine}:
+\begin{align*}
+T_s &= \{l \in L : l \mathrel{op} r \text{ holds for all } r \in R\}, \\
+T_v &= \{l \in L : l \mathrel{op} r \text{ fails for all } r \in R\}, \\
+T_w &= L \setminus (T_s \cup T_v).
+\end{align*}
+The decomposition is exhaustive: for fixed $l \in L$, the truth value of $l \mathrel{op} r$ is monotonic in $r$, so it is either always true ($l \in T_s$), always false ($l \in T_v$), or transitions exactly once as $r$ ranges over $R$ ($l \in T_w$).
+
+\smallskip
+\noindent\textbf{Case analysis space.}
+The relative position of two integer intervals $L$ and $R$ falls into exactly one of eleven topological configurations, determined by how their endpoints relate.
+We organize them into three groups based on the number of shared endpoints (Figure~\ref{fig:interval-topologies}): (a) no shared endpoints (six configurations covering separation, partial overlap in either direction, and strict containment in either direction), (b) one shared endpoint (four configurations covering left- or right-shared with $L$ or $R$ being the wider interval), and (c) both shared endpoints (the identical case).
+Table~\ref{tab:op-formulas}'s satisfied/violated conditions partition these configurations into $S$/$V$/$W$ cases per operator; the lemmas below compute $|T_s|$, $|T_v|$, and the contribution from $T_w$ via max-clamped closed forms that handle every configuration uniformly, so the proofs traverse the three cases rather than enumerating all eleven configurations individually.
+
+\begin{figure}[t]
+\centering
+\newcommand{\ivcase}[7]{%
+  \draw[ax] ({#1},{#2}) -- ({#1+11.8},{#2});%
+  \fill[Lb] ({#1+#3},{#2}) rectangle ({#1+#4},{#2-\rh});%
+  \fill[Rb] ({#1+#5},{#2}) rectangle ({#1+#6},{#2-\rh});%
+  \node[el] at ({#1+#3},{#2-\rh-\lp}) {$l_{\min}$};%
+  \node[el] at ({#1+#4},{#2-\rh-\lp}) {$l_{\max}$};%
+  \node[er] at ({#1+#5},{#2+\lp}) {$r_{\min}$};%
+  \node[er] at ({#1+#6},{#2+\lp}) {$r_{\max}$};%
+  \node[lbl] at ({#1-0.5},{#2-\lmid}) {#7};%
+}
+\newcommand{\shrmark}[2]{%
+  \draw[shr] ({#1},{#2-\rh-0.08}) -- ({#1},{#2+0.12});%
+}
+\begin{tikzpicture}[x=0.30cm, y=-0.65cm,
+    Lb/.style={fill=blue!45, fill opacity=0.5,
+               draw=blue!70!black, line width=0.4pt},
+    Rb/.style={fill=red!40, fill opacity=0.5,
+               draw=red!55!black, line width=0.4pt},
+    ax/.style={draw=black!60, line width=0.8pt, ->},
+    lbl/.style={font=\scriptsize, anchor=east},
+    glbl/.style={font=\scriptsize\bfseries, anchor=east},
+    sep/.style={draw=black!20, line width=0.3pt, dashed},
+    shr/.style={dashed, black!50, line width=0.5pt},
+    el/.style={font=\tiny, blue!70!black, anchor=south},
+    er/.style={font=\tiny, red!55!black, anchor=north},
+]
+
+\def\rh{0.32}
+\def\xr{15}
+\def\lp{0.06}
+\def\lmid{0.16}
+
+%%% (a) No shared endpoints %%%
+\node[glbl] at (-2, 1.2) {(a)};
+
+\ivcase{0}{0.6}{0}{4}{7}{11}{1-1}
+\ivcase{\xr}{0.6}{7}{11}{0}{4}{1-2}
+
+\ivcase{0}{1.8}{0}{7}{4}{11}{2-1}
+\ivcase{\xr}{1.8}{4}{11}{0}{7}{2-2}
+
+\ivcase{0}{3.0}{0}{11}{3}{8}{3-1}
+\ivcase{\xr}{3.0}{3}{8}{0}{11}{3-2}
+
+%%% Separator (a)/(b) %%%
+\draw[sep] (-2.5, 3.7) -- (\xr+12, 3.7);
+
+%%% (b) One shared endpoint %%%
+\node[glbl] at (-2, 5.0) {(b)};
+
+\ivcase{0}{4.4}{0}{11}{0}{6}{4-1}
+\shrmark{0}{4.4}
+\ivcase{\xr}{4.4}{0}{6}{0}{11}{4-2}
+\shrmark{\xr}{4.4}
+
+\ivcase{0}{5.6}{0}{11}{5}{11}{5-1}
+\shrmark{11}{5.6}
+\ivcase{\xr}{5.6}{5}{11}{0}{11}{5-2}
+\shrmark{\xr+11}{5.6}
+
+%%% Separator (b)/(c) %%%
+\draw[sep] (-2.5, 6.3) -- (\xr+12, 6.3);
+
+%%% (c) Both shared endpoints %%%
+\node[glbl] at (-2, 7.0) {(c)};
+
+\ivcase{0}{7.0}{0}{11}{0}{11}{6}
+\shrmark{0}{7.0}
+\shrmark{11}{7.0}
+
+%%% Legend %%%
+\pgfmathsetmacro{\ly}{8.2}
+\draw[ax] (0,\ly) -- (2.5,\ly);
+\node[font=\scriptsize, anchor=west] at (2.8, \ly) {$\mathbb{Z}$};
+%
+\fill[Lb] (6,\ly) rectangle (7.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (7.5, \ly-0.11) {$L$};
+%
+\fill[Rb] (10,\ly) rectangle (11.2,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (11.5, \ly-0.11) {$R$};
+%
+\fill[Lb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\fill[Rb] (14.5,\ly) rectangle (15.7,{\ly-0.22});
+\node[font=\scriptsize, anchor=west] at (16, \ly-0.11) {overlap};
+%
+\draw[shr] (21,{\ly-0.28}) -- (21,{\ly+0.08});
+\node[font=\scriptsize, anchor=west] at (21.5, \ly-0.11) {shared};
+
+\end{tikzpicture}
+\caption{The eleven topological configurations of two integer intervals, grouped by the number of shared endpoints:
+(a)~no shared endpoints (six configurations), (b)~one shared endpoint (four configurations), and (c)~both shared endpoints (the identical case).
+Overlapping regions appear as blended color;
+dashed vertical lines indicate shared endpoints.}
+\label{fig:interval-topologies}
+\end{figure}
+
+\begin{lemma}[Region sizes for $>$]\label{lem:region-gt}
+For $op = ${} $>$, in the warning case ($l_{\min} \leq r_{\max}$ and $l_{\max} > r_{\min}$),
+\[
+|T_s| = \max(0,\, l_{\max} - r_{\max}), \qquad
+|T_v| = \max(0,\, r_{\min} - l_{\min} + 1).
+\]
+\end{lemma}
+
+\begin{proof}
+$T_s = \{l \in L : l > r_{\max}\} = L \cap [r_{\max}+1, \infty) = [\max(l_{\min}, r_{\max}+1),\, l_{\max}]$, whose cardinality is $\max(0, l_{\max} - r_{\max})$. Similarly, $T_v = L \cap (-\infty, r_{\min}] = [l_{\min},\, \min(l_{\max}, r_{\min})]$, with cardinality $\max(0, r_{\min} - l_{\min} + 1)$.
+\end{proof}
+
+\begin{lemma}[Sum over $T_w$ for $>$]\label{lem:tw-gt}
+Under the same assumptions, let $T_w = [l_w^-, l_w^+]$ and define $a = l_w^- - r_{\min}$, $b = l_w^+ - r_{\min}$. Then
+\[
+\sum_{l \in T_w} \big|\{r \in R : l > r\}\big| \;=\; \frac{(a + b)\, |T_w|}{2}.
+\]
+\end{lemma}
+
+\begin{proof}
+For $l \in T_w$ we have $r_{\min} < l \leq r_{\max}$, so $\{r \in R : r < l\} = [r_{\min},\, l - 1]$, with cardinality $l - r_{\min}$. Summing over $l \in T_w$ yields an arithmetic progression:
+\[
+\sum_{l = l_w^-}^{l_w^+} (l - r_{\min}) \;=\; \sum_{k = a}^{b} k \;=\; \frac{(a + b)(b - a + 1)}{2} \;=\; \frac{(a + b)\, |T_w|}{2}. \qedhere
+\]
+\end{proof}
+
+\begin{theorem}[State realization of $\text{Cmp}^*$]\label{thm:state-realization}
+For every operator $op$ and nonempty integer intervals $L, R$, Table~\ref{tab:op-formulas}'s satisfied and violated conditions determine $\text{Cmp}^*$'s state exactly:
+\[
+\text{Cmp}^*(L, op, R) =
+\begin{cases}
+S & \text{if the satisfied condition of Table~\ref{tab:op-formulas} holds,} \\[2pt]
+V & \text{if the violated condition holds,} \\[2pt]
+W & \text{otherwise.}
+\end{cases}
+\]
+\end{theorem}
+
+\begin{proof}
+Case analysis on $op$; each case verifies Table~\ref{tab:op-formulas}'s condition against $\text{Cmp}^*$'s set-theoretic definition.
+
+Comparison operators ($op \in \{>, \geq, <, \leq\}$).
+For $op = \mathord{>}$: $\text{Cmp}^* = S$ iff every pair satisfies $l > r$, equivalently $\min L > \max R$, i.e., $l_{\min} > r_{\max}$ --- Table~\ref{tab:op-formulas}'s satisfied condition for $>$.
+$\text{Cmp}^* = V$ iff every pair satisfies $\neg(l > r)$, i.e., $l \leq r$, equivalently $l_{\max} \leq r_{\min}$ --- the violated condition.
+For $\geq, <, \leq$ the arguments are symmetric (strict $\leftrightarrow$ non-strict, or the roles of $L, R$ swapped), matching the corresponding rows of Table~\ref{tab:op-formulas}.
+
+Equality operators ($op \in \{=, \neq\}$).
+For $op = \mathord{=}$: every pair $(l, r)$ satisfies $l = r$ iff $|L| = |R| = 1$ and their single elements coincide, i.e., $l_{\min} = l_{\max} = r_{\min} = r_{\max}$ --- Table~\ref{tab:op-formulas}'s satisfied condition ``$L = R$, both singletons''.
+No pair satisfies $l = r$ iff $L \cap R = \emptyset$ --- the violated condition.
+For $\neq$ the roles swap by complementation, matching Table~\ref{tab:op-formulas}.
+
+Membership operators ($op \in \{\text{in}, \text{not\,in}\}$).
+For $op = \text{in}$: every $l \in L$ satisfies $l \in R$ (treating $R$ as a set) iff $L \subseteq R$ --- the satisfied condition.
+No $l \in L$ satisfies $l \in R$ iff $L \cap R = \emptyset$ --- the violated condition.
+For $\text{not\,in}$ the roles swap.
+
+In every case, the residual outcome (when neither condition holds) is $W$ by the definition of $\text{Cmp}^*$.
+\end{proof}
+
+\begin{theorem}[$p_{\mathit{true}}$ exactness]\label{thm:p-true-exact}
+For every operator $op$ and nonempty integer intervals $L, R$, the closed-form $p_{\mathit{true}}(L, R, op)$ of §\ref{sec:validation-engine} equals $N_{\mathit{sat}}(L, R, op) / (n_L \cdot n_R)$.
+\end{theorem}
+
+\begin{proof}
+Case analysis on $op$, using Lemmas~\ref{lem:region-gt} and~\ref{lem:tw-gt} for the comparison operators.
+
+Comparison operators, $op = \mathord{>}$.
+If $l_{\min} > r_{\max}$, every pair satisfies $l > r$, so $N_{\mathit{sat}} = n_L \cdot n_R$ and the expected $p_{\mathit{true}} = 1$; the closed form gives $(|T_s| + E_w) / n_L = n_L / n_L = 1$ since $|T_s| = n_L$ and $T_w = \emptyset$ in this case.
+If $l_{\max} \leq r_{\min}$, no pair satisfies, so $N_{\mathit{sat}} = 0$ and the closed form gives $0$.
+In the warning case, decompose
+\[
+N_{\mathit{sat}} \;=\; \sum_{l \in L} \big|\{r \in R : l > r\}\big| \;=\; \underbrace{|T_s| \cdot n_R}_{l \in T_s} \;+\; \underbrace{\textstyle\sum_{l \in T_w} (l - r_{\min})}_{l \in T_w} \;+\; \underbrace{0}_{l \in T_v},
+\]
+using that every $l \in T_s$ satisfies $l > r$ for all $r \in R$ and no $l \in T_v$ satisfies it for any $r$. By Lemma~\ref{lem:tw-gt} the middle sum equals $(a + b)\, |T_w| / 2$. Dividing by $n_L \cdot n_R$ gives
+\[
+p_{\mathit{true}} \;=\; \frac{|T_s|}{n_L} \;+\; \frac{(a + b)\, |T_w|}{2\, n_L\, n_R} \;=\; \frac{|T_s| + E_w}{n_L},
+\]
+where $E_w = (a + b)\, |T_w| / (2\, n_R)$ matches the closed-form definition of §\ref{sec:validation-engine}.
+For $\geq, <, \leq$, the arguments are symmetric: strict $\leftrightarrow$ non-strict, or $L, R$ swapped; the closed forms of $|T_s|, |T_v|$ in Table~\ref{tab:op-formulas} follow from Lemma~\ref{lem:region-gt} via these substitutions, and the $T_w$ contribution follows from Lemma~\ref{lem:tw-gt}.
+
+Equality operators, $op \in \{=, \neq\}$.
+For $op = \mathord{=}$, each value $v \in L \cap R$ contributes exactly one satisfying pair $(v, v)$, and no other pair satisfies $l = r$. Hence $N_{\mathit{sat}} = |L \cap R|$ and $p_{\mathit{true}}(\mathord{=}) = |L \cap R| / (n_L \cdot n_R)$.
+When $n_R > 1$, the closed-form branch $|T_s| / (n_L \cdot n_R)$ with $|T_s| = |L \cap R|$ (Table~\ref{tab:op-formulas}) matches exactly.
+When $n_R = 1$, the closed form falls through to the general branch with $E_w = 0$ (the warning region $T_w$ is necessarily empty since $|T_s| + |T_v| = |L \cap R| + (n_L - |L \cap R|) = n_L$), yielding $|T_s| / n_L = |L \cap R| / n_L$; direct calculation confirms $p_{\mathit{true}}(\mathord{=}) = |L \cap R| / n_L$ in this case.
+For $\neq$, $p_{\mathit{true}}(\mathord{\neq}) = 1 - p_{\mathit{true}}(\mathord{=}) = 1 - |T_v| / (n_L \cdot n_R)$, matching the closed-form branch for $\neq$.
+
+Membership operators, $op \in \{\text{in}, \text{not\,in}\}$.
+For $op = \text{in}$, the semantics treats $R$ as a set: $l \in R$ iff $r_{\min} \leq l \leq r_{\max}$, independent of any particular $r$. Each $l \in L \cap R$ therefore yields $n_R$ satisfying pairs (one for every $r$), so $N_{\mathit{sat}} = |L \cap R| \cdot n_R$ and
+\[
+p_{\mathit{true}}(\text{in}) \;=\; \frac{|L \cap R| \cdot n_R}{n_L \cdot n_R} \;=\; \frac{|L \cap R|}{n_L} \;=\; \frac{|T_s|}{n_L},
+\]
+matching the closed-form branch.
+For $\text{not\,in}$, $p_{\mathit{true}} = 1 - p_{\mathit{true}}(\text{in})$ by complementation.
+\end{proof}
+
+\begin{theorem}[Violated-region completeness]\label{thm:region-complete}
+For every operator $op$ and nonempty integer intervals $L, R$ with $\text{Cmp}^*(L, op, R) \neq S$, Table~\ref{tab:false-regions}'s components $L_{\mathit{lower}}$, $L_{\mathit{upper}}$, $L_{\mathit{overlap}}$ are pairwise disjoint sub-intervals of $L$ satisfying
+\[
+L_{\mathit{lower}} \;\cup\; L_{\mathit{upper}} \;\cup\; L_{\mathit{overlap}} \;=\; L \setminus T_s.
+\]
+\end{theorem}
+
+\begin{proof}
+Case analysis on $op$.
+We treat the warning and violated cases; the satisfied case is excluded by hypothesis since Table~\ref{tab:false-regions} is only consulted when failure witnesses exist.
+
+Comparison operators, $op = \mathord{>}$.
+By Lemma~\ref{lem:region-gt}, $T_s = [\max(l_{\min}, r_{\max}+1),\, l_{\max}]$ and $T_v = [l_{\min},\, \min(l_{\max}, r_{\min})]$, so $L \setminus T_s = [l_{\min},\, \min(l_{\max}, r_{\max})]$.
+Table~\ref{tab:false-regions}'s entries for $>$ set $L_{\mathit{lower}} = T_v$, $L_{\mathit{overlap}} = [\max(l_{\min}, r_{\min}+1),\, \min(l_{\max}, r_{\max})] = T_w$, and $L_{\mathit{upper}} = \emptyset$.
+These are disjoint sub-intervals (the split at $r_{\min}$ separates $T_v$ from $T_w$), and their union equals $T_v \cup T_w = L \setminus T_s$.
+For $\geq, <, \leq$, the decompositions follow by the same symmetries used in Theorem~\ref{thm:p-true-exact}.
+
+Equality operators, $op \in \{=, \neq\}$.
+For $op = \mathord{=}$ with $\text{Cmp}^* \neq S$, $T_s = \emptyset$ (since $L = R = \{v\}$ is excluded).
+If $L \cap R = \emptyset$ (violated case), $L$ lies entirely to one side of $R$: either $L_{\mathit{lower}} = L$ or $L_{\mathit{upper}} = L$, with $L_{\mathit{overlap}} = \emptyset$, and the union equals $L = L \setminus T_s$.
+If $L \cap R \neq \emptyset$ (warning case), Table~\ref{tab:false-regions} splits $L$ at $L \cap R$: $L_{\mathit{lower}} = [l_{\min},\, (L \cap R)_{\min} - 1]$, $L_{\mathit{upper}} = [(L \cap R)_{\max} + 1,\, l_{\max}]$, and $L_{\mathit{overlap}} = L \cap R$ --- disjoint sub-intervals whose union is $L = L \setminus T_s$.
+For $\neq$ with $\text{Cmp}^* \neq S$: $T_s = L \setminus R$, so $L \setminus T_s = L \cap R$; Table~\ref{tab:false-regions}'s $L_{\mathit{overlap}} = L \cap R$ matches this exactly, with $L_{\mathit{lower}}$ and $L_{\mathit{upper}}$ empty by definition.
+
+Membership operators, $op \in \{\text{in}, \text{not\,in}\}$.
+For $op = \text{in}$, $T_s = L \cap R$, so $L \setminus T_s = L \setminus R$; Table~\ref{tab:false-regions}'s $L_{\mathit{lower}} = [l_{\min},\, \min(l_{\max}, r_{\min}-1)]$ and $L_{\mathit{upper}} = [\max(l_{\min}, r_{\max}+1),\, l_{\max}]$ collect the out-of-range portions of $L$ below and above $R$, with $L_{\mathit{overlap}} = \emptyset$ since $\text{in}$ admits no warning zone; their disjoint union equals $L \setminus R = L \setminus T_s$.
+For $\text{not\,in}$, $T_s = L \setminus R$ and $L \setminus T_s = L \cap R$; Table~\ref{tab:false-regions}'s $L_{\mathit{overlap}} = L \cap R$ matches, with the other two components empty.
+\end{proof}
+
+\smallskip
+\noindent\textbf{Soundness of the implication primitive.}
+The closed-form definition of $\text{Impl}^*$ in §\ref{sec:intent-semantics} is sound by direct case analysis: each case of $\text{Impl}^*(L, R)$ is a disjoint condition over the truthiness of $L$ and $R$, and the returned judgment matches the set-theoretic characterisation (vacuous when $L = \{0\}$, satisfied when both are truthy, violated when $L$ is truthy and $R = \{0\}$, and warning otherwise). No induction is needed since $\text{Impl}^*$ operates on atomic intervals rather than sub-annotations.
+
+\smallskip
+\noindent\textbf{Soundness of the feasibility primitive.}
+$\text{Feasible}^*$ is sound by a two-case analysis over $\mathcal{B}$.
+When $B = \{0\}$, every concrete value of the boolean expression represented by $B$ is false, so every concrete execution fails the \texttt{require}/\texttt{assert} guard and the statement is provably unreachable; the returned judgment $V$ matches this set-theoretic claim.
+When $B \in \{\{1\}, \{0, 1\}\}$, $B$ contains $1$, so at least one concrete value of the expression is true and the statement is reachable for some input; the returned judgment $S$ is correct.
+No warning case is needed because $\text{Feasible}^*$ makes only a binary reachability distinction; the set $\mathcal{B}$ has no element that simultaneously fails both conditions.
+
+\smallskip
+\noindent\textbf{Soundness of change detection.}
+The change-detection form $\text{changed}(e, b)$ lifts $\text{Cmp}^*$ with operator $=$ to a universal/existential judgment over $\Pi$.
+Its soundness reduces to two facts: (i) $\text{Cmp}^*(\text{eval}(\sigma_{\text{entry}}, e), =, \text{eval}(\sigma, e))$ is sound at each individual $\sigma \in \Pi$ by Theorem~\ref{thm:state-realization}, and (ii) $\Pi$ faithfully records every reachable program point within the function body (for @During, up to the annotated point; for @Post, up to any exit), a property inherited from the base abstract interpreter's fixpoint computation.
+For $\text{changed}(e, \text{true})$, the existential case is sound because if any $\sigma \in \Pi$ yields $\text{Cmp}^* = V$ (disjoint intervals), then every concrete trace passing through that point has $e$ provably different from its entry value; the universal case is sound because if every $\sigma \in \Pi$ yields $\text{Cmp}^* = S$, then every concrete trace has $e$ provably equal to its entry value at every reachable point, so a ``changed'' claim is provably false.
+The $\text{changed}(e, \text{false})$ equation is the dual and its soundness argument is symmetric.
+
+\smallskip
+\noindent\textbf{Edge cases.}
+Two boundary conditions deserve mention.
+(i) Empty intervals. An empty $L$ or $R$ corresponds to an infeasible execution path; the abstract interpreter prunes such branches, so the primitives are never evaluated on empty inputs.
+(ii) Singleton right interval. When $n_R = 1$, the comparison operators $\{>, \geq, <, \leq\}$ reduce to standard pointwise tests: the warning region $T_w$ degenerates to at most one element and Lemma~\ref{lem:tw-gt} continues to hold (the arithmetic series is trivial), while the equality operators $\{=, \neq\}$ with $n_R = 1$ fall through to the general branch of $p_{\mathit{true}}$ as shown in the proof of Theorem~\ref{thm:p-true-exact}.
+Together, Theorems~\ref{thm:state-realization}, \ref{thm:p-true-exact}, and~\ref{thm:region-complete}, together with the direct case analyses of $\text{Impl}^*$, $\text{Feasible}^*$, and change detection, establish that $\text{Cmp}^*$'s state and Table~\ref{tab:false-regions}'s decomposition are correct for every well-formed input, that $p_{\mathit{true}}$ is exact, and that each auxiliary primitive returns the correct judgment.
 
 This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
 
@@ -1592,7 +1878,7 @@ Extending the Yul visitor to handle memory and storage opcodes and the abstract 
 
 \smallskip
 \noindent\textbf{Soundness bounded by debug annotation scope.}
-IntentChecker's analysis is sound within the ranges declared by debug annotations: when the validation engine reports Satisfied, the declared intent provably holds for every combination of values in those ranges---this follows from the set-theoretic definition of the comparison primitive (§\ref{sec:intent-semantics}) applied pointwise to each annotation.
+IntentChecker's analysis is sound within the ranges declared by debug annotations: when the validation engine reports Satisfied, the declared intent provably holds for every combination of values in those ranges---this follows from the set-theoretic definition of the comparison primitive (§\ref{sec:intent-semantics}) and the soundness results of §\ref{sec:soundness} applied pointwise to each annotation.
 The guarantee does not extend outside those ranges.
 A bug that only manifests at the boundary of a parameter's representable values, but not in the range the developer chose for @LocalVar, will not appear in any judgment.
 This is an inherent characteristic of debugging tools---traditional debuggers also only execute the inputs the developer provides---and we encourage developers to use representative ranges and to iteratively refine them when Warning results draw attention to specific sub-intervals.
