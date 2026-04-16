@@ -24,7 +24,7 @@
 \captionsetup{justification=raggedright, singlelinecheck=false}% Left-align all captions by default
 \captionsetup[figure]{justification=centering, singlelinecheck=false}% Center-align figure captions
 \usepackage{tikz}%
-\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta}%
+\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta,decorations.pathreplacing}%
 \usepackage{multirow}%
 \usepackage{booktabs}%
 \usepackage{pifont}% For \ding{51} (checkmark) and \ding{55} (cross)
@@ -778,23 +778,16 @@ Because $\Pi$ is populated differently for @During (states from entry up to the 
 \begin{algorithmic}[1]
 \State \textbf{Input:} Intervals $L$, $R$, operator $op$, state $j \in \mathbb{J}$
 \State \textbf{Output:} $(\mathit{risk\_score},\; \mathit{regions})$ with $\mathit{risk\_score} \in [0.0, 10.0]$ and $\mathit{regions} = (L_{\mathit{lower}}, L_{\mathit{upper}}, L_{\mathit{overlap}})$
-\Statex
-\Statex \textit{// Step 1: Region partitioning (Table~\ref{tab:op-formulas}; sizes used by $p_{\mathit{true}}$)}
 \State $(|T_s|, |T_v|, |T_w|) \gets \mathit{RegionSizes}(L, R, op)$
-\Statex
-\Statex \textit{// Step 2: Violated-region extraction (Table~\ref{tab:false-regions})}
 \State $\mathit{regions} \gets \mathit{ExtractViolatedRegion}(L, R, op)$
-\Statex
-\Statex \textit{// Step 3: Risk-score composition}
 \If{$j = \mathit{satisfied}$}
     \State \Return $(0.0,\; \mathit{regions})$
 \ElsIf{$j = \mathit{violated}$}
     \State \Return $(10.0,\; \mathit{regions})$
 \EndIf
-\Statex \textit{// Warning case: classify and scale within band}
-\State $p \gets p_{\mathit{true}}(L, R, op)$ \Comment{closed form over Step~1 sizes}
+\State $p \gets p_{\mathit{true}}(L, R, op)$
 \State $\mathit{risk\_type} \gets \mathit{ClassifyRisk}(\mathit{regions},\, op)$
-\State $(\mathit{base},\, \mathit{span}) \gets \mathit{BandOf}(\mathit{risk\_type})$ \Comment{type~1: $(0.1, 3.2)$; type~2: $(3.4, 3.2)$; type~3: $(6.7, 3.2)$}
+\State $(\mathit{base},\, \mathit{span}) \gets \mathit{BandOf}(\mathit{risk\_type})$
 \State $\mathit{risk\_score} \gets \mathit{base} + (1 - p) \times \mathit{span}$
 \State \Return $(\mathit{risk\_score},\; \mathit{regions})$
 \end{algorithmic}
@@ -809,22 +802,24 @@ This subsection presents the executable procedures that accompany the semantic r
 Both outputs are downstream of the semantic claim and do not refine the judgment $j \in \mathbb{J}$; they support warning ranking and developer feedback.
 An internal probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ --- the chance that the comparison holds under a uniform distribution over $L \times R$ --- mediates the risk-score computation but is not surfaced separately.
 $\text{Impl}^*$ and $\text{Feasible}^*$ are directly computable from their definitions and need no dedicated algorithm, and the change-detection form iterates $\Pi$ directly.
-The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed by Algorithm~\ref{alg:risk-score} in three steps---region partitioning, violated-region extraction, and risk-score composition---each elaborated in turn below.
+The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed by Algorithm~\ref{alg:risk-score} in four steps, each elaborated in turn below and cited with its line range in the algorithm.
 
 \smallskip
-\noindent\textbf{Step 1: Region partitioning.}
+\noindent\textbf{Step 1: Region partitioning (Algorithm~\ref{alg:risk-score}, line 3).}
 Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the interpreter partitions $L$ into three disjoint regions:
 \begin{itemize}
     \item $T_s$ (satisfied region): values of $L$ for which $l \mathrel{op} r$ holds for all $r \in R$;
     \item $T_v$ (violated region): values of $L$ for which $l \mathrel{op} r$ fails for all $r \in R$;
     \item $T_w$ (warning region): values of $L$ whose truth value depends on the actual value of $R$.
 \end{itemize}
+
 Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
-The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ otherwise (proved in §\ref{sec:soundness}).
+The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds (proved in §\ref{sec:soundness}).
+Figure~\ref{fig:region-partition}(a) illustrates this partition for the canonical warning configuration of $op = \mathord{>}$.
 
 \begin{table}[t]
 \centering
-\caption{Per-operator satisfied/violated conditions and region sizes. All size expressions are clamped to $\max(0, \cdot)$. For in/not\,in, $|L \cap R|$ denotes the count of $L$-values within the range of $R$.}
+\caption{Per-operator satisfied/violated conditions and region sizes. All sizes are clamped to $\max(0, \cdot)$.}
 \label{tab:op-formulas}
 \small
 \begin{tabular}{cllcc}
@@ -845,8 +840,85 @@ not\,in & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \c
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\vspace{4pt}
+\begin{tikzpicture}[
+    x=0.9cm, y=0.5cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.5pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.5pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.5pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.5pt},
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.6pt, black!70},
+    tick/.style={line width=0.5pt, black!70},
+    txt/.style={font=\scriptsize},
+    tny/.style={font=\tiny},
+    braced/.style={decorate, decoration={brace, amplitude=3pt, mirror, raise=1pt}},
+]
+
+% === Panel (a) ===
+\node[font=\small\bfseries, anchor=west] at (0, 8)
+  {(a)~Partition of $L$ for $op = \mathord{>}$};
+
+\fill[Rbox] (6, 6.2) rectangle (12, 6.7);
+\node[txt] at (9, 6.45) {$R$};
+\draw[tick] (6, 6.0) -- (6, 6.9);
+\draw[tick] (12, 6.0) -- (12, 6.9);
+\node[tny, anchor=south] at (6, 6.9) {$r_{\min}$};
+\node[tny, anchor=south] at (12, 6.9) {$r_{\max}$};
+
+\fill[Tvbox] (2, 4.2) rectangle (6, 4.7);
+\fill[Twbox] (6, 4.2) rectangle (12, 4.7);
+\fill[Tsbox] (12, 4.2) rectangle (16, 4.7);
+\node[tny] at (4, 4.45) {$T_v$};
+\node[tny] at (9, 4.45) {$T_w$};
+\node[tny] at (14, 4.45) {$T_s$};
+\draw[tick] (2, 4.0) -- (2, 4.9);
+\draw[tick] (16, 4.0) -- (16, 4.9);
+\node[tny, anchor=north] at (2, 4.0) {$l_{\min}$};
+\node[tny, anchor=north] at (16, 4.0) {$l_{\max}$};
+\node[txt, anchor=east] at (1.8, 4.45) {$L$};
+
+\draw[braced] (2, 3.2) -- (6, 3.2);
+\node[tny, anchor=north] at (4, 3.1) {$|T_v|{=}r_{\min}{-}l_{\min}{+}1$};
+\draw[braced] (6, 3.2) -- (12, 3.2);
+\node[tny, anchor=north] at (9, 3.1) {$|T_w|{=}r_{\max}{-}r_{\min}$};
+\draw[braced] (12, 3.2) -- (16, 3.2);
+\node[tny, anchor=north] at (14, 3.1) {$|T_s|{=}l_{\max}{-}r_{\max}$};
+
+\draw[ax] (0, 2.0) -- (17, 2.0);
+\node[txt, anchor=west] at (17, 2.0) {$\mathbb{Z}$};
+
+% === Panel (b) ===
+\node[font=\small\bfseries, anchor=west] at (0, 0.7)
+  {(b)~Count of $r \in R$ satisfying $l > r$ across $T_w$};
+
+\foreach \x/\h in {7/0.4, 8/0.8, 9/1.2, 10/1.6, 11/2.0} {
+  \fill[bar] (\x-0.35, -1.5) rectangle (\x+0.35, -1.5+\h);
+}
+
+\draw[ax] (6, -1.5) -- (12.5, -1.5);
+\draw[ax] (6.3, -1.5) -- (6.3, 0.5);
+
+\node[tny, anchor=north] at (7, -1.6) {$r_{\min}{+}1$};
+\node[tny, anchor=north] at (11, -1.6) {$r_{\max}$};
+\node[tny, anchor=east] at (6.2, -1.15) {$a$};
+\node[tny, anchor=east] at (6.2, 0.4) {$b$};
+
+\node[txt, anchor=west] at (13.5, -0.5)
+  {$\displaystyle E_w = \frac{(a+b)\,|T_w|}{2\,n_R}$};
+
+\end{tikzpicture}
+
+\vspace{6pt}
+\caption{Step~1 partition and warning-region contribution $E_w$ for $op = \mathord{>}$ in the canonical warning case ($l_{\min} < r_{\min} < r_{\max} < l_{\max}$).}
+\label{fig:region-partition}
+\vspace{4pt}
+\end{figure}
+
 \smallskip
-\noindent\textbf{Step 2: Violated-region extraction.}
+\noindent\textbf{Step 2: Violated-region extraction (Algorithm~\ref{alg:risk-score}, line 4).}
 The interpreter also extracts the violated region of $L$: sub-intervals of $L$ that witness failure.
 Table~\ref{tab:false-regions} decomposes $L$ into three directional components per operator:
 \begin{itemize}
@@ -854,14 +926,16 @@ Table~\ref{tab:false-regions} decomposes $L$ into three directional components p
     \item $L_{\mathit{upper}}$ --- values of $L$ that exceed the acceptable range of $R$;
     \item $L_{\mathit{overlap}}$ --- values of $L$ whose outcome depends on the concrete $R$-value (the warning region for ordering operators; the coincidence zone for equality/membership).
 \end{itemize}
+
 Each component is an integer sub-interval or empty; empty components indicate that no witness exists in that direction.
+For the $=$ operator, when $L$ and $R$ are disjoint, the overlap is empty and $L$ falls entirely into exactly one of $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ depending on which side it lies on.
 The risk-classification step below consumes this decomposition, and the same sub-intervals are surfaced to the developer as the concrete ranges where the annotation may fail.
 
 \begin{table}[t]
 \centering
-\caption{Violated-region extraction formulas. Each operator decomposes $L$ into lower, upper, and overlap sub-intervals; ``---'' indicates no witness in that direction. For $=$, the lower/upper components are present only when $L \cap R \neq \emptyset$; if $L$ and $R$ are disjoint, $L$ lies entirely in one direction. All endpoint expressions are clamped so that $\min > \max$ yields empty.}
+\caption{Violated-region extraction formulas. Endpoints are clamped so that $\min > \max$ yields empty; ``---'' denotes no witness in that direction.}
 \label{tab:false-regions}
-\small
+\footnotesize
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c l l l @{}}
 \toprule
 $op$ & $L_{\mathit{lower}}$ & $L_{\mathit{upper}}$ & $L_{\mathit{overlap}}$ \\
@@ -881,29 +955,39 @@ $\neq$ & ---                                            & ---                   
 \end{table}
 
 \smallskip
-\noindent\textbf{Step 3: Risk-score composition.}
-The risk score is a value in $[0.0, 10.0]$ composed from the state $j$ returned by $\text{Cmp}^*$, an internal probability $p_{\mathit{true}}$, and the violated-region decomposition of Table~\ref{tab:false-regions}, with $0.0$ indicating a fully satisfied condition and $10.0$ a definite violation.
-We first define $p_{\mathit{true}}$ as a closed form over the region sizes, then introduce the risk-type classification; both are used by Algorithm~\ref{alg:risk-score}'s warning case.
+\noindent\textbf{Step 3: State-based scoring (Algorithm~\ref{alg:risk-score}, lines 5--9).}
+Lines 5--9 map the state $j$ returned by $\text{Cmp}^*$ directly to extreme scores: $j = \mathit{satisfied}$ returns $0.0$ (fully satisfied condition) and $j = \mathit{violated}$ returns $10.0$ (definite violation).
+The warning case $j = W$ requires further composition and is handled in Step~4.
+
+\smallskip
+\noindent\textbf{Step 4: Warning-case scoring (Algorithm~\ref{alg:risk-score}, lines 10--13).}
+When $j = W$, the risk score is composed from an internal probability $p_{\mathit{true}}$ and a risk-type classification over the violated-region components, then assembled into a value in $(0.0, 10.0)$ by a banded linear formula.
 
 \smallskip
 \noindent\textit{True probability.}
-The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes of Table~\ref{tab:op-formulas}:
+The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes from Step~1:
 \[
 p_{\mathit{true}}(L, R, op) \;=\;
 \begin{cases}
 |T_s| / n_L & \text{if } op \in \{\text{in}, \text{not\,in}\}, \\[3pt]
-|T_s| / (n_L \cdot n_R) & \text{if } op = \mathord{=} \text{ and } n_R > 1, \\[3pt]
-1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \mathord{\neq} \text{ and } n_R > 1, \\[3pt]
+|T_s| / (n_L \cdot n_R) & \text{if } op = \text{``=''} \text{ and } n_R > 1, \\[3pt]
+1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \text{``$\neq$''} \text{ and } n_R > 1, \\[3pt]
 \bigl(|T_s| + E_w\bigr) / n_L & \text{otherwise.}
 \end{cases}
 \]
-For the comparison operators ($>$, $\geq$, $<$, $\leq$), the warning region $T_w$ is exactly the range of $L$-values whose outcome depends on $R$.
-Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across the warning region, so
+
+For in and not\,in, $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
+
+For $=$ and $\neq$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
+
+For the comparison operators ($>$, $\geq$, $<$, $\leq$) --- the ``otherwise'' branch, which also covers $=$ and $\neq$ with $n_R = 1$ --- the warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$ (visualised in Figure~\ref{fig:region-partition}(b)), so
 \[
 E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
 \]
 where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
-For $=$ and $\neq$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so the count is scaled by $1/n_R$; when $n_R = 1$ the comparison degenerates to pointwise evaluation and the general case applies with $E_w = 0$.
+When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to pointwise evaluation.
+
 This closed-form definition of $p_{\mathit{true}}$ is proved exact in §\ref{sec:soundness}.
 
 \smallskip
@@ -915,8 +999,6 @@ For warning results, the engine classifies the violation pattern into three risk
     \item \textbf{Type 3} --- both $L_{\mathit{lower}}$ and $L_{\mathit{upper}}$ are non-empty, or the operator is $=$/$\neq$ (whose interval semantics is inherently imprecise and is assigned the highest band by convention).
 \end{itemize}
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
-
-
 
 \subsubsection{Soundness of the Semantic Primitives}\label{sec:soundness}
 
