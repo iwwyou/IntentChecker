@@ -1,23 +1,27 @@
 """
 RQ1 per-case metrics collection for the 20 mitigated cases.
 
-For each case, collects:
-  - Analysis time (mean over N runs of run_all.py)
-  - Source complexity: total lines, contract count, function count
-  - Control-flow complexity: loop count, branch count
-  - Dependency metrics: inheritance count, using-directive count, external-call count
-  - Annotation metrics: @StateVar/@LocalVar/@GlobalVar/@IReturn, @During/@Post
+Metrics (all extracted from the contracted case JSON only; dependency code is
+pre-analyzed and cached, so it does not affect per-case analysis time):
+
+  1. lines              — source lines covered by code records (annotations excluded)
+  2. internal_calls     — bare-identifier call sites whose target is defined or
+                          declared inside this JSON (same contraction)
+  3. external_calls     — method-style `.method(...)` call sites (library
+                          via `using X for Y`, interface method on a variable,
+                          CapName(expr).method(...), etc.)
+  4. control_flow       — loops (for/while) + branches (if/else if/else)
+                          + guards (require/assert)
+  5. debug_total        — @StateVar + @LocalVar + @GlobalVar + @IReturn count
 
 Outputs:
-  - evaluation/validation_soundness/rq1_metrics.csv                 (merged per-case metrics)
-  - evaluation/validation_soundness/rq1_correlations.csv            (Pearson correlation with mean time)
-  - evaluation/validation_soundness/rq2_run{i}.csv                  (snapshot of each run)
-  - evaluation/validation_soundness/plots/analysis_time_factors.png (scatter plots, optional)
+  - evaluation/validation_soundness/rq1_metrics.csv
+  - evaluation/validation_soundness/rq1_correlations.csv
+  - evaluation/validation_soundness/rq2_run{i}.csv (when --runs > 0)
 
 Usage:
-    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py             # use existing CSV
-    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 3    # run 3 times, average
-    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 1    # single run
+    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py           # use existing rq2_results.csv
+    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 3  # run 3x, average
 """
 
 import argparse
@@ -39,7 +43,6 @@ OUT_CSV = SOUNDNESS_DIR / "rq1_metrics.csv"
 CORR_CSV = SOUNDNESS_DIR / "rq1_correlations.csv"
 PLOTS_DIR = SOUNDNESS_DIR / "plots"
 
-# Same 20 cases as run_all.py
 CASE_JSONS = [
     "cases/div_in_path/WANGMI_input.json",
     "cases/exchange_problem/Nokon_input.json",
@@ -73,35 +76,90 @@ ANNOTATION_PREFIXES = (
     "// @During", "// @Post", "// @Debugging",
 )
 
+# Identifiers that syntactically look like `name(` but are not function calls.
+KEYWORD_CALLS = {
+    "if", "for", "while", "switch", "return", "emit", "do", "else",
+    "try", "catch", "throw", "new", "delete", "revert",
+    "require", "assert",        # counted as guards
+    "hex", "type",
+}
+
+_FUNC_HEAD_RE = re.compile(r"^\s*(?:function|modifier)\s+(\w+)\s*\(")
+# Lines whose `name(` pattern is a declaration, not a call-site.
+_DEF_HEAD_RE  = re.compile(r"^\s*(?:function|modifier|constructor|event)\b")
+_USING_RE     = re.compile(r"^\s*using\s+(\w+)\s+for\s+")
+_FOR_RE       = re.compile(r"\bfor\s*\(")
+_WHILE_RE     = re.compile(r"\bwhile\s*\(")
+_IF_RE        = re.compile(r"\bif\s*\(")
+_ELSE_STD_RE  = re.compile(r"\belse(?!\s*if\b)")   # else not followed by if
+_REQUIRE_RE   = re.compile(r"\brequire\s*\(")
+_ASSERT_RE    = re.compile(r"\bassert\s*\(")
+_METHOD_CALL_RE = re.compile(r"(?:(\w+)\s*)?\.\s*(\w+)\s*\(")
+_BARE_CALL_RE   = re.compile(r"(?<![\w.])(\w+)\s*\(")
+
 
 def _is_annotation(code: str) -> bool:
     return any(code.startswith(p) for p in ANNOTATION_PREFIXES)
 
 
+def _collect_internal_names(recs) -> set[str]:
+    """Collect function/modifier names declared OR defined inside this JSON."""
+    names: set[str] = set()
+    for r in recs:
+        if not isinstance(r, dict):
+            continue
+        code = r.get("code", "").strip()
+        if not code or code.startswith("//"):
+            continue
+        m = _FUNC_HEAD_RE.match(code)
+        if m:
+            names.add(m.group(1))
+    return names
+
+
+def _count_external_calls(code: str) -> int:
+    """Count `.method(...)` sites; skip `abi.method(...)` (encoding built-ins)."""
+    n = 0
+    for m in _METHOD_CALL_RE.finditer(code):
+        obj = m.group(1)  # the identifier immediately before the dot, if any
+        if obj == "abi":
+            continue
+        n += 1
+    return n
+
+
+def _count_internal_calls(code: str, internal_names: set[str]) -> int:
+    """Count bare `<id>(` sites where <id> is in `internal_names` and not a keyword."""
+    n = 0
+    for m in _BARE_CALL_RE.finditer(code):
+        ident = m.group(1)
+        if ident in KEYWORD_CALLS:
+            continue
+        if ident in internal_names:
+            n += 1
+    return n
+
+
 def extract_source_metrics(json_path: Path) -> dict:
-    """Parse the case JSON and compute source + annotation metrics."""
+    """Parse the case JSON and compute the 5 metrics + helper counters."""
     recs = json.loads(json_path.read_text(encoding="utf-8"))
 
-    # Annotation counts
+    internal_names = _collect_internal_names(recs)
+
     ann = {
-        "debug_statevar": 0,
-        "debug_localvar": 0,
-        "debug_globalvar": 0,
-        "debug_ireturn": 0,
-        "intent_during": 0,
-        "intent_post": 0,
+        "debug_statevar": 0, "debug_localvar": 0,
+        "debug_globalvar": 0, "debug_ireturn": 0,
+        "intent_during": 0, "intent_post": 0,
     }
 
-    # Source complexity counters
-    contracts: set[str] = set()
-    functions: set[str] = set()
-    inheritance_count = 0
-    using_directives = 0
-    loop_count = 0
-    branch_count = 0  # if statements
+    loop_count    = 0
+    branch_count  = 0
+    guard_count   = 0
+    internal_calls = 0
     external_calls = 0
 
     covered_lines: set[int] = set()
+    using_libraries: set[str] = set()
 
     for r in recs:
         if not isinstance(r, dict):
@@ -109,84 +167,58 @@ def extract_source_metrics(json_path: Path) -> dict:
         code = r.get("code", "").strip()
         start = r.get("startLine", 0) or 0
         end = r.get("endLine", start) or start
-
         if not code or code == "\n":
             continue
 
-        # Annotation records: count and skip
-        if code.startswith("// @StateVar"):
-            ann["debug_statevar"] += 1
-            continue
-        if code.startswith("// @LocalVar"):
-            ann["debug_localvar"] += 1
-            continue
-        if code.startswith("// @GlobalVar"):
-            ann["debug_globalvar"] += 1
-            continue
-        if code.startswith("// @IReturn"):
-            ann["debug_ireturn"] += 1
-            continue
-        if code.startswith("// @During"):
-            ann["intent_during"] += 1
-            continue
-        if code.startswith("// @Post"):
-            ann["intent_post"] += 1
-            continue
-        if code.startswith("// @Debugging"):
-            continue
-        if code.startswith("//"):
-            continue
+        if code.startswith("// @StateVar"):  ann["debug_statevar"]  += 1; continue
+        if code.startswith("// @LocalVar"):  ann["debug_localvar"]  += 1; continue
+        if code.startswith("// @GlobalVar"): ann["debug_globalvar"] += 1; continue
+        if code.startswith("// @IReturn"):   ann["debug_ireturn"]   += 1; continue
+        if code.startswith("// @During"):    ann["intent_during"]   += 1; continue
+        if code.startswith("// @Post"):      ann["intent_post"]     += 1; continue
+        if code.startswith("// @Debugging"): continue
+        if code.startswith("//"):            continue
 
-        # Count real source lines
+        # Real source line range
         for ln in range(start, end + 1):
             covered_lines.add(ln)
 
-        # Contract declaration
-        m = re.match(r"(?:abstract\s+)?(?:contract|library|interface)\s+(\w+)(?:\s+is\s+([^{]+))?", code)
-        if m:
-            contracts.add(m.group(1))
-            if m.group(2):
-                parents = [p.strip() for p in m.group(2).split(",") if p.strip()]
-                inheritance_count += len(parents)
-            continue
+        um = _USING_RE.match(code)
+        if um:
+            using_libraries.add(um.group(1))
 
-        # Function declaration
-        fm = re.match(r"function\s+(\w+)", code)
-        if fm:
-            functions.add(fm.group(1))
+        # Control flow
+        loop_count   += len(_FOR_RE.findall(code))
+        loop_count   += len(_WHILE_RE.findall(code))
+        n_if         = len(_IF_RE.findall(code))       # includes "else if"
+        n_plain_else = len(_ELSE_STD_RE.findall(code)) # else not followed by if
+        branch_count += n_if + n_plain_else
+        guard_count  += len(_REQUIRE_RE.findall(code))
+        guard_count  += len(_ASSERT_RE.findall(code))
 
-        # Control flow: loops and branches
-        if re.search(r"\bfor\s*\(", code):
-            loop_count += 1
-        if re.search(r"\bwhile\s*\(", code):
-            loop_count += 1
-        if re.search(r"\bif\s*\(", code):
-            branch_count += 1
+        # Call sites — but skip function/modifier/constructor/event header lines,
+        # whose `name(` occurrences are declarations, not call sites.
+        if not _DEF_HEAD_RE.match(code):
+            external_calls += _count_external_calls(code)
+            internal_calls += _count_internal_calls(code, internal_names)
 
-        # Using directive
-        if re.match(r"using\s+\w+\s+for", code):
-            using_directives += 1
-
-        # External call pattern — rough heuristic:
-        #   CapName(expr).method(...) or InterfaceVar.method(...)
-        #   counts each CapName(...).ident( occurrence
-        external_calls += len(re.findall(r"[A-Z]\w*\([^)]*\)\s*\.\s*\w+\s*\(", code))
-
-    total_records = sum(
+    control_flow = loop_count + branch_count + guard_count
+    num_records = sum(
         1 for r in recs
         if isinstance(r, dict) and r.get("code", "").strip()
     )
 
     return {
-        "num_records": total_records,
+        "num_records": num_records,
         "lines": len(covered_lines),
-        "contracts": len(contracts),
-        "functions": len(functions),
-        "inheritance_count": inheritance_count,
-        "using_directives": using_directives,
+        "internal_calls": internal_calls,
+        "external_calls": external_calls,
+        "control_flow": control_flow,
+        # helper sub-counters for debugging / verification
         "loop_count": loop_count,
         "branch_count": branch_count,
-        "external_calls": external_calls,
+        "guard_count": guard_count,
+        "using_directives": len(using_libraries),
         **ann,
         "debug_total": (
             ann["debug_statevar"] + ann["debug_localvar"]
@@ -201,11 +233,6 @@ def extract_source_metrics(json_path: Path) -> dict:
 # ─────────────────────────────────────────────────────────────
 
 def load_rq2_results(csv_path: Path = MAIN_RESULTS) -> dict:
-    """Return {(case_name, category): {analysis_time_sec, result}} from a results CSV.
-
-    Uses (case, category) as the key because some target contracts (e.g., BoostToken)
-    appear in multiple NumScout pattern subdirectories with distinct annotations.
-    """
     if not csv_path.exists():
         return {}
     out = {}
@@ -220,17 +247,12 @@ def load_rq2_results(csv_path: Path = MAIN_RESULTS) -> dict:
 
 
 def run_rq2_evaluation() -> None:
-    """Invoke run_all.py to regenerate rq2_results.csv."""
     runner = MAIN_EVAL_DIR / "run_all.py"
     print(f"[info] Running {runner} ...")
     subprocess.run([sys.executable, str(runner)], check=False)
 
 
 def run_rq2_n_times(n: int) -> dict:
-    """Run run_all.py n times, snapshot each result, return aggregated timings.
-
-    Returns {(case, category): {mean, stdev, min, max, n_runs, result, all_times}}.
-    """
     timings = defaultdict(list)
     last_results = {}
 
@@ -242,19 +264,16 @@ def run_rq2_n_times(n: int) -> dict:
             print(f"[error] {MAIN_RESULTS} not produced after run {i}")
             continue
 
-        # Snapshot
         snapshot = SOUNDNESS_DIR / f"rq2_run{i}.csv"
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(MAIN_RESULTS, snapshot)
         print(f"[ok] snapshot → {snapshot}")
 
-        # Collect timings
         rq2 = load_rq2_results()
         for key, data in rq2.items():
             timings[key].append(data["analysis_time_sec"])
             last_results[key] = data["result"]
 
-    # Aggregate
     out = {}
     for key, times in timings.items():
         if not times:
@@ -271,18 +290,37 @@ def run_rq2_n_times(n: int) -> dict:
     return out
 
 
+def load_existing_time_rows(path: Path) -> dict:
+    """Load analysis-time fields from an existing rq1_metrics.csv, keyed by display case."""
+    if not path.exists():
+        return {}
+    out = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            case = row.get("case", "").strip()
+            if not case:
+                continue
+            out[case] = {
+                "analysis_time_mean": float(row.get("analysis_time_mean", 0) or 0),
+                "analysis_time_stdev": float(row.get("analysis_time_stdev", 0) or 0),
+                "analysis_time_min": float(row.get("analysis_time_min", 0) or 0),
+                "analysis_time_max": float(row.get("analysis_time_max", 0) or 0),
+                "n_runs": int(float(row.get("n_runs", 0) or 0)),
+                "result": row.get("result", ""),
+            }
+    return out
+
+
 # ─────────────────────────────────────────────────────────────
 # Analysis
 # ─────────────────────────────────────────────────────────────
 
-def collect_rows(case_jsons: list[str], rq2_agg: dict) -> list[dict]:
-    """Build per-case rows. rq2_agg may be from a single run or aggregated over N."""
+def collect_rows(case_jsons, rq2_agg: dict, fallback_times: dict) -> list[dict]:
     rows = []
     for rel in case_jsons:
         path = MAIN_EVAL_DIR / rel
         case_name = path.stem.replace("_input", "")
         category = path.parent.name
-        # Display name disambiguates collisions like BoostToken (operator vs indivisible)
         display = (
             case_name
             if case_name.startswith("web3bugs_")
@@ -291,8 +329,6 @@ def collect_rows(case_jsons: list[str], rq2_agg: dict) -> list[dict]:
         metrics = extract_source_metrics(path)
         agg = rq2_agg.get((case_name, category), {})
 
-        # Support both shapes: single-run {analysis_time_sec, result}
-        # or aggregated {analysis_time_mean, ...}
         if "analysis_time_mean" in agg:
             time_fields = {
                 "analysis_time_mean": round(agg["analysis_time_mean"], 4),
@@ -301,8 +337,9 @@ def collect_rows(case_jsons: list[str], rq2_agg: dict) -> list[dict]:
                 "analysis_time_max": round(agg["analysis_time_max"], 4),
                 "n_runs": agg["n_runs"],
             }
-        else:
-            t = agg.get("analysis_time_sec", 0.0)
+            result_val = agg.get("result", "")
+        elif "analysis_time_sec" in agg:
+            t = agg["analysis_time_sec"]
             time_fields = {
                 "analysis_time_mean": round(t, 4),
                 "analysis_time_stdev": 0.0,
@@ -310,27 +347,46 @@ def collect_rows(case_jsons: list[str], rq2_agg: dict) -> list[dict]:
                 "analysis_time_max": round(t, 4),
                 "n_runs": 1 if t > 0 else 0,
             }
+            result_val = agg.get("result", "")
+        elif display in fallback_times:
+            fb = fallback_times[display]
+            time_fields = {
+                "analysis_time_mean": round(fb["analysis_time_mean"], 4),
+                "analysis_time_stdev": round(fb["analysis_time_stdev"], 4),
+                "analysis_time_min": round(fb["analysis_time_min"], 4),
+                "analysis_time_max": round(fb["analysis_time_max"], 4),
+                "n_runs": fb["n_runs"],
+            }
+            result_val = fb.get("result", "")
+        else:
+            time_fields = {
+                "analysis_time_mean": 0.0, "analysis_time_stdev": 0.0,
+                "analysis_time_min": 0.0, "analysis_time_max": 0.0,
+                "n_runs": 0,
+            }
+            result_val = ""
 
         rows.append({
             "case": display,
             **time_fields,
-            "result": agg.get("result", ""),
+            "result": result_val,
             **metrics,
         })
     return rows
 
 
-def write_csv(rows: list[dict], path: Path) -> None:
+def write_csv(rows, path: Path) -> None:
     fieldnames = [
         "case",
         "analysis_time_mean", "analysis_time_stdev",
         "analysis_time_min", "analysis_time_max", "n_runs",
         "result",
-        "num_records", "lines", "contracts", "functions",
-        "inheritance_count", "using_directives",
-        "loop_count", "branch_count", "external_calls",
+        # canonical metrics (5)
+        "lines", "internal_calls", "external_calls", "control_flow", "debug_total",
+        # helpers
+        "num_records", "using_directives",
+        "loop_count", "branch_count", "guard_count",
         "debug_statevar", "debug_localvar", "debug_globalvar", "debug_ireturn",
-        "debug_total",
         "intent_during", "intent_post", "intent_total",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -340,7 +396,7 @@ def write_csv(rows: list[dict], path: Path) -> None:
         writer.writerows(rows)
 
 
-def pearson(xs: list[float], ys: list[float]) -> float:
+def pearson(xs, ys) -> float:
     n = len(xs)
     if n == 0:
         return 0.0
@@ -354,13 +410,13 @@ def pearson(xs: list[float], ys: list[float]) -> float:
     return num / (dx * dy)
 
 
-def compute_correlations(rows: list[dict]) -> list[tuple[str, float]]:
+def compute_correlations(rows):
     numeric_keys = [
-        "num_records", "lines", "contracts", "functions",
-        "inheritance_count", "using_directives",
-        "loop_count", "branch_count", "external_calls",
+        "lines", "internal_calls", "external_calls", "control_flow", "debug_total",
+        "loop_count", "branch_count", "guard_count",
+        "num_records", "using_directives",
         "debug_statevar", "debug_localvar", "debug_globalvar", "debug_ireturn",
-        "debug_total", "intent_during", "intent_post", "intent_total",
+        "intent_during", "intent_post", "intent_total",
     ]
     ys = [r["analysis_time_mean"] for r in rows]
     corrs = []
@@ -371,7 +427,7 @@ def compute_correlations(rows: list[dict]) -> list[tuple[str, float]]:
     return corrs
 
 
-def write_correlations(corrs: list[tuple[str, float]], path: Path) -> None:
+def write_correlations(corrs, path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["metric", "pearson_r_with_analysis_time"])
@@ -379,47 +435,11 @@ def write_correlations(corrs: list[tuple[str, float]], path: Path) -> None:
             writer.writerow([k, f"{v:+.4f}"])
 
 
-def print_correlations(corrs: list[tuple[str, float]]) -> None:
-    print("\n=== Pearson correlation with analysis_time_sec ===")
+def print_correlations(corrs) -> None:
+    print("\n=== Pearson correlation with analysis_time_mean ===")
     for k, v in corrs:
-        bar_width = int(abs(v) * 20)
-        bar = "#" * bar_width
+        bar = "#" * int(abs(v) * 20)
         print(f"  {k:22s}: {v:+.3f}  {bar}")
-
-
-def try_plot(rows: list[dict]) -> None:
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print("[info] matplotlib not installed, skipping scatter plots")
-        return
-
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
-    factors = [
-        "lines", "loop_count", "external_calls",
-        "debug_total", "intent_total", "branch_count",
-    ]
-    ys = [r["analysis_time_mean"] for r in rows]
-    yerrs = [r.get("analysis_time_stdev", 0) for r in rows]
-
-    fig, axes = plt.subplots(2, 3, figsize=(13, 8))
-    for ax, factor in zip(axes.flatten(), factors):
-        xs = [r.get(factor, 0) for r in rows]
-        ax.errorbar(xs, ys, yerr=yerrs, fmt='o', alpha=0.75,
-                    markersize=6, capsize=3)
-        ax.set_xlabel(factor)
-        ax.set_ylabel("analysis time (s)")
-        r_val = pearson(xs, ys)
-        ax.set_title(f"{factor}  (r={r_val:+.2f})")
-        ax.grid(alpha=0.3)
-    fig.suptitle("Analysis time vs complexity factors (20 mitigated cases)")
-    plt.tight_layout()
-    out = PLOTS_DIR / "analysis_time_factors.png"
-    plt.savefig(out, dpi=150)
-    plt.close()
-    print(f"[ok] Scatter plots → {out}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -430,9 +450,14 @@ def main():
     parser = argparse.ArgumentParser(description="RQ1 metrics collection")
     parser.add_argument(
         "--runs", type=int, default=0,
-        help="Run run_all.py N times and average. 0 = use existing rq2_results.csv.",
+        help="Run run_all.py N times and average. 0 = skip re-running and "
+             "re-use analysis_time_* from the existing rq1_metrics.csv if present, "
+             "or read rq2_results.csv if that is the only thing available.",
     )
     args = parser.parse_args()
+
+    rq2_agg: dict = {}
+    fallback_times = load_existing_time_rows(OUT_CSV)
 
     if args.runs > 0:
         rq2_agg = run_rq2_n_times(args.runs)
@@ -440,24 +465,20 @@ def main():
             print("[error] No timings collected. Aborting.")
             sys.exit(1)
     else:
-        if not MAIN_RESULTS.exists():
-            print(f"[info] {MAIN_RESULTS} not found. Running run_all.py once ...")
-            run_rq2_evaluation()
-        rq2_agg = load_rq2_results()
-        if not rq2_agg:
-            print(f"[error] {MAIN_RESULTS} still missing. Aborting.")
-            sys.exit(1)
+        # --runs=0: prefer existing metrics CSV times; if absent, try rq2_results.csv
+        if fallback_times:
+            print(f"[info] Re-using analysis times from existing {OUT_CSV.name}")
+        else:
+            if not MAIN_RESULTS.exists():
+                print(f"[info] {MAIN_RESULTS} not found and no {OUT_CSV.name} "
+                      "to fall back on. Running run_all.py once ...")
+                run_rq2_evaluation()
+            rq2_agg = load_rq2_results()
+            if not rq2_agg:
+                print(f"[error] no timing data available. Aborting.")
+                sys.exit(1)
 
-    missing = []
-    for rel in CASE_JSONS:
-        p = Path(rel)
-        key = (p.stem.replace("_input", ""), p.parent.name)
-        if key not in rq2_agg:
-            missing.append(f"{key[1]}/{key[0]}")
-    if missing:
-        print(f"[warn] {len(missing)} cases missing from RQ2 data: {missing}")
-
-    rows = collect_rows(CASE_JSONS, rq2_agg)
+    rows = collect_rows(CASE_JSONS, rq2_agg, fallback_times)
     write_csv(rows, OUT_CSV)
     n_runs = rows[0].get("n_runs", 1) if rows else 0
     print(f"\n[ok] Per-case metrics → {OUT_CSV}  ({len(rows)} cases, {n_runs} runs each)")
@@ -466,8 +487,6 @@ def main():
     write_correlations(corrs, CORR_CSV)
     print(f"[ok] Correlations → {CORR_CSV}")
     print_correlations(corrs)
-
-    try_plot(rows)
 
 
 if __name__ == "__main__":

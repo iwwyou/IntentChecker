@@ -1,9 +1,9 @@
 """
 Generate scatter plots of analysis time vs complexity metrics.
-Produces a 2x3 subplot figure saved as PDF for LaTeX inclusion.
+3+2 layout (3 on top, 2 centered on bottom), saved as PDF for LaTeX inclusion.
 
 Usage:
-    python plot_correlations.py [--out rq1_scatter.pdf]
+    python plot_correlations.py [--out <path.pdf>]
 """
 
 import argparse
@@ -17,23 +17,24 @@ from scipy import stats
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 METRICS_CSV = os.path.join(SCRIPT_DIR, "rq1_metrics.csv")
+DEFAULT_OUT = os.path.abspath(
+    os.path.join(SCRIPT_DIR, "..", "..", "paper", "figure", "rq1_scatter.pdf")
+)
 
-# Metrics to plot: (csv_column, display_label)
+# (csv_column, display_label) — order = plot order
 PLOT_METRICS = [
-    ("lines",         "Source lines"),
-    ("functions",     "Functions"),
-    ("branch_count",  "Branches"),
-    ("debug_total",   "Debug annotations"),
-    ("loop_count",    "Loops"),
-    ("external_calls","External calls"),
+    ("lines",           "Source lines"),
+    ("internal_calls",  "Internal calls"),
+    ("external_calls",  "External calls"),
+    ("control_flow",    "Control flow"),
+    ("debug_total",     "Debug annotations"),
 ]
 
 
 def load_metrics(path):
     rows = []
     with open(path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+        for row in csv.DictReader(f):
             if not row.get("case", "").strip():
                 continue
             rows.append(row)
@@ -42,22 +43,27 @@ def load_metrics(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default=os.path.join(SCRIPT_DIR, "rq1_scatter.pdf"))
+    parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args()
 
     rows = load_metrics(METRICS_CSV)
     times = np.array([float(r["analysis_time_mean"]) for r in rows])
 
-    fig, axes = plt.subplots(2, 3, figsize=(7.0, 4.2))
-    axes = axes.flatten()
+    # 3+2 layout: 2 rows × 6 columns grid; each subplot spans 2 columns.
+    # Bottom row shifts by 1 column to center 2 subplots.
+    mosaic = [
+        ["A", "A", "B", "B", "C", "C"],
+        [".", "D", "D", "E", "E", "."],
+    ]
+    fig, axd = plt.subplot_mosaic(mosaic, figsize=(7.2, 4.6))
+    panel_ids = ["A", "B", "C", "D", "E"]
 
-    for idx, (col, label) in enumerate(PLOT_METRICS):
-        ax = axes[idx]
+    for pid, (col, label) in zip(panel_ids, PLOT_METRICS):
+        ax = axd[pid]
         vals = np.array([float(r[col]) for r in rows])
 
         ax.scatter(vals, times, s=18, color="black", alpha=0.7, zorder=3)
 
-        # Regression line
         if np.std(vals) > 0:
             slope, intercept, r_val, _, _ = stats.linregress(vals, times)
             x_line = np.linspace(vals.min(), vals.max(), 50)
@@ -68,8 +74,7 @@ def main():
             r_text = "r = N/A"
 
         ax.set_xlabel(label, fontsize=8)
-        if idx % 3 == 0:
-            ax.set_ylabel("Analysis time (s)", fontsize=8)
+        ax.set_ylabel("Analysis time (s)", fontsize=8)
         ax.tick_params(labelsize=7)
         ax.text(0.97, 0.95, r_text, transform=ax.transAxes,
                 fontsize=7.5, ha="right", va="top",
@@ -77,7 +82,8 @@ def main():
                           alpha=0.8))
         ax.grid(True, linewidth=0.3, alpha=0.5)
 
-    plt.tight_layout(pad=0.5)
+    plt.tight_layout(pad=0.6)
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
     plt.savefig(args.out, bbox_inches="tight", dpi=300)
     print(f"Saved: {args.out}")
 

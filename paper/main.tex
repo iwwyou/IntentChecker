@@ -1060,7 +1060,7 @@ The resulting Web3Bugs subset contains 81 instances spanning Erroneous Accountin
 \toprule
 \textbf{Source} & \textbf{Error Pattern} & \textbf{Count} \\
 \midrule
-\multirow{6}{*}{NumScout}
+\multirow{5}{*}{NumScout}
   & Div In Path              & 1  \\
   & Exchange Problem         & 2  \\
   & Operator Order Issue     & 1  \\
@@ -1136,37 +1136,37 @@ The remaining \textbf{75 instances} form the effective evaluation set used in RQ
 
 \begin{table}[t]
 \centering
-\caption{Per-case analysis time on the 20 mitigated cases (mean $\pm$ stdev over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time.}
+\caption{Per-case analysis time on the 20 mitigated cases (mean over 3 runs, single thread, dependency pre-analysis excluded). Cases sorted by mean time.}
 \label{tab:rq1-timing}
 \small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l r r r @{}}
+\begin{tabular}{l l r r}
 \toprule
-\textbf{Case} & \textbf{Mean (s)} & \textbf{Stdev (s)} & \textbf{Range (s)} \\
+\textbf{Case} & \textbf{Error Pattern} & \textbf{Mean (s)} & \textbf{Range (s)} \\
 \midrule
-div\_in\_path\_WANGMI             & 14.94 & 2.56 & 12.0--16.8 \\
-web3bugs\_45\_H\_01               & 13.55 & 4.52 & 9.4--18.4  \\
-web3bugs\_58\_H\_02               &  9.67 & 3.66 & 7.0--13.8  \\
-indivisible\_amount\_BoostToken   &  5.67 & 0.60 & 5.0--6.1   \\
-operator\_order\_issue\_BoostToken&  5.43 & 0.48 & 4.9--5.8   \\
-web3bugs\_62\_H\_08               &  4.76 & 0.32 & 4.4--5.1   \\
-web3bugs\_70\_H\_10               &  3.32 & 0.31 & 3.0--3.6   \\
-web3bugs\_51\_H\_02               &  3.18 & 0.69 & 2.8--4.0   \\
-web3bugs\_56\_H\_02               &  2.37 & 1.45 & 1.5--4.0   \\
-profit\_opportunity\_HIT          &  2.03 & 0.46 & 1.6--2.5   \\
-web3bugs\_5\_H\_12                &  1.75 & 1.41 & 0.9--3.4   \\
-web3bugs\_47\_H\_02               &  1.42 & 0.11 & 1.3--1.5   \\
-web3bugs\_5\_H\_08                &  1.10 & 0.17 & 1.0--1.3   \\
-web3bugs\_60\_H\_01               &  1.06 & 0.07 & 1.0--1.1   \\
-web3bugs\_101\_H\_01              &  0.87 & 0.04 & 0.8--0.9   \\
-exchange\_problem\_Nokon          &  0.67 & 0.09 & 0.6--0.8   \\
-greedy\_contract\_SwordCrowdsale  &  0.66 & 0.07 & 0.6--0.7   \\
-web3bugs\_78\_H\_02               &  0.58 & 0.02 & 0.6--0.6   \\
-web3bugs\_5\_H\_07                &  0.44 & 0.12 & 0.3--0.6   \\
-web3bugs\_77\_H\_01               &  0.33 & 0.02 & 0.3--0.4   \\
+div\_in\_path\_WANGMI             & Div In Path              & 14.94 & 12.0--16.8 \\
+web3bugs\_45\_H\_01               & Erroneous Acct.          & 13.55 & 9.4--18.4  \\
+web3bugs\_58\_H\_02               & Erroneous Acct.          &  9.67 & 7.0--13.8  \\
+indivisible\_amount\_BoostToken   & Minor Amt.\ Retention    &  5.67 & 5.0--6.1   \\
+operator\_order\_issue\_BoostToken& Operator Order Issue      &  5.43 & 4.9--5.8   \\
+web3bugs\_62\_H\_08               & Inconsist.\ State Upd.   &  4.76 & 4.4--5.1   \\
+web3bugs\_70\_H\_10               & Inconsist.\ State Upd.   &  3.32 & 3.0--3.6   \\
+web3bugs\_51\_H\_02               & Erroneous Acct.          &  3.18 & 2.8--4.0   \\
+web3bugs\_56\_H\_02               & Erroneous Acct.          &  2.37 & 1.5--4.0   \\
+profit\_opportunity\_HIT          & Exchange Problem         &  2.03 & 1.6--2.5   \\
+web3bugs\_5\_H\_12                & Erroneous Acct.          &  1.75 & 0.9--3.4   \\
+web3bugs\_47\_H\_02               & Erroneous Acct.          &  1.42 & 1.3--1.5   \\
+web3bugs\_5\_H\_08                & Erroneous Acct.          &  1.10 & 1.0--1.3   \\
+web3bugs\_60\_H\_01               & Erroneous Acct.          &  1.06 & 1.0--1.1   \\
+web3bugs\_101\_H\_01              & Erroneous Acct.          &  0.87 & 0.8--0.9   \\
+exchange\_problem\_Nokon          & Exchange Problem         &  0.67 & 0.6--0.8   \\
+greedy\_contract\_SwordCrowdsale  & Greedy Contract          &  0.66 & 0.6--0.7   \\
+web3bugs\_78\_H\_02               & Erroneous Acct.          &  0.58 & 0.6--0.6   \\
+web3bugs\_5\_H\_07                & Erroneous Acct.          &  0.44 & 0.3--0.6   \\
+web3bugs\_77\_H\_01               & Erroneous Acct.          &  0.33 & 0.3--0.4   \\
 \midrule
-\textbf{Mean of means} & \textbf{3.69} & --- & --- \\
+\textbf{Mean of means} & & \textbf{3.69} & --- \\
 \bottomrule
-\end{tabular*}
+\end{tabular}
 \end{table}
 
 \begin{figure}[t]
@@ -1177,21 +1177,15 @@ web3bugs\_77\_H\_01               &  0.33 & 0.02 & 0.3--0.4   \\
 \end{figure}
 
 \noindent\textbf{Setup.}
-For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the audit report and identify the buggy line(s), (2) write @During and/or @Post intent annotations that capture the expected numeric behavior described in the report, (3) supply the debug annotations (@StateVar, @LocalVar, @GlobalVar, and @IReturn) that the function needs to be analyzable under representative inputs, and (4) run IntentChecker on the resulting annotated source.
+For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the accompanying bug documentation and identify the buggy line(s), (2) write @During and/or @Post intent annotations that capture the expected numeric behavior described therein, (3) supply the debug annotations (@StateVar, @LocalVar, @GlobalVar, and @IReturn) that the function needs to be analyzable under representative inputs, and (4) run IntentChecker on the resulting annotated source.
 We record the judgment produced by the validation engine---Satisfied, Warning, or Violated---together with the risk score and violated region.
 For instances where no annotation can yield a non-Satisfied signal, we further classify the structural reason according to the limitation taxonomy in RQ2 (§\ref{sec:rq2}).
 
 \smallskip
 \noindent\textbf{Outcomes.}
-Of the 75 effective instances, IntentChecker produces a Violated judgment on \textbf{20 cases} when supplied with annotations derived from the audit report.
+Of the 75 effective instances, IntentChecker produces a Violated judgment on \textbf{20 cases} when supplied with annotations derived from the bug documentation.
 The remaining 55 instances are classified as not\_detectable: IntentChecker cannot, given the structure of its analysis or its intent model, surface a non-Satisfied signal for them.
 Table~\ref{tab:rq1-overview} summarizes the full outcome distribution; the structural reasons behind the 55 unmitigated cases are analyzed in RQ2 (§\ref{sec:rq2}).
-
-\smallskip
-\noindent\textbf{Pattern coverage of the 20 mitigated cases.}
-The 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
-Precision Loss Trend is present in the benchmark (2 cases) but both cases are not mitigated.
-This pattern-level distribution confirms that the mitigated cases are not concentrated in a single ``easy'' pattern but span the breadth of the taxonomy, suggesting that intent-based validation is a general technique rather than a coincidental match for one error class.
 
 \smallskip
 \noindent\textbf{Annotation model usage on the 20 mitigated cases.}
@@ -1202,35 +1196,47 @@ The two specialized @During forms---Before/After comparisons against an injectio
 This distribution suggests that the bulk of mitigation work in our benchmark is carried by the basic relational form, with the specialized annotations contributing on patterns that the basic form cannot capture (e.g., monotonicity over function execution, argument-level constraints, post-execution change detection).
 
 \smallskip
+\noindent\textbf{Pattern coverage of the 20 mitigated cases.}
+As shown in the Error Pattern column of Table~\ref{tab:rq1-timing}, the 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
+Precision Loss Trend is present in the benchmark (2 cases) but both instances are not mitigated.
+The coverage across 7 of 8 patterns indicates that mitigability depends on whether the error is expressible as an intent violation, not on the error's classification---suggesting that intent-based validation is pattern-agnostic in scope.
+
+\smallskip
 \noindent\textbf{Analysis time and what drives it.}
-We measured per-case end-to-end analysis time over three independent runs of each mitigated case on a single thread, excluding the one-time dependency pre-analysis phase (consistent with the development-time scenario, in which inherited contracts and libraries are cached across editing sessions).
+We measured per-case end-to-end analysis time over three independent runs of each mitigated case on a single thread, excluding the one-time dependency pre-analysis phase (inherited contracts and libraries are pre-analyzed and their control-flow graphs are stored as serialized objects, so they need not be rebuilt across editing sessions).
 The mean per-case time is \textbf{3.69\,s}, the minimum is 0.33\,s (web3bugs\_77\_H\_01), and the maximum is 14.94\,s (div\_in\_path\_WANGMI); 15 of the 20 cases finish in under 5\,s, and all but two finish in under 10\,s.
-Per-case standard deviations are small for short cases (under 0.15\,s) and larger for the long-running cases (e.g., web3bugs\_45\_H\_01 at $13.5 \pm 4.5$\,s), reflecting OS and JIT noise that becomes proportionally smaller as case complexity grows.
 The full per-case timings appear in Table~\ref{tab:rq1-timing}.
 
-To understand what drives the variation across cases, we collected six per-case complexity metrics---total source lines in the deployment unit, function count, control-flow branch count, loop count, debug annotation count, and external call count---and computed the Pearson correlation of each with the mean analysis time.
-Figure~\ref{fig:rq1-scatter} plots each metric against analysis time.
-Three observations emerge.
-First, the strongest predictors are aggregate size measures: source lines ($r=0.87$), function count ($r=0.76$), and branch count ($r=0.72$).
-The dominant cost is therefore the abstract interpreter's traversal of the deployment unit's control-flow graph, not any single feature local to the bug site.
-Second, debug annotation count is also strongly correlated ($r=0.80$), reflecting that each debug annotation injects an additional state-evaluation point into the interpreter and thus contributes proportionally to total work.
-Third, and perhaps counter-intuitively, loop count is only moderately correlated ($r=0.36$), and external call count only weakly so ($r=0.38$).
-This contradicts the natural expectation that fixpoint iteration on loops would dominate analysis time.
-Inspection of the mitigated set explains the gap: in several cases that contain loops, the widening of accumulator variables happens to occur on variables that do not flow into the intent annotation's value path, so the precision loss does not affect the judgment but the fixpoint iteration cost is still paid.
-The cost is real, but it is not concentrated in the cases that succeed---those cases instead pay it as ``dead work'' alongside successful bug surfacing.
-A future optimization that confines fixpoint iteration to the intent-relevant scope could reduce this overhead without changing detectability; we discuss this further in §\ref{sec:disc:tech}.
+To understand what drives the variation across cases, we collected five per-case complexity metrics and computed the Pearson correlation coefficient $r$~\citep{pearson_r} of each with the 3-run mean analysis time $\bar{y}_i$.
+For two variables $X$ (metric) and $Y$ (analysis time) with $n$ paired observations $\{(x_i,y_i)\}_{i=1}^{n}$,
+\[
+  r \;=\; \frac{\sum_{i}(x_i-\bar{x})(y_i-\bar{y})}
+               {\sqrt{\sum_{i}(x_i-\bar{x})^{2}}\;\cdot\;\sqrt{\sum_{i}(y_i-\bar{y})^{2}}}\,,
+  \qquad -1 \le r \le +1\,,
+\]
+where $r=+1$ indicates a perfect positive linear relationship and $r=0$ indicates no linear association.
 
-Per-tool latency comparison against NumScout and GPTScan is reported in §\ref{sec:rq3}.
+Figure~\ref{fig:rq1-scatter} plots each metric against analysis time.
+Four of the five metrics exhibit a strong positive correlation ($r>0.8$):
+\begin{itemize}
+  \item \textbf{Source lines} ($r=0.87$) is the strongest predictor, as it directly reflects the amount of code the abstract interpreter must traverse.
+  \item \textbf{Control flow} ($r=0.84$), the aggregate count of loops, branches, and guards (require/assert), increases the number of join operations and fixpoint iterations the abstract interpreter must perform.
+  \item \textbf{Internal calls} ($r=0.80$) captures the depth of the call chain within the contraction. Each internal call requires the abstract interpreter to enter a new function scope, propagate abstract states across the call boundary, and merge the return state back into the caller.
+  \item \textbf{Debug annotations} ($r=0.80$) adds tracked variables to the abstract state, increasing per-step cost proportionally.
+\end{itemize}
+The consistently strong correlation across these four metrics ($r \ge 0.80$, $n=20$) suggests that analysis time scales approximately linearly with the size and complexity of the analysis input within the range observed in our benchmark.
+\begin{itemize}
+  \item \textbf{External calls} ($r=0.69$) shows a comparatively weaker correlation. Dependencies are excluded from per-case time as noted above, and interface function calls lack an implementation body, so the analyzer resolves them to $\top$ or a user-supplied @IReturn value without traversal.
+\end{itemize}
+
+Taken together, RQ1 shows that intent-based validation can surface actionable diagnostic signals for 20 of 75 benchmark instances across 7 of 8 error patterns, with per-case analysis completing in under 15\,s (mean 3.69\,s) and scaling proportionally with code complexity.
+These results suggest that IntentChecker is practical as a development-time validation tool for numeric logic errors in smart contracts.
 
 \subsection{RQ2: Unmitigated Case Analysis}\label{sec:rq2}
 
 \noindent\textbf{Setup.}
 RQ1 identified 55 instances for which IntentChecker cannot surface a non-Satisfied signal.
-RQ2 first classifies the structural reasons behind these failures and then, for the subset attributable to the intent model rather than the analysis engine, measures the model's expressibility ceiling.
-
-\smallskip
-\noindent\textbf{Limitation taxonomy.}
-The structural reasons for the 55 not\_detectable instances fall into eleven sub-categories grouped into two top-level families, summarized in Figure~\ref{fig:rq1-limitations}.
+RQ2 classifies the structural reasons behind these failures into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
 
 \begin{figure}[t]
 \centering
@@ -1238,33 +1244,33 @@ The structural reasons for the 55 not\_detectable instances fall into eleven sub
   % Constants
   \def\barH{0.45}
   \def\barGap{0.18}
-  \def\xUnit{0.45}  % cm per case
+  \def\xUnit{0.55}  % cm per case (widened)
   \def\maxCount{10}
 
   % Group A: analysis-engine (L1-L3)
   \def\colA{black!55}
-  % Group B: intent-model (L4-L5)
+  % Group B: annotation-grammar (L4-L5)
   \def\colB{black!25}
 
-  % Bars: (label, count, color, y)
-  \foreach \i/\lab/\val/\col in {%
-    0/L1a/8/\colA,
-    1/L1b/2/\colA,
-    2/L2a/3/\colA,
-    3/L2b/1/\colA,
-    4/L3/7/\colA,
-    5/L4a/10/\colB,
-    6/L4b/8/\colB,
-    7/L4c/1/\colB,
-    8/L4d/1/\colB,
-    9/L5a/7/\colB,
-    10/L5b/7/\colB%
+  % Bars: (index/label/count/color/type name)
+  \foreach \i/\lab/\val/\col/\desc in {%
+    0/L1a/8/\colA/Loop widening,
+    1/L1b/2/\colA/Loop body granularity,
+    2/L2a/3/\colA/Interface call return $\top$,
+    3/L2b/1/\colA/External call unknown state,
+    4/L3/7/\colA/Unsupported construct,
+    5/L4a/10/\colB/Inexpressible expected value,
+    6/L4b/8/\colB/No target storage variable,
+    7/L4c/1/\colB/Magnitude-only difference,
+    8/L4d/1/\colB/Invariant masked,
+    9/L5a/7/\colB/Bug-aware: missing code,
+    10/L5b/7/\colB/Bug-aware: wrong code%
   } {%
     \pgfmathsetmacro{\y}{-\i*(\barH+\barGap)}
     \pgfmathsetmacro{\w}{\val*\xUnit}
     \node[anchor=east] at (0,\y) {\textbf{\lab}};
     \fill[\col] (0.15,\y-\barH/2) rectangle (0.15+\w,\y+\barH/2);
-    \node[anchor=west] at (0.18+\w,\y) {\val};
+    \node[anchor=west] at (0.18+\w,\y) {\val\;\scriptsize\desc};
   }
 
   % Group brackets
@@ -1281,7 +1287,7 @@ The structural reasons for the 55 not\_detectable instances fall into eleven sub
   }
   \node[anchor=north] at (0.15+5*\xUnit,-7.65) {\scriptsize \# of cases};
 \end{tikzpicture}
-\caption{Limitation breakdown for the 55 not\_detectable instances: analysis-engine (L1--L3, 21) vs.\ annotation-model (L4--L5, 34).}
+\caption{Limitation breakdown for the 55 not\_detectable instances: analysis-engine (L1--L3, 21) vs.\ annotation-grammar (L4--L5, 34).}
 \label{fig:rq1-limitations}
 \end{figure}
 
@@ -1481,6 +1487,7 @@ We mitigate this by deriving each annotation directly from the audit report's st
 \noindent\textbf{External validity.}
 Our 89-case benchmark is drawn from Web3Bugs (Code4rena audit findings) and NumScout (BNB Smart Chain), which together cover a substantial portion of publicly known numeric logic errors but are not exhaustive.
 Findings may not generalize to numeric logic errors that arise in domains underrepresented by these two sources, such as zero-knowledge circuits or non-DeFi applications.
+Additionally, the correlation analysis in RQ1 is based on $n=20$ mitigated cases, which limits statistical power; the reported Pearson coefficients should be interpreted as indicative trends rather than causal claims.
 
 \smallskip
 \noindent\textbf{Construct validity.}
@@ -1758,6 +1765,9 @@ Luu, L., et al.: Making smart contracts smarter. In: Proceedings of the 2016 ACM
 
 \bibitem[Nguyen et~al.(2023)]{idealist}
 Nguyen, T.D., et al.: An idealist's approach for smart contract correctness. In: International Conference on Formal Engineering Methods, pp. 11--28 (2023). \url{https://doi.org/10.1007/978-981-99-7584-6_2}
+
+\bibitem[Pearson(2025)]{pearson_r}
+Pearson correlation coefficient. \url{https://en.wikipedia.org/wiki/Pearson_correlation_coefficient} (2025). Accessed April 2026
 
 \bibitem[Protofire(2025)]{solhint}
 Protofire: Solhint. \url{https://github.com/protofire/solhint} (2025). Accessed Janauary 2026
