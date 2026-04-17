@@ -1019,42 +1019,38 @@ This completes the design of IntentChecker's intent model and validation engine.
 
 \section{Evaluation}\label{sec:evaluation}
 
-We evaluate IntentChecker through three research questions that probe its empirical behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools:
+We evaluate IntentChecker through three research questions that probe its empirical mitigation capability, the structural reasons behind unmitigated cases, and its position relative to existing detection tools:
 
 \begin{itemize}
-    \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can IntentChecker surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded Violated/Warning signal?
-    \item \textbf{RQ2 (Unmitigated Case Analysis)}: For instances that the tool cannot handle, what is the structural reason, and how does this distribute across limitation types? Among the cases attributable to the intent model rather than the analysis engine, what fraction can the model express---and for those it can, how directly does the annotation capture the correct behavior?
-    \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does IntentChecker's feedback compare to that of ScType, GPTScan, and NumScout on the same set of bugs, in terms of (i) the detection model each tool employs (specification-driven vs.\ pattern-driven), (ii) per-case analysis latency, and (iii) coverage complementarity? The goal is to characterize where each tool sits in the detection landscape, not to argue numerical superiority.
+    \item \textbf{RQ1 (Mitigation Capability)}: Can intent-based validation provide developers with actionable diagnostic signals for numeric logic errors during development?
+    \item \textbf{RQ2 (Unmitigated Case Analysis)}: For instances that the tool cannot handle, what is the structural reason, and how does this distribute across limitation types?
+    \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does IntentChecker's approach compare to existing detection tools in terms of detection model, coverage, and analysis latency?
 \end{itemize}
 
 \subsection{Experimental Setup}\label{sec:setup}
 
+\noindent\textbf{Experimental Setting.}
+The evaluation environment consists of an 11th Gen Intel\textregistered{} Core\texttrademark{}
+i7-11390H CPU at 3.40\,GHz with 16.0\,GB RAM, running Windows 10 (64-bit).
+
+\smallskip
+\noindent\textbf{Dataset Collection.}
 We construct a benchmark of 89 real-world numeric logic error instances drawn from three complementary sources, each contributing different error patterns under IntentChecker's scope (multi-contract / single-transaction).
 
 \smallskip\noindent\textbf{NumScout (7 instances).}
 NumScout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
-We use the 95-sample subset distributed in NumScout's official repository (Experiment/95\_Samples\_Run), which the authors identify as their main case-level evaluation set.
-We select one representative instance per pattern from the six numerical defect patterns enumerated in NumScout (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, and Profit Opportunity), with two instances for Precision Loss Trend, yielding seven cases.
-We target contracts with compiler pragma $\geq$0.6---the minimum version supported by IntentChecker's Solidity front-end.
-One selected contract carries an older 0.4.x pragma but uses only language constructs that are semantically identical under $\geq$0.6 (no checked-arithmetic difference, no breaking syntax change in the analyzed function); we treat it as compatible with the supported subset.
+We use the 95-sample subset distributed in NumScout's official repository~\citep{numscout_dataset}, which the authors identify as their main case-level evaluation set.
+We select seven cases covering all five numerical defect patterns enumerated in NumScout (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, and Minor Amount Retention), with two instances for Precision Loss Trend and two for Exchange Problem---one of which is labeled Profit Opportunity in the repository.
+All selected contracts target Solidity~$\geq$0.6, the minimum version supported by IntentChecker's front-end; one contract carries a 0.4.x pragma but uses only constructs semantically identical under $\geq$0.6.
 
 \smallskip\noindent\textbf{Flyinointment (1 instance).}
 We additionally include one Greedy Contract instance from the dataset of \citet{flyinointment}, which originally introduced the Greedy Contract pattern and is referenced in §\ref{sec:background}.1.
-NumScout's pattern catalog does not include Greedy Contract, so this single instance is sourced separately to ensure pattern-level coverage of all the single-transaction error patterns described in §\ref{sec:background}.1.
 
 \smallskip\noindent\textbf{Web3Bugs (81 instances).}
-Web3Bugs~\citep{exploitablebugs} systematically collected and classified 493 high-severity vulnerabilities from Code4rena audit contests.
-We restrict the candidate set to bugs whose execution context fits IntentChecker's scope, namely multi-contract single-transaction numeric logic errors.
-This corresponds to (i) all bugs in categories S6-1 through S6-4 (Erroneous Accounting, 86 bugs), whose root causes are semantic errors in arithmetic or accounting logic and which the Web3Bugs authors confirm to be single-transaction, and (ii) the subset of S3-1 (Inconsistent State Updates) bugs whose root cause involves a numeric computation with a missing or stale state variable update.
-We manually reviewed the 22 S3-1 bugs and retained the 11 instances meeting this criterion, excluding non-numeric cases such as approval resets and access-control omissions.
-This yields 97 candidate instances.
-
-We then exclude 16 instances whose target contracts contain inline assembly blocks---either directly in the target contract or in locally imported/inherited files---which cannot be processed by the abstract interpreter (the supported Yul subset is described in §\ref{sec:prelim:extension}).
-After these exclusions, the final Web3Bugs subset contains 81 instances spanning Erroneous Accounting (72) and Inconsistent State Updates (9).
-
-\smallskip\noindent\textbf{Dataset Summary.}
-Table~\ref{tab:dataset} summarises the resulting benchmark.
-For each instance, we record the target contract, the buggy function, the specific lines identified in the audit report, and the error pattern.
+Web3Bugs~\citep{exploitablebugs} systematically collected and classified high-severity vulnerabilities from Code4rena audit contests.
+We select bugs whose execution context fits IntentChecker's scope, namely multi-contract single-transaction numeric logic errors.
+We draw from (i) categories S6-1 through S6-4 (Erroneous Accounting), whose root causes are semantic errors in arithmetic or accounting logic, and (ii) category S3-1 (Inconsistent State Updates), retaining only the subset whose root cause involves a numeric computation with a missing or stale state variable update.
+The resulting Web3Bugs subset contains 81 instances spanning Erroneous Accounting (72) and Inconsistent State Updates (9).
 
 \begin{table}[t]
 \centering
@@ -1066,11 +1062,10 @@ For each instance, we record the target contract, the buggy function, the specif
 \midrule
 \multirow{6}{*}{NumScout}
   & Div In Path              & 1  \\
-  & Exchange Problem         & 1  \\
+  & Exchange Problem         & 2  \\
   & Operator Order Issue     & 1  \\
   & Precision Loss Trend     & 2  \\
   & Minor Amount Retention   & 1  \\
-  & Profit Opportunity       & 1  \\
 \midrule
 Flyinointment & Greedy Contract & 1 \\
 \midrule
@@ -1088,23 +1083,19 @@ Excluded (see below)        & & $-14$ \\
 \smallskip\noindent\textbf{Exclusions.}
 Of the 89 collected instances, 14 are excluded after manual inspection because they fall outside the definition of a development-time numeric logic error.
 The exclusion categories are:
-source already silently patched (E1, 2 cases);
-checked-arithmetic revert under Solidity~$\geq$0.8 such that the program traps rather than returns a wrong value (E2, 2 cases);
-duplicate audit findings on the same buggy site (E3, 2 cases);
-reports the original auditors disputed as intended behavior (E4, 1 case);
-required external libraries not provided in the audit package (E5, 2 cases);
-bugs whose manifestation requires state changes across separate transactions and therefore fall outside our single-transaction scope (E6, 3 cases);
-a case whose bug actually resides in a different contract than the documented target (1 case);
-and one NumScout case whose ``bug'' is the inherent truncation of integer division for which no alternative correct implementation exists (E7, 1 case).
+\begin{itemize}
+  \item \textbf{E1 (Source already patched, 2).} The provided source code is a post-fix version; the reported bug cannot be reproduced.
+  \item \textbf{E2 (Integer overflow/underflow, 2).} The program reverts via Solidity~$\geq$0.8 checked arithmetic rather than returning a wrong value, so no numeric logic error is observable at the output level.
+  \item \textbf{E3 (Duplicate, 2).} Duplicate audit findings on the same buggy site.
+  \item \textbf{E4 (Not a bug, 1).} The project sponsor disputed the finding as intended behavior.
+  \item \textbf{E5 (Missing dependency, 2).} Required external libraries not provided in the audit package.
+  \item \textbf{E6 (Multi-transaction, 3).} Outside the scope of this study: the bug requires state changes across separate transactions, which IntentChecker's single-transaction analysis cannot cover.
+  \item \textbf{E7 (Language semantics, 1).} The reported issue is an inherent property of Solidity's integer-only arithmetic (truncating division), not a developer error; no alternative implementation can produce a different result.
+  \item \textbf{Bug not in target contract (1).} The bug actually resides in a different contract than the one documented in the audit report.
+\end{itemize}
 The remaining \textbf{75 instances} form the effective evaluation set used in RQ1--RQ3.
 
-\smallskip\noindent\textbf{Methodology.}
-For each of the 75 effective instances, we (1) analyse the audit report to understand the root cause,
-(2) write an intent annotation that captures the expected numeric behaviour described in the report,
-and (3) run IntentChecker to record whether it reports Satisfied, Violated, or Warning.
-Cases that produce a non-Satisfied judgment are reported as mitigated in RQ1; cases for which no annotation can yield such a judgment are classified into the limitation taxonomy and analyzed for annotation expressibility in RQ2 (§\ref{sec:rq2}).
-
-\subsection{RQ1: Mitigation}\label{sec:rq1}
+\subsection{RQ1: Mitigation Capability}\label{sec:rq1}
 
 \begin{table}[t]
 \centering
@@ -1198,8 +1189,8 @@ Table~\ref{tab:rq1-overview} summarizes the full outcome distribution; the struc
 
 \smallskip
 \noindent\textbf{Pattern coverage of the 20 mitigated cases.}
-The 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
-Profit Opportunity is present in the benchmark but its representative case falls into the L4 category and is not mitigated.
+The 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
+Precision Loss Trend is present in the benchmark (2 cases) but both cases are not mitigated.
 This pattern-level distribution confirms that the mitigated cases are not concentrated in a single ``easy'' pattern but span the breadth of the taxonomy, suggesting that intent-based validation is a general technique rather than a coincidental match for one error class.
 
 \smallskip
@@ -1228,7 +1219,6 @@ This contradicts the natural expectation that fixpoint iteration on loops would 
 Inspection of the mitigated set explains the gap: in several cases that contain loops, the widening of accumulator variables happens to occur on variables that do not flow into the intent annotation's value path, so the precision loss does not affect the judgment but the fixpoint iteration cost is still paid.
 The cost is real, but it is not concentrated in the cases that succeed---those cases instead pay it as ``dead work'' alongside successful bug surfacing.
 A future optimization that confines fixpoint iteration to the intent-relevant scope could reduce this overhead without changing detectability; we discuss this further in §\ref{sec:disc:tech}.
-
 
 Per-tool latency comparison against NumScout and GPTScan is reported in §\ref{sec:rq3}.
 
@@ -1412,7 +1402,7 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 We compare IntentChecker against three state-of-the-art tools on the 20 mitigated cases from RQ1:
 \textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
 \textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
-\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, precision loss, exchange problem, profit opportunity).
+\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
 Each tool was executed three times on the same machine; ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
 
 \smallskip
@@ -1723,6 +1713,9 @@ Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the 
 
 \bibitem[Chen et~al.(2025)]{numscout}
 Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
+
+\bibitem[NumScout(2026)]{numscout_dataset}
+NumScout: 95 Samples Experiment Dataset. \url{https://github.com/NumScout/NumScout/tree/main/Experiment/95_Samples_Run} (2026). Accessed April 2026
 
 \bibitem[Consensys Diligence(2025a)]{mythril}
 Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2025). Accessed December 2025
