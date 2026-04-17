@@ -1022,8 +1022,8 @@ This completes the design of IntentChecker's intent model and validation engine.
 We evaluate IntentChecker through three research questions that probe its empirical behavior on real-world code, the structural ceiling of its intent model, and its position relative to existing detection tools:
 
 \begin{itemize}
-    \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can IntentChecker surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded Violated/Warning signal? For instances that the tool cannot handle, what is the structural reason, and how does this distribute across the limitation types defined in our taxonomy?
-    \item \textbf{RQ2 (Annotation Model Expressibility)}: Among the instances that fail due to intent-model limitations rather than analysis-engine limitations, what fraction can the intent model express---and for those it can, how directly does the annotation capture the correct behavior? This question separates the model's expressibility ceiling from RQ1's empirical mitigation result, classifying each case as inexpressible, strongly expressible (the annotation encodes the correct value directly), or weakly expressible (the annotation detects that something is wrong, without stating the correct value).
+    \item \textbf{RQ1 (Mitigation)}: When intent and debug annotations are provided based on bug report descriptions, can IntentChecker surface real-world numeric logic errors from the Web3Bugs and NumScout benchmarks via its graded Violated/Warning signal?
+    \item \textbf{RQ2 (Unmitigated Case Analysis)}: For instances that the tool cannot handle, what is the structural reason, and how does this distribute across limitation types? Among the cases attributable to the intent model rather than the analysis engine, what fraction can the model express---and for those it can, how directly does the annotation capture the correct behavior?
     \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does IntentChecker's feedback compare to that of ScType, GPTScan, and NumScout on the same set of bugs, in terms of (i) the detection model each tool employs (specification-driven vs.\ pattern-driven), (ii) per-case analysis latency, and (iii) coverage complementarity? The goal is to characterize where each tool sits in the detection landscape, not to argue numerical superiority.
 \end{itemize}
 
@@ -1060,10 +1060,10 @@ For each instance, we record the target contract, the buggy function, the specif
 \centering
 \caption{Benchmark dataset composition.}
 \label{tab:dataset}
-\begin{tabular}{llcc}
-\hline
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l l r @{}}
+\toprule
 \textbf{Source} & \textbf{Error Pattern} & \textbf{Count} \\
-\hline
+\midrule
 \multirow{6}{*}{NumScout}
   & Div In Path              & 1  \\
   & Exchange Problem         & 1  \\
@@ -1071,18 +1071,18 @@ For each instance, we record the target contract, the buggy function, the specif
   & Precision Loss Trend     & 2  \\
   & Minor Amount Retention   & 1  \\
   & Profit Opportunity       & 1  \\
-\hline
+\midrule
 Flyinointment & Greedy Contract & 1 \\
-\hline
+\midrule
 \multirow{2}{*}{Web3Bugs}
   & Erroneous Accounting        & 72 \\
   & Inconsistent State Updates  & 9  \\
-\hline
+\midrule
 \textbf{Total (collected)} & & \textbf{89} \\
 Excluded (see below)        & & $-14$ \\
 \textbf{Effective}          & & \textbf{75} \\
-\hline
-\end{tabular}
+\bottomrule
+\end{tabular*}
 \end{table}
 
 \smallskip\noindent\textbf{Exclusions.}
@@ -1102,68 +1102,46 @@ The remaining \textbf{75 instances} form the effective evaluation set used in RQ
 For each of the 75 effective instances, we (1) analyse the audit report to understand the root cause,
 (2) write an intent annotation that captures the expected numeric behaviour described in the report,
 and (3) run IntentChecker to record whether it reports Satisfied, Violated, or Warning.
-Cases that produce a non-Satisfied judgment are reported as mitigated in RQ1; cases for which no annotation can yield such a judgment are classified into the limitation taxonomy (§\ref{sec:rq1}) and analyzed for annotation expressibility in RQ2.
+Cases that produce a non-Satisfied judgment are reported as mitigated in RQ1; cases for which no annotation can yield such a judgment are classified into the limitation taxonomy and analyzed for annotation expressibility in RQ2 (§\ref{sec:rq2}).
 
 \subsection{RQ1: Mitigation}\label{sec:rq1}
 
-\noindent\textbf{Setup.}
-For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the audit report and identify the buggy line(s), (2) write @During and/or @Post intent annotations that capture the expected numeric behavior described in the report, (3) supply the debug annotations (@StateVar, @LocalVar, @GlobalVar, and @IReturn) that the function needs to be analyzable under representative inputs, and (4) run IntentChecker on the resulting annotated source.
-We record the judgment produced by the validation engine---Satisfied, Warning, or Violated---together with the risk score and violated region.
-For instances where no annotation can yield a non-Satisfied signal, we further classify the structural reason according to the limitation taxonomy described below.
-
-\smallskip
-\noindent\textbf{Outcomes.}
-Of the 75 effective instances, IntentChecker produces a Violated judgment on \textbf{20 cases} when supplied with annotations derived from the audit report.
-The remaining 55 instances are classified as not\_detectable: IntentChecker cannot, given the structure of its analysis or its intent model, surface a non-Satisfied signal for them.
-We first describe the 20 mitigated cases in detail (pattern coverage, annotation usage, and analysis time) and then present the limitation taxonomy for the 55 unmitigated cases.
-
-\smallskip
-\noindent\textbf{Pattern coverage of the 20 mitigated cases.}
-The 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
-Profit Opportunity is present in the benchmark but its representative case falls into the L4 category and is not mitigated.
-This pattern-level distribution confirms that the mitigated cases are not concentrated in a single ``easy'' pattern but span the breadth of the taxonomy, suggesting that intent-based validation is a general technique rather than a coincidental match for one error class.
-
-\smallskip
-\noindent\textbf{Annotation model usage on the 20 mitigated cases.}
-Table~\ref{tab:rq1-annotations} reports which intent annotations were used to surface the bug in each mitigated case.
-Of the 20 cases, 12 use a @During annotation (mid-execution checks) and 8 use a @Post annotation (post-execution checks).
-The single most common form is the simple relational comparison (intentValue relOp intentValue), used in 9 cases across both @During and @Post.
-The two specialized @During forms---Before/After comparisons against an injection point, and func.arg[N] checks on argument values---are each used 2--3 times, and the specialized @Post forms (Entry/Exit, returnExpression, changed(\,)) account for the remainder.
-This distribution suggests that the bulk of mitigation work in our benchmark is carried by the basic relational form, with the specialized annotations contributing on patterns that the basic form cannot capture (e.g., monotonicity over function execution, argument-level constraints, post-execution change detection).
-
 \begin{table}[t]
 \centering
-\caption{Intent annotation forms used in the 20 mitigated cases. Counts are per case (one annotation per case unless otherwise noted; one case uses two annotations of the same form on adjacent statements).}
-\label{tab:rq1-annotations}
+\caption{Evaluation outcome for the 75 effective benchmark instances. Top: the 20 mitigated cases by annotation form. Bottom: the 55 not\_detectable cases by limitation type (sub-categories defined in §\ref{sec:rq2}).}
+\label{tab:rq1-overview}
 \small
 \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l l r @{}}
 \toprule
-\textbf{Annotation type} & \textbf{Clause form} & \textbf{Count} \\
+\textbf{Outcome} & \textbf{Detail} & \textbf{Cases} \\
 \midrule
-\multicolumn{3}{@{}l}{@During (12 cases)} \\
-& Relational comparison (var relOp expr)        & 5 \\
-& Before/After (var(Before relOp After))  & 2 \\
-& Function-arg check (func.arg[N] relOp expr)      & 3 \\
-& Implication form                                          & 1 \\
-& Feasibility check (require feasible)             & 1 \\
+\multicolumn{3}{@{}l}{\textbf{Mitigated (20)}} \\
 \addlinespace
-\multicolumn{3}{@{}l}{@Post (8 cases)} \\
+\multicolumn{3}{@{}l}{\quad @During (12)} \\
+& Relational comparison (var relOp expr)        & 5 \\
+& Before/After (var(Before relOp After))        & 2 \\
+& Function-arg check (func.arg[N] relOp expr)  & 3 \\
+& Implication form                              & 1 \\
+& Feasibility check (require feasible)          & 1 \\
+\addlinespace
+\multicolumn{3}{@{}l}{\quad @Post (8)} \\
 & Relational comparison (var relOp expr)        & 4 \\
-& Entry/Exit (var(Entry relOp Exit))      & 2 \\
-& Return expression (returnExpression relOp expr)  & 1 \\
-& changed(var, true/false)                         & 1 \\
+& Entry/Exit (var(Entry relOp Exit))            & 2 \\
+& Return expression (returnExpression relOp expr) & 1 \\
+& changed(var, true/false)                      & 1 \\
 \midrule
-\textbf{Total} & & \textbf{20} \\
+\multicolumn{3}{@{}l}{\textbf{Not detectable (55)}} \\
+\addlinespace
+& L1: Loop-related precision loss               & 10 \\
+& L2: Interface / external call returns $\top$  & 4 \\
+& L3: Unsupported construct                     & 7 \\
+& L4: Inexpressible intent                      & 20 \\
+& L5: Bug-awareness required                    & 14 \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Total}} & \textbf{75} \\
 \bottomrule
 \end{tabular*}
 \end{table}
-
-\smallskip
-\noindent\textbf{Analysis time and what drives it.}
-We measured per-case end-to-end analysis time over three independent runs of each mitigated case on a single thread, excluding the one-time dependency pre-analysis phase (consistent with the development-time scenario, in which inherited contracts and libraries are cached across editing sessions).
-The mean per-case time is \textbf{3.69\,s}, the minimum is 0.33\,s (web3bugs\_77\_H\_01), and the maximum is 14.94\,s (div\_in\_path\_WANGMI); 15 of the 20 cases finish in under 5\,s, and all but two finish in under 10\,s.
-Per-case standard deviations are small for short cases (under 0.15\,s) and larger for the long-running cases (e.g., web3bugs\_45\_H\_01 at $13.5 \pm 4.5$\,s), reflecting OS and JIT noise that becomes proportionally smaller as case complexity grows.
-The full per-case timings appear in Table~\ref{tab:rq1-timing}.
 
 \begin{table}[t]
 \centering
@@ -1200,6 +1178,45 @@ web3bugs\_77\_H\_01               &  0.33 & 0.02 & 0.3--0.4   \\
 \end{tabular*}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figure/rq1_scatter.pdf}
+\caption{Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient.}
+\label{fig:rq1-scatter}
+\end{figure}
+
+\noindent\textbf{Setup.}
+For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the audit report and identify the buggy line(s), (2) write @During and/or @Post intent annotations that capture the expected numeric behavior described in the report, (3) supply the debug annotations (@StateVar, @LocalVar, @GlobalVar, and @IReturn) that the function needs to be analyzable under representative inputs, and (4) run IntentChecker on the resulting annotated source.
+We record the judgment produced by the validation engine---Satisfied, Warning, or Violated---together with the risk score and violated region.
+For instances where no annotation can yield a non-Satisfied signal, we further classify the structural reason according to the limitation taxonomy in RQ2 (§\ref{sec:rq2}).
+
+\smallskip
+\noindent\textbf{Outcomes.}
+Of the 75 effective instances, IntentChecker produces a Violated judgment on \textbf{20 cases} when supplied with annotations derived from the audit report.
+The remaining 55 instances are classified as not\_detectable: IntentChecker cannot, given the structure of its analysis or its intent model, surface a non-Satisfied signal for them.
+Table~\ref{tab:rq1-overview} summarizes the full outcome distribution; the structural reasons behind the 55 unmitigated cases are analyzed in RQ2 (§\ref{sec:rq2}).
+
+\smallskip
+\noindent\textbf{Pattern coverage of the 20 mitigated cases.}
+The 20 mitigated instances cover 7 of the 8 single-transaction error patterns enumerated in §\ref{sec:background}.1: Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention, Erroneous Accounting (with both Wrong Interest Rate Order and Wrong Checkpoint Order sub-patterns appearing), Inconsistent State Updates, and Greedy Contract.
+Profit Opportunity is present in the benchmark but its representative case falls into the L4 category and is not mitigated.
+This pattern-level distribution confirms that the mitigated cases are not concentrated in a single ``easy'' pattern but span the breadth of the taxonomy, suggesting that intent-based validation is a general technique rather than a coincidental match for one error class.
+
+\smallskip
+\noindent\textbf{Annotation model usage on the 20 mitigated cases.}
+The upper half of Table~\ref{tab:rq1-overview} reports which intent annotations were used to surface the bug in each mitigated case.
+Of the 20 cases, 12 use a @During annotation (mid-execution checks) and 8 use a @Post annotation (post-execution checks).
+The single most common form is the simple relational comparison (intentValue relOp intentValue), used in 9 cases across both @During and @Post.
+The two specialized @During forms---Before/After comparisons against an injection point, and func.arg[N] checks on argument values---are each used 2--3 times, and the specialized @Post forms (Entry/Exit, returnExpression, changed(\,)) account for the remainder.
+This distribution suggests that the bulk of mitigation work in our benchmark is carried by the basic relational form, with the specialized annotations contributing on patterns that the basic form cannot capture (e.g., monotonicity over function execution, argument-level constraints, post-execution change detection).
+
+\smallskip
+\noindent\textbf{Analysis time and what drives it.}
+We measured per-case end-to-end analysis time over three independent runs of each mitigated case on a single thread, excluding the one-time dependency pre-analysis phase (consistent with the development-time scenario, in which inherited contracts and libraries are cached across editing sessions).
+The mean per-case time is \textbf{3.69\,s}, the minimum is 0.33\,s (web3bugs\_77\_H\_01), and the maximum is 14.94\,s (div\_in\_path\_WANGMI); 15 of the 20 cases finish in under 5\,s, and all but two finish in under 10\,s.
+Per-case standard deviations are small for short cases (under 0.15\,s) and larger for the long-running cases (e.g., web3bugs\_45\_H\_01 at $13.5 \pm 4.5$\,s), reflecting OS and JIT noise that becomes proportionally smaller as case complexity grows.
+The full per-case timings appear in Table~\ref{tab:rq1-timing}.
+
 To understand what drives the variation across cases, we collected six per-case complexity metrics---total source lines in the deployment unit, function count, control-flow branch count, loop count, debug annotation count, and external call count---and computed the Pearson correlation of each with the mean analysis time.
 Figure~\ref{fig:rq1-scatter} plots each metric against analysis time.
 Three observations emerge.
@@ -1212,17 +1229,17 @@ Inspection of the mitigated set explains the gap: in several cases that contain 
 The cost is real, but it is not concentrated in the cases that succeed---those cases instead pay it as ``dead work'' alongside successful bug surfacing.
 A future optimization that confines fixpoint iteration to the intent-relevant scope could reduce this overhead without changing detectability; we discuss this further in §\ref{sec:disc:tech}.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figure/rq1_scatter.pdf}
-\caption{Scatter plots of per-case analysis time against six complexity metrics (20 mitigated cases, 3-run mean). Dashed lines show linear regression; $r$ is the Pearson correlation coefficient.}
-\label{fig:rq1-scatter}
-\end{figure}
 
 Per-tool latency comparison against NumScout and GPTScan is reported in §\ref{sec:rq3}.
 
+\subsection{RQ2: Unmitigated Case Analysis}\label{sec:rq2}
+
+\noindent\textbf{Setup.}
+RQ1 identified 55 instances for which IntentChecker cannot surface a non-Satisfied signal.
+RQ2 first classifies the structural reasons behind these failures and then, for the subset attributable to the intent model rather than the analysis engine, measures the model's expressibility ceiling.
+
 \smallskip
-\noindent\textbf{Limitation taxonomy for the 55 unmitigated cases.}
+\noindent\textbf{Limitation taxonomy.}
 The structural reasons for the 55 not\_detectable instances fall into eleven sub-categories grouped into two top-level families, summarized in Figure~\ref{fig:rq1-limitations}.
 
 \begin{figure}[t]
@@ -1234,9 +1251,9 @@ The structural reasons for the 55 not\_detectable instances fall into eleven sub
   \def\xUnit{0.45}  % cm per case
   \def\maxCount{10}
 
-  % Group A: analysis-engine (L1-L3) — blue
+  % Group A: analysis-engine (L1-L3)
   \def\colA{black!55}
-  % Group B: intent-model (L4-L5) — gray
+  % Group B: intent-model (L4-L5)
   \def\colB{black!25}
 
   % Bars: (label, count, color, y)
@@ -1264,7 +1281,7 @@ The structural reasons for the 55 not\_detectable instances fall into eleven sub
   \draw[thick] (-1.05,0.32) -- (-1.15,0.32) -- (-1.15,-2.06) -- (-1.05,-2.06);
   \node[rotate=90, anchor=south] at (-1.25,-0.87) {\scriptsize Analysis-engine (21)};
   \draw[thick] (-1.05,-2.46) -- (-1.15,-2.46) -- (-1.15,-6.84) -- (-1.05,-6.84);
-  \node[rotate=90, anchor=south] at (-1.25,-4.65) {\scriptsize Annotation-model (34)};
+  \node[rotate=90, anchor=south] at (-1.25,-4.65) {\scriptsize Annotation-grammar (34)};
 
   % X-axis
   \draw[->] (0.15,-7.25) -- (0.15+11*\xUnit,-7.25);
@@ -1274,88 +1291,41 @@ The structural reasons for the 55 not\_detectable instances fall into eleven sub
   }
   \node[anchor=north] at (0.15+5*\xUnit,-7.65) {\scriptsize \# of cases};
 \end{tikzpicture}
-\caption{Limitation breakdown for the 55 not\_detectable instances.
-Analysis-engine limitations (L1--L3, 21 cases) are precision losses internal to the abstract interpreter that no developer annotation can recover.
-Annotation-model limitations (L4--L5, 34 cases) are cases the interpreter would distinguish given the right annotation, but the current model cannot express that annotation (L4) or only with bug awareness (L5).}
+\caption{Limitation breakdown for the 55 not\_detectable instances: analysis-engine (L1--L3, 21) vs.\ annotation-model (L4--L5, 34).}
 \label{fig:rq1-limitations}
 \end{figure}
 
 \smallskip
 \noindent\textbf{Limitation type definitions.}
 \begin{itemize}
-  \item \textbf{L1a (Loop widening, 8).} Accumulator variables (+=, *=) inside fixpoint iteration are widened to $\top$, and both buggy and correct executions land in the same widened range.
-  \item \textbf{L1b (Loop body granularity, 2).} The bug is exposed only at a specific point inside a loop body, but the analyzer summarizes loops by fixpoint result rather than by per-iteration trace, so no annotation point is available at the granularity needed.
-  \item \textbf{L2a (Interface call return $\top$, 3).} The callee is reached only through an interface variable, the implementation is therefore unavailable, and @IReturn is inapplicable because the bug requires the return value of a state-modifying call.
-  \item \textbf{L2b (External call, unknown external state, 1).} The implementation exists via dependency pre-analysis, but the callee's runtime storage state lies outside the deployment unit and the return value collapses to $\top$.
-  \item \textbf{L3 (Unsupported construct, 7).} The bug-relevant value flows through an unsupported construct---abi.decode, opaque hash builtins, address(this).balance, or non-arithmetic Yul---which the analyzer treats as $\top$.
-  \item \textbf{L4a (Inexpressible expected value, 10).} The intent annotation grammar can refer to in-scope arithmetic over existing variables, but the correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no intentValue expression can be constructed.
-  \item \textbf{L4b (No target storage variable, 8).} The buggy function (a view function, a pure function, a thin wrapper around external calls, or a library helper) does not modify any storage variable in the target contract, so no @Post annotation has anything to attach to.
-  \item \textbf{L4c (Magnitude-only difference, 1).} Buggy and correct code change the same state variable in the same direction; only the magnitude differs. changed(\,) and Entry op Exit both succeed in both versions, and IntentChecker's PostEntryExit annotation does not currently admit arithmetic relations between Entry and Exit.
-  \item \textbf{L4d (Invariant masked, 1).} A different statement in the same function already modifies the target state variable, so changed(\,) is satisfied in both versions. The actual invariant is a multi-variable arithmetic relation (e.g., a product invariant) which PostEntryExit cannot express.
-  \item \textbf{L5a (Bug-awareness-required: missing code, 7).} A required statement (a function call, a state update) is omitted; the post-condition that would catch this is expressible, but knowing what is missing already presupposes knowing the bug.
-  \item \textbf{L5b (Bug-awareness-required: wrong code, 7).} A required statement is present but uses the wrong identifier, operator, or struct field; the corrective annotation is expressible, but writing it requires knowledge of the correct form---and possessing that knowledge would have prevented the bug in the first place.
+  \item \textbf{Analysis-engine limitations (L1--L3, 21 cases).} The abstract interpreter assigns $\top$ to a value that should have been concrete enough to distinguish buggy from correct execution; no developer annotation can recover that precision.
+  \begin{itemize}
+    \item \textbf{L1a (Loop widening, 8).} Accumulator variables (+=, *=) inside fixpoint iteration are widened to $\top$, and both buggy and correct executions land in the same widened range.
+    \item \textbf{L1b (Loop body granularity, 2).} The bug is exposed only at a specific point inside a loop body, but the analyzer summarizes loops by fixpoint result rather than by per-iteration trace, so no annotation point is available at the granularity needed.
+    \item \textbf{L2a (Interface call return $\top$, 3).} The callee is reached only through an interface variable, the implementation is therefore unavailable, and @IReturn is inapplicable because the bug requires the return value of a state-modifying call.
+    \item \textbf{L2b (External call, unknown external state, 1).} The implementation exists via dependency pre-analysis, but the callee's runtime storage state lies outside the deployment unit and the return value collapses to $\top$.
+    \item \textbf{L3 (Unsupported construct, 7).} The bug-relevant value flows through an unsupported construct---abi.decode, opaque hash builtins, address(this).balance, or non-arithmetic Yul---which the analyzer treats as $\top$.
+  \end{itemize}
+  \item \textbf{Annotation-grammar limitations (L4--L5, 34 cases).} The abstract interpreter would distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no such expression (L4) or has one whose construction presupposes already knowing the bug (L5).
+  \begin{itemize}
+    \item \textbf{L4a (Inexpressible expected value, 10).} The correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no intentValue expression can be constructed.
+    \item \textbf{L4b (No target storage variable, 8).} The buggy function (a view function, a pure function, a thin wrapper, or a library helper) does not modify any storage variable in the target contract, so no @Post annotation has anything to attach to.
+    \item \textbf{L4c (Magnitude-only difference, 1).} Buggy and correct code change the same state variable in the same direction; only the magnitude differs. changed(\,) and Entry op Exit both succeed in both versions.
+    \item \textbf{L4d (Invariant masked, 1).} A different statement in the same function already modifies the target state variable, so changed(\,) is satisfied in both versions. The actual invariant is a multi-variable relation that PostEntryExit cannot express.
+    \item \textbf{L5a (Bug-awareness-required: missing code, 7).} A required statement is omitted; the post-condition that would catch this is expressible, but knowing what is missing already presupposes knowing the bug.
+    \item \textbf{L5b (Bug-awareness-required: wrong code, 7).} A required statement uses the wrong identifier, operator, or struct field; the corrective annotation is expressible, but writing it requires knowledge of the correct form.
+  \end{itemize}
 \end{itemize}
 
-\smallskip
-\noindent\textbf{Reading the limitation breakdown.}
-Two top-level families emerge.
-The L1--L3 limitations (21 instances combined) are properties of the underlying abstract interpreter: the analyzer assigns $\top$ to a value that should have been concrete enough to distinguish buggy from correct execution, and no developer annotation under the current model can recover that precision.
-The L4--L5 limitations (34 instances) are properties of the intent model rather than of the analyzer: the abstract interpreter would distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no expression the developer could write (L4) or has one whose construction presupposes already knowing the bug (L5).
-RQ2 examines this second family in detail, classifying each of the 34 cases by whether the intent model can express any awareness signal at all---and if so, how directly.
-
-\subsection{RQ2: Annotation Model Expressibility}\label{sec:rq2}
-
-\noindent\textbf{Setup.}
-RQ1 partitioned the 55 not\_detectable cases into two top-level families: 21 cases that fail because the abstract interpreter loses precision (L1--L3, analysis-engine limitations) and 34 cases that fail because the intent model cannot express the right intent (L4--L5).
-RQ2 examines the second family in detail.
-The question is no longer ``did mitigation succeed?''---it did not, by construction---but rather: if a developer were already aware of the bug, could they at least express an annotation that the validation engine would surface as Violated or Warning?
-This separates the model's expressibility ceiling from practical detectability, which depends on whether a developer would write that annotation in the first place.
-
-\smallskip
-\noindent\textbf{Three-tier classification.}
-For each of the 34 L4--L5 cases we attempted to construct an annotation, assuming full bug awareness, that would yield a non-Satisfied judgment on the buggy code.
-Each case is then placed into one of three tiers based on the strength of the resulting signal.
+\noindent\textbf{Expressibility within L4--L5.}
+Within the 34 annotation-grammar limitation cases, we further ask: assuming full bug awareness, could a developer construct an annotation that the validation engine would surface as Violated or Warning?
+L4's 20 cases are inexpressible by definition---no annotation under the current grammar can yield a non-Satisfied judgment.
+All 14 L5 cases, however, are expressible, splitting evenly into two tiers:
 
 \begin{itemize}
-  \item \textbf{Inexpressible (L4).} No annotation under the current grammar can yield a non-Satisfied judgment, even with full bug awareness. Either the correct value cannot be constructed from in-scope variables (L4a), the buggy function modifies no target storage (L4b), the difference is in magnitude only along the same direction (L4c), or another statement in the same function masks the change (L4d).
-  \item \textbf{Expressible-Strong (L5, ``Direct'').} The annotation expresses the correct value or relation directly (a commonClause of the form intentValue relOp intentValue). The buggy version produces a clean Violated; the corrected version produces Satisfied. The annotation is essentially a fix-equivalent specification.
-  \item \textbf{Expressible-Weak (L5, ``Indirect'').} The annotation captures only that some state variable changed---or did not change---in a particular direction (changed(var, true/false) or var(Entry relOp Exit)). The buggy version produces Violated because the change does not occur in the expected way, but the annotation does not encode the correct value, only its presence or polarity. We call this an awareness signal: it is enough to alert the developer that something is wrong, even though it does not tell them what the correct value is.
+  \item \textbf{Expressible-Strong (``Direct'', 7).} The annotation expresses the correct value or relation directly. The buggy version produces Violated; the corrected version produces Satisfied. The annotation is essentially a fix-equivalent specification.
+  \item \textbf{Expressible-Weak (``Indirect'', 7).} The annotation captures only that some state variable changed---or did not change---in a particular direction (changed(var, true/false) or var(Entry relOp Exit)). The buggy version produces Violated, but the annotation does not encode the correct value, only its presence or polarity---an awareness signal rather than a fix-equivalent specification.
 \end{itemize}
-
-\smallskip
-\noindent\textbf{Results.}
-The three-tier classification of the 34 L4--L5 cases is summarized in Table~\ref{tab:rq2-tiers}.
-Inexpressible cases account for 20 of 34 (59\%); Strong and Weak each account for 7 (21\% each).
-Within the L5 group alone, all 14 cases are expressible---14 of 14, evenly split between Strong (7) and Weak (7)---which means the intent model can encode some awareness signal for every case where bug awareness is the only obstacle.
-The Inexpressible tier maps exactly to the L4 sub-categories (L4a 10, L4b 8, L4c 1, L4d 1), confirming that L4 represents a hard expressibility ceiling rather than a question of developer awareness.
-
-\begin{table}[t]
-\centering
-\caption{RQ2 expressibility classification of the 34 intent-model limitation cases (L4--L5). Inexpressible: no annotation yields a non-Satisfied judgment even with full bug awareness. Strong: the annotation encodes the correct value directly. Weak: the annotation provides an awareness signal (change detection) without encoding the correct value.}
-\label{tab:rq2-tiers}
-\small
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l r r @{}}
-\toprule
-\textbf{Tier / Sub-category} & \textbf{Count} & \textbf{\%} \\
-\midrule
-\textbf{Inexpressible (L4)} & \textbf{20} & \textbf{59} \\
-\quad L4a: inexpressible expected value & 10 & \\
-\quad L4b: no target storage variable   & 8  & \\
-\quad L4c: magnitude-only difference    & 1  & \\
-\quad L4d: invariant masked             & 1  & \\
-\addlinespace
-\textbf{Expressible-Strong (Direct)} & \textbf{7} & \textbf{21} \\
-\quad L5a (missing code) & 2 & \\
-\quad L5b (wrong code)   & 5 & \\
-\addlinespace
-\textbf{Expressible-Weak (Indirect)} & \textbf{7} & \textbf{21} \\
-\quad L5a (missing code) & 5 & \\
-\quad L5b (wrong code)   & 2 & \\
-\midrule
-\textbf{Total} & \textbf{34} & \textbf{100} \\
-\bottomrule
-\end{tabular*}
-\end{table}
 
 \smallskip
 \noindent\textbf{Representative examples.}
@@ -1377,38 +1347,17 @@ which fires Violated on the buggy version (the variable does not change, so Entr
 
 \smallskip
 \noindent\textbf{Implications.}
-Two findings stand out.
-First, the distinction between L4 and L5 is meaningful: L4's 20 cases are a hard ceiling that no amount of developer awareness can lift, whereas L5's 14 cases are a soft ceiling that the intent model already covers, contingent on whether the developer is aware.
-Second, within L5, the 50/50 split between Strong and Weak suggests that for half of the awareness-conditional cases, the developer's annotation would express the actual fix, and for the other half it would express a coarser ``something must change here'' signal that nevertheless suffices to surface the bug.
-Future grammar extensions that would enlarge the Strong tier and shrink Inexpressible---specifically, supporting (a) arithmetic expressions over Entry values in PostEntryExit, which would directly absorb several Weak cases by letting the developer write the exact increment, and (b) a returnExpression clause for view functions, which would absorb several L4b cases by giving view-only functions a meaningful annotation target---are concrete directions identified by this analysis and discussed in §\ref{sec:disc:tech}.
+Three findings stand out.
+First, L4's 20 cases are a hard ceiling that no amount of developer awareness can lift, whereas L5's 14 cases are a soft ceiling that the intent model already covers, contingent on whether the developer is aware.
+Second, within L5, the even split between Strong and Weak suggests that for half of the awareness-conditional cases, the developer's annotation would express the actual fix, and for the other half it would express a coarser ``something must change here'' signal that nevertheless suffices to surface the bug.
+Third, the L4 cases reveal a fundamental boundary of abstraction level: IntentChecker's intent model operates at the value level---it can express whether a variable's value satisfies a numeric relationship---but it cannot express whether the right computation was performed in the first place.
+In L4a, the correct expected value requires a computation that does not exist in the program; in L4b, the function modifies no state variable, so there is no value to assert on.
+The developer's true intent in these cases is about what the code should \textit{do} (``split the swap at the crossing point'', ``update totalLocked''), not about what value a variable should hold.
+Capturing such logic-level intent would require a fundamentally different formalism, such as temporal properties over execution traces or structural specifications of required code patterns.
+IntentChecker is effective when the bug manifests as a wrong value; complementary tools are needed when the bug manifests as a missing or misplaced operation.
+Future grammar extensions---specifically, (a) arithmetic expressions over Entry values in PostEntryExit, which would absorb several Weak cases, and (b) a returnExpression clause for view functions, which would absorb several L4b cases---are concrete directions discussed in §\ref{sec:disc:tech}.
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
-
-We compare IntentChecker against three state-of-the-art tools on the 20 mitigated cases from RQ1:
-\textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
-\textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
-\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, precision loss, exchange problem, profit opportunity).
-Each tool was executed three times on the same machine; ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
-
-\smallskip
-\noindent\textbf{NumScout execution adjustments.}
-To run NumScout over our Web3Bugs subset we applied two classes of adjustments, both external to the bugs under study.
-First, a source-level bug in NumScout's semantic analyzer (feature\_detector/semantic\_analysis.py, in the safeTransfer handler) raised UnboundLocalError on every contract reaching the relevant branch; we applied a minimal one-line fix (renaming an undefined local to the intended stack variable) so the tool could complete analysis.
-Second, NumScout consumes EVM bytecode and fails with ``incomplete push instruction'' errors when the bytecode contains unresolved library placeholders (\_\_\$\ldots\$\_\_), which are emitted when a contract calls a public/external library function that would normally be linked at deploy time.
-Two of our cases (51\_H\_02, Swap.rampTargetPrice; 77\_H\_01, Exchange.calculateLiquidityTokenQtyForSingleAssetEntry) use external libraries in this way.
-For these two cases only, we produced a second copy of the target file in which every public/external library function was rewritten as internal, causing the compiler to inline the library body into the calling contract's bytecode rather than emit a placeholder.
-This transformation is semantically equivalent at the operation level---the arithmetic instructions NumScout inspects (MUL, DIV, SUB, etc.), the storage accesses, and the control flow are preserved---so the defect patterns NumScout targets are unchanged; only the call-site mechanism (DELEGATECALL vs.\ inlined code) differs.
-The modified files are kept separate from the originals used in the ScType and GPTScan experiments, and both modifications are restricted to the two cases noted above.
-
-\smallskip
-\noindent\textbf{Detection model.}
-A key distinction among these tools is how the set of detectable bugs is defined.
-GPTScan and NumScout operate on a pattern-driven model: each tool ships with a fixed catalog of vulnerability patterns (10 rules and 5 patterns, respectively), and only bugs matching those patterns can be detected.
-When a new class of numeric error emerges, the catalog must be updated by the tool developers.
-ScType is type-driven: it checks whether arithmetic operations preserve financial type consistency, which is more general than a fixed pattern catalog but still limited to errors expressible as type mismatches.
-IntentChecker is specification-driven: developers write @During/@Post conditions describing intended behavior, and the tool verifies the implementation against those conditions via abstract interpretation.
-This allows IntentChecker to target any numeric property expressible within its annotation grammar---including novel error patterns not yet cataloged by existing tools---but requires developer participation.
-The grammar's expressibility ceiling was quantified in RQ2.
 
 \begin{table}[t]
 \centering
@@ -1426,17 +1375,6 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 \bottomrule
 \end{tabular}
 \end{table}
-
-\smallskip
-\noindent\textbf{Finding 1: coverage landscape.}
-Table~\ref{tab:rq3-mitigation} shows the per-case mitigation results.
-GPTScan reported findings on 11 of the 20 target files; however, every finding belongs to a different vulnerability class (price manipulation, slippage limit, etc.) than the actual numeric logic error.
-GPTScan's rule set contains no rule for erroneous accounting or incorrect arithmetic formulas; consequently, the entire class of numeric logic errors falls outside its scope.
-This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a coverage gap exists: the bug class targeted by IntentChecker is not addressed by the most recent LLM-based smart-contract analysis tool.
-
-NumScout mitigated the target bug in 9 of 20 cases.
-The nine mitigated cases concentrate on NumScout-origin samples (WANGMI, Nokon, BoostToken, HIT) and on Vader Protocol's Utils.sol, whose division-heavy arithmetic matches NumScout's division-in-path and operator-order patterns; Web3Bugs cases whose bugs lie outside these five patterns (e.g., CDP.update, Stream.updateStreamInternal, LiquidityBasedTWAP.syncVaderPrice, RebaseProxy.mint) are not mitigated despite NumScout completing analysis.
-For 51\_H\_02 and 77\_H\_01, the reported NumScout entries are obtained on the library-inlined variant described earlier, and are marked with a dagger in Table~\ref{tab:rq3-mitigation}.
 
 \begin{table}[t]
 \centering
@@ -1471,6 +1409,50 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 \end{tabular}
 \end{table}
 
+We compare IntentChecker against three state-of-the-art tools on the 20 mitigated cases from RQ1:
+\textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
+\textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
+\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, precision loss, exchange problem, profit opportunity).
+Each tool was executed three times on the same machine; ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
+
+\smallskip
+\noindent\textbf{NumScout execution adjustments.}
+To run NumScout over our Web3Bugs subset we applied two classes of adjustments, both external to the bugs under study.
+First, a source-level bug in NumScout's semantic analyzer (feature\_detector/semantic\_analysis.py, in the safeTransfer handler) raised UnboundLocalError on every contract reaching the relevant branch; we applied a minimal one-line fix (renaming an undefined local to the intended stack variable) so the tool could complete analysis.
+Second, NumScout consumes EVM bytecode and fails with ``incomplete push instruction'' errors when the bytecode contains unresolved library placeholders (\_\_\$\ldots\$\_\_), which are emitted when a contract calls a public/external library function that would normally be linked at deploy time.
+Two of our cases (51\_H\_02, Swap.rampTargetPrice; 77\_H\_01, Exchange.calculateLiquidityTokenQtyForSingleAssetEntry) use external libraries in this way.
+For these two cases only, we produced a second copy of the target file in which every public/external library function was rewritten as internal, causing the compiler to inline the library body into the calling contract's bytecode rather than emit a placeholder.
+This transformation is semantically equivalent at the operation level---the arithmetic instructions NumScout inspects (MUL, DIV, SUB, etc.), the storage accesses, and the control flow are preserved---so the defect patterns NumScout targets are unchanged; only the call-site mechanism (DELEGATECALL vs.\ inlined code) differs.
+The modified files are kept separate from the originals used in the ScType and GPTScan experiments, and both modifications are restricted to the two cases noted above.
+
+\smallskip
+\noindent\textbf{Detection model.}
+A key distinction among these tools is how the set of detectable bugs is defined.
+GPTScan and NumScout operate on a pattern-driven model: each tool ships with a fixed catalog of vulnerability patterns (10 rules and 5 patterns, respectively), and only bugs matching those patterns can be detected.
+When a new class of numeric error emerges, the catalog must be updated by the tool developers.
+ScType is type-driven: it checks whether arithmetic operations preserve financial type consistency, which is more general than a fixed pattern catalog but still limited to errors expressible as type mismatches.
+IntentChecker is specification-driven: developers write @During/@Post conditions describing intended behavior, and the tool verifies the implementation against those conditions via abstract interpretation.
+This allows IntentChecker to target any numeric property expressible within its annotation grammar---including novel error patterns not yet cataloged by existing tools---but requires developer participation.
+The grammar's expressibility ceiling was quantified in RQ2.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figure/rq3_time_comparison.pdf}
+    \caption{Analysis time comparison across four tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. IntentChecker and ScType complete in seconds; GPTScan and NumScout each require minutes per case, with NumScout exceeding GPTScan on cases that exercise its symbolic-execution backend.}
+    \label{fig:rq3-time}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Finding 1: coverage landscape.}
+Table~\ref{tab:rq3-mitigation} shows the per-case mitigation results.
+GPTScan reported findings on 11 of the 20 target files; however, every finding belongs to a different vulnerability class (price manipulation, slippage limit, etc.) than the actual numeric logic error.
+GPTScan's rule set contains no rule for erroneous accounting or incorrect arithmetic formulas; consequently, the entire class of numeric logic errors falls outside its scope.
+This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a coverage gap exists: the bug class targeted by IntentChecker is not addressed by the most recent LLM-based smart-contract analysis tool.
+
+NumScout mitigated the target bug in 9 of 20 cases.
+The nine mitigated cases concentrate on NumScout-origin samples (WANGMI, Nokon, BoostToken, HIT) and on Vader Protocol's Utils.sol, whose division-heavy arithmetic matches NumScout's division-in-path and operator-order patterns; Web3Bugs cases whose bugs lie outside these five patterns (e.g., CDP.update, Stream.updateStreamInternal, LiquidityBasedTWAP.syncVaderPrice, RebaseProxy.mint) are not mitigated despite NumScout completing analysis.
+For 51\_H\_02 and 77\_H\_01, the reported NumScout entries are obtained on the library-inlined variant described earlier, and are marked with a dagger in Table~\ref{tab:rq3-mitigation}.
+
 \smallskip
 \noindent\textbf{Finding 2: complementarity with ScType.}
 ScType provides the most direct comparison, as both tools target accounting errors and both require manual annotations (financial types for ScType, during/post conditions for IntentChecker).
@@ -1488,12 +1470,7 @@ IntentChecker (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, determinis
 GPTScan (mean 267\,s) is approximately 59$\times$ slower due to its multi-step LLM pipeline, and NumScout (mean 772\,s, median 517\,s over 20 cases) is slower still, with several Web3Bugs cases running to the 1800\,s global timeout set by NumScout's symbolic-execution backend.
 The sub-10-second latency of IntentChecker makes it suitable for integration into CI/CD pipelines or interactive editor feedback loops, where developers expect near-instant responses.
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figure/rq3_time_comparison.pdf}
-    \caption{Analysis time comparison across four tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. IntentChecker and ScType complete in seconds; GPTScan and NumScout each require minutes per case, with NumScout exceeding GPTScan on cases that exercise its symbolic-execution backend.}
-    \label{fig:rq3-time}
-\end{figure}
+
 
 \smallskip
 \noindent\textbf{Summary.}
@@ -1537,7 +1514,7 @@ Two distinct kinds of effort are involved.
 The intent model assumes that the developer can articulate, in the grammar of @During/@Post annotations, what the function is supposed to do.
 For code the developer wrote themselves a few minutes ago, this is unproblematic: the intent is still in the developer's head.
 For code the developer is reviewing, modifying, or debugging without prior context, the intent must first be reconstructed from the surrounding code, comments, and external specifications, and only then can it be encoded as an annotation.
-This reconstruction step is not free, and it is exactly the step that the L5 (bug-awareness-required) limitation in §\ref{sec:rq1} measures: when the correct intent is non-obvious, an annotation that captures it cannot be written without already knowing the bug.
+This reconstruction step is not free, and it is exactly the step that the L5 (bug-awareness-required) limitation in §\ref{sec:rq2} measures: when the correct intent is non-obvious, an annotation that captures it cannot be written without already knowing the bug.
 
 \smallskip
 \noindent\textbf{Effort 2: supplying debug annotations for realistic execution paths.}
@@ -1596,15 +1573,6 @@ IntentChecker's analysis is sound within the ranges declared by debug annotation
 The guarantee does not extend outside those ranges.
 A bug that only manifests at the boundary of a parameter's representable values, but not in the range the developer chose for @LocalVar, will not appear in any judgment.
 This is an inherent characteristic of debugging tools---traditional debuggers also only execute the inputs the developer provides---and we encourage developers to use representative ranges and to iteratively refine them when Warning results draw attention to specific sub-intervals.
-
-\smallskip
-\noindent\textbf{Value-level intent vs.\ logic-level intent.}
-A broader observation from the limitation taxonomy is that IntentChecker's intent model operates at the value level: it can express whether a variable's value satisfies a numeric relationship (``this fee should be at least $x$'', ``this balance should decrease''), but it cannot express whether the right computation was performed in the first place.
-The 20 mitigated cases in RQ1 are precisely the cases where a value-level assertion suffices to distinguish buggy from correct execution.
-The L4 cases reveal the boundary: in L4a (10 cases), the correct expected value requires a computation that does not exist in the program; in L4b (8 cases), the function modifies no state variable, so there is no value to assert on.
-These are not failures of precision but of abstraction level---the developer's true intent is about what the code should do (``split the swap at the crossing point'', ``update totalLocked''), not about what value a variable should hold.
-Capturing such logic-level intent would require a fundamentally different formalism, such as temporal properties over execution traces or structural specifications of required code patterns, and lies outside the scope of a value-based interval-domain tool.
-Recognizing this boundary is important: IntentChecker is effective when the bug manifests as a wrong value, and complementary tools are needed when the bug manifests as a missing or misplaced operation.
 
 \subsection{Practical Annotation Guidelines}\label{sec:disc:guidelines}
 
