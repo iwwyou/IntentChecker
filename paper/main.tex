@@ -1179,12 +1179,12 @@ web3bugs\_77\_H\_01               & Erroneous Acct.          &  0.33 & 0.3--0.4 
 \noindent\textbf{Setup.}
 For each of the 75 effective benchmark instances (§\ref{sec:setup}), we (1) read the accompanying bug documentation and identify the buggy line(s), (2) write @During and/or @Post intent annotations that capture the expected numeric behavior described therein, (3) supply the debug annotations (@StateVar, @LocalVar, @GlobalVar, and @IReturn) that the function needs to be analyzable under representative inputs, and (4) run IntentChecker on the resulting annotated source.
 We record the judgment produced by the validation engine---Satisfied, Warning, or Violated---together with the risk score and violated region.
-For instances where no annotation can yield a non-Satisfied signal, we further classify the structural reason according to the limitation taxonomy in RQ2 (§\ref{sec:rq2}).
+For instances where no annotation drives the validation engine to Violated on the buggy code, we further classify the structural reason according to the limitation taxonomy in RQ2 (§\ref{sec:rq2}).
 
 \smallskip
 \noindent\textbf{Outcomes.}
 Of the 75 effective instances, IntentChecker produces a Violated judgment on \textbf{20 cases} when supplied with annotations derived from the bug documentation.
-The remaining 55 instances are classified as not\_detectable: IntentChecker cannot, given the structure of its analysis or its intent model, surface a non-Satisfied signal for them.
+The remaining 55 instances are classified as not\_detectable: no annotation can drive the validation engine to Violated on the buggy code, given the structure of its analysis or its intent model.
 Table~\ref{tab:rq1-overview} summarizes the full outcome distribution; the structural reasons behind the 55 unmitigated cases are analyzed in RQ2 (§\ref{sec:rq2}).
 
 \smallskip
@@ -1235,8 +1235,7 @@ These results suggest that IntentChecker is practical as a development-time vali
 \subsection{RQ2: Unmitigated Case Analysis}\label{sec:rq2}
 
 \noindent\textbf{Setup.}
-RQ1 identified 55 instances for which IntentChecker cannot surface a non-Satisfied signal.
-RQ2 classifies the structural reasons behind these failures into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
+RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violated judgment on the buggy code into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
 
 \begin{figure}[t]
 \centering
@@ -1294,14 +1293,15 @@ RQ2 classifies the structural reasons behind these failures into analysis-engine
 \smallskip
 \noindent\textbf{Limitation type definitions.}
 \begin{itemize}
-  \item \textbf{Analysis-engine limitations (L1--L3, 21 cases).} The abstract interpreter assigns $\top$ to a value that should have been concrete enough to distinguish buggy from correct execution; no developer annotation can recover that precision.
+  \item \textbf{Analysis-engine limitations (L1--L3, 21 cases).} A bug-relevant value is abstracted to $\top$ during analysis, so the interpreter cannot distinguish the buggy and correct executions, and no developer annotation can recover the lost precision.
   \begin{itemize}
-    \item \textbf{L1a (Loop widening, 8).} Accumulator variables (+=, *=) inside fixpoint iteration are widened to $\top$, and both buggy and correct executions land in the same widened range.
+    \item \textbf{L1a (Loop widening, 8).} A variable that the bug check depends on is widened to $\top$ inside a preceding loop, and the $\top$ propagates past the loop exit to the check point. The widened interval admits both the buggy and correct outcomes, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that offers no actionable signal distinguishing the buggy code from the corrected one.
     \item \textbf{L1b (Loop body granularity, 2).} The bug is exposed only at a specific point inside a loop body, but the analyzer summarizes loops by fixpoint result rather than by per-iteration trace, so no annotation point is available at the granularity needed.
     \item \textbf{L2a (Interface call return $\top$, 3).} The callee is reached only through an interface variable, the implementation is therefore unavailable, and @IReturn is inapplicable because the bug requires the return value of a state-modifying call.
     \item \textbf{L2b (External call, unknown external state, 1).} The implementation exists via dependency pre-analysis, but the callee's runtime storage state lies outside the deployment unit and the return value collapses to $\top$.
     \item \textbf{L3 (Unsupported construct, 7).} The bug-relevant value flows through an unsupported construct---abi.decode, opaque hash builtins, address(this).balance, or non-arithmetic Yul---which the analyzer treats as $\top$.
   \end{itemize}
+  \noindent These 21 cases are residual failures that remain after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied concrete values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant value flows through the specific failure modes enumerated above.
   \item \textbf{Annotation-grammar limitations (L4--L5, 34 cases).} The abstract interpreter would distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no such expression (L4) or has one whose construction presupposes already knowing the bug (L5).
   \begin{itemize}
     \item \textbf{L4a (Inexpressible expected value, 10).} The correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no intentValue expression can be constructed.
