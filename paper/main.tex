@@ -1374,7 +1374,7 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 
 \begin{table}[t]
 \centering
-\caption{Mitigation results on the 20 RQ1-mitigated cases. \ding{51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding{55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor{gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan's rule set does not target numeric logic errors, hence all cases are out of scope. NumScout entries marked $^{\dagger}$ were evaluated on a semantically-equivalent variant in which external library functions were rewritten as internal to bypass NumScout's library-placeholder limitation; see §\ref{sec:rq3} for details.}
+\caption{Mitigation results on the 20 RQ1-mitigated cases. \ding{51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding{55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor{gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan entries report results as published in Sun~et~al.~\cite{gptscan} rather than reruns; only 45\_H\_01 is listed there as a true positive (MSA-002, Wrong Order for Interest on UToken.borrow), and the remaining 19 cases either lie in contests outside that paper's evaluation set (51, 58, 60, 62, 101) or involve bug classes (wrong-formula, wrong-scale, wrong-decimals, missing-update) that do not match any of GPTScan's ten rules. NumScout entries marked $^{\dagger}$ were evaluated on a semantically-equivalent variant in which external library functions were rewritten as internal to bypass NumScout's library-placeholder limitation; see §\ref{sec:rq3} for details.}
 \label{tab:rq3-mitigation}
 \scriptsize
 \begin{tabular}{@{}llcccc@{}}
@@ -1390,7 +1390,7 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 5\_H\_07 & Utils.calcAsymmetricShare & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
 5\_H\_08 & Utils.calcLiquidityUnits & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
 5\_H\_12 & Pools.getAddedAmount & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
-45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
+45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \ding{51} & \ding{51} \\
 47\_H\_02 & WrappedIbbtcEth.transferFrom & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{55} \\
 51\_H\_02 & SwapUtils.rampTargetPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55}$^{\dagger}$ \\
 56\_H\_02 & CDP.update & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
@@ -1441,9 +1441,11 @@ The grammar's expressibility ceiling was quantified in RQ2.
 \smallskip
 \noindent\textbf{Finding 1: coverage landscape.}
 Table~\ref{tab:rq3-mitigation} shows the per-case mitigation results.
-GPTScan reported findings on 11 of the 20 target files; however, every finding belongs to a different vulnerability class (price manipulation, slippage limit, etc.) than the actual numeric logic error.
-GPTScan's rule set contains no rule for erroneous accounting or incorrect arithmetic formulas; consequently, the entire class of numeric logic errors falls outside its scope.
-This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a coverage gap exists: the bug class targeted by IntentChecker is not addressed by the most recent LLM-based smart-contract analysis tool.
+For GPTScan we report the per-contest results published in Sun~et~al.~\cite{gptscan} rather than reruns, because GPTScan's source invokes OpenAI's \texttt{gpt-3.5-turbo} alias whose underlying snapshot has been redirected multiple times since 2023 (\S\ref{sec:threats}).
+Seven of the twelve Web3Bugs contests in our benchmark (5, 45, 47, 56, 70, 77, 78) fall within GPTScan's evaluation set; the other five (51, 58, 60, 62, 101) are not evaluated in that paper.
+Within the overlap, only 45\_H\_01 is listed as a true positive---a Wrong Order for Interest hit on \texttt{UToken.borrow}---and the remaining overlapping bugs are not categorized under any of GPTScan's ten rules in the published breakdown.
+The nineteen non-matched cases involve wrong-formula, wrong-scale, wrong-decimals, and missing-update errors that do not correspond to GPTScan's patterns (price manipulation, slippage limit, first deposit, wrong-order interest/checkpoint, etc.).
+This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a coverage gap exists: the bug class targeted by IntentChecker is largely outside the reach of the most recent LLM-based smart-contract analysis tool.
 
 NumScout mitigated the target bug in 9 of 20 cases.
 The nine mitigated cases concentrate on NumScout-origin samples (WANGMI, Nokon, BoostToken, HIT) and on Vader Protocol's Utils.sol, whose division-heavy arithmetic matches NumScout's division-in-path and operator-order patterns; Web3Bugs cases whose bugs lie outside these five patterns (e.g., CDP.update, Stream.updateStreamInternal, LiquidityBasedTWAP.syncVaderPrice, RebaseProxy.mint) are not mitigated despite NumScout completing analysis.
@@ -1464,6 +1466,7 @@ The two approaches are thus complementary: ScType catches type-level mismatches 
 Figure~\ref{fig:rq3-time} reports per-case analysis times averaged over three runs.
 IntentChecker (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
 GPTScan (mean 267\,s) is approximately 59$\times$ slower due to its multi-step LLM pipeline, and NumScout (mean 772\,s, median 517\,s over 20 cases) is slower still, with several Web3Bugs cases running to the 1800\,s global timeout set by NumScout's symbolic-execution backend.
+GPTScan's per-case latency is dominated by sequential OpenAI API round-trips over its two-step LLM filter, and its pipeline structure has not changed since 2023; the order-of-magnitude comparison (seconds vs.\ minutes per case) is therefore insensitive to the model-snapshot changes that affect mitigation outputs (§\ref{sec:threats}).
 The sub-10-second latency of IntentChecker makes it suitable for integration into CI/CD pipelines or interactive editor feedback loops, where developers expect near-instant responses.
 
 
@@ -1493,7 +1496,11 @@ Additionally, the correlation analysis in RQ1 is based on $n=20$ mitigated cases
 \noindent\textbf{Construct validity.}
 RQ1's notion of ``mitigation'' relies on the validation engine producing a non-Satisfied judgment (typically Violated) for the annotated bug, rather than on a downstream measurement of developer behavior.
 A non-Satisfied judgment on its own does not guarantee that a developer reading it would correctly diagnose and fix the bug; assessing that downstream effect is an important direction for future work.
-In RQ3, GPTScan is marked as out of scope (N/A) rather than ``not mitigated'' because its rule set does not target numeric logic errors; this reflects a scope boundary, not a quality deficiency.
+In RQ3, GPTScan results are taken from the per-contest breakdown published in Sun~et~al.~\cite{gptscan} rather than from reruns in our environment.
+GPTScan's implementation invokes the model alias \texttt{gpt-3.5-turbo} (and \texttt{gpt-4}) whose underlying snapshots have been redirected by the provider multiple times since the original evaluation in 2023; our April~2026 reruns of the same code on the same inputs produced rule activations at different functions than the published results, confirming that model-snapshot drift alters the tool's output even when code and inputs are held constant.
+We therefore report the authors' published numbers as the fairest reflection of GPTScan's intended performance.
+The per-case latency in Figure~\ref{fig:rq3-time} still uses our reruns because per-case timings were not published in the original paper; this affects only the absolute latency comparison, not the per-case mitigation entries.
+Cases marked N/A for GPTScan in Table~\ref{tab:rq3-mitigation} fall into two categories: (i) contests outside the evaluation set of Sun~et~al.~(51, 58, 60, 62, 101); and (ii) bugs whose class is not among GPTScan's ten rules (wrong-formula, wrong-scale, wrong-decimals, missing-update).
 The ScType comparison is limited to seven overlapping cases for which type annotation files exist; results on the remaining thirteen cases may differ.
 Two NumScout cases (51\_H\_02, 77\_H\_01) were evaluated on a variant of the target file in which public/external library functions were rewritten as internal to bypass NumScout's inability to handle unresolved library placeholders in compiled bytecode (§\ref{sec:rq3}).
 Because this transformation only alters the call-site mechanism (inlined library code vs.\ DELEGATECALL) and preserves the arithmetic instructions, storage accesses, and control flow that NumScout's defect patterns inspect, we regard the comparison as fair for the specific pattern-level signal NumScout produces; we nevertheless note the modification explicitly so that readers interpreting Table~\ref{tab:rq3-mitigation} can account for it.
