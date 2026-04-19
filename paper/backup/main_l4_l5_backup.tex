@@ -1243,12 +1243,12 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
   % Constants
   \def\barH{0.45}
   \def\barGap{0.18}
-  \def\xUnit{0.45}  % cm per case (accommodates max=13)
-  \def\maxCount{14}
+  \def\xUnit{0.55}  % cm per case (widened)
+  \def\maxCount{10}
 
   % Group A: analysis-engine (L1-L3)
   \def\colA{black!55}
-  % Group B: annotation-grammar (matrix cells)
+  % Group B: annotation-grammar (L4-L5)
   \def\colB{black!25}
 
   % Bars: (index/label/count/color/type name)
@@ -1258,10 +1258,12 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
     2/L2a/3/\colA/Interface call return $\top$,
     3/L2b/1/\colA/External call unknown state,
     4/L3/7/\colA/Unsupported construct,
-    5/V-A/13/\colB/Value / Type A,
-    6/V-B/8/\colB/Value / Type B,
-    7/A-A/3/\colB/Algorithm / Type A,
-    8/A-B/10/\colB/Algorithm / Type B%
+    5/L4a/10/\colB/Inexpressible expected value,
+    6/L4b/8/\colB/No target storage variable,
+    7/L4c/1/\colB/Magnitude-only difference,
+    8/L4d/1/\colB/Invariant masked,
+    9/L5a/7/\colB/Bug-aware: missing code,
+    10/L5b/7/\colB/Bug-aware: wrong code%
   } {%
     \pgfmathsetmacro{\y}{-\i*(\barH+\barGap)}
     \pgfmathsetmacro{\w}{\val*\xUnit}
@@ -1273,18 +1275,18 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
   % Group brackets
   \draw[thick] (-1.05,0.32) -- (-1.15,0.32) -- (-1.15,-2.06) -- (-1.05,-2.06);
   \node[rotate=90, anchor=south] at (-1.25,-0.87) {\scriptsize Analysis-engine (21)};
-  \draw[thick] (-1.05,-2.46) -- (-1.15,-2.46) -- (-1.15,-5.58) -- (-1.05,-5.58);
-  \node[rotate=90, anchor=south] at (-1.25,-4.02) {\scriptsize Annotation-grammar (34)};
+  \draw[thick] (-1.05,-2.46) -- (-1.15,-2.46) -- (-1.15,-6.84) -- (-1.05,-6.84);
+  \node[rotate=90, anchor=south] at (-1.25,-4.65) {\scriptsize Annotation-grammar (34)};
 
   % X-axis
-  \draw[->] (0.15,-5.99) -- (0.15+15*\xUnit,-5.99);
-  \foreach \x in {0,2,4,6,8,10,12,14} {
-    \draw (0.15+\x*\xUnit,-5.94) -- (0.15+\x*\xUnit,-6.04);
-    \node[anchor=north] at (0.15+\x*\xUnit,-6.04) {\scriptsize \x};
+  \draw[->] (0.15,-7.25) -- (0.15+11*\xUnit,-7.25);
+  \foreach \x in {0,2,4,6,8,10} {
+    \draw (0.15+\x*\xUnit,-7.20) -- (0.15+\x*\xUnit,-7.30);
+    \node[anchor=north] at (0.15+\x*\xUnit,-7.30) {\scriptsize \x};
   }
-  \node[anchor=north] at (0.15+7*\xUnit,-6.39) {\scriptsize \# of cases};
+  \node[anchor=north] at (0.15+5*\xUnit,-7.65) {\scriptsize \# of cases};
 \end{tikzpicture}
-\caption{Limitation breakdown for the 55 not\_detectable instances: analysis-engine (L1--L3, 21) vs.\ annotation-grammar matrix cells (V-A = Value / Type A, V-B = Value / Type B, A-A = Algorithm / Type A, A-B = Algorithm / Type B; 34 total).}
+\caption{Limitation breakdown for the 55 not\_detectable instances: analysis-engine (L1--L3, 21) vs.\ annotation-grammar (L4--L5, 34).}
 \label{fig:rq1-limitations}
 \end{figure}
 
@@ -1300,59 +1302,56 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
     \item \textbf{L3 (Unsupported construct, 7).} The bug check depends on a value that flows through an unsupported construct---abi.decode, opaque hash builtins, or non-arithmetic Yul---which the analyzer treats as $\top$, and the $\top$ propagates to the check point.
   \end{itemize}
   \noindent These 21 cases are residual failures that remain after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied concrete values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant value flows through the specific failure modes enumerated above.
-  \item \textbf{Annotation-grammar limitations (L4--L5, 34 cases).} For these 34 cases, the analyzer distinguishes the buggy and correct runtime values, but the annotation grammar cannot express the intent that would surface the bug. We classify them along two orthogonal axes. \emph{Bug nature} asks whether the fix swaps a value or identifier (Value) or restructures the computation itself (Algorithm). \emph{Scope availability} asks whether the correct reference sits in the function's scope (Type~A) or not (Type~B). The four resulting cells partition the 34 cases:
+  \item \textbf{Annotation-grammar limitations (L4--L5, 34 cases).} The abstract interpreter would distinguish the buggy and correct executions if the developer could express the right intent, but the current grammar either has no such expression (L4) or has one whose construction presupposes already knowing the bug (L5).
   \begin{itemize}
-    \item \textbf{Value / Type A (13).} An in-scope variable holds the correct value or relation, but the buggy code references the wrong one---or a state update that should have named a specific variable is missing. The fix is a one-line identifier, operator, or assignment change. Twelve cases are L5 (expressible conditional on bug awareness); one is an L4 case where the grammar cannot express the exact magnitude of the required state transition.
-    \item \textbf{Value / Type B (8, all L4).} The correct value lives in external state or in a view call the function never makes; no in-scope variable stands in for it.
-    \item \textbf{Algorithm / Type A (3).} All relevant variables are in scope, but the correct specification is a structural relation---a multi-variable invariant, an operation ordering, or a missing helper call---that the grammar does not directly support. Two cases are L5, and one is an L4 case requiring arithmetic over Entry and Exit values.
-    \item \textbf{Algorithm / Type B (10, all L4).} The fix needs both structural restructuring and values outside the function's scope.
+    \item \textbf{L4a (Inexpressible expected value, 10).} The correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no intentValue expression can be constructed.
+    \item \textbf{L4b (No target storage variable, 8).} The buggy function (a view function, a pure function, a thin wrapper, or a library helper) does not modify any storage variable in the target contract, so no @Post annotation has anything to attach to.
+    \item \textbf{L4c (Magnitude-only difference, 1).} Buggy and correct code change the same state variable in the same direction; only the magnitude differs. changed(\,) and Entry op Exit both succeed in both versions.
+    \item \textbf{L4d (Invariant masked, 1).} A different statement in the same function already modifies the target state variable, so changed(\,) is satisfied in both versions. The actual invariant is a multi-variable relation that PostEntryExit cannot express.
+    \item \textbf{L5a (Bug-awareness-required: missing code, 7).} A required statement is omitted; the post-condition that would catch this is expressible, but knowing what is missing already presupposes knowing the bug.
+    \item \textbf{L5b (Bug-awareness-required: wrong code, 7).} A required statement uses the wrong identifier, operator, or struct field; the corrective annotation is expressible, but writing it requires knowledge of the correct form.
   \end{itemize}
 \end{itemize}
 
-\noindent At the higher level, L4 and L5 divide the matrix by expressibility. L4's 20 cases admit no grammar-expressible annotation that distinguishes the buggy and correct versions: 18 sit in the Type~B cells (scope insufficient) and 2 are Type~A grammar-limit cases where the current PostEntryExit form cannot express the required arithmetic. L5's 14 cases, all in Type~A, admit distinguishing annotations, but writing one presupposes that the developer already knows the correct form.
-
-\smallskip
-\noindent\textbf{Annotation precision within L5.}
-Even when expressible, the annotation's precision varies. The 14 L5 cases split evenly into two tiers:
+\noindent\textbf{Expressibility within L4--L5.}
+Within the 34 annotation-grammar limitation cases, we further ask: assuming full bug awareness, could a developer construct an annotation that the validation engine would surface as Violated or Warning?
+L4's 20 cases are inexpressible by definition---no annotation under the current grammar can yield a non-Satisfied judgment.
+All 14 L5 cases, however, are expressible, splitting evenly into two tiers:
 
 \begin{itemize}
-  \item \textbf{Strong (7).} The annotation expresses the correct value or relation exactly---a fix-equivalent specification. Strong cases are wrong-code bugs: a swapped operator, wrong struct field, or wrong identifier. Writing the annotation is essentially writing the fix.
-  \item \textbf{Weak (7).} The annotation captures only that a variable changed, or did not, in a particular direction (\texttt{changed(var, true/false)} or \texttt{var(Entry relOp Exit)}). It says ``something should happen here'' without naming the exact magnitude. Weak cases are missing-code bugs: a required state update or helper call is absent.
+  \item \textbf{Expressible-Strong (``Direct'', 7).} The annotation expresses the correct value or relation directly. The buggy version produces Violated; the corrected version produces Satisfied. The annotation is essentially a fix-equivalent specification.
+  \item \textbf{Expressible-Weak (``Indirect'', 7).} The annotation captures only that some state variable changed---or did not change---in a particular direction (changed(var, true/false) or var(Entry relOp Exit)). The buggy version produces Violated, but the annotation does not encode the correct value, only its presence or polarity---an awareness signal rather than a fix-equivalent specification.
 \end{itemize}
 
 \smallskip
 \noindent\textbf{Representative examples.}
-We illustrate one case per matrix cell to make the contrast concrete.
+We illustrate one case from each tier to show the qualitative difference in signal.
 
-\noindent\emph{Value / Type B} --- web3bugs\_61\_H\_04 (YearnYield.getTokensForShares). The buggy line divides a Yearn vault share price by \texttt{1e18} instead of \texttt{10**vault.decimals()}. The correct divisor is the return of a \texttt{decimals()} call that the function never makes, and no local variable holds its value. Any annotation written over in-scope variables reduces to the same \texttt{1e18}-scaled form that the buggy code already uses, so the correct expected value is simply not reachable from the function's scope.
+\noindent Inexpressible (L4a) --- web3bugs\_51\_H\_04 (SwapUtils.getYC). The bug is that when a swap crosses a target price, the StableSwap formula switches its amplifier coefficient mid-trade; the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. Constructing this requires computing a split point $dx_1$ that does not appear anywhere in the program and that is not expressible as a closed-form arithmetic combination of in-scope variables (it is the solution to a Newton-method equation). No intentValue expression can capture the correct getY return, so the annotation grammar's intentValue == arithExpr form is unusable here.
 
-\noindent\emph{Value / Type A (Strong)} --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is \texttt{require(params.ltvBPS >= accepted.ltvBPS, ...)}; the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most the ceiling the lender accepts). Under bug awareness, the annotation is direct:
+\noindent Expressible-Strong (L5b) --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is require(params.ltvBPS $\geq$ accepted.ltvBPS, ...); the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most their accepted ceiling). Under bug awareness, the annotation is direct:
 \begin{verbatim}
 // @During params.ltvBPS <= accepted.ltvBPS
 \end{verbatim}
-The buggy version violates it cleanly, and the corrected version satisfies it. The annotation is essentially the corrective require.
+The buggy code admits inputs with params.ltvBPS $>$ accepted.ltvBPS, which violate the annotation cleanly. The annotation is essentially the corrective require.
 
-\noindent\emph{Value / Type A (Weak)} --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs \texttt{transferFrom} for an additional \texttt{\_amount} but forgets to update \texttt{totalLocked[\_asset]}. Under bug awareness, the developer can write
+\noindent Expressible-Weak (L5a) --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs transferFrom for an additional \_amount but forgets to update the internal accounting variable totalLocked[\_asset]. Under bug awareness, the developer can write
 \begin{verbatim}
 // @Post totalLocked[_asset](Entry < Exit)
 \end{verbatim}
-which fires Violated on the buggy version (the variable does not change, so Entry == Exit) and is satisfied on a corrected version that adds \texttt{totalLocked[\_asset] += \_amount}. The annotation tells the developer that the variable should grow, but not by how much---the precise increment \texttt{\_amount} is not encoded. This is an awareness signal, not a fix-equivalent specification.
-
-\noindent\emph{Algorithm / Type B} --- web3bugs\_51\_H\_04 (SwapUtils.getYC). When a swap crosses a StableSwap target price, the amplifier coefficient switches mid-trade; the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. But the split point $dx_1$ is the solution to a nonlinear equation, does not appear anywhere in the program, and is not a closed-form arithmetic combination of in-scope variables. No intentValue expression can capture the correct getY return.
-
-\noindent\emph{Algorithm / Type A} --- web3bugs\_36\_H\_02 (Basket.auctionBurn). After \texttt{\_burn} reduces \texttt{totalSupply}, the correct invariant is that the product \texttt{ibRatio * totalSupply} be preserved across the call---\texttt{(Entry == Exit)} on the product. Both variables are in scope, but the PostEntryExit form supports only qualitative comparisons between Entry and Exit; a multi-variable arithmetic relation cannot be expressed.
+which fires Violated on the buggy version (the variable does not change, so Entry == Exit) and is satisfied on a corrected version that adds totalLocked[\_asset] += \_amount. The annotation tells the developer that the variable was supposed to grow, but it does not tell them by how much---the precise increment \_amount is not present in the annotation. This is an awareness signal, not a fix-equivalent specification, and our grammar does not currently support intentValue expressions over the Entry value, which would be needed to encode the increment exactly.
 
 \smallskip
 \noindent\textbf{Implications.}
-What does this matrix reveal about IntentChecker's experimental coverage?
-
-The Type~B cells (18 cases) mark a structural boundary of the value-level intent model. When the corrective reference lives outside the function's scope, no annotation a developer writes today can close the gap---this is a property of the intent language, not a tuning failure. The 10 cases in Algorithm / Type~B form the hardest subset: the bug is a missing or misplaced operation, and the developer's true intent is about \emph{what the code should do} rather than about any variable's value. These cases call for a complementary modeling paradigm---temporal properties over execution traces or structural pattern checks---rather than a value-level extension.
-
-The Type~A Strong cells (7 cases) define IntentChecker's strongest regime: when the bug is a swapped operator, struct field, or identifier, a reviewer who compares against a sibling function or natural convention writes a fix-equivalent annotation, and the tool surfaces the bug immediately. These are the cases where IntentChecker amplifies careful review rather than replacing it.
-
-The Type~A Weak cells (7 cases) occupy a useful but imprecise regime: the grammar can say ``this variable must change'' but not by how much. The tool fires Violated correctly, but the developer still has to determine the corrective value. The annotation acts as a nudge, not a spec.
-
-Two Type~A cases---one in Value, one in Algorithm---sit in a narrow grammar-limit pocket that is neither Strong nor Weak: both require arithmetic over Entry and Exit values, which the current PostEntryExit form does not express. This and related grammar directions are discussed in \S\ref{sec:disc:tech}.
+Three findings stand out.
+First, L4's 20 cases are a hard ceiling that no amount of developer awareness can lift, whereas L5's 14 cases are a soft ceiling that the intent model already covers, contingent on whether the developer is aware.
+Second, within L5, the even split between Strong and Weak suggests that for half of the awareness-conditional cases, the developer's annotation would express the actual fix, and for the other half it would express a coarser ``something must change here'' signal that nevertheless suffices to surface the bug.
+Third, the L4 cases reveal a fundamental boundary of abstraction level: IntentChecker's intent model operates at the value level---it can express whether a variable's value satisfies a numeric relationship---but it cannot express whether the right computation was performed in the first place.
+In L4a, the correct expected value requires a computation that does not exist in the program; in L4b, the function modifies no state variable, so there is no value to assert on.
+The developer's true intent in these cases is about what the code should \textit{do} (``split the swap at the crossing point'', ``update totalLocked''), not about what value a variable should hold.
+Capturing such logic-level intent would require a fundamentally different formalism, such as temporal properties over execution traces or structural specifications of required code patterns.
+IntentChecker is effective when the bug manifests as a wrong value; complementary tools are needed when the bug manifests as a missing or misplaced operation.
+Future grammar extensions---specifically, (a) arithmetic expressions over Entry values in PostEntryExit, which would absorb several Weak cases, and (b) a returnExpression clause for view functions, which would absorb several L4b cases---are concrete directions discussed in §\ref{sec:disc:tech}.
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 

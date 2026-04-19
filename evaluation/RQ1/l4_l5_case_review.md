@@ -2065,3 +2065,825 @@ G-표면:
 - **Data model 확장 요구 case**: Case 11의 I4 difficulty ("Y_hard")는 aux injection의 한계를 보이는 예 — 단순 변수 주입 넘어 storage 슬롯 추가 필요. Paper future work에서 "annotation-driven contract refactoring의 범위"를 논할 때 인용.
 
 ---
+
+### Case 12 — `web3bugs_52_H_15` (현재 분류: **L4b**, 단 limitation_types.md 내 self-inconsistent)
+
+#### 1. Audit report 인용
+
+- **출처**: `reports/52.md` → `[H-15] VaderRouter._swap performs wrong swap`
+- **Severity**: High. **Warden**: cmichel (C4 2021-11-vader).
+- **핵심 주장 (원문 발췌)**:
+  > The 3-path hop in `VaderRouter._swap` is supposed to first swap **foreign** assets to native assets, and then the received native assets to different foreign assets again. `pool.swap(nativeAmountIn, foreignAmountIn)` accepts the foreign amount as the **second** argument. The code however mixes these positional arguments up:
+  > ```solidity
+  > return pool1.swap(0, pool0.swap(amountIn, 0, address(pool1)), to);   // BUG
+  > // should be:
+  > return pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);
+  > ```
+- **Impact**: "All 3-path swaps through the VaderRouter fail in the pool check when `require(nativeAmountIn = amountIn <= nativeBalance - nativeReserve = 0)` is checked."
+- **권고 fix**: `pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);` 인자 순서 swap.
+- **Sponsor**: SamSteinGG confirmed.
+
+#### 2. 코드 의미 이해
+
+##### (2a) Contract 목적 & 시스템 위치
+
+`VaderRouter` — Vader Protocol의 DEX 라우터. Uniswap V2 API와 호환되게 설계된 router로, Vader pool들(native ↔ foreign asset 교환)에 대한 swap/liquidity 관리 래퍼. `factory`, `reserve` 주소만 state로 보유, 자체 회계 state 없음 (순수 router).
+
+##### (2b) 함수의 컨트랙트 내 역할
+
+`_swap(amountIn, path, to) → amountOut` (L302-351, private):
+- Caller: `swapExactTokensForTokens`, `swapTokensForExactTokens` (public entry).
+- 역할: path 길이 2 (single-hop) or 3 (multi-hop)에 따라 pool.swap을 호출.
+- 3-path의 경우 **foreign A → native → foreign B** — pool0에서 foreign→native, 받은 native로 pool1에서 native→foreign.
+- VaderRouter 자체의 state write 없음 — 모든 자산 이동은 pool 및 ERC20 external call로 위임.
+
+##### (2c) 함수 의도 (수식)
+
+3-path swap logic:
+- pool0: `foreign A` in → `native` out. `pool0.swap(nativeAmountIn=0, foreignAmountIn=amountIn, to=pool1)` → returns nativeAmountOut.
+- pool1: `native` in → `foreign B` out. `pool1.swap(nativeAmountIn=nativeAmountOut, foreignAmountIn=0, to=recipient)` → returns foreignAmountOut.
+- 핵심 convention: `pool.swap(nativeAmountIn, foreignAmountIn, to)` — **첫째 인자 native, 둘째 인자 foreign**.
+
+##### (2d) Line-by-line 분석 (L302-351, 3-path 분기)
+
+```solidity
+309      if (path.length == 3) {
+310-315      require(
+                 path[0] != path[1] &&
+                     path[1] == factory.nativeAsset() &&
+                     path[2] != path[1],
+                 "VaderRouter::_swap: Incorrect Path"
+             );
+317          IVaderPool pool0 = factory.getPool(path[0], path[1]);   // foreign A ↔ native
+318          IVaderPool pool1 = factory.getPool(path[1], path[2]);   // native ↔ foreign B
+320-324      IERC20(path[0]).safeTransferFrom(msg.sender, address(pool0), amountIn);
+326          return pool1.swap(0, pool0.swap(amountIn, 0, address(pool1)), to);   // BUG
+```
+
+- **L317-318**: 두 pool 획득. pool0 = (foreign A, native), pool1 = (native, foreign B).
+- **L320-324**: sender → pool0으로 foreign A amountIn 전송 (swap을 위한 사전 입금).
+- **L326 (BUG)**:
+  - **내측 `pool0.swap(amountIn, 0, address(pool1))`**: arg[0] = amountIn (native 자리), arg[1] = 0 (foreign 자리). 즉 **native→foreign swap** 시도 — 반대 방향.
+  - pool0은 foreign A만 입금받았으므로 native reserve 증가 없음. `require(nativeAmountIn = amountIn <= nativeBalance - nativeReserve = 0)` 체크에서 revert.
+  - **올바른**: `pool0.swap(0, amountIn, address(pool1))` — foreign A를 native로 swap.
+  - 외측 `pool1.swap(0, ..., to)`: arg[0] = 0, arg[1] = 중첩 호출 결과 (만약 안 revert됐으면 native값인데 foreign 자리). 역시 방향 오류.
+  - **올바른**: `pool1.swap(pool0_native_out, 0, to)` — pool0에서 받은 native를 pool1에서 foreign B로 swap.
+
+**실행 결과**: 모든 3-path swap이 **pool0에서 revert**. 해당 기능 완전히 사용 불가.
+
+##### (2e) 버그의 근본 의미
+
+**Uniswap V2 API convention과 Vader pool API convention 혼동**. Uniswap V2의 `swap(amount0Out, amount1Out, to, data)`는 **output** amount를 인자로 받음. Vader `pool.swap(nativeAmountIn, foreignAmountIn, to)`는 **input** amount를 받으며, 각 자산별로 별도 위치.
+
+개발자가 Uniswap V2 스타일로 생각하면서 "input 방향을 0으로 설정" 착각했을 가능성 (실제로는 pool.swap이 input을 받는데 output처럼 처리).
+
+Protocol-level: 3-path swap 기능 완전 불능 → DEX의 cross-pool swap 경로 봉쇄. 직접적 자금 손실은 revert로 방지되나 **기능 마비 + UX 파손**. (실제 severity는 "functional loss"로 High로 처리됨.)
+
+##### (2f) 올바른 fix
+
+Audit 권고 그대로 L326 한 줄 swap:
+```solidity
+return pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);
+```
+
+#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+
+**함수 scope 변수**: `amountIn`, `path` (params), `pool0`, `pool1` (local). `to` (param). State: `factory` (immutable), `reserve`.
+
+**(a) 상태 변화?** VaderRouter._swap는 state write 없음 (전부 external call). `_swap`의 직접적 state 채널 **봉쇄**.
+
+**(b) Return-based @Post**:
+- `@Post returnExpression == correct_amountOut_formula`: amountOut은 pool의 swap formula (constant product 기반) 결과. 외부 pool의 state(reserves)에 의존. 표현 불가.
+
+**(c) `.arg[n]` 채널 (lint-level, I9 원칙상 배제)**:
+- `@During pool0.swap.arg[0] == 0` — arg[0]이 nativeAmountIn이어야 함을 assert. Buggy: `amountIn ≠ 0` → VIOLATED. Correct: `0 == 0` → SATISFIED.
+- `.arg[1] == amountIn` 도 추가 가능.
+- 기존 `limitation_types.md`가 L5b 예시로 든 annotation.
+- **I9 원칙**: 이건 lint-style. L5b 판정 근거로 사용 안 함.
+
+**(d) Semantic intent via require feasibility**:
+- Grammar의 `require feasible` / `assert feasible` 절 활용.
+- `@During pool0.swap의 내부 require` — 그러나 pool0은 external contract. 내부 require에 접근 불가.
+- Only VaderRouter._swap 내부 require (L310-315)만 annotate 가능하나 이건 path 형식 체크지 swap 방향 체크 아님.
+
+**(e) Revert detection**:
+- Buggy는 항상 revert → 이게 bug sign. Correct는 return.
+- `@Post returnExpression` 자체가 (buggy에서) 도달 불가능한 state. 엔진이 "이 path는 infeasible"로 표현할 수 있음.
+- 그러나 이건 IntentChecker의 intent annotation 기능이 아닌 분석 엔진의 부수 효과. **Intent annotation 관점에서 명시적 표현 수단 없음**.
+
+**(f) Aux injection (I4)**:
+- 새 state 추가나 외부 값 injection은 이 case에 별 의미 없음 — 버그가 arg 순서지 값 자체가 아님.
+- N/A.
+
+#### 4. 분류 타당성 — **L4b 확정** (Case 8·Case 4와 구분)
+
+**기존 분류 검토 (limitation_types.md 내 self-inconsistency)**:
+- L4b list (L33): 52_H_15 포함.
+- L5b examples section (L229-237): 52_H_15을 대표 L5b 예시로 제시.
+- → 문서 내 모순.
+
+**객관 판정**:
+- VaderRouter._swap은 **router/wrapper 함수, state write 없음**.
+- Semantic intent (correct amountOut) 표현 불가 (external pool state 의존).
+- `.arg[n]` 채널은 I9에 의해 L5b 판정에서 배제.
+- → **L4b** (no-target-storage: router/wrapper 분류).
+
+**Case 8·Case 4와의 비교**:
+| | Case 4 (39_H_02) | Case 8 (61_H_01) | Case 12 (본 case) |
+|---|---|---|---|
+| Function type | non-view (state write 있음) | internal view | private wrapper (state write 없음) |
+| Bug 형태 | arg[2] 값 오류 (cross-line fee flow) | arg order swap (oracle) | arg order swap (pool) |
+| 실제 `.arg[n]` 표현 가능? | 예 (proxy) | 예 (intent 자체) | 예 (arg 순서) |
+| I9 하에서 L5b 인정? | 아니오 (proxy) | 아니오 (lint) | 아니오 (lint) |
+| Semantic 채널 가능? | 아니오 (외부 ERC20 balance) | 아니오 (@IReturn arg-indifference) | 아니오 (외부 pool state) |
+| 분류 | L4a (cross-line intent) | L4a (inexpressible) | **L4b (wrapper, no state)** |
+
+세 case 모두 "arg 관련 버그지만 semantic intent 표현 불가"의 공통 패턴. 분류가 L4a/L4b로 갈리는 기준은 **함수 타입** (state write 여부).
+
+#### 5. 근본 원인
+
+**본질 (L4b — router/wrapper 함수 + arg 방향 오류)**:
+
+VaderRouter._swap는 순수 router — 자체 state 없음. Correct intent는 **외부 pool의 state 변화 방향**에 대한 것: pool0의 foreign reserve 증가·native reserve 감소, pool1의 native reserve 증가·foreign reserve 감소. 이 방향성은 외부 pool contract의 state → VaderRouter scope 밖.
+
+Intent annotation의 두 채널:
+- State-based @Post: VaderRouter 자체 state 없음. 채널 봉쇄.
+- Return-based @Post: amountOut의 correct 값 계산에 외부 pool의 reserves + swap formula 필요. 표현 불가.
+- Arg-based @During: `.arg[n]`으로 인자 순서 제약 가능. 그러나 I9 원칙상 lint-level이라 L5b 판정 배제.
+
+**I8 축 재분류 (새 축)**:
+- **Bug category**: **Value error** — 인자 identifier 선택 오류 (order swap). 한 줄 fix.
+- **Proxy type**: **Type B** — correct amountOut이나 pool state 변화가 scope 부재.
+- **Annotation channel**: state 채널 봉쇄 (router 특성) + return 채널 봉쇄 (외부 state 의존) + arg 채널 (lint).
+
+G-표면:
+- **G1** — `pool0.swap(...)`, `pool1.swap(...)` 반환값 intent 내 참조 불가.
+- **G3** — correct amountOut이나 pool reserves가 VaderRouter scope 부재.
+- **G4** — router/wrapper라 state write 채널 닫힘.
+- **G8** — external pool state 의존.
+
+**Silent sanction (I5)**: Code 그대로 annotation으로 옮기면 (`arg[0] == amountIn, arg[1] == 0`) buggy tautology → fail-by-confirmation. `.arg[n]` 형식으로도, 일반 natural intent로도 둘 다 silent sanction 위험.
+
+**Aux injection (I4) N/A**: 값 문제가 아닌 인자 순서 문제라 injection으로 해소되는 성격이 아님.
+
+**[Category (I8)]**: **Value error / Type B** — router/wrapper 함수에서 인자 순서 오류. Case 8과 같은 cell (value/B)이나 **함수 타입 차이로 L4b**. Cross-cutting pattern: "arg-level value error with semantic intent 외부 state 의존".
+
+#### 6. paper 문장 개선 제안
+
+- **L4b list 정정**: `limitation_types.md` 내 52_H_15이 L4b list와 L5b examples 모두에 등장하는 self-inconsistency 해결 — **L4b로 통일**하고 L5b examples section에서 52_H_15 제거 (혹은 "originally listed as L5b, reclassified to L4b under I9 principle"로 명시).
+- **L4a vs L4b 기준 명시**: Case 4·8·12 비교표를 paper에 포함. "semantic intent 표현 불가 공통, 구분은 함수 타입 (state write 여부)".
+- **Router/wrapper L4b의 전형**: 자체 state 없는 함수는 모든 semantic intent가 외부 state에 의존 → L4b가 기본값. Vader 관련 여러 case(52_H_15, 52_H_16, 70_H_08)가 이 cell.
+
+---
+
+## L4c — Magnitude-only Difference (1 case)
+
+L4c 정의: State variable이 buggy/correct 모두에서 동일 방향으로 변경되며, 차이는 변경 크기(magnitude)뿐. `changed()` / `Entry op Exit` annotation은 buggy/correct 모두에서 동일하게 satisfied. PostEntryExit에서 산술 표현(`Entry - Exit == expected_magnitude`) 미지원이 primary blocker.
+
+---
+
+### Case 13 — `web3bugs_35_H_10` (현재 분류: **L4c**, 유일 case)
+
+#### 1. Audit report 인용
+
+- **출처**: `reports/35.md` → `[H-10] ConcentratedLiquidityPool.burn() Wrong implementation`
+- **Severity**: High. **Warden**: WatchPug (C4 2021-09-sushitrident-2).
+- **핵심 주장 (원문 발췌)**:
+  > The reserves should be updated once LP tokens are burned to match the actual total bento shares hold by the pool. However, the current implementation only updated reserves with the fees subtracted. Makes the `reserve0` and `reserve1` smaller than the current `balance0` and `balance1`.
+- **Impact**: "many essential features of the contract will malfunction, includes `swap()` and `mint()`" (reserve > balance 조건으로 후속 require 실패).
+- **권고 fix**:
+  ```solidity
+  // L263-266 변경
+  unchecked {
+      reserve0 -= uint128(amount0);   // was amount0fees
+      reserve1 -= uint128(amount1);   // was amount1fees
+  }
+  ```
+- **Sponsor**: sarangparikh22 confirmed.
+
+#### 2. 코드 의미 이해
+
+##### (2a) Contract 목적
+
+`ConcentratedLiquidityPool` — Sushi Trident의 **Uniswap V3-style 집중 유동성 pool**. Tick 기반 범위 유동성 + fee accounting. `reserve0`/`reserve1`은 pool이 보유한 bento shares의 내부 추적값.
+
+##### (2b) 함수의 역할
+
+`burn(bytes data)` (L231–272, public):
+- LP provider가 position을 burn하여 유동성 회수.
+- 회수 금액 = **principal (liquidity 비례) + fee** 두 부분.
+- Reserve 감소는 **두 부분 모두 반영**해야 balance와 동기화.
+
+##### (2d) Line-by-line 핵심 (L245–266)
+
+```solidity
+245  (uint256 amount0, uint256 amount1) = _getAmountsForLiquidity(...);   // principal 부분
+252  (uint256 amount0fees, uint256 amount1fees) = _updatePosition(...);    // fee 부분
+254  unchecked {
+255      amount0 += amount0fees;                                            // 총 회수 = principal + fees
+256      amount1 += amount1fees;
+257  }
+...
+263  unchecked {
+264      reserve0 -= uint128(amount0fees);    // BUG: principal 부분 누락
+265      reserve1 -= uint128(amount1fees);    // BUG
+266  }
+268  _transferBothTokens(recipient, amount0, amount1, unwrapBento);       // 실제 송금은 amount0 (total)
+```
+
+- L255–256: `amount0`가 **principal + fees 합**으로 업데이트.
+- L268: **`amount0` 전체 송금**.
+- L264 (BUG): `reserve0`는 **`amount0fees`만큼만** 감소.
+- 결과: `balance0`는 `amount0` 만큼 줄었는데 `reserve0`는 `amount0fees`만 줄어 → **reserve0 > balance0** 상태 지속.
+- 후속 `mint()`의 `require(reserve0 <= balance0)` 체크에서 transaction revert → pool 기능 마비.
+
+##### (2e) 버그 근본 의미
+
+Reserve tracking의 내부 invariant (`reserve ≤ balance`) 유지가 목표. `burn`이 tokens를 sender에게 transfer 했으면 reserve도 같은 양으로 감소해야 함. Fee-only 차감은 **principal 이동을 무시**하는 accounting 오류.
+
+#### 3. IntentChecker annotation 시도
+
+**함수 scope**: `amount0`, `amount1`, `amount0fees`, `amount1fees` — **모두 local variable로 존재**.
+
+**(a) `@Post reserve0 (entry relOp exit)` 채널**:
+- `entry > exit` (감소 방향): buggy·correct 모두 satisfied — 둘 다 reserve0 감소.
+- `entry == exit`: 둘 다 violated.
+- 방향성만으로는 **구분 불가**. Grammar의 entry/exit 비교는 **qualitative (relOp: =, ≠, <, >)만 허용**, **magnitude 비교 불가**.
+
+**(b) `@Post changed(reserve0, true)` 채널**:
+- Buggy·correct 모두 satisfied — 둘 다 변경.
+
+**(c) Magnitude 표현 시도**:
+- `@Post reserve0_entry - reserve0_exit == amount0` 형태 필요.
+- `reserve0_entry`를 arithExpr 안에 쓸 문법 없음. `reserve0 (entry relOp exit)`는 특수 form.
+- `commonClause`의 `intentValue relOp intentValue`에서 `reserve0`는 exit 값만 참조.
+- Entry 값 참조할 경로 없음 → **표현 불가**.
+
+**(d) Aux injection (I4)**:
+- 함수 상단에 `uint128 reserve0_before = reserve0;` 삽입.
+- Annotation: `@Post reserve0_before == reserve0 + amount0` — grammar OK.
+- Buggy: `reserve0_before == reserve0 + amount0fees ≠ reserve0 + amount0` → VIOLATED.
+- Correct: `reserve0_before == reserve0 + amount0` → SATISFIED.
+- **Injection 하면 detectable**. 단 snapshot 주입 결정 자체가 "reserve 차감량이 amount0이어야 한다"는 버그 인지 → L5 transit.
+
+#### 4. 분류 타당성 — **L4c 확정**
+
+**L4c 본질**: Grammar의 postClause `intentValue (entry relOp exit)`가 **qualitative 비교만 허용** (direction/equality). Magnitude (exact 차이)를 표현할 문법 수단 없음. Case 13의 buggy/correct가 같은 방향·같은 state var 변경, magnitude만 다른 전형.
+
+`limitation_types.md` L4c 설명 정확. **유일 L4c case라 일반화 판단 아직 불가**.
+
+#### 5. 근본 원인
+
+**본질 (L4c — postClause 문법의 qualitative 제약)**:
+
+PostEntryExit 형식 `intentValue (entry relOp exit)`이 arithmetic을 포함하지 않음. 즉 "reserve0가 amount0만큼 감소했다" (`before - after == amount0`) 표현 불가. **Grammar-level 한계**.
+
+**I8 새 축 재분류**:
+- **Bug category**: **Value error** — 잘못된 identifier 선택 (`amount0fees` 대신 `amount0`이어야). 한 줄 fix.
+- **Proxy type**: **Type A** — 올바른 identifier `amount0`이 **scope에 존재함**.
+- 즉 Case 13은 **Value / Type A**. Case 1(A_candidate)에 이어 **두 번째 Type A 확정 사례**.
+
+**Case 8 (61_H_01)과의 유사성**: 둘 다 identifier 선택 오류 (wrong identifier in scope).
+- Case 8: `.arg[n]` 채널 가능, semantic 채널 막힘 (@IReturn arg-indifference) → **L4a**.
+- Case 13: `.arg[n]` 채널 없음 (state 차감은 `x -= y` 형식이지 call 아님), `changed`/`entry-exit` 채널은 qualitative만 → **L4c**.
+- 둘 다 I9 원칙상 lint-level L5b 배제 → L4로 고정.
+
+**중요 관찰 — L4c의 성격**:
+- L4c는 **scope는 Type A (proxy 존재)인데 grammar postClause가 magnitude 표현 못해서 L4로 떨어지는 cell**.
+- L4a (Type B: proxy 부재) 와 **성격이 완전히 다름**.
+- 새 I8 axis matrix에서 L4c는 **Value / Type A / grammar-limit** 으로 단일 cell 차지. L4a의 Value/B cell과 구분.
+
+**Aux injection (I4) 경로**: 단순 snapshot local `reserve0_before` 주입. 가장 쉬운 I4 injection (state 단일 복사). Y (easy).
+
+**[Category (I8)]**: **Value error / Type A (grammar-limit)** — L4c의 유일 case. PostClause 문법의 qualitative 제약이 primary blocker. Proxy (`amount0`)는 scope 안에 있으나 grammar가 state transition magnitude를 표현 못 함.
+
+#### 6. paper 문장 개선 제안
+
+- **L4c 본문 (line 1319)** 유지 가능. 단 **L4c의 본질이 "grammar-level 제약"이지 scope 부재 아님**을 명시. Aux injection 경유 L5 transit 가능성 언급.
+- **Grammar 확장 후보**: `intentValue (entry - exit == expr)` 같은 arithmetic 허용 시 L4c가 해소됨 (snapshot injection 없이도). **간단한 grammar 확장으로 해소 가능한 유일한 L4 category**라는 paper insight.
+- **I8 matrix 배치**: 34 case 완주 후 matrix에서 L4c는 **Value/A / grammar-limit** 셀로 분리. L4a(Value/B)와 구조 다름을 강조.
+
+---
+
+## L4d — Invariant Masked (1 case)
+
+L4d 정의: 동일 함수 내 다른 코드가 이미 target 변수를 변경하여 `changed()`/PostEntryExit가 buggy/correct 모두에서 satisfied. Product invariant 등 **multi-variable arithmetic 관계**가 필요하나 PostEntryExit에서 산술 표현 미지원.
+
+---
+
+### Case 14 — `web3bugs_36_H_02` (현재 분류: **L4d**, 유일 case)
+
+#### 1. Audit report 인용
+
+- **출처**: `reports/36.md` → `[H-02] Basket.sol#auctionBurn() A failed auction will freeze part of the funds`
+- **Severity**: High (judge confirmed). **Warden**: WatchPug (C4 2021-09-defiprotocol).
+- **핵심 주장 (원문 발췌)**:
+  > Given the `auctionBurn()` function will `_burn()` the auction bond without updating the `ibRatio`. Once the bond of a failed auction is burned, the proportional underlying tokens won't be able to be withdrawn, in other words, being frozen in the contract.
+- **POC**: ibRatio=1e18, totalSupply=400, burn 1 token → buggy ibRatio remains 1e18, totalSupply=399. 사용자가 1 token burn 시 1 BTC + 1 ETH 회수 가능하나 원래 자산 대비 **1 BTC + 1 ETH 영구 락**.
+- **권고 fix**:
+  ```solidity
+  function auctionBurn(uint256 amount) onlyAuction external override {
+      handleFees();
+      uint256 startSupply = totalSupply();
+      _burn(msg.sender, amount);
+      uint256 newIbRatio = ibRatio * startSupply / (startSupply - amount);
+      ibRatio = newIbRatio;
+      emit NewIBRatio(newIbRatio);
+      emit Burned(msg.sender, amount);
+  }
+  ```
+- **Judge**: "funds can be irrevocably lost, this is a high severity finding".
+
+#### 2. 코드 의미 이해
+
+##### (2a) Contract 목적
+
+`Basket` — DefiProtocol의 **index basket token** (ETF-style). 사용자가 basket 토큰을 mint/burn하면 underlying tokens(BTC, ETH 등)를 proportional하게 입출금. `ibRatio`는 basket token ↔ underlying 비율을 유지하는 **accounting multiplier**. Invariant: `ibRatio × totalSupply`가 pool의 underlying total value에 비례.
+
+##### (2b) 함수의 역할
+
+`auctionBurn(amount) onlyAuction external` (L102–108):
+- Auction 컨트랙트가 **실패한 auction bond**를 burn 처리할 때 호출.
+- `_burn`으로 totalSupply 감소.
+- 남은 사용자들이 동일한 underlying 비례 회수를 받으려면 **ibRatio가 totalSupply 감소에 반비례하여 증가**해야 함 (invariant 유지).
+- Audit fix: `newIbRatio = ibRatio * startSupply / (startSupply - amount)` — 정확한 invariant 유지 공식.
+
+##### (2d) Line-by-line (L102–108)
+
+```solidity
+102  function auctionBurn(uint256 amount) onlyAuction external override {
+103      handleFees();         // (A) 특정 분기에서 ibRatio 업데이트
+105      _burn(msg.sender, amount);   // totalSupply 감소
+107      emit Burned(msg.sender, amount);
+108  }
+```
+
+- **L103 (`handleFees`)**: `lastFee != 0 && time passed`일 때만 ibRatio 업데이트 (`ibRatio = ibRatio * startSupply / totalSupply()`). Fee 징수 목적. `lastFee == 0`이면 no-op (setter만).
+- **L105 (`_burn`)**: totalSupply 감소.
+- **BUG 누락**: totalSupply 감소 후 **invariant 유지용 ibRatio 업데이트** 없음.
+
+##### (2e) 버그 근본 의미
+
+**Multi-variable product invariant violation**. `auctionBurn` 전: `ibRatio_entry × totalSupply_entry = K`. `auctionBurn` 후 (fix 하에): `ibRatio_exit × totalSupply_exit = K` 유지. Buggy에서 totalSupply만 감소하고 ibRatio 불변 → 곱 감소 → underlying token 중 비례분이 "회수 불가" (freeze).
+
+POC의 경우: 1 BTC + 1 ETH가 영구 락. 자금의 proportional freeze는 High severity.
+
+#### 3. IntentChecker annotation 시도
+
+**함수 scope**:
+- Param: `amount`.
+- State: `ibRatio`, `totalSupply` (ERC20 inherited), `lastFee`, etc.
+
+**(a) `@Post changed(ibRatio, true)` 채널** — L4d의 핵심 이슈:
+- `handleFees`가 **특정 분기에서 이미 ibRatio 업데이트**. 따라서:
+  - Scenario-A (`lastFee != 0` + time passed): handleFees가 ibRatio 변경 → buggy·correct 모두 `changed` satisfied. **구분 불가**.
+  - Scenario-B (`lastFee == 0`): handleFees가 ibRatio 변경 안 함 → buggy unchanged, correct changed. 구분 가능.
+- 즉 **debug annotation 시나리오 따라 detectability 갈림** (I6 general vs specific 경계).
+
+**(b) `@Post ibRatio (entry == exit)` (불변성 주장)**:
+- Buggy Scenario-A: ibRatio가 handleFees로 이미 바뀜 → VIOLATED.
+- Buggy Scenario-B: ibRatio 불변 → SATISFIED.
+- Correct: 항상 변경 (manual update) → VIOLATED.
+- Scenario-B에서 역방향 구분. Scenario-A에선 둘 다 VIOLATED → 구분 불가.
+
+**(c) Product invariant (진짜 intent)**:
+- Correct: `@Post ibRatio * totalSupply (entry == exit)` — **곱 보존**.
+- Grammar의 `intentValue (entry relOp exit)`는 **qualitative only**. 산술 표현 (곱) 허용 안 함.
+- `commonClause`의 `intentValue relOp intentValue`로 `ibRatio * totalSupply == <entry value>` 시도: entry value 표현 경로 없음 (Case 13과 동일).
+- **표현 불가** (L4d primary 본질).
+
+**(d) Aux injection (I4)**:
+- `uint256 K_before = ibRatio * totalSupply();` 주입 → product invariant 체크 가능. 단 `totalSupply()` 함수 호출 문제 (ERC20 inherited `_totalSupply` state 접근 가능하면 해결 — Issue 8 영역).
+- **Y_medium** 수준.
+
+#### 4. 분류 타당성 — **L4d 확정**
+
+`limitation_types.md` L4d 설명 정확. Handle Fees가 이미 ibRatio를 변경할 수 있어 `changed` 마스킹, 진짜 invariant (곱 보존)는 PostEntryExit 산술 부재로 표현 불가.
+
+#### 5. 근본 원인
+
+**본질 (L4d — multi-variable arithmetic invariant 표현 불가)**:
+
+Correct intent = `ibRatio × totalSupply == ibRatio_entry × totalSupply_entry` (product preservation). PostClause grammar에 이 형식 없음.
+
+**Case 13 (L4c)과 비교**:
+- L4c: single var magnitude (`reserve0 entry - exit == amount0`).
+- L4d: multi-var product (`ibRatio × totalSupply` invariant).
+- 둘 다 **PostEntryExit grammar 산술 표현력 한계**로 귀결.
+
+즉 **L4c와 L4d는 사실상 동일 grammar-limit의 서로 다른 발현**:
+- L4c: `diff == const`.
+- L4d: `product == const`.
+- 본질적 blocker 동일 (arithmetic PostEntryExit 부재).
+
+**I8 새 축 재분류**:
+- **Bug category**: **Algorithm error** — invariant 유지 로직(= missing state update) 누락. Fix는 여러 줄 (startSupply + newIbRatio 계산 + ibRatio 업데이트 + emit).
+- **Proxy type**: **Type A** — 모든 관련 변수(`ibRatio`, `totalSupply`, `amount`)가 scope·state에 존재.
+- **Algorithm / Type A (grammar-limit)** — Case 13 (Value/A)과 **같은 "Type A / grammar-limit" 축**, bug category 다름.
+
+G-표면:
+- **G6 (L4d 전용)** — multi-variable PostEntryExit 산술 표현 불가.
+- **Type A 측면**: G1/G3 없음 (변수 모두 scope에 있음).
+
+**Silent sanction (I5)**:
+- `@Post changed(ibRatio, true)` Scenario-A에서 buggy satisfied → silent sanction.
+- Scenario-B에서만 구분 → 운 좋은 시나리오 (I6 specific form).
+
+**Case 13 + 14 공통 — "L4c/L4d merger 제안"**:
+둘 다 PostEntryExit grammar-limit이 primary. Bug category만 다름:
+- L4c (Case 13): Value / Type A / magnitude-grammar-limit.
+- L4d (Case 14): Algorithm / Type A / product-grammar-limit.
+- 새 axis matrix에서 이 두 case는 **동일 grammar-limit cell의 두 sub-pattern**. Paper에서 L4c와 L4d를 **"PostEntryExit arithmetic gap"**으로 merger 제안.
+
+**[Category (I8)]**: **Algorithm error / Type A (grammar-limit)** — multi-variable invariant preservation. L4c와 구조 공유.
+
+#### 6. paper 문장 개선 제안
+
+- **L4c + L4d merger**: 새 axis 기준 두 case가 **같은 grammar-limit cell**. Paper에서 "PostEntryExit arithmetic absence" 단일 항목으로 통합 서술 검토.
+- **Grammar 확장 후보**: Case 13·14 둘 다 `intentValue (entry arithOp exit)` 허용으로 해소. 구체적 제안: `reserve0 (entry - exit == amount0)` (L4c), `ibRatio * totalSupply (entry == exit)` (L4d).
+- **Invariant DSL future direction**: Multi-variable protocol invariant는 DeFi cornerstone이나 현재 grammar 미지원. Paper future work에서 **invariant annotation DSL** 제안 근거.
+
+---
+
+## L4b 배치 (Cases 15–20) — 6 cases compact batch
+
+**배치 방식**: Case별 핵심 정보 + 새 4축 태깅. 공통 패턴은 L4b subsection summary에 통합. 파일 부피 제어.
+
+---
+
+### Case 15 — `web3bugs_52_H_16` (L4b, Case 12 쌍둥이)
+
+- **Audit**: `[H-16] VaderRouter.calculateOutGivenIn calculates wrong swap` (cmichel, confirmed).
+- **버그** (L488–495): 3-path swap에서 pool 순서 뒤바뀜. Inner `calculateSwap`이 `pool1` reserves, outer가 `pool0` reserves를 사용 — 올바른 순서는 **inner=pool0 (foreign→native), outer=pool1 (native→foreign)**.
+- **Fix**: reserve 인자를 pool0/pool1 위치 swap.
+- **함수 타입**: `calculateOutGivenIn` external view — no state write.
+- **Annotation 시도**: (a) `@Post returnExpression == correct_amountOut` 필요 — VaderMath.calculateSwap chain + pool0·pool1 reserves의 결합. Grammar에서 함수 호출 불허 → 표현 불가. (b) `.arg[n]` 순서 체크 가능하나 **I9에 의해 lint-level, L5b 배제**.
+- **분류**: annotation_plans.md = L5b → I9 원칙 적용 후 **L4b** (view + external reserves/formula 의존).
+- **[Category (I8)]**: **Value error / Type B** — Case 12 (52_H_15)의 view version 쌍둥이. Pool routing semantic이 VaderRouter scope 밖.
+
+---
+
+### Case 16 — `web3bugs_58_H_04` (L4b)
+
+- **Audit**: `[H-04] AaveVault stale tvl` (Aave의 rebasing aToken). annotation_plans.md L5a.
+- **버그** (L47, _push/_pull 관련): `tvl()`이 cached `_tvls` 반환. `_push()`에서 `updateTvls()`가 **deposit 이후** 호출 → LPIssuer가 **old tvl 기준으로 shares 계산** → Aave 이자가 반영되기 전 과다 shares 발행.
+- **Fix**: `_push()` 시작에 `updateTvls()` 추가 (operation ordering 교정).
+- **함수 타입**: `tvl` view, `_push`/`_pull` state-modifying wrapper.
+- **Annotation 시도**:
+  - `@Post` on `_tvls` 변화: buggy·correct 모두 satisfied (둘 다 updateTvls는 부름).
+  - "deposit 전에 tvl 갱신" ordering invariant: grammar 지원 없음.
+  - `@During bal_before == bal_after_before_deposit` 같은 snapshot — aux injection 필요.
+- **분류**: L4b (view tvl; _push wrapper → state attach 있지만 ordering 문제라 구분 불가).
+- **[Category (I8)]**: **Algorithm error / Type B** — ordering 문제가 단일 annotation 범위 넘음. Case 11 (17_H_02)와 유사 (view + missing check/call).
+
+---
+
+### Case 17 — `web3bugs_62_H_01` (L4b)
+
+- **Audit**: `[H-01] Stream.recoverTokens leaks flashloan fee`. Sponsor (brockelmore) confirmed.
+- **버그** (L654): `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)` — `depositTokenFlashloanFeeAmount` 누락.
+- **Fix**: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount` (한 term 추가).
+- **함수 타입**: external, safeTransfer만 — Stream contract 자체 state write 없음 (wrapper에 가까움).
+- **Annotation 시도**:
+  - Correct formula의 피연산자 `depositTokenFlashloanFeeAmount`는 **state var in scope**.
+  - `balanceOf(this)`는 external interface view — call site 존재하나 **local 미저장** (inline chain).
+  - `@During excess (assign == balanceOf_result - (...) - depositTokenFlashloanFeeAmount)` — `balanceOf_result`가 local 없음.
+  - Aux injection: `uint256 bal = balanceOf(...);` 삽입 후 annotation 가능.
+- **annotation_plans.md L5a** → I9 원칙 + wrapper 성격으로 **L4b** 재분류 제안 (no state write + balanceOf inline chain).
+- **[Category (I8)]**: **Algorithm error / Type B** — missing formula term + balanceOf 결과 local 미저장. Case 9 (61_H_02)와 유사 (wrapper return handling).
+
+---
+
+### Case 18 — `web3bugs_70_H_08` (L4b)
+
+- **Audit**: `[H-08] USDV/VADER rate conversion missing 1e18 scaling`. Judge resolved.
+- **버그** (L98, L102):
+  - Line 98: `amount = amount / usdvPrice` — usdvPrice 1e18 스케일, 결과 1e18배 과소.
+  - Line 102: `amount = amount * vaderPrice` — 1e18배 과대.
+  - Correct: `amount * 1e18 / usdvPrice`, `amount * vaderPrice / 1e18`.
+- **함수 타입**: external, vader.safeTransfer 후 emit. VaderReserve state 불변 (transfer만). Wrapper.
+- **Annotation 시도**:
+  - `usdvPrice`, `vaderPrice` — interface view call 반환, **local로 저장됨** (L96, L100).
+  - Correct annotation: `@During amount (assign == original_amount * 1e18 / usdvPrice)` in branch 1.
+  - 문제: `amount`가 **parameter 자체 overwrite** → original 값 소실.
+  - Aux injection: `uint256 original = amount;` 상단에 삽입 필요.
+- **annotation_plans.md L5a** → wrapper + parameter overwrite로 **L4b** 재분류 제안.
+- **[Category (I8)]**: **Value error / Type B** — scaling factor missing, parameter overwrite로 original 값 scope 부재. Case 1·2·10 "scaling trio"의 wrapper 버전.
+
+---
+
+### Case 19 — `web3bugs_83_H_02` (L4b)
+
+- **Audit**: `[H-02] MasterChef deposit fee permanently locked`. 
+- **버그** (L170–172, deposit 내 분기): `depositFee` 계산되어 user.amount에서 차감되나 **feeRecipient.amount 증가 코드 없음** → fee만큼 tokens 영구 lock.
+- **Fix**: feeRecipient 대응 state update 추가.
+- **함수 타입**: external, user state 변경 있음 (user.amount, user.rewardDebt).
+- **Annotation 시도**:
+  - User 측 state (user.amount)는 buggy/correct 모두 `_amount - depositFee`로 정확 → `changed(user.amount, true)` 양쪽 다 satisfied.
+  - Fee recipient 측 state가 **코드에 아예 없음** — data model에 fee recipient account 슬롯 없음.
+  - Case 11 (Buoy3Pool.safetyCheck)의 "missing state variable" 패턴.
+- **annotation_plans.md L4b 기존** — 변경 없음. "target storage variable"의 "target"이 fee recipient이고 그게 scope에 없음.
+- **[Category (I8)]**: **Algorithm error / Type B** — missing state update + target state variable 자체 부재. Case 11과 유사 (data model 부재).
+
+---
+
+### Case 20 — `web3bugs_110_H_01` (L4b, 쌍둥이 패턴 반복)
+
+- **Audit**: `[H-01] StakedCitadel.balance missing strategy portion`. Sponsor confirmed.
+- **버그** (L293–294): `balance()`가 `token.balanceOf(address(this))`만 반환, `IStrategy(strategy).balanceOf()` 누락. 주석에 "vault + strategy balance"라 명시됨에도 구현은 vault만.
+- **Fix**: `return token.balanceOf(address(this)) + IStrategy(strategy).balanceOf();`
+- **함수 타입**: public view.
+- **Annotation 시도**:
+  - Correct return에 `IStrategy(strategy).balanceOf()` 호출 필요.
+  - `strategy`는 state var (in scope), 그러나 `.balanceOf()` 호출 자체가 **코드에 없음** → `@IReturn` 부착점 부재 (Case 2 25_H_05와 동일 구조).
+  - `@Post returnExpression == token.balanceOf(this) + strategy.balanceOf()` — 두 호출 모두 intent에서 표현 불가 (G1).
+- **분류**: annotation_plans.md L5a → I9 + view + function call absent로 **L4b** 재분류 제안.
+- **[Category (I8)]**: **Algorithm error / Type B** — missing interface call + 호출 사이트 부재. Case 11·16과 동일 family (view + missing call).
+
+---
+
+### L4b Subsection Summary (Cases 11-12, 15-20 — 총 8 cases)
+
+**공통 패턴**:
+1. **함수 타입**: view (11, 15, 16 tvl, 20) / wrapper without state (12, 17, 18) / state-modifying but target-state-absent (19).
+2. **Intent channel 봉쇄**:
+   - State-based @Post 불가 (view) 또는 구분력 없음 (wrapper/missing-target).
+   - Return-based @Post도 semantic expression 불가 (G1, G3).
+3. **Proxy type**: 모두 **Type B**. L4b 정의 ("no-target-storage")가 사실상 Type B의 함수-type 기반 특수 케이스.
+4. **Bug category**: Value 2건 (15, 18), Algorithm 6건 (11, 12, 16, 17, 19, 20). 다수 Algorithm — missing call/update/term 패턴 많음.
+5. **Silent sanction 빈도**: 대부분 해당 — 코드 그대로 annotation 옮기면 buggy 그대로.
+6. **Aux injection**: 가능한 경우 (17, 18) vs 불가능한 경우 (data model 확장 필요: 11, 19). **난이도 스펙트럼**.
+
+**Twin 관찰**:
+- (11, 16, 20): view function + missing call/update/check.
+- (12, 15): VaderRouter _swap vs calculateOutGivenIn — 같은 contract 쌍둥이 (state-modifying vs view).
+- (17, 18, 1, 2, 10): scaling/formula-term missing 계열.
+
+**분류 재검토 결과**:
+- annotation_plans.md가 많은 L4b case를 L5a/L5b로 잘못 라벨. I9 원칙 + function type 고려 시 **L4b가 옳음**.
+- 재분류: 15 (L5b→L4b), 17 (L5a→L4b 제안), 18 (L5a→L4b 제안), 20 (L5a→L4b 제안).
+
+**I8 matrix 분포 (L4b 8 cases)**:
+- Algorithm/B: 6 (11, 12, 16, 17, 19, 20).
+- Value/B: 2 (15, 18).
+- Type A·A_candidate·non-B: 0.
+
+→ **L4b는 Type B 전용 cell**임이 confirmed.
+
+---
+
+## L5a — Missing Code (7 cases, compact batch: Cases 21–27)
+
+**L5a 정의**: 있어야 할 코드(state update, function call 등) 누락. 기존 state 변수로 post-condition 표현 가능 (Type A 기본). 버그 인지 전제.
+
+**L5 전용 축 제안**: **Bug awareness source**:
+- **(consistency)**: sibling function/branch와의 비교로 도출 가능 (pattern-level).
+- **(domain)**: 프로토콜 도메인 지식 필요 (semantic-level).
+
+---
+
+### Case 21 — `web3bugs_35_H_12` (L5a)
+
+- **Contract/Function**: ConcentratedLiquidityPool / mint (L176, L184 original).
+- **버그**: `liquidity` 변경 후 `secondsPerLiquidity` 갱신 누락. `swap()`은 동일 변경에서 `secondsPerLiquidity += uint160((diff << 128) / liquidity)` 수행 — 일관성 놓침.
+- **Annotation**: `@Post changed(secondsPerLiquidity, true)` — buggy 미변경, correct 변경 → 구분.
+- **Bug awareness**: **consistency** (swap과의 sibling 비교로 도출 가능).
+- **부가 blocker**: `abi.decode`로 파라미터 전달 (L3 unsupported-construct) — debug annotation 공급 제한.
+- **[Category]**: **Value / Type A / consistency** (L5a).
+
+---
+
+### Case 22 — `web3bugs_52_H_23` (L5a)
+
+- **Contract/Function**: VaderPoolV2 / mintSynth (L161).
+- **버그**: `_update(foreignAsset, reserveNative + nativeDeposit, reserveForeign, ...)` — `reserveForeign`에서 `amountSynth` 차감 누락. 과다 synth 발행.
+- **Annotation**: `@Post changed(reserveForeign, true)` — buggy 변경 없음 (arg = current value), correct 변경 → 구분. 또는 `@Post reserveForeign (entry > exit)`.
+- **Bug awareness**: **domain** (synth 발행 시 foreign reserve 반영 회계 규칙 필요).
+- **[Category]**: **Value / Type A / domain** (L5a).
+
+---
+
+### Case 23 — `web3bugs_62_H_03` (L5a, symptom in recoverTokens, root in claimReward)
+
+- **Contract/Function**: Stream / claimReward (L575 transfer).
+- **버그**: reward token 전송 시 `rewardTokenAmount -= rewardAmt` 누락. `recoverTokens`에서 stale 값 참조로 excess 계산 오류.
+- **Annotation (root cause 지점)**: `@Post changed(rewardTokenAmount, true)` 혹은 `@Post rewardTokenAmount (entry > exit)` on `claimReward`.
+- **Bug awareness**: **consistency** (token transfer ↔ tracking variable 갱신이라는 일반 회계 패턴).
+- **부가 blocker (symptom 지점)**: `balanceOf()` external — L2a 보조.
+- **[Category]**: **Value / Type A / consistency** (L5a).
+
+---
+
+### Case 24 — `web3bugs_62_H_10` (L5a, symptom in recoverTokens, root in creatorClaimSoldTokens)
+
+- **Contract/Function**: Stream / creatorClaimSoldTokens (L597 transfer).
+- **버그**: deposit token 전송 시 `redeemedDepositTokens` 갱신 (혹은 `depositTokenAmount = 0`) 누락. 62_H_03 쌍둥이 패턴.
+- **Annotation**: `@Post changed(redeemedDepositTokens, true)` on `creatorClaimSoldTokens`.
+- **Bug awareness**: **consistency** (동일 token-transfer-tracking 패턴).
+- **[Category]**: **Value / Type A / consistency** (L5a). Case 23과 쌍둥이.
+
+---
+
+### Case 25 — `web3bugs_65_H_01` (L5a)
+
+- **Contract/Function**: Basket / handleFees (L136–137).
+- **버그**: `startSupply == 0` 분기에서 `lastFee = block.timestamp` 갱신 누락. 다른 두 분기(`lastFee == 0`, 정상 `else`)는 갱신. Supply가 0이었던 기간에도 fee 부과되는 결과.
+- **Annotation**: `@Post changed(lastFee, true)` — 모든 분기에서 반드시 변경되어야 함.
+- **Bug awareness**: **consistency** (branch 간 일관성 — 다른 branch가 하는 것 누락 확인).
+- **[Category]**: **Value / Type A / consistency** (L5a).
+
+---
+
+### Case 26 — `web3bugs_83_H_01` (L5a)
+
+- **Contract/Function**: MasterChef / add (L89).
+- **버그**: `totalAllocPoint` 증가 전 `massUpdatePools()` 호출 누락. 기존 pool의 `accConcurPerShare`가 새 `totalAllocPoint`로 소급 반영되어 기존 staker reward 희석.
+- **Annotation**: `@Post poolInfo[1].accConcurPerShare (entry != exit)` — 기존 pool에 대해 accConcurPerShare가 반드시 갱신되어야.
+- **Bug awareness**: **consistency** (`set`/`update` 함수 다른 곳에서 massUpdatePools 먼저 호출 — 비교로 도출 가능) + **도메인** (reward accrual 이해).
+- **[Category]**: **Algorithm / Type A / consistency+domain** (L5a).
+
+---
+
+### Case 27 — `web3bugs_192_H_01` (L5a)
+
+- **Contract/Function**: Lock / extendLock (L90, L91).
+- **버그**: `transferFrom`으로 토큰 받으면서 `totalLocked[_asset] += _amount` 누락. 후속 `release()`의 `totalLocked[asset] -= lockAmount`에서 underflow → 자금 영구 락.
+- **Annotation**: `@Post totalLocked[_asset] (entry < exit)` 또는 `@Post changed(totalLocked[_asset], true)`.
+- **Bug awareness**: **consistency** (`lock()` 함수는 `totalLocked += _amount` 올바르게 수행 — `extendLock`이 놓침. sibling 비교).
+- **[Category]**: **Value / Type A / consistency** (L5a).
+
+---
+
+### L5a Subsection Summary (7 cases)
+
+**공통 패턴**:
+1. **모두 Type A** (L5 정의상 당연) — 관련 state var가 scope에 있음.
+2. **Annotation 형식**: 거의 모두 `changed(x, true)` 혹은 `x (entry relOp exit)` — state 변경 방향/여부 체크로 충분.
+3. **Bug awareness source 분포**:
+   - **consistency 6건** (35_H_12, 62_H_03, 62_H_10, 65_H_01, 83_H_01, 192_H_01).
+   - **domain 1건** (52_H_23).
+   - → L5a는 **pattern-check로 대부분 도출 가능**.
+4. **Bug category 분포**:
+   - **Value (missing state update) 6건**: 35_H_12, 52_H_23, 62_H_03, 62_H_10, 65_H_01, 192_H_01.
+   - **Algorithm (missing function call) 1건**: 83_H_01.
+
+**Twin 관찰**:
+- (62_H_03, 62_H_10): Stream의 token-transfer-vs-tracking 쌍둥이.
+- (35_H_12, 83_H_01, 192_H_01): sibling function 일관성 누락 family.
+- (65_H_01): branch 일관성 (단일 함수 내).
+
+**Paper insight**:
+- L5a "detectability"는 **annotation 표현이 아닌 "consistency pattern을 개발자가 눈치채는가"**에 달림. 
+- 이는 **IntentChecker의 annotation-writing workflow가 sibling/branch consistency 리뷰 원칙과 결합될 때 강력**함을 시사. Paper Discussion에서 "consistency-driven annotation writing" 워크플로우 제안 근거.
+- **Domain case (52_H_23)는 별도** — 도메인 전문가 리뷰 필수. Annotation만으로 해소 어려움.
+
+**I8 + L5축 분포 (7 cases)**:
+- Value/A/consistency: 5 (35_H_12, 62_H_03, 62_H_10, 65_H_01, 192_H_01).
+- Value/A/domain: 1 (52_H_23).
+- Algorithm/A/consistency+domain: 1 (83_H_01).
+
+→ **L5a는 Value/A/consistency cell에 집중** — paper에 "가장 쉬운 detection 영역" 으로 제시 가능.
+
+---
+
+## L5b — Wrong Code (7 cases, compact batch: Cases 28–34)
+
+**L5b 정의**: 코드가 존재하나 잘못된 식별자·연산자·struct field·순서 등 사용. Annotation 표현은 가능 (Type A), 정확한 intent 작성에 버그 인지 전제.
+
+---
+
+### Case 28 — `web3bugs_31_H_01` (L5b)
+
+- **Contract/Function**: MyStrategy / manualRebalance (L469, 471, 477).
+- **버그**: Dimensional mismatch. `currentLockRatio = balanceInLock * 1e18 / totalCVXBalance` (비율) vs `newLockRatio = totalCVXBalance * toLock / MAX_BPS` (절대 수량) → 비율과 수량을 `<=`로 비교.
+- **Fix (audit)**: `currentLockRatio = balanceInLock` (amount로 통일).
+- **Annotation**: `@During currentLockRatio (assign == balanceInLock)` — grammar OK, `balanceInLock` in scope.
+- **Bug awareness**: **domain** (하류 `cvxToLock = newLockRatio.sub(currentLockRatio)` 분석으로 역추론).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### Case 29 — `web3bugs_35_H_11` (L5b)
+
+- **Contract/Function**: Ticks / cross (L40, L49).
+- **버그**: `zeroForOne` 분기에서 잘못된 struct field 갱신 — `ticks[next].feeGrowthOutside0` 업데이트해야 하는데 1번 사용 (반대 분기도 같은 반대).
+- **Annotation**: `@Post changed(ticks[nextTickToCross].feeGrowthOutside1, true)` (zeroForOne 시) — 올바른 field만 변경 assert.
+- **Bug awareness**: **domain** (`zeroForOne → token1 수수료 → feeGrowthOutside1` 매핑 semantic).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### Case 30 — `web3bugs_70_H_09` (L5b)
+
+- **Contract/Function**: USDV / mint, burn (L76 mint, L109 burn).
+- **버그**: `uAmount = vPrice * vAmount / 1e18` (mint), `vAmount = uPrice * uAmount / 1e18` (burn) — oracle 반환 의미(USD/Vader vs Vader/USD)에 따라 공식 방향 틀림.
+- **Fix**: `uAmount = vAmount * 1e18 / vPrice` (혹은 `vPrice * vAmount / 1e18` — oracle spec에 따라).
+- **Annotation**: `@Post uAmount == vAmount * 1e18 / vPrice` — grammar OK.
+- **Bug awareness**: **domain** (oracle API spec 이해 필요).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### Case 31 — `web3bugs_79_H_02` (L5b)
+
+- **Contract/Function**: LaunchEvent / createPair (L398).
+- **버그**: `tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice` — `floorPrice`는 1e18 스케일이므로 올바른 계산은 `wavaxReserve * 1e18 / floorPrice`. 18 decimals 아닌 토큰(WBTC=8)에서 심각 오류.
+- **Annotation**: `@Post tokenAllocated == wavaxReserve * 1e18 / floorPrice`.
+- **Bug awareness**: **domain** (natspec "scaled to 1e18"가 partial 힌트 제공 — 완전 domain은 아니나 scaling semantic 이해 필요).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### Case 32 — `web3bugs_101_H_02` (L5b)
+
+- **Contract/Function**: LenderPool / terminate (L389, L400).
+- **버그**: `_actualNotBorrowedInShares`를 token/share 혼합 계산으로 구해 `withdrawShares`에 전달. Terminate = 전체 shares 출금이므로 `_sharesHeld` 직접 사용이 올바름.
+- **Fix**: `_sharesHeld`로 단순화.
+- **Annotation**: `@Post withdrawShares == _sharesHeld` — `_sharesHeld` in scope.
+- **Bug awareness**: **domain** (terminate semantic = "전체 shares 출금" 이해).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### Case 33 — `web3bugs_112_H_01` (L5b, **operation ordering**)
+
+- **Contract/Function**: StakerVault / transfer (L112, 113, 117, 118).
+- **버그**: `balances[sender] -= amount` / `balances[receiver] += amount` (L31–32) 이 `userCheckpoint()` (L37, L39) **전에** 실행. Checkpoint가 이미 변경된 balance로 보상 계산 → 과다 reward 청구 경로.
+- **Fix**: checkpoint → balance 순서로 교체 (`transferFrom` 함수는 올바른 순서).
+- **Annotation**: `@During changed(balances[msg.sender], false)` at checkpoint call 직전 — buggy에서 balance 이미 변경 → VIOLATED. Correct에서 unchanged → SATISFIED.
+- **Bug awareness**: **consistency** (`transferFrom`이 올바른 순서 — sibling 비교).
+- **[Category]**: **Algorithm / Type A / consistency** (L5b — ordering은 algorithm 성격).
+
+---
+
+### Case 34 — `web3bugs_113_H_05` (L5b)
+
+- **Contract/Function**: NFTPairWithOracle / _lend (L316).
+- **버그**: `require(params.ltvBPS >= accepted.ltvBPS, ...)` — lender 입장에서 낮은 LTV 선호이므로 `<=`가 올바름.
+- **Annotation**: `@During params.ltvBPS <= accepted.ltvBPS` — require와 complementary.
+- **Bug awareness**: **domain** (lender가 어떤 방향이 유리한가 이해).
+- **부가 blocker**: `ltvBPS`가 후속 금액 계산에 미사용 (require check만) → state 채널 영향 없음 (L2a 부가적).
+- **[Category]**: **Value / Type A / domain** (L5b).
+
+---
+
+### L5b Subsection Summary (7 cases)
+
+**공통 패턴**:
+1. **모두 Type A** (L5 정의상).
+2. **Annotation 형식 다양**: `@During x (assign == y)` (value 교정), `@Post changed(struct.field, true)` (field 교정), `@Post expr == formula` (공식 교정), `@During changed(x, false)` (ordering 교정).
+3. **Bug awareness source 분포**:
+   - **domain 6건** (31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05).
+   - **consistency 1건** (112_H_01).
+   - → L5b는 **domain-knowledge dominant**. L5a와 대비 (consistency-dominant).
+4. **Bug category 분포**:
+   - **Value 6건**: 31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05.
+   - **Algorithm 1건**: 112_H_01 (ordering).
+
+**L5a vs L5b 대조** (Paper insight candidate):
+| | L5a (missing-code) | L5b (wrong-code) |
+|---|---|---|
+| Bug awareness | **consistency dominant** (6/7) | **domain dominant** (6/7) |
+| Detection 난이도 | sibling/branch 비교 리뷰로 가능 | 프로토콜 semantic 지식 필요 |
+| IntentChecker 기여 | **높음** (pattern discovery 보조) | **제한적** (domain 전문가 몫) |
+
+**I8 + L5축 분포 (L5b 7 cases)**:
+- Value/A/domain: 5 (31, 35_H_11, 70_H_09, 79_H_02, 113_H_05).
+- Value/A/domain (101_H_02와 같이 파라미터 단순화 case): 1.
+- Algorithm/A/consistency: 1 (112_H_01 ordering).
+
+→ **L5b는 Value/A/domain cell에 집중** — "annotation-writing 경험 있는 도메인 전문가" 필요 영역.
+
+---
+
+### 🎉 L5 완료 — Cross-L5 Synthesis (14 cases)
+
+**L5a + L5b 대조 insight**:
+
+```
+L5a (missing-code)  → consistency-dominant → IntentChecker의 강점 영역
+  (sibling/branch 비교로 annotation writer가 "뭔가 없다"를 catch)
+
+L5b (wrong-code)    → domain-dominant     → IntentChecker의 제한 영역
+  (잘못된 identifier/operator/ordering을 semantic 지식 없이 catch 불가)
+```
+
+**I8 matrix 전체 (L4+L5 14 cases, L5 7+7=14 합류):**
+- Value/A/consistency: 5 (all L5a).
+- Value/A/domain: 6 (1 L5a + 5 L5b).
+- Value/A/mixed: 0.
+- Value/A/grammar-limit: 1 (Case 13, L4c).
+- Value/A_candidate: 1 (Case 1, L4a 재검토 대기).
+- Value/B: 7 (all L4).
+- Algorithm/A/consistency: 2 (112_H_01 L5b, 83_H_01 L5a-mixed).
+- Algorithm/A/domain: 0.
+- Algorithm/A/grammar-limit: 1 (Case 14, L4d).
+- Algorithm/B: 10 (all L4).
+
+**Paper-ready dichotomy**:
+- Type A / Value / consistency → **easiest detection**, pattern-check workflow 유효.
+- Type A / Value / domain → **domain expert 필요**, annotation이 보조 도구.
+- Type A / grammar-limit (L4c, L4d) → **grammar 확장으로 해소 가능** (arithmetic PostEntryExit).
+- Type B → **현재 grammar + workflow로는 근본적 한계**. Grammar 확장 + auxiliary injection workflow 필요.
+
+---
