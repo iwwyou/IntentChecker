@@ -47,6 +47,8 @@ class CaseClassification:
     notes: str = ""
     # L5-specific
     bug_awareness: str = ""                        # "consistency" | "domain" | "mixed" | ""
+    annotation_tier: str = ""                      # "strong" | "weak" | "" (L4)
+    annotation_text: str = ""                      # hypothetical annotation for L5 cases
 
 
 CASES: list[CaseClassification] = [
@@ -411,6 +413,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="weak",
+        annotation_text="// @Post changed(secondsPerLiquidity, true)",
         secondary_concerns="abi_decode_param_L3_partial_debug_annotation_limit",
         notes="secondsPerLiquidity_missing_update_swap_sibling_consistency",
     ),
@@ -427,6 +431,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="weak",
+        annotation_text="// @Post pairInfo[foreignAsset].reserveForeign(Entry > Exit)",
         notes="reserveForeign_missing_deduction_synth_minting_economics_domain_required",
     ),
     CaseClassification(
@@ -442,6 +448,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="weak",
+        annotation_text="// @Post rewardTokenAmount(Entry > Exit)",
         notes="rewardTokenAmount_missing_decrement_token_transfer_tracking_pattern",
     ),
     CaseClassification(
@@ -457,6 +465,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="strong",
+        annotation_text="// @Post redeemedDepositTokens == depositTokenAmount",
         notes="Case23_twin_deposit_token_transfer_tracking_missing_update",
     ),
     CaseClassification(
@@ -472,6 +482,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="strong",
+        annotation_text="// @Post lastFee == block.timestamp",
         notes="lastFee_missing_update_in_startSupply_zero_branch_inter_branch_inconsistency",
     ),
     CaseClassification(
@@ -487,6 +499,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="mixed",
+        annotation_tier="weak",
+        annotation_text="// @Post changed(poolInfo[0].accConcurPerShare, true)",
         notes="massUpdatePools_missing_call_before_totalAllocPoint_change_existing_pools_accConcurPerShare_invariant",
     ),
     CaseClassification(
@@ -502,6 +516,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="weak",
+        annotation_text="// @Post totalLocked[_asset](Entry < Exit)",
         notes="totalLocked_missing_update_lock_sibling_consistency_leads_to_release_underflow",
     ),
     # ------------------------------------------------------------ L5b batch ---
@@ -518,6 +534,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="strong",
+        annotation_text="// @During currentLockRatio == balanceInLock",
         notes="currentLockRatio_dimensional_mismatch_ratio_vs_amount_downstream_usage_analysis_domain",
     ),
     CaseClassification(
@@ -533,6 +551,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="weak",
+        annotation_text="// @Post changed(ticks[nextTickToCross].feeGrowthOutside1, true)",
         notes="wrong_struct_field_feeGrowthOutside0_vs_1_zeroForOne_token1_outside1_mapping",
     ),
     CaseClassification(
@@ -548,6 +568,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="strong",
+        annotation_text="// @During uAmount == vAmount * 1e18 / vPrice",
         notes="wrong_price_conversion_direction_oracle_spec_dependent",
     ),
     CaseClassification(
@@ -563,6 +585,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="strong",
+        annotation_text="// @During tokenAllocated == wavaxReserve * 1e18 / floorPrice",
         notes="wrong_scaling_factor_token_decimals_vs_1e18_natspec_partial_hint",
     ),
     CaseClassification(
@@ -578,6 +602,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="strong",
+        annotation_text="// @During _totalBorrowAsset == _sharesHeld",
         notes="token_share_mixing_should_use_sharesHeld_directly_terminate_semantic",
     ),
     CaseClassification(
@@ -593,6 +619,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="consistency",
+        annotation_tier="weak",
+        annotation_text="// @During changed(balances[msg.sender], false)",
         notes="operation_ordering_balance_before_checkpoint_transferFrom_sibling_correct",
     ),
     CaseClassification(
@@ -608,6 +636,8 @@ CASES: list[CaseClassification] = [
         aux_injection_viable="",
         intent_level_blocker=False,
         bug_awareness="domain",
+        annotation_tier="strong",
+        annotation_text="// @During params.ltvBPS <= accepted.ltvBPS",
         notes="wrong_require_operator_GE_should_be_LE_lender_favorable_direction",
     ),
 ]
