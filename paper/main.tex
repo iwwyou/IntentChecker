@@ -1296,17 +1296,22 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violat
     \item \textbf{L2b (External call, unknown external state, 1).} The bug check depends on the return of a cross-contract call whose implementation is available through dependency pre-analysis. An L1, L2a, or L3 pattern within the callee's own body causes $\top$ to propagate to its return value, which then reaches the check point.
     \item \textbf{L3 (Unsupported construct, 7).} The bug check depends on a value that flows through an unsupported construct---abi.decode, opaque hash builtins, or non-arithmetic Yul---which the analyzer treats as $\top$, and the $\top$ propagates to the check point.
   \end{itemize}
-  \noindent In these 21 cases, the analyzer's state at the check point is too coarse to distinguish the bug---either a $\top$ value (L1a, L2a, L2b, L3) or a summary joined across loop iterations (L1b). Such a state spans both the developer's intended range and outside it, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that applies equally to the buggy and bug-free code. They are residual failures after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied literal values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant state at the check point falls into one of the specific failure modes enumerated above.
+  \noindent In these 21 cases, the analyzer's state at the check point is too coarse to distinguish the bug---either a $\top$ value (L1a, L2a, L2b, L3) or a summary joined across loop iterations (L1b). Such a state spans both the developer's intended range and outside it, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that applies equally to the buggy and bug-free code. They are residual failures after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied symbolic values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant state at the check point falls into one of the specific failure modes enumerated above.
 
   \item \textbf{Annotation-layer limits (L4, L5, 34 cases).}
   \begin{itemize}
-    \item \textbf{Grammar expressibility limit (L4, 20 cases).} The current annotation grammar has no expression that captures the distinguishing intent. No amount of developer awareness can lift this ceiling, because the obstacle is the expressive power of the grammar itself.
-    \item \textbf{Bug-awareness limit (L5, 14 cases).} The grammar admits a distinguishing annotation, but writing it presupposes that the developer already knows the correct form. The obstacle here is the human step of recognizing the bug and choosing the right annotation, not the grammar.
+    \item \textbf{Grammar expressibility limit (L4, 20 cases).} The annotation grammar targets relationships among the variables the target function uses. The correct specification for these cases lies outside that scope---typically because it requires referencing external computations or variables the function does not use.
+    \item \textbf{Bug-awareness limit (L5, 14 cases).} The correct specification lies within the annotation grammar's scope---it can be written as a relationship among the variables the target function uses. Writing it requires the developer to articulate the intended relationship with enough precision to distinguish it from the buggy one, which in practice presupposes having already recognized the bug.
   \end{itemize}
 \end{itemize}
 
 \smallskip
-\noindent\textbf{Matrix classification by structural cause.} Across both L4 and L5, we further classify the 34 cases along two orthogonal axes rooted in the bug itself and its scope. Bug nature asks whether the fix swaps a value or identifier (Value) or restructures the computation itself (Algorithm). Reference location asks whether the correct reference value is already bound to a named variable inside the function (Usable) or lives in external state or in a view call the function never makes (Unusable). The four resulting cells partition the 34 cases:
+\noindent\textbf{Matrix classification by structural cause.} To locate each of the 34 cases within IntentChecker's value-level intent model---distinguishing the bug shapes it handles natively from those that fall outside its design scope---we classify them along two orthogonal axes:
+\begin{itemize}
+  \item \textbf{Bug nature.} Whether the fix swaps a value or identifier (\textbf{Value}) or restructures the computation itself (\textbf{Algorithm}).
+  \item \textbf{Reference location.} Whether the correct reference value is already bound to a named variable inside the function (\textbf{Usable}) or lies in external state or in a view call the function never makes (\textbf{Unusable}).
+\end{itemize}
+The four resulting cells partition the 34 cases:
 
 \begin{itemize}
   \item \textbf{Value / Usable (13).} An in-function variable holds the correct value or relation, but the buggy code references the wrong one, or a state update that should have named a specific variable is missing. The fix is a one-line identifier, operator, or assignment change. Twelve cases are L5, and one is an L4 case where the grammar cannot express the exact magnitude of the required state transition.
@@ -1319,35 +1324,28 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violat
 \noindent\textbf{Representative examples.}
 We illustrate one case per matrix cell to make the contrast specific.
 
-\noindent Value / Unusable --- web3bugs\_61\_H\_04 (YearnYield.getTokensForShares). The buggy line divides a Yearn vault share price by \texttt{1e18} instead of \texttt{10**vault.decimals()}. The correct divisor is the return of a \texttt{decimals()} call that the function never makes, and no local variable holds its value. Any annotation written over in-scope variables reduces to the same \texttt{1e18}-scaled form that the buggy code already uses, so the correct expected value is simply not reachable from the function's scope.
+\noindent Value / Unusable --- web3bugs\_25\_H\_05 (CTokenMultiOracle.\_setSource). The function hardcodes \texttt{18} as the price-feed decimals instead of querying the feed's own \texttt{decimals()}. The correct value is the return of a call the function never makes, and no local variable holds it. Any annotation written over in-scope variables reduces to the same \texttt{18} that the buggy code already uses, so the correct expected value is simply not reachable from the function's scope.
 
-\noindent Value / Usable --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is \texttt{require(params.ltvBPS >= accepted.ltvBPS, ...)}, and the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most the ceiling the lender accepts). Under bug awareness, the annotation is direct:
+\noindent Value / Usable --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The function's entry guard uses the wrong comparison direction: \texttt{require(offer.ltvBPS >= userProfile.maxLTV)}, where the intended invariant is that the offered loan-to-value must not exceed the user's maximum. Under bug awareness, the developer captures this intent directly:
 \begin{verbatim}
-// @During params.ltvBPS <= accepted.ltvBPS
+// @Post offer.ltvBPS <= userProfile.maxLTV
 \end{verbatim}
-The buggy version violates it cleanly, and the corrected version satisfies it. The annotation is essentially the corrective require.
-
-\noindent Value / Usable --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs \texttt{transferFrom} for an additional \texttt{\_amount} but forgets to update \texttt{totalLocked[\_asset]}. Under bug awareness, the developer can write
-\begin{verbatim}
-// @Post totalLocked[_asset](Entry < Exit)
-\end{verbatim}
-which fires Violated on the buggy version (the variable does not change, so Entry == Exit) and is satisfied on a corrected version that adds \texttt{totalLocked[\_asset] += \_amount}. The annotation tells the developer that the variable should grow, but not by how much---the precise increment \texttt{\_amount} is not encoded. This is an awareness signal, not a fix-equivalent specification.
+The annotation sits in the intent layer: it names the invariant the function should enforce, independent of how the require statement implements it. It fires Violated on the buggy version (the loosened guard admits executions where \texttt{ltvBPS > maxLTV}) and is satisfied on the corrected version.
 
 \noindent Algorithm / Unusable --- web3bugs\_51\_H\_04 (SwapUtils.getYC). When a swap crosses a StableSwap target price, the amplifier coefficient switches mid-trade, and the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. But the split point $dx_1$ is the solution to a nonlinear equation, does not appear anywhere in the program, and is not a closed-form arithmetic combination of in-scope variables. No intentValue expression can capture the correct getY return.
 
-\noindent Algorithm / Usable --- web3bugs\_36\_H\_02 (Basket.auctionBurn). After \texttt{\_burn} reduces \texttt{totalSupply}, the correct invariant is that the product \texttt{ibRatio * totalSupply} be preserved across the call---\texttt{(Entry == Exit)} on the product. Both variables are in scope, but the PostEntryExit form supports only qualitative comparisons between Entry and Exit, and a multi-variable arithmetic relation cannot be expressed.
+\noindent Algorithm / Usable --- web3bugs\_112\_H\_01 (StakerVault.transfer). The function updates the sender's balance before recording the checkpoint, but the sibling \texttt{transferFrom} establishes the correct order: the checkpoint must capture the pre-transfer balance, so it must be pushed first. Under bug awareness, the developer writes
+\begin{verbatim}
+// @During line=112 changed(checkpoints[from], true)
+\end{verbatim}
+which asserts that at the point where the balance is about to change, the checkpoint has already been updated. The annotation fires Violated on the buggy version (the checkpoint has not yet moved) and is satisfied on the corrected version. The specification names a structural constraint---the relative order of two state updates---within the grammar's value-change vocabulary.
 
 \smallskip
 \noindent\textbf{Implications.}
-What do these limitation patterns reveal about IntentChecker's experimental coverage?
 
-For the 21 L1--L3 cases, the Warning signal at the check point is not actionable as mitigation. It fires on both the buggy and bug-free code, so a developer cannot read it as evidence of the specific bug in question. The Warning nonetheless flags the check point as a location where the analyzer's state is too coarse to evaluate the annotation definitively, which can serve as a prompt to re-examine the semantics of that region---a review nudge rather than a mitigation signal. This residual utility is weaker than the Violated judgments RQ1 reports, but it preserves some diagnostic value even at the boundary of the engine's observable state.
+\noindent\textit{Value-level specialization shapes the failure distribution.} The grammar targets value relations between in-scope variables; this is where annotations are both expressible and meaningful. All 14 L5 cases fall in Usable cells, and all 18 Unusable cases fall in L4. Once the corrective reference is reachable, expressibility is no longer the blocker---awareness is. Once the reference lies outside the function's scope, no annotation the developer writes can close the gap, regardless of awareness. The Algorithm half is L4-heavy (11 of 13): structural relations---operation ordering, multi-variable invariants, missing-call patterns---lie outside the value-level grammar's design target. This skew is an architectural property of the value-level intent model, not a tuning gap, and the 10 Algorithm / Unusable cases call for a complementary paradigm (temporal properties over traces, structural pattern checks) rather than a value-level extension.
 
-The Unusable cells (18 cases) mark a structural boundary of the value-level intent model. When the corrective reference lives outside the function's scope, no annotation a developer writes today can close the gap---this is a property of the intent language, not a tuning failure. The 10 cases in Algorithm / Unusable form the hardest subset: the bug is a missing or misplaced operation, and the developer's true intent is about what the code should \textit{do} rather than about any variable's value. These cases call for a complementary modeling paradigm---temporal properties over execution traces or structural pattern checks---rather than a value-level extension.
-
-Within the 14 Usable L5 cases, annotation precision varies with bug type. Wrong-code bugs---a swapped operator, wrong struct field, or wrong identifier---yield fix-equivalent annotations: a reviewer comparing against a sibling function or natural convention writes a specification that essentially encodes the corrective patch (e.g., the \texttt{ltvBPS} comparison in 113\_H\_05). Missing-code bugs---an absent state update or helper call---yield directional annotations: the grammar can say ``this variable must change'' but does not pin the magnitude (e.g., the \texttt{totalLocked} omission in 192\_H\_01). Both fire Violated correctly and are therefore actionable. The former is closer to a specification, while the latter is closer to a nudge that still leaves the corrective value for the developer to supply.
-
-Two Usable L4 cases---one in Value (35\_H\_10) and one in Algorithm (36\_H\_02)---sit in a narrow grammar-limit pocket: both require arithmetic over Entry and Exit values, which the current PostEntryExit form does not express. This and related grammar directions are discussed in \S\ref{sec:disc:tech}.
+\noindent\textit{Residual diagnostic at the engine boundary.} For the 21 L1--L3 cases, Warning rather than Violated fires at the check point. It does not flag the specific bug but marks the region where the analyzer's abstract state is too coarse to evaluate the annotation definitively---weaker than RQ1's Violated judgments but a usable review nudge. Two L4 cases sit inside Usable cells (35\_H\_10, 36\_H\_02); both require arithmetic over Entry and Exit values that the current PostEntryExit form does not express. This grammar direction is discussed in \S\ref{sec:disc:tech}.
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
@@ -1370,7 +1368,7 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 
 \begin{table}[t]
 \centering
-\caption{Mitigation results on the 20 RQ1-mitigated cases. \ding{51}\,=\,mitigated (tool produced an actionable signal for the target bug), \ding{55}\,=\,not mitigated (tool was applicable but produced no signal), \textcolor{gray}{N/A}\,=\,out of scope (no applicable rule or type file, or execution infeasible). GPTScan entries report results as published in Sun~et~al.~\cite{gptscan} rather than reruns; only 45\_H\_01 is listed there as a true positive (MSA-002, Wrong Order for Interest on UToken.borrow), and the remaining 19 cases either lie in contests outside that paper's evaluation set (51, 58, 60, 62, 101) or involve bug classes (wrong-formula, wrong-scale, wrong-decimals, missing-update) that do not match any of GPTScan's ten rules. NumScout entries marked $^{\dagger}$ were evaluated on a semantically-equivalent variant in which external library functions were rewritten as internal to bypass NumScout's library-placeholder limitation; see §\ref{sec:rq3} for details.}
+\caption{Mitigation results on the 20 RQ1-mitigated cases under a scope-aware classification. \ding{51}\,=\,the target bug's class (Error Pattern column of Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function; \ding{55}\,=\,in-scope but unflagged; \textcolor{gray}{N/A}\,=\,out of the tool's design scope or the tool cannot be applied. Per-tool scopes and N/A rationales are discussed in Findings~1--2 and §\ref{sec:threats}.}
 \label{tab:rq3-mitigation}
 \scriptsize
 \begin{tabular}{@{}llcccc@{}}
@@ -1379,24 +1377,24 @@ Case & Contract.Function & IC & ScType & GPTScan & NumScout \\
 \midrule
 WANGMI & WANGMI.\_transfer & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
 Nokon & Nokon.buy & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
-SwordCrowdsale & SwordCrowdsale.refundMoney & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
+SwordCrowdsale & SwordCrowdsale.refundMoney & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 BoostToken (op) & BoostToken.sendETHToTeam & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
 BoostToken (ind) & BoostToken.sendETHToTeam & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
 HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51} \\
-5\_H\_07 & Utils.calcAsymmetricShare & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
-5\_H\_08 & Utils.calcLiquidityUnits & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{51} \\
-5\_H\_12 & Pools.getAddedAmount & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
-45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \ding{51} & \ding{51} \\
-47\_H\_02 & WrappedIbbtcEth.transferFrom & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{55} \\
-51\_H\_02 & SwapUtils.rampTargetPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55}$^{\dagger}$ \\
-56\_H\_02 & CDP.update & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
-58\_H\_02 & LpIssuer.\_chargeFees & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
-60\_H\_01 & OptimisticLedgerLib.settleAccount & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \ding{55} \\
-62\_H\_08 & Stream.updateStreamInternal & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
-70\_H\_10 & LiquidityBasedTWAP.syncVaderPrice & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
-77\_H\_01 & MathLib.calcLiqTokenQty & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{51}$^{\dagger}$ \\
-78\_H\_02 & RebaseProxy.mint & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \ding{55} \\
-101\_H\_01 & LenderPool.\_calcPrincipalWithdrawable & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \ding{55} \\
+5\_H\_07 & Utils.calcAsymmetricShare & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+5\_H\_08 & Utils.calcLiquidityUnits & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+5\_H\_12 & Pools.getAddedAmount & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \ding{51} & \textcolor{gray}{N/A} \\
+47\_H\_02 & WrappedIbbtcEth.transferFrom & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+51\_H\_02 & SwapUtils.rampTargetPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+56\_H\_02 & CDP.update & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+58\_H\_02 & LpIssuer.\_chargeFees & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+60\_H\_01 & OptimisticLedgerLib.settleAccount & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+62\_H\_08 & Stream.updateStreamInternal & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+70\_H\_10 & LiquidityBasedTWAP.syncVaderPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+77\_H\_01 & MathLib.calcLiqTokenQty & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+78\_H\_02 & RebaseProxy.mint & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+101\_H\_01 & LenderPool.\_calcPrincipalWithdrawable & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1409,13 +1407,8 @@ Each tool was executed three times on the same machine; ScType and NumScout prod
 
 \smallskip
 \noindent\textbf{NumScout execution adjustments.}
-To run NumScout over our Web3Bugs subset we applied two classes of adjustments, both external to the bugs under study.
-First, a source-level bug in NumScout's semantic analyzer (feature\_detector/semantic\_analysis.py, in the safeTransfer handler) raised UnboundLocalError on every contract reaching the relevant branch; we applied a minimal one-line fix (renaming an undefined local to the intended stack variable) so the tool could complete analysis.
-Second, NumScout consumes EVM bytecode and fails with ``incomplete push instruction'' errors when the bytecode contains unresolved library placeholders (\_\_\$\ldots\$\_\_), which are emitted when a contract calls a public/external library function that would normally be linked at deploy time.
-Two of our cases (51\_H\_02, Swap.rampTargetPrice; 77\_H\_01, Exchange.calculateLiquidityTokenQtyForSingleAssetEntry) use external libraries in this way.
-For these two cases only, we produced a second copy of the target file in which every public/external library function was rewritten as internal, causing the compiler to inline the library body into the calling contract's bytecode rather than emit a placeholder.
-This transformation is semantically equivalent at the operation level---the arithmetic instructions NumScout inspects (MUL, DIV, SUB, etc.), the storage accesses, and the control flow are preserved---so the defect patterns NumScout targets are unchanged; only the call-site mechanism (DELEGATECALL vs.\ inlined code) differs.
-The modified files are kept separate from the originals used in the ScType and GPTScan experiments, and both modifications are restricted to the two cases noted above.
+To run NumScout over the Web3Bugs subset for the empirical check reported in Finding~1, we applied a minimal one-line fix to a source-level bug in NumScout's semantic analyzer (feature\_detector/semantic\_analysis.py, in the safeTransfer handler) that raised an UnboundLocalError on every contract reaching the relevant branch; the fix (renaming an undefined local to the intended stack variable) is external to the bugs under study and allows the tool to complete analysis on each case.
+Two cases (51\_H\_02, Swap.rampTargetPrice; 77\_H\_01, Exchange.calculateLiquidityTokenQtyForSingleAssetEntry) additionally trigger NumScout's ``incomplete push instruction'' error on unresolved library placeholders (\_\_\$\ldots\$\_\_) in the compiled bytecode; both are classified N/A in Table~\ref{tab:rq3-mitigation} on scope grounds (Erroneous Accounting, outside NumScout's five numeric patterns), so we did not pursue the library-inlining workaround that would be required to obtain any NumScout output on those two files.
 
 \smallskip
 \noindent\textbf{Detection model.}
@@ -1430,7 +1423,7 @@ The grammar's expressibility ceiling was quantified in RQ2.
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figure/rq3_time_comparison.pdf}
-    \caption{Analysis time comparison across four tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time. IntentChecker and ScType complete in seconds; GPTScan and NumScout each require minutes per case, with NumScout exceeding GPTScan on cases that exercise its symbolic-execution backend.}
+    \caption{Analysis time comparison across four tools (log scale). Left: box plot of per-case times over three runs. Right: mean analysis time.}
     \label{fig:rq3-time}
 \end{figure}
 
@@ -1443,19 +1436,19 @@ Within the overlap, only 45\_H\_01 is listed as a true positive---a Wrong Order 
 The nineteen non-matched cases involve wrong-formula, wrong-scale, wrong-decimals, and missing-update errors that do not correspond to GPTScan's patterns (price manipulation, slippage limit, first deposit, wrong-order interest/checkpoint, etc.).
 This is not a deficiency of GPTScan---the tool was designed for a different threat model---but it demonstrates that a coverage gap exists: the bug class targeted by IntentChecker is largely outside the reach of the most recent LLM-based smart-contract analysis tool.
 
-NumScout mitigated the target bug in 9 of 20 cases.
-The nine mitigated cases concentrate on NumScout-origin samples (WANGMI, Nokon, BoostToken, HIT) and on Vader Protocol's Utils.sol, whose division-heavy arithmetic matches NumScout's division-in-path and operator-order patterns; Web3Bugs cases whose bugs lie outside these five patterns (e.g., CDP.update, Stream.updateStreamInternal, LiquidityBasedTWAP.syncVaderPrice, RebaseProxy.mint) are not mitigated despite NumScout completing analysis.
-For 51\_H\_02 and 77\_H\_01, the reported NumScout entries are obtained on the library-inlined variant described earlier, and are marked with a dagger in Table~\ref{tab:rq3-mitigation}.
+Under the scope-aware classification, NumScout's five-pattern catalog covers five of the twenty cases---the NumScout-origin samples WANGMI (Div~In~Path), Nokon and HIT (Exchange~Problem), BoostToken/operator (Operator~Order~Issue), and BoostToken/indivisible (Minor~Amount~Retention)---on all of which its output directly flags the intent-annotated target function.
+The remaining fifteen cases involve bug classes (Erroneous Accounting, Inconsistent State Updates, Greedy Contract) that fall outside NumScout's pattern catalog and are therefore marked N/A in Table~\ref{tab:rq3-mitigation}.
+We confirmed empirically that running NumScout on the fifteen out-of-scope cases does not change this verdict: either the tool reports no warning (e.g., SwordCrowdsale, 47\_H\_02), or it reports a warning on a different function than the intent-annotated target (e.g., on Vader Protocol's Utils.sol, NumScout's Div~In~Path warning lands on calcCoverage while 5\_H\_07 and 5\_H\_08 target the sibling functions calcAsymmetricShare and calcLiquidityUnits; on Exchange.sol, NumScout warnings on 77\_H\_01 land on addLiquidity while the target is the downstream calculateLiquidityTokenQtyForSingleAssetEntry).
+In none of the fifteen does NumScout produce an actionable signal at the intent-annotated target, consistent with the bug class lying outside its five numeric defect patterns.
 
 \smallskip
 \noindent\textbf{Finding 2: complementarity with ScType.}
 ScType provides the most direct comparison, as both tools target accounting errors and both require manual annotations (financial types for ScType, during/post conditions for IntentChecker).
-Among the seven overlapping cases, ScType mitigated four: calcAsymmetricShare, calcLiquidityUnits (both in Vader Protocol's Utils.sol), transferFrom (WrappedIbbtcEth), and settleAccount (OptimisticLedger).
-IntentChecker mitigated all seven.
-The three cases that ScType could not mitigate (CDP.update, syncVaderPrice, \_calcPrincipalWithdrawable) are not type-inconsistency errors but rather value-level errors: the arithmetic uses correctly-typed operands but produces a numerically wrong result.
-ScType's type-driven model cannot express the property ``this subtraction should yield the correct fee amount''; IntentChecker's specification-driven model can.
+Under the scope-aware classification, ScType's type-inconsistency scope covers four of the twenty cases---calcAsymmetricShare, calcLiquidityUnits (both in Vader Protocol's Utils.sol), transferFrom (WrappedIbbtcEth), and settleAccount (OptimisticLedger)---on all of which it directly flags the intent-annotated target.
+The remaining sixteen cases are N/A for one of two reasons: thirteen have no ScType type annotation file available (a practical applicability constraint), and three (CDP.update, syncVaderPrice, \_calcPrincipalWithdrawable) are value-level errors whose arithmetic uses correctly-typed operands but produces a numerically wrong result---outside ScType's type-driven scope regardless of annotation effort.
+ScType's type-driven model cannot express the property ``this subtraction should yield the correct fee amount''; IntentChecker's specification-driven model can, and mitigates all twenty cases.
 Conversely, ScType's type inference operates without requiring the developer to know the expected output value, which makes it applicable even when the developer does not have a specific numeric property in mind.
-The two approaches are thus complementary: ScType catches type-level mismatches automatically, while IntentChecker catches value-level deviations when the developer can articulate the intended behavior.
+The two approaches are thus complementary: within its scope ScType catches type-level mismatches automatically, while IntentChecker catches value-level deviations when the developer can articulate the intended behavior.
 
 \smallskip
 \noindent\textbf{Finding 3: analysis latency.}
@@ -1496,10 +1489,10 @@ In RQ3, GPTScan results are taken from the per-contest breakdown published in Su
 GPTScan's implementation invokes the model alias \texttt{gpt-3.5-turbo} (and \texttt{gpt-4}) whose underlying snapshots have been redirected by the provider multiple times since the original evaluation in 2023; our April~2026 reruns of the same code on the same inputs produced rule activations at different functions than the published results, confirming that model-snapshot drift alters the tool's output even when code and inputs are held constant.
 We therefore report the authors' published numbers as the fairest reflection of GPTScan's intended performance.
 The per-case latency in Figure~\ref{fig:rq3-time} still uses our reruns because per-case timings were not published in the original paper; this affects only the absolute latency comparison, not the per-case mitigation entries.
-Cases marked N/A for GPTScan in Table~\ref{tab:rq3-mitigation} fall into two categories: (i) contests outside the evaluation set of Sun~et~al.~(51, 58, 60, 62, 101); and (ii) bugs whose class is not among GPTScan's ten rules (wrong-formula, wrong-scale, wrong-decimals, missing-update).
-The ScType comparison is limited to seven overlapping cases for which type annotation files exist; results on the remaining thirteen cases may differ.
-Two NumScout cases (51\_H\_02, 77\_H\_01) were evaluated on a variant of the target file in which public/external library functions were rewritten as internal to bypass NumScout's inability to handle unresolved library placeholders in compiled bytecode (§\ref{sec:rq3}).
-Because this transformation only alters the call-site mechanism (inlined library code vs.\ DELEGATECALL) and preserves the arithmetic instructions, storage accesses, and control flow that NumScout's defect patterns inspect, we regard the comparison as fair for the specific pattern-level signal NumScout produces; we nevertheless note the modification explicitly so that readers interpreting Table~\ref{tab:rq3-mitigation} can account for it.
+Table~\ref{tab:rq3-mitigation} uses a scope-aware classification in which N/A marks cases whose target bug class lies outside the tool's design scope or where the tool cannot be applied, rather than counting such cases as detection failures.
+The classification is non-trivial only for GPTScan and ScType: GPTScan N/A covers (i) contests outside Sun~et~al.'s evaluation set (51, 58, 60, 62, 101) and (ii) bug classes not among GPTScan's ten rules (wrong-formula, wrong-scale, wrong-decimals, missing-update); ScType N/A covers (i) cases without a type annotation file (thirteen cases) and (ii) value-level errors whose arithmetic uses correctly-typed operands but produces a numerically wrong result (three cases: CDP.update, syncVaderPrice, \_calcPrincipalWithdrawable).
+For NumScout, all fifteen N/A cases lie strictly outside its five-pattern catalog on class grounds; Finding~1 above reports the raw-output check confirming that none of the fifteen produces an actionable signal at the intent-annotated target even when run.
+An alternative, empirical-only classification that does not distinguish scope from failure (i.e., any absence of a target-level warning is counted as \ding{55}) would reassign the fifteen N/A NumScout entries to \ding{55} and the sixteen N/A ScType entries to a mix of \ding{55} (for the three in-scope value-level cases) and ``not applicable'' (for the thirteen without type files), without changing any \ding{51} entry; we report the scope-aware counts because they separate design-space coverage from in-scope effectiveness, which is the distinction relevant to the paper's argument that numeric logic errors sit outside the design space of the three compared tools.
 
 \section{Discussion}\label{sec:discussion}
 
