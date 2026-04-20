@@ -258,16 +258,16 @@ These tools represent the current state of the art and have meaningfully advance
 For the development-phase debugging assistant goal articulated in §\ref{sec:background}.1, however, they share two structural constraints rooted in their design.
 
 \smallskip
-\noindent\textbf{(1) Analysis input: source code at audit time, with the developer no longer in the loop.}
-Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
-They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
-Because these tools run downstream of authoring, the developer of the code under analysis is no longer in the loop, and they take no input beyond what is listed above.
-
-\smallskip
-\noindent\textbf{(2) Detection criteria authored by the tool designer, not the developer.}
-Within these input constraints, the developer's intent for the specific function never enters the analysis; each tool instead matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{accountingerrors}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
+\noindent\textbf{(1) Detection criteria authored by the tool designer, not the developer.}
+Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{accountingerrors}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
 These criteria describe what counts as buggy code in general, not what counts as a violation of the specific developer's intent for the function being analyzed; a bug is therefore caught only to the extent that it happens to fit a shape the tool designer anticipated.
 This distinction is methodological, not quantitative: however rich the criteria, they are chosen by tool designers with no access to that specific intent.
+
+\smallskip
+\noindent\textbf{(2) Analysis input: source code at audit time, with the developer no longer in the loop.}
+Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
+They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
+Because these tools run downstream of authoring, the developer of the code under analysis is no longer in the loop, and they take no input beyond what is listed above---the post-hoc position that forces the criteria in (1) to be fixed at design time rather than supplied per case.
 
 \smallskip
 \noindent\textbf{These two constraints are structural, not tool-specific.}
@@ -283,14 +283,14 @@ A tool that runs alongside the developer in the editor and lets the developer de
 IntentChecker realizes this direction by addressing each constraint with a dedicated component.
 
 \smallskip
-\noindent\textbf{(1) Analysis input: source code at development time, with the developer in the loop.}
-IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written.
-This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, removing the post-hoc boundary that prevents existing tools from receiving developer input.
+\noindent\textbf{(1) Detection criteria authored by the developer, via intent annotations.}
+IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each annotation to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
+A validation engine reads these intervals, compares them against the declared intent, and reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
 
 \smallskip
-\noindent\textbf{(2) Detection criteria authored by the developer, via intent annotations.}
-On top of this foundation, IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each annotation to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
-A validation engine reads these intervals, compares them against the declared intent, and reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
+\noindent\textbf{(2) Analysis input: source code at development time, with the developer in the loop.}
+For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written.
+This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, removing the post-hoc boundary that prevents existing tools from receiving developer input.
 
 \smallskip
 For these two components to operate on realistic DeFi code, we additionally extend SolQDebug's single-contract single-transaction analysis to a multi-contract single-transaction scope covering inheritance, libraries invoked via using directives and delegatecall, interface-typed variables, and a practically useful arithmetic subset of inline assembly.
@@ -1326,15 +1326,12 @@ RQ2 decomposes the 55 failure cases into two layers. The engine-layer limits (L1
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
-We compare IntentChecker against three state-of-the-art tools on the 20 mitigated cases from RQ1:
+We compare IntentChecker against three tools on the 20 mitigated cases from RQ1:
 \textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
 \textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
-\textbf{NumScout}, a symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
+\textbf{NumScout}, an LLM-pruned symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
 Each tool was executed three times on the same machine. ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
-RQ1 established what IntentChecker mitigates, and RQ2 mapped the boundary where it stops.
-RQ3 asks what the outputs of these three tools on the same 20 cases reveal about the two structural constraints of post-hoc numeric-logic-error detection identified in \S\ref{sec:background}: (C1) the tool is run after the developer has left the loop, and (C2) the detection criteria are authored by the tool designer rather than by the developer whose code is under analysis.
-The aim is not to rank the four tools on a single axis; the design-space argument in \S\ref{sec:background} predicts that existing tools and IntentChecker occupy different corners of the space rather than compete in the same one.
-This section examines how (C1) and (C2) manifest empirically on the 20 cases and how IntentChecker's reversal of both changes the outcome.
+RQ3 asks what the outputs of these three tools on the same 20 cases reveal about the two structural constraints of post-hoc numeric-logic-error detection identified in \S\ref{sec:background}: (C1) the detection criteria are authored by the tool designer, not by the developer whose code is under analysis (the criteria axis), and (C2) the tool runs after the developer has left the loop (the position axis).
 
 \begin{table}[t]
 \centering
@@ -1345,7 +1342,7 @@ This section examines how (C1) and (C2) manifest empirically on the 20 cases and
 \toprule
  & IntentChecker & ScType & GPTScan & NumScout \\
 \midrule
-Approach & Abstract interp. & Type inference & LLM + static & Symbolic exec. \\
+Approach & Abstract interp. & Type inference & LLM + static & LLM + sym. exec. \\
 Detection model & Specification-driven & Type-driven & Pattern-driven & Pattern-driven \\
 Annotation & During/Post conds. & Financial types & None & None \\
 Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) & Numeric (5 patterns) \\
@@ -1353,10 +1350,7 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:rq3-signal} summarizes the four tools along the axes that follow from (C1) and (C2).
-The three existing tools each apply a fixed detection vocabulary authored at design time---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---and take the contract under analysis as their only case-specific input.
-IntentChecker instead takes the contract together with developer-authored @During and @Post annotations and verifies the former against the latter.
-The rest of the section organizes the comparison along two axes that mirror (C1) and (C2): the criteria axis---what each tool is asked to look for---and the position axis---when each tool runs and under what latency budget.
+Table~\ref{tab:rq3-signal} makes the (C1) contrast concrete: each existing tool ships with a fixed vocabulary---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---while IntentChecker takes developer-authored @During and @Post annotations per case.
 
 \smallskip
 \noindent\textbf{Criteria axis: what each tool is asked to look for.}
@@ -1397,26 +1391,26 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 \end{table}
 
 \smallskip
-\noindent\emph{Pattern-driven vocabularies (GPTScan, NumScout).}
+\indent\textbf{Pattern-driven vocabularies (GPTScan, NumScout).}
 GPTScan's ten DeFi rules and NumScout's five numeric patterns define two fixed catalogs of buggy shapes.
 Within those catalogs the tools perform as designed: NumScout flags the five NumScout-origin samples in Table~\ref{tab:rq3-mitigation}---WANGMI (Div~In~Path), Nokon and HIT (Exchange~Problem), BoostToken/operator (Operator~Order~Issue), and BoostToken/indivisible (Minor~Amount~Retention)---and GPTScan's published per-contest results list 45\_H\_01 as a Wrong~Order~for~Interest hit on \texttt{UToken.borrow}, the one case among the seven overlapping Web3Bugs contests that matches its rule set.
 The remaining 14 cases involve wrong-formula, wrong-scale, wrong-decimals, and missing-update errors that are not enumerated by either catalog.
-These 14 misses are not deficiencies of the respective tools---both catalogs were constructed for different threat models---but they make (C2) empirically visible: a bug is catalog-authored or undetectable, and the bug class that dominates the 20 mitigated cases sits outside both catalogs.
+These 14 misses are not deficiencies of the respective tools---both catalogs were constructed for different threat models---but they make (C1) empirically visible: a bug is catalog-authored or undetectable, and the bug class that dominates the 20 mitigated cases sits outside both catalogs.
 We verified the class-based reading by running NumScout on the 15 out-of-catalog cases.
 None produced an actionable signal at the intent-annotated target, either reporting no warning (e.g., SwordCrowdsale, 47\_H\_02) or reporting warnings on sibling functions (e.g., on Vader's Utils.sol, NumScout's Div~In~Path warning lands on \texttt{calcCoverage} while 5\_H\_07 and 5\_H\_08 target \texttt{calcAsymmetricShare} and \texttt{calcLiquidityUnits}).
 
 \smallskip
-\noindent\emph{Type-driven vocabulary (ScType).}
+\indent\textbf{Type-driven vocabulary (ScType).}
 ScType generalizes beyond a catalog of shapes: any arithmetic operation whose operand types clash under its financial type system is flagged, regardless of which specific bug pattern the clash represents.
 Within that scope ScType flags 4 of the 20 cases---\texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits}, \texttt{WrappedIbbtcEth.transferFrom}, and \texttt{OptimisticLedgerLib.settleAccount}---on all of which it pinpoints the intent-annotated target.
 The remaining 16 divide into 13 without a type annotation file (a practical applicability limit) and 3 (\texttt{CDP.update}, \texttt{syncVaderPrice}, \texttt{\_calcPrincipalWithdrawable}) that lie inside type-checking's reach but are not type-level errors: every operand carries the correct financial type, yet the arithmetic produces a numerically wrong result.
-ScType is the closest point of comparison to IntentChecker because both partially relax (C2) by requiring developer-authored artifacts.
+ScType is the closest point of comparison to IntentChecker because both partially relax (C1) by requiring developer-authored artifacts.
 The difference lies in what the developer authors.
 Type labels can be assigned without the developer having any specific output value in mind, so ScType extends coverage to cases where no such value is yet known, while IntentChecker covers value-level deviations that no consistent type labeling can distinguish from the correct computation.
 The two approaches fill adjacent niches rather than compete.
 
 \smallskip
-\noindent\emph{Specification-driven vocabulary (IntentChecker).}
+\indent\textbf{Specification-driven vocabulary (IntentChecker).}
 IntentChecker's detection criteria are authored per case by the developer as @During and @Post conditions, so the detectable set for a given contract is not fixed at design time but shaped by whatever intent the developer articulates.
 The RQ1 result of 20/20 is the direct consequence: when the audit-report root cause can be written as a value-level relation over function-scope variables, the annotation carries that relation into the analysis and any deviation surfaces as Violated or Warning.
 The ceiling of this approach was quantified in RQ2, where 34 of 55 unmitigated cases fall on the annotation-layer boundary---structural relations over out-of-scope references, or awareness-gated specifications the developer did not recognize---giving the model a definable outer edge rather than open-ended scope.
@@ -1438,7 +1432,7 @@ The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the
 These latency numbers are not IntentChecker outperforming the others on a shared task.
 They reflect the workflow position each tool was built for.
 Post-hoc audit and CI integration tolerate per-case latency in the minute range, so neither GPTScan nor NumScout was under pressure to compress that budget.
-IntentChecker's development-time positioning---executing inside the editor as code is written, which is the \S\ref{sec:background} constraint-(C1) reversal---imposes the opposite budget.
+IntentChecker's development-time positioning---executing inside the editor as code is written, which is the \S\ref{sec:background} constraint-(C2) reversal---imposes the opposite budget.
 If latency ran past a few seconds, the developer's editing rhythm would carry them past the point where the feedback is useful.
 The observed 4.5\,s mean therefore reads as a design-space requirement met rather than as a speed advantage, and it sets the outer envelope for any tool aiming to sit in the same slot.
 
