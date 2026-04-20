@@ -130,7 +130,7 @@ For this reason, numeric logic errors---where program behavior diverges from dev
 Existing detection tools instead match completed source code against pre-defined vulnerability patterns in a testing or auditing context.
 Errors outside these patterns have no practical path to early prevention.
 This paper presents IntentChecker, a development-time intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
-At its core is an intent model comprising two annotation types---@During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution---and a semantics that classifies each annotation as Satisfied, Warning, or Violated given the intervals computed by abstract interpretation.
+At its core is a value-level intent model comprising two annotation types---@During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution---and a semantics that classifies each annotation as Satisfied, Warning, or Violated given the intervals computed by abstract interpretation.
 A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score.
 We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing pattern-based tools, with analysis latency suitable for development-time use.
 }
@@ -158,7 +158,7 @@ Meanwhile, developer preferences favor tools that run at development time. The s
 These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
 
 To that end, we present IntentChecker, a development-time intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
-The intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
+The value-level intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
 A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification over all topological configurations of two integer intervals.
 
 We evaluate IntentChecker on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
@@ -189,9 +189,9 @@ Importantly, our positioning with respect to existing tools is complementary rat
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
-    \item We present an intent model with a formal denotational semantics defining each annotation form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
-    \item We evaluate IntentChecker on 89 real-world numeric logic errors and position it against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
+    \item A value-level intent model with a formal denotational semantics is presented, defining each annotation form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
+    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
+    \item IntentChecker is evaluated on 89 real-world numeric logic errors and positioned against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
 \end{itemize}
 
 The remainder of this paper is organized as follows.
@@ -284,7 +284,7 @@ IntentChecker realizes this direction by addressing each constraint with a dedic
 
 \smallskip
 \noindent\textbf{(1) Detection criteria authored by the developer, via intent annotations.}
-IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each annotation to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
+IntentChecker introduces a value-level intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each annotation to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
 A validation engine reads these intervals, compares them against the declared intent, and reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
 
 \smallskip
@@ -400,7 +400,7 @@ All extensions preserve SolQDebug's ``range in, range out'' character, so the in
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
 
-Figure~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
+Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
 
 \begin{figure}[t]
     \centering
@@ -444,7 +444,7 @@ The first case demonstrates a mid-execution check via a @During annotation; the 
 
 \smallskip
 \noindent\textbf{Case 1: @During --- Operator Order Issue.}
-Figure~\ref{fig:operator-order-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
+Fig.~\ref{fig:operator-order-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
 
 \begin{figure}[t]
 \begin{lstlisting}
@@ -469,7 +469,7 @@ The @During annotation (line~8) captures this intent directly, and IntentChecker
 
 \smallskip
 \noindent\textbf{Case 2: @Post --- Erroneous Accounting.}
-Figure~\ref{fig:erroneous-accounting-example} shows a rebasing vault's mint function.
+Fig.~\ref{fig:erroneous-accounting-example} shows a rebasing vault's mint function.
 The bug is that minted proxy tokens are computed from the total vault balance (including the just-deposited amount), which inflates the shares beyond the deposited amount when the redeem rate deviates from~1.
 
 \begin{figure}[t]
@@ -620,7 +620,7 @@ relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $
 
 \smallskip
 \noindent\textbf{Grammar overview.}
-Figure~\ref{fig:intent-grammar} gives the BNF of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
+Fig.~\ref{fig:intent-grammar} gives the BNF of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
 Intent-value expressions support arithmetic over variable references with member and index access, numeric literals, inline intervals $[a, b]$, and the DSL helpers PercentOf, ceil, and floor.
 Relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in; the implication operator ${=}{>}$ is a truthiness-based atomic form whose semantics is defined below.
 
@@ -813,7 +813,7 @@ Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]
 
 Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
 The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds.
-Figure~\ref{fig:region-partition} illustrates this partition for the canonical warning configuration of $op = \text{``$>$''}$.
+Fig.~\ref{fig:region-partition} illustrates this partition for the canonical warning configuration of $op = \text{``$>$''}$.
 
 \begin{table}[t]
 \centering
@@ -993,7 +993,7 @@ p_{\mathit{true}}(L, R, op) \;=\;
 \item[$op \in \{\text{in}, \text{not\,in}\}$.] $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
 \item[$op = \text{``=''}$ or $\text{``$\neq$''}$ with $n_R > 1$.] Each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
 \item[Otherwise ($>$, $\geq$, $<$, $\leq$, and $=$/$\neq$ with $n_R = 1$).] The warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
-Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$ (visualised in Figure~\ref{fig:arithmetic-series}), so
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$ (visualised in Fig.~\ref{fig:arithmetic-series}), so
 \[
 E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
 \]
@@ -1038,17 +1038,15 @@ We construct a benchmark of 89 real-world numeric logic error instances drawn fr
 
 \smallskip\noindent\textbf{NumScout (7 instances).}
 NumScout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
-We use the 95-sample subset distributed in NumScout's official repository~\citep{numscout_dataset}, which the authors identify as their main case-level evaluation set.
-We select seven cases covering all five numerical defect patterns enumerated in NumScout (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, and Minor Amount Retention), with two instances for Precision Loss Trend and two for Exchange Problem---one of which is labeled Profit Opportunity in the repository.
+From the 95-sample subset distributed in NumScout's official repository~\citep{numscout_dataset}---which the authors identify as their main case-level evaluation set---seven cases are selected covering all five numerical defect patterns enumerated in NumScout (Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, and Minor Amount Retention), with two instances for Precision Loss Trend and two for Exchange Problem---one of which is labeled Profit Opportunity in the repository.
 All selected contracts target Solidity~$\geq$0.6, the minimum version supported by IntentChecker's front-end; one contract carries a 0.4.x pragma but uses only constructs semantically identical under $\geq$0.6.
 
 \smallskip\noindent\textbf{Flyinointment (1 instance).}
-We additionally include one Greedy Contract instance from the dataset of \citet{flyinointment}, which originally introduced the Greedy Contract pattern and is referenced in §\ref{sec:background}.1.
+One Greedy Contract instance from the dataset of \citet{flyinointment} is additionally included; that dataset originally introduced the Greedy Contract pattern and is referenced in §\ref{sec:background}.1.
 
 \smallskip\noindent\textbf{Web3Bugs (81 instances).}
 Web3Bugs~\citep{exploitablebugs} systematically collected and classified high-severity vulnerabilities from Code4rena audit contests.
-We select bugs whose execution context fits IntentChecker's scope, namely multi-contract single-transaction numeric logic errors.
-We draw from (i) categories S6-1 through S6-4 (Erroneous Accounting), whose root causes are semantic errors in arithmetic or accounting logic, and (ii) category S3-1 (Inconsistent State Updates), retaining only the subset whose root cause involves a numeric computation with a missing or stale state variable update.
+Bugs whose execution context fits IntentChecker's scope---multi-contract single-transaction numeric logic errors---are drawn from (i) categories S6-1 through S6-4 (Erroneous Accounting), whose root causes are semantic errors in arithmetic or accounting logic, and (ii) category S3-1 (Inconsistent State Updates), retaining only the subset whose root cause involves a numeric computation with a missing or stale state variable update.
 The resulting Web3Bugs subset contains 81 instances spanning Erroneous Accounting (72) and Inconsistent State Updates (9).
 
 \begin{table}[t]
@@ -1215,7 +1213,7 @@ For two variables $X$ (metric) and $Y$ (analysis time) with $n$ paired observati
 \]
 where $r=+1$ indicates a perfect positive linear relationship and $r=0$ indicates no linear association.
 
-Figure~\ref{fig:rq1-scatter} plots each metric against analysis time.
+Fig.~\ref{fig:rq1-scatter} plots each metric against analysis time.
 Four of the five metrics exhibit a strong positive correlation ($r>0.8$):
 \begin{itemize}
   \item \textbf{Source lines} ($r=0.87$) is the strongest predictor, as it directly reflects the amount of code the abstract interpreter must traverse.
@@ -1234,7 +1232,7 @@ These results suggest that IntentChecker is practical as a development-time vali
 \subsection{RQ2: Unmitigated Case Analysis}\label{sec:rq2}
 
 \noindent\textbf{Overview.}
-RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violated' judgment on the buggy code into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
+RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violated judgment on the buggy code into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Fig.~\ref{fig:rq1-limitations}).
 
 \begin{figure}[t]
 \centering
@@ -1330,8 +1328,8 @@ We compare IntentChecker against three tools on the 20 mitigated cases from RQ1:
 \textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
 \textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
 \textbf{NumScout}, an LLM-pruned symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
+Table~\ref{tab:rq3-signal} summarizes the four tools' detection signals: each existing tool ships with a fixed vocabulary---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---while IntentChecker takes developer-authored @During and @Post annotations per case.
 Each tool was executed three times on the same machine. ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
-RQ3 asks what the outputs of these three tools on the same 20 cases reveal about the two structural constraints of post-hoc numeric-logic-error detection identified in \S\ref{sec:background}: (C1) the detection criteria are authored by the tool designer, not by the developer whose code is under analysis (the criteria axis), and (C2) the tool runs after the developer has left the loop (the position axis).
 
 \begin{table}[t]
 \centering
@@ -1350,7 +1348,7 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:rq3-signal} makes the (C1) contrast concrete: each existing tool ships with a fixed vocabulary---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---while IntentChecker takes developer-authored @During and @Post annotations per case.
+RQ3 asks what the outputs of these three tools on the same 20 cases reveal about the two structural constraints of post-hoc numeric-logic-error detection identified in \S\ref{sec:background}: (C1) the detection criteria are authored by the tool designer, not by the developer whose code is under analysis---the \textbf{criteria axis}; and (C2) the tool runs after the developer has left the loop---the \textbf{position axis}.
 
 \smallskip
 \noindent\textbf{Criteria axis: what each tool is asked to look for.}
@@ -1425,7 +1423,7 @@ What the comparison with pattern- and type-driven tools makes visible here is th
 
 \smallskip
 \noindent\textbf{Position axis: when each tool is run.}
-Figure~\ref{fig:rq3-time} reports per-case analysis time averaged over three runs.
+Fig.~\ref{fig:rq3-time} reports per-case analysis time averaged over three runs.
 IntentChecker (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
 GPTScan (mean 267\,s) runs approximately 59$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 772\,s, median 517\,s) is slower still, with several Web3Bugs cases running to NumScout's 1800\,s symbolic-execution timeout.
 The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the model-snapshot drift that affects GPTScan's mitigation outputs (\S\ref{sec:threats}) because its pipeline structure has been unchanged since 2023.
@@ -1448,31 +1446,21 @@ It is evidence that the bug class explored across RQ1--RQ3 is the class this joi
 \subsection{Threats to Validity}\label{sec:threats}
 
 \noindent\textbf{Internal validity.}
-The intent and debug annotations used in RQ1 were authored by the researchers based on the audit report descriptions, not by the original contract developers.
-A different annotator could plausibly write a slightly different annotation for the same bug, and a sufficiently weak annotation could fail to surface a bug that a stronger annotation would catch.
-We mitigate this by deriving each annotation directly from the audit report's stated root cause and recording the exact annotation alongside each case in the supplementary material, allowing independent re-evaluation.
-A second internal-validity concern is tool setup.
-Running NumScout over the Web3Bugs subset required a one-line fix to an UnboundLocalError in NumScout's semantic analyzer (\texttt{feature\_detector/semantic\_analysis.py}, safeTransfer handler), where an undefined local was renamed to the intended stack variable; the fix is external to the bugs under study and is required for the tool to complete analysis on each case.
+The intent and debug annotations in RQ1 were authored by the researchers from the audit reports, not by the original developers; a different annotator could write a slightly different annotation, and a weak one could miss a bug a stronger one would catch.
+We mitigate this by deriving each annotation directly from the audit report's stated root cause and recording it alongside each case in the supplementary material for independent re-evaluation.
+Running NumScout also required a one-line fix to an UnboundLocalError in its safeTransfer handler, external to the bugs under study.
 
 \smallskip
 \noindent\textbf{External validity.}
-Our 89-case benchmark is drawn from Web3Bugs (Code4rena audit findings) and NumScout (BNB Smart Chain), which together cover a substantial portion of publicly known numeric logic errors but are not exhaustive.
-Findings may not generalize to numeric logic errors that arise in domains underrepresented by these two sources, such as zero-knowledge circuits or non-DeFi applications.
-Additionally, the correlation analysis in RQ1 is based on $n=20$ mitigated cases, which limits statistical power; the reported Pearson coefficients should be interpreted as indicative trends rather than causal claims.
+Our 89-case benchmark is drawn from Web3Bugs (Code4rena) and NumScout (BNB Smart Chain), which together cover a substantial portion of publicly known numeric logic errors but are not exhaustive; findings may not generalize to underrepresented domains such as zero-knowledge circuits or non-DeFi applications.
+The RQ1 correlation analysis uses $n=20$ mitigated cases, so the reported Pearson coefficients should be read as indicative trends rather than causal claims.
 
 \smallskip
 \noindent\textbf{Construct validity.}
-RQ1's notion of ``mitigation'' relies on the validation engine producing a non-Satisfied judgment (typically Violated) for the annotated bug, rather than on a downstream measurement of developer behavior.
-A non-Satisfied judgment on its own does not guarantee that a developer reading it would correctly diagnose and fix the bug; assessing that downstream effect is an important direction for future work.
-In RQ3, GPTScan results are taken from the per-contest breakdown published in Sun~et~al.~\cite{gptscan} rather than from reruns in our environment.
-GPTScan's implementation invokes the model alias \texttt{gpt-3.5-turbo} (and \texttt{gpt-4}) whose underlying snapshots have been redirected by the provider multiple times since the original evaluation in 2023; our April~2026 reruns of the same code on the same inputs produced rule activations at different functions than the published results, confirming that model-snapshot drift alters the tool's output even when code and inputs are held constant.
-We therefore report the authors' published numbers as the fairest reflection of GPTScan's intended performance.
-The per-case latency in Figure~\ref{fig:rq3-time} still uses our reruns because per-case timings were not published in the original paper; this affects only the absolute latency comparison, not the per-case mitigation entries.
-Table~\ref{tab:rq3-mitigation} uses a scope-aware classification in which N/A marks cases whose target bug class lies outside the tool's design scope or where the tool cannot be applied, rather than counting such cases as detection failures.
-The classification is non-trivial only for GPTScan and ScType: GPTScan N/A covers (i) contests outside Sun~et~al.'s evaluation set (51, 58, 60, 62, 101) and (ii) bug classes not among GPTScan's ten rules (wrong-formula, wrong-scale, wrong-decimals, missing-update); ScType N/A covers (i) cases without a type annotation file (thirteen cases) and (ii) value-level errors whose arithmetic uses correctly-typed operands but produces a numerically wrong result (three cases: CDP.update, syncVaderPrice, \_calcPrincipalWithdrawable).
-For NumScout, all fifteen N/A cases lie strictly outside its five-pattern catalog on class grounds, and the criteria-axis discussion in \S\ref{sec:rq3} reports the raw-output check confirming that none of the fifteen produces an actionable signal at the intent-annotated target even when run.
-Two of the fifteen (51\_H\_02, Swap.rampTargetPrice; 77\_H\_01, Exchange.calculateLiquidityTokenQtyForSingleAssetEntry) additionally trigger NumScout's ``incomplete push instruction'' error on unresolved library placeholders (\_\_\$\ldots\$\_\_) in the compiled bytecode; since both are already N/A on class grounds (Erroneous Accounting, outside NumScout's five patterns), we did not pursue the library-inlining workaround that would be required to obtain any output on those two files.
-An alternative, empirical-only classification that does not distinguish scope from failure (i.e., any absence of a target-level warning is counted as \ding{55}) would reassign the fifteen N/A NumScout entries to \ding{55} and the sixteen N/A ScType entries to a mix of \ding{55} (for the three in-scope value-level cases) and ``not applicable'' (for the thirteen without type files), without changing any \ding{51} entry; we report the scope-aware counts because they separate design-space coverage from in-scope effectiveness, which is the distinction relevant to the paper's argument that numeric logic errors sit outside the design space of the three compared tools.
+RQ1's ``mitigation'' relies on the validation engine producing a non-Satisfied judgment rather than a downstream measurement of developer behavior; whether a developer reading it would correctly diagnose and fix the bug is future work.
+In RQ3, GPTScan mitigation results are taken from the per-contest breakdown in Sun~et~al.~\cite{gptscan} because GPTScan invokes OpenAI model aliases whose underlying snapshots have been redirected since 2023, and our April~2026 reruns produced rule activations at different functions than the published results; per-case latency in Fig.~\ref{fig:rq3-time} still uses our reruns because per-case timings were not published.
+Table~\ref{tab:rq3-mitigation} uses a scope-aware classification---N/A marks cases outside each tool's design scope, not detection failures---because the paper's argument concerns design-space coverage rather than in-scope effectiveness.
+Under an empirical-only alternative that counts any absence of a target-level warning as \ding{55}, none of IntentChecker's 20 \ding{51} entries would change.
 
 \section{Discussion}\label{sec:discussion}
 
@@ -1493,7 +1481,8 @@ This reconstruction step is not free, and it is exactly the step that the L5 (bu
 \noindent\textbf{Effort 2: supplying debug annotations for realistic execution paths.}
 Even for code whose intent is clear, IntentChecker can only analyze the path that the developer's debug annotations actually exercise.
 @StateVar, @LocalVar, and @IReturn require the developer to choose representative ranges; choosing ranges that miss the buggy region produces a false negative, while choosing ranges that are too wide invites widening and produces uninformative Warning judgments.
-This is the standard cost of any annotation-based analysis and is well understood, but it remains a non-trivial barrier to adoption.
+The range choice also fixes the soundness envelope: a Satisfied judgment provably holds for every combination of values within the declared ranges (from the set-theoretic definition of the comparison primitive in §\ref{sec:intent-semantics} applied pointwise) but not outside them, so a bug that only manifests at representable-value boundaries can be missed.
+This is the standard cost of any annotation-based analysis---traditional debuggers also only execute the inputs the developer provides---and developers mitigate it by iteratively refining ranges when Warning results draw attention to specific sub-intervals.
 
 \smallskip
 \noindent\textbf{The circularity objection.}
@@ -1513,41 +1502,7 @@ For debug annotations, the LLM could propose representative ranges based on the 
 Beyond annotation suggestion, an LLM that has access to IntentChecker's Violated judgment and violated region could also propose code edits that move the violated region out of the reachable interval, effectively turning the awareness signal into a candidate fix.
 We deliberately leave both directions as future work; what matters for this paper is that they are natural extensions enabled by, rather than blocked by, the current design.
 
-\smallskip
-\noindent\textbf{Developer study.}
-This paper evaluates IntentChecker through structural analysis---what the tool can and cannot detect (RQ1), what the intent model can and cannot express (RQ2), and how the tool compares with existing detectors (RQ3)---rather than through a developer study measuring perceived usability or annotation intuitiveness.
-A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery compared to existing debugging workflows.
-Designing such a study requires careful attention to participant recruitment (sufficient Solidity expertise) and ecological validity (realistic development tasks rather than isolated code snippets), and we defer it to future work as an independent evaluation axis that builds on the structural foundation established here.
-
-\subsection{Remaining Technical Limitations}\label{sec:disc:tech}
-
-In addition to the annotation authoring burden discussed above, three classes of technical limitations remain in the current implementation.
-
-\smallskip
-\noindent\textbf{Multi-transaction invariants.}
-IntentChecker's analysis scope is multi-contract but single-transaction.
-A whole class of important numeric properties cannot be expressed within a single transaction because they relate quantities established by different transactions in the contract's lifetime.
-The canonical example is the ERC20 conservation invariant totalSupply == sum(balances): any single function execution may temporarily increment one side and not the other, but across the entire transaction history the two must agree.
-Another example is the price oracle manipulation pattern, where the buggy behavior only manifests when one transaction sets up state that a later transaction reads.
-Validating such properties would require tracking state across transactions and aggregating across all balance entries, both of which lie outside the current single-transaction interval-domain analysis.
-This is a known boundary of the development-time intent validation approach we have taken, and is more naturally addressed by post-hoc tools or formal verification frameworks that analyze entire contract lifecycles.
-
-\smallskip
-\noindent\textbf{Non-arithmetic Yul and other unsupported Solidity constructs.}
-The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(c) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
-However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
-The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, address(this).balance (whose value depends on the EVM-level execution context rather than on tracked state), and other built-ins whose results depend on opaque cryptographic or VM-level operations.
-Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Figure~\ref{fig:rq1-limitations}).
-Extending the Yul visitor to handle memory and storage opcodes and the abstract interpreter to handle a wider set of opaque builtins is a meaningful but bounded engineering task.
-
-\smallskip
-\noindent\textbf{Soundness bounded by debug annotation scope.}
-IntentChecker's analysis is sound within the ranges declared by debug annotations: when the validation engine reports Satisfied, the declared intent provably holds for every combination of values in those ranges---this follows from the set-theoretic definition of the comparison primitive (§\ref{sec:intent-semantics}) applied pointwise to each annotation.
-The guarantee does not extend outside those ranges.
-A bug that only manifests at the boundary of a parameter's representable values, but not in the range the developer chose for @LocalVar, will not appear in any judgment.
-This is an inherent characteristic of debugging tools---traditional debuggers also only execute the inputs the developer provides---and we encourage developers to use representative ranges and to iteratively refine them when Warning results draw attention to specific sub-intervals.
-
-\subsection{Practical Annotation Guidelines}\label{sec:disc:guidelines}
+\subsection{Intent Annotation Guidelines}\label{sec:disc:guidelines}
 
 The annotation grammar (§\ref{sec:design}) defines what can be written; the question that remains is when a developer should write which annotation.
 The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations are not the ones that verify what the developer did write, but the ones that catch what the developer forgot to write.
@@ -1572,6 +1527,33 @@ Solidity's integer division truncates at every intermediate step, and the result
 Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
 Writing the intent annotation in the ideal form---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the truncated code path against the non-truncated reference, surfacing the discrepancy automatically.
 This pattern accounts for 7 of the 20 mitigated cases (Div In Path, Operator Order Issue, Exchange Problem, and Precision Loss Trend), all of which were caught by annotations that express the mathematically correct expression rather than restating what the code already does.
+
+\subsection{Limitations}\label{sec:disc:tech}
+
+Beyond the annotation authoring burden discussed in §\ref{sec:disc:burden}, two tool-side technical boundaries and one methodological limit of the present evaluation remain.
+
+\smallskip
+\noindent\textbf{Multi-transaction scope.}
+IntentChecker's analysis scope is multi-contract but single-transaction.
+A whole class of important numeric properties cannot be expressed as an intent within a single transaction because they relate quantities established by different transactions in the contract's lifetime.
+The canonical example is the ERC20 conservation property totalSupply == sum(balances): any single function execution may temporarily increment one side and not the other, but across the entire transaction history the two must agree.
+Another example is the price oracle manipulation pattern, where the buggy behavior only manifests when one transaction sets up state that a later transaction reads.
+Capturing such properties as intents would require tracking state across transactions and aggregating across all balance entries, both of which lie outside the current single-transaction interval-domain analysis.
+This is a known boundary of the development-time intent validation approach we have taken, and is more naturally addressed by post-hoc tools or formal verification frameworks that analyze entire contract lifecycles.
+
+\smallskip
+\noindent\textbf{Non-arithmetic Yul and other unsupported Solidity constructs.}
+The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(c) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
+However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
+The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, address(this).balance (whose value depends on the EVM-level execution context rather than on tracked state), and other built-ins whose results depend on opaque cryptographic or VM-level operations.
+Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Fig.~\ref{fig:rq1-limitations}).
+Extending the Yul visitor to handle memory and storage opcodes and the abstract interpreter to handle a wider set of opaque builtins is a meaningful but bounded engineering task.
+
+\smallskip
+\noindent\textbf{Evaluation methodology: developer study.}
+This paper evaluates IntentChecker through structural analysis---what the tool can and cannot detect (RQ1), what the intent model can and cannot express (RQ2), and how the tool compares with existing detectors (RQ3)---rather than through a developer study measuring perceived usability or annotation intuitiveness.
+A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery compared to existing debugging workflows.
+Designing such a study requires careful attention to participant recruitment (sufficient Solidity expertise) and ecological validity (realistic development tasks rather than isolated code snippets), and we defer it to future work as an independent evaluation axis that builds on the structural foundation established here.
 
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
@@ -1654,7 +1636,7 @@ IntentChecker also extends SolQDebug's analysis scope beyond a single contract t
 
 \section{Conclusion}\label{sec:conclusion}
 
-We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) an intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each annotation to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
+We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) a value-level intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each annotation to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
 On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated judgments at interactive speeds (mean 3.69\,s per case).
 RQ2's expressibility analysis showed that 14 of the 34 intent-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the intent model.
