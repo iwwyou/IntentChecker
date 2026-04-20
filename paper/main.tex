@@ -1288,7 +1288,7 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violat
 \smallskip
 \noindent\textbf{Limitation type definitions.}
 \begin{itemize}
-  \item \textbf{Analysis-engine limits (L1--L3, 21 cases).}
+  \item \textbf{L1--L3 (Analysis-engine limits, 21 cases).}
   \begin{itemize}
     \item \textbf{L1a (Loop widening, 8).} A variable that the bug check depends on is widened to $\top$ inside a preceding loop, and the $\top$ propagates past the loop exit to the check point.
     \item \textbf{L1b (Loop body granularity, 2).} The bug manifests at a specific point inside a loop body, but the analyzer's state at that point is a single summary joined over all iterations. Per-iteration observation is not a check point the intent annotation model exposes.
@@ -1298,54 +1298,31 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violat
   \end{itemize}
   \noindent In these 21 cases, the analyzer's state at the check point is too coarse to distinguish the bug---either a $\top$ value (L1a, L2a, L2b, L3) or a summary joined across loop iterations (L1b). Such a state spans both the developer's intended range and outside it, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that applies equally to the buggy and bug-free code. They are residual failures after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied symbolic values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant state at the check point falls into one of the specific failure modes enumerated above.
 
-  \item \textbf{Annotation-layer limits (L4, L5, 34 cases).}
+  \item \textbf{L4--L5 (Annotation-layer limits, 34 cases).}
   \begin{itemize}
-    \item \textbf{Grammar expressibility limit (L4, 20 cases).} The annotation grammar targets relationships among the variables the target function uses. The correct specification for these cases lies outside that scope---typically because it requires referencing external computations or variables the function does not use.
-    \item \textbf{Bug-awareness limit (L5, 14 cases).} The correct specification lies within the annotation grammar's scope---it can be written as a relationship among the variables the target function uses. Writing it requires the developer to articulate the intended relationship with enough precision to distinguish it from the buggy one, which in practice presupposes having already recognized the bug.
+    \item \textbf{L4 (Grammar expressibility limit, 20 cases).} The annotation grammar targets relationships among the variables the target function uses. The correct specification for these cases lies outside that scope---typically because it requires referencing external computations or variables the function does not use.
+    \item \textbf{L5 (Bug-awareness limit, 14 cases).} The correct specification lies within the annotation grammar's scope---it can be written as a relationship among the variables the target function uses. Writing it requires the developer to articulate the intended relationship with enough precision to distinguish it from the buggy one, which in practice presupposes having already recognized the bug.
   \end{itemize}
+
+  \noindent To distinguish the bug patterns IntentChecker's value-level intent model can address from those that fall outside its scope, we further classify the 34 cases along two orthogonal axes:
+  \begin{itemize}
+    \item \textbf{Bug nature.} A \textbf{Value} bug is a logic error at the value level, such as a wrong operator, swapped identifier, or missing assignment. An \textbf{Algorithm} bug is a logic error at the algorithm level, such as operation ordering, or a missing procedure call.
+    \item \textbf{Reference location.} A \textbf{Usable} reference is bound to a variable the function already reads, such as a local variable, parameter, or contract state variable. An \textbf{Unusable} reference is bound elsewhere, such as in external contract state, in the return of a call the function does not make, or in no variable the program represents at all.
+  \end{itemize}
+
+  \noindent The four resulting cells partition the 34 cases. We illustrate each cell with a representative bug from our benchmark.
+  \begin{itemize}
+    \item \textbf{Value / Usable (13).} An in-function variable holds the correct value or relation, but the buggy code references the wrong one, or a state update that should have named a specific variable is missing. Twelve cases are L5, and one is an L4 case where the grammar cannot express the exact magnitude of the required state transition. In 113\_H\_05 (NFTPairWithOracle.\_lend), the buggy require statement reverses the intended comparison between offer.ltvBPS and userProfile.maxLTV, and both are in-scope parameters of the function.
+    \item \textbf{Value / Unusable (8).} No in-function variable stands in for the correct value needed at the check point. All eight cases are L4. In 25\_H\_05 (CTokenMultiOracle.\_setSource), the function hardcodes 18 as the price-feed decimals. The correct value would come from calling the feed's decimals function, which the target function never does.
+    \item \textbf{Algorithm / Usable (3).} All relevant variables are in scope, but the correct specification is a structural relation---a multi-variable invariant, an operation ordering, or a missing helper call---that the grammar does not directly support. Two cases are L5, and one is an L4 case requiring arithmetic over Entry and Exit values. In 112\_H\_01 (StakerVault.transfer), the balance update precedes the checkpoint push, whereas the sibling transferFrom establishes the correct order. Both state variables are accessible to the function.
+    \item \textbf{Algorithm / Unusable (10).} The correct specification is a structural relation and requires references outside the function's scope. All ten cases are L4. In 51\_H\_04 (SwapUtils.getYC), a swap crossing the target price requires splitting at the crossing point where the amplifier changes. This point is the solution to a nonlinear equation and appears nowhere in the program as a named variable.
+  \end{itemize}
+  \noindent These 34 cases reveal two properties of the value-level intent model. First, expressibility and awareness separate cleanly: all 14 L5 cases fall in Usable cells, and all 18 Unusable cases fall in L4. Once the corrective reference is reachable, expressibility is no longer the blocker---awareness is. Once it lies outside the function's scope, no annotation closes the gap regardless of awareness. Second, the Algorithm half is L4-heavy (11 of 13), confirming that structural relations---operation ordering, multi-variable invariants, missing-call patterns---lie outside the value-level grammar's design target. Within the expressible scope, the 14 L5 cases are catalogued with per-case annotations in the supplementary material~\citep{rq2supp}.
 \end{itemize}
 
 \smallskip
-\noindent\textbf{Matrix classification by structural cause.} To locate each of the 34 cases within IntentChecker's value-level intent model---distinguishing the bug shapes it handles natively from those that fall outside its design scope---we classify them along two orthogonal axes:
-\begin{itemize}
-  \item \textbf{Bug nature.} Whether the fix swaps a value or identifier (\textbf{Value}) or restructures the computation itself (\textbf{Algorithm}).
-  \item \textbf{Reference location.} Whether the correct reference value is already bound to a named variable inside the function (\textbf{Usable}) or lies in external state or in a view call the function never makes (\textbf{Unusable}).
-\end{itemize}
-The four resulting cells partition the 34 cases:
-
-\begin{itemize}
-  \item \textbf{Value / Usable (13).} An in-function variable holds the correct value or relation, but the buggy code references the wrong one, or a state update that should have named a specific variable is missing. The fix is a one-line identifier, operator, or assignment change. Twelve cases are L5, and one is an L4 case where the grammar cannot express the exact magnitude of the required state transition.
-  \item \textbf{Value / Unusable (8, all L4).} No in-function variable stands in for the correct value. The function would need a new parameter or an additional call to make it reachable.
-  \item \textbf{Algorithm / Usable (3).} All relevant variables are in scope, but the correct specification is a structural relation---a multi-variable invariant, an operation ordering, or a missing helper call---that the grammar does not directly support. Two cases are L5, and one is an L4 case requiring arithmetic over Entry and Exit values.
-  \item \textbf{Algorithm / Unusable (10, all L4).} The fix needs both structural restructuring and values outside the function's scope.
-\end{itemize}
-
-\smallskip
-\noindent\textbf{Representative examples.}
-We illustrate one case per matrix cell to make the contrast specific.
-
-\noindent Value / Unusable --- web3bugs\_25\_H\_05 (CTokenMultiOracle.\_setSource). The function hardcodes \texttt{18} as the price-feed decimals instead of querying the feed's own \texttt{decimals()}. The correct value is the return of a call the function never makes, and no local variable holds it. Any annotation written over in-scope variables reduces to the same \texttt{18} that the buggy code already uses, so the correct expected value is simply not reachable from the function's scope.
-
-\noindent Value / Usable --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The function's entry guard uses the wrong comparison direction: \texttt{require(offer.ltvBPS >= userProfile.maxLTV)}, where the intended invariant is that the offered loan-to-value must not exceed the user's maximum. Under bug awareness, the developer captures this intent directly:
-\begin{verbatim}
-// @Post offer.ltvBPS <= userProfile.maxLTV
-\end{verbatim}
-The annotation sits in the intent layer: it names the invariant the function should enforce, independent of how the require statement implements it. It fires Violated on the buggy version (the loosened guard admits executions where \texttt{ltvBPS > maxLTV}) and is satisfied on the corrected version.
-
-\noindent Algorithm / Unusable --- web3bugs\_51\_H\_04 (SwapUtils.getYC). When a swap crosses a StableSwap target price, the amplifier coefficient switches mid-trade, and the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. But the split point $dx_1$ is the solution to a nonlinear equation, does not appear anywhere in the program, and is not a closed-form arithmetic combination of in-scope variables. No intentValue expression can capture the correct getY return.
-
-\noindent Algorithm / Usable --- web3bugs\_112\_H\_01 (StakerVault.transfer). The function updates the sender's balance before recording the checkpoint, but the sibling \texttt{transferFrom} establishes the correct order: the checkpoint must capture the pre-transfer balance, so it must be pushed first. Under bug awareness, the developer writes
-\begin{verbatim}
-// @During line=112 changed(checkpoints[from], true)
-\end{verbatim}
-which asserts that at the point where the balance is about to change, the checkpoint has already been updated. The annotation fires Violated on the buggy version (the checkpoint has not yet moved) and is satisfied on the corrected version. The specification names a structural constraint---the relative order of two state updates---within the grammar's value-change vocabulary.
-
-\smallskip
-\noindent\textbf{Implications.}
-
-\noindent\textit{Value-level specialization shapes the failure distribution.} The grammar targets value relations between in-scope variables; this is where annotations are both expressible and meaningful. All 14 L5 cases fall in Usable cells, and all 18 Unusable cases fall in L4. Once the corrective reference is reachable, expressibility is no longer the blocker---awareness is. Once the reference lies outside the function's scope, no annotation the developer writes can close the gap, regardless of awareness. The Algorithm half is L4-heavy (11 of 13): structural relations---operation ordering, multi-variable invariants, missing-call patterns---lie outside the value-level grammar's design target. This skew is an architectural property of the value-level intent model, not a tuning gap, and the 10 Algorithm / Unusable cases call for a complementary paradigm (temporal properties over traces, structural pattern checks) rather than a value-level extension.
-
-\noindent\textit{Residual diagnostic at the engine boundary.} For the 21 L1--L3 cases, Warning rather than Violated fires at the check point. It does not flag the specific bug but marks the region where the analyzer's abstract state is too coarse to evaluate the annotation definitively---weaker than RQ1's Violated judgments but a usable review nudge. Two L4 cases sit inside Usable cells (35\_H\_10, 36\_H\_02); both require arithmetic over Entry and Exit values that the current PostEntryExit form does not express. This grammar direction is discussed in \S\ref{sec:disc:tech}.
+\noindent\textbf{Summary.}
+RQ2 decomposes the 55 failure cases into two layers. The engine-layer limits (L1--L3, 21 cases) are architectural: abstract-interpretation precision is insufficient at the check point, yielding Warning rather than Violated. The annotation-layer limits (L4--L5, 34 cases) delineate the design scope of the value-level intent model: in-scope value relations are expressible, while structural or externally-referenced properties lie outside it. This scope is a design choice, and it defines the niche where IntentChecker's specification-driven workflow delivers the sub-10-second Violated signals RQ1 reports---a complement to pattern- and type-driven tools rather than a replacement for them (RQ3).
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
@@ -1457,8 +1434,6 @@ IntentChecker (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, determinis
 GPTScan (mean 267\,s) is approximately 59$\times$ slower due to its multi-step LLM pipeline, and NumScout (mean 772\,s, median 517\,s over 20 cases) is slower still, with several Web3Bugs cases running to the 1800\,s global timeout set by NumScout's symbolic-execution backend.
 GPTScan's per-case latency is dominated by sequential OpenAI API round-trips over its two-step LLM filter, and its pipeline structure has not changed since 2023; the order-of-magnitude comparison (seconds vs.\ minutes per case) is therefore insensitive to the model-snapshot changes that affect mitigation outputs (§\ref{sec:threats}).
 The sub-10-second latency of IntentChecker makes it suitable for integration into CI/CD pipelines or interactive editor feedback loops, where developers expect near-instant responses.
-
-
 
 \smallskip
 \noindent\textbf{Summary.}
@@ -1746,6 +1721,9 @@ IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accesse
 
 \bibitem[IntentChecker(2026b)]{dappscananalysis}
 IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/DappSCAN_contract_analysis} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026c)]{rq2supp}
+IntentChecker: RQ2 supplementary material---L4/L5 case classifications and annotations. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ2} (2026). Accessed April 2026
 
 \bibitem[Kong et~al.(2023)]{defitainter}
 Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124
