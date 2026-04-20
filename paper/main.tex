@@ -1233,8 +1233,8 @@ These results suggest that IntentChecker is practical as a development-time vali
 
 \subsection{RQ2: Unmitigated Case Analysis}\label{sec:rq2}
 
-\noindent\textbf{Setup.}
-RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violated judgment on the buggy code into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
+\noindent\textbf{Overview.}
+RQ2 classifies the 55 instances for which IntentChecker cannot produce a 'Violated' judgment on the buggy code into analysis-engine limitations (L1--L3) and annotation-grammar limitations (L4--L5), and further examines the expressibility of the annotation grammar within L4--L5 (Figure~\ref{fig:rq1-limitations}).
 
 \begin{figure}[t]
 \centering
@@ -1290,13 +1290,13 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
 \begin{itemize}
   \item \textbf{Analysis-engine limits (L1--L3, 21 cases).}
   \begin{itemize}
-    \item \textbf{L1a (Loop widening, 8).} A variable that the bug check depends on is widened to $\top$ inside a preceding loop, and the $\top$ propagates past the loop exit to the check point. The widened interval admits both the buggy and correct outcomes, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that offers no actionable signal distinguishing the buggy code from the corrected one.
-    \item \textbf{L1b (Loop body granularity, 2).} The bug manifests only at a specific iteration of a loop, but the analyzer's state inside the loop body is a single summary joined over all iterations, so an @During annotation placed there cannot single out the faulty iteration.
+    \item \textbf{L1a (Loop widening, 8).} A variable that the bug check depends on is widened to $\top$ inside a preceding loop, and the $\top$ propagates past the loop exit to the check point.
+    \item \textbf{L1b (Loop body granularity, 2).} The bug manifests at a specific point inside a loop body, but the analyzer's state at that point is a single summary joined over all iterations. Per-iteration observation is not a check point the intent annotation model exposes.
     \item \textbf{L2a (Interface call return $\top$, 3).} The bug check depends on a value derived from a state-modifying interface call. The implementation is unavailable and @IReturn applies only to view/pure calls (§\ref{sec:prelim:extension}(b)), so the return collapses to $\top$ and propagates to the check point.
     \item \textbf{L2b (External call, unknown external state, 1).} The bug check depends on the return of a cross-contract call whose implementation is available through dependency pre-analysis. An L1, L2a, or L3 pattern within the callee's own body causes $\top$ to propagate to its return value, which then reaches the check point.
     \item \textbf{L3 (Unsupported construct, 7).} The bug check depends on a value that flows through an unsupported construct---abi.decode, opaque hash builtins, or non-arithmetic Yul---which the analyzer treats as $\top$, and the $\top$ propagates to the check point.
   \end{itemize}
-  \noindent In these 21 cases, the analyzer abstracts the bug-relevant value to $\top$, so the interpreter cannot distinguish buggy from correct executions and no developer annotation can recover the lost precision. They are residual failures after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied concrete values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis; L1--L3 arise only when the bug-relevant value flows through the specific failure modes enumerated above.
+  \noindent In these 21 cases, the analyzer's state at the check point is too coarse to distinguish the bug---either a $\top$ value (L1a, L2a, L2b, L3) or a summary joined across loop iterations (L1b). Such a state spans both the developer's intended range and outside it, so the annotation evaluates to Warning rather than Violated---an ambiguous judgment that applies equally to the buggy and bug-free code. They are residual failures after the analyzer's precision mechanisms---annotation-guided adaptive widening inherited from SolQDebug~\citep{solqdebug}, debug-annotation-supplied literal values, and dependency pre-analysis for cross-contract resolution---have been applied. The presence of a loop, an external call, or a low-level construct does not by itself block analysis. L1--L3 arise only when the bug-relevant state at the check point falls into one of the specific failure modes enumerated above.
 
   \item \textbf{Annotation-layer limits (L4, L5, 34 cases).}
   \begin{itemize}
@@ -1309,54 +1309,45 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
 \noindent\textbf{Matrix classification by structural cause.} Across both L4 and L5, we further classify the 34 cases along two orthogonal axes rooted in the bug itself and its scope. Bug nature asks whether the fix swaps a value or identifier (Value) or restructures the computation itself (Algorithm). Reference location asks whether the correct reference value is already bound to a named variable inside the function (Usable) or lives in external state or in a view call the function never makes (Unusable). The four resulting cells partition the 34 cases:
 
 \begin{itemize}
-  \item \textbf{Value / Usable (13).} An in-function variable holds the correct value or relation, but the buggy code references the wrong one---or a state update that should have named a specific variable is missing. The fix is a one-line identifier, operator, or assignment change. Twelve cases are L5; one is an L4 case where the grammar cannot express the exact magnitude of the required state transition.
-  \item \textbf{Value / Unusable (8, all L4).} No in-function variable stands in for the correct value; the function would need a new parameter or an additional call to make it reachable.
+  \item \textbf{Value / Usable (13).} An in-function variable holds the correct value or relation, but the buggy code references the wrong one, or a state update that should have named a specific variable is missing. The fix is a one-line identifier, operator, or assignment change. Twelve cases are L5, and one is an L4 case where the grammar cannot express the exact magnitude of the required state transition.
+  \item \textbf{Value / Unusable (8, all L4).} No in-function variable stands in for the correct value. The function would need a new parameter or an additional call to make it reachable.
   \item \textbf{Algorithm / Usable (3).} All relevant variables are in scope, but the correct specification is a structural relation---a multi-variable invariant, an operation ordering, or a missing helper call---that the grammar does not directly support. Two cases are L5, and one is an L4 case requiring arithmetic over Entry and Exit values.
   \item \textbf{Algorithm / Unusable (10, all L4).} The fix needs both structural restructuring and values outside the function's scope.
 \end{itemize}
 
 \smallskip
-\noindent\textbf{Annotation precision within L5.}
-Even when expressible, the annotation's precision varies. The 14 L5 cases split evenly into two tiers:
-
-\begin{itemize}
-  \item \textbf{Strong (7).} The annotation expresses the correct value or relation exactly---a fix-equivalent specification. Strong cases are wrong-code bugs: a swapped operator, wrong struct field, or wrong identifier. Writing the annotation is essentially writing the fix.
-  \item \textbf{Weak (7).} The annotation captures only that a variable changed, or did not, in a particular direction (\texttt{changed(var, true/false)} or \texttt{var(Entry relOp Exit)}). It says ``something should happen here'' without naming the exact magnitude. Weak cases are missing-code bugs: a required state update or helper call is absent.
-\end{itemize}
-
-\smallskip
 \noindent\textbf{Representative examples.}
-We illustrate one case per matrix cell to make the contrast concrete.
+We illustrate one case per matrix cell to make the contrast specific.
 
 \noindent Value / Unusable --- web3bugs\_61\_H\_04 (YearnYield.getTokensForShares). The buggy line divides a Yearn vault share price by \texttt{1e18} instead of \texttt{10**vault.decimals()}. The correct divisor is the return of a \texttt{decimals()} call that the function never makes, and no local variable holds its value. Any annotation written over in-scope variables reduces to the same \texttt{1e18}-scaled form that the buggy code already uses, so the correct expected value is simply not reachable from the function's scope.
 
-\noindent Value / Usable (Strong) --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is \texttt{require(params.ltvBPS >= accepted.ltvBPS, ...)}; the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most the ceiling the lender accepts). Under bug awareness, the annotation is direct:
+\noindent Value / Usable --- web3bugs\_113\_H\_05 (NFTPairWithOracle.\_lend). The buggy line is \texttt{require(params.ltvBPS >= accepted.ltvBPS, ...)}, and the correct comparison is $\leq$ (a lender wants the borrower's LTV to be at most the ceiling the lender accepts). Under bug awareness, the annotation is direct:
 \begin{verbatim}
 // @During params.ltvBPS <= accepted.ltvBPS
 \end{verbatim}
 The buggy version violates it cleanly, and the corrected version satisfies it. The annotation is essentially the corrective require.
 
-\noindent Value / Usable (Weak) --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs \texttt{transferFrom} for an additional \texttt{\_amount} but forgets to update \texttt{totalLocked[\_asset]}. Under bug awareness, the developer can write
+\noindent Value / Usable --- web3bugs\_192\_H\_01 (Lock.extendLock). The function performs \texttt{transferFrom} for an additional \texttt{\_amount} but forgets to update \texttt{totalLocked[\_asset]}. Under bug awareness, the developer can write
 \begin{verbatim}
 // @Post totalLocked[_asset](Entry < Exit)
 \end{verbatim}
 which fires Violated on the buggy version (the variable does not change, so Entry == Exit) and is satisfied on a corrected version that adds \texttt{totalLocked[\_asset] += \_amount}. The annotation tells the developer that the variable should grow, but not by how much---the precise increment \texttt{\_amount} is not encoded. This is an awareness signal, not a fix-equivalent specification.
 
-\noindent Algorithm / Unusable --- web3bugs\_51\_H\_04 (SwapUtils.getYC). When a swap crosses a StableSwap target price, the amplifier coefficient switches mid-trade; the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. But the split point $dx_1$ is the solution to a nonlinear equation, does not appear anywhere in the program, and is not a closed-form arithmetic combination of in-scope variables. No intentValue expression can capture the correct getY return.
+\noindent Algorithm / Unusable --- web3bugs\_51\_H\_04 (SwapUtils.getYC). When a swap crosses a StableSwap target price, the amplifier coefficient switches mid-trade, and the correct behavior is to split the swap at the crossing point and apply each amplifier to its sub-swap. But the split point $dx_1$ is the solution to a nonlinear equation, does not appear anywhere in the program, and is not a closed-form arithmetic combination of in-scope variables. No intentValue expression can capture the correct getY return.
 
-\noindent Algorithm / Usable --- web3bugs\_36\_H\_02 (Basket.auctionBurn). After \texttt{\_burn} reduces \texttt{totalSupply}, the correct invariant is that the product \texttt{ibRatio * totalSupply} be preserved across the call---\texttt{(Entry == Exit)} on the product. Both variables are in scope, but the PostEntryExit form supports only qualitative comparisons between Entry and Exit; a multi-variable arithmetic relation cannot be expressed.
+\noindent Algorithm / Usable --- web3bugs\_36\_H\_02 (Basket.auctionBurn). After \texttt{\_burn} reduces \texttt{totalSupply}, the correct invariant is that the product \texttt{ibRatio * totalSupply} be preserved across the call---\texttt{(Entry == Exit)} on the product. Both variables are in scope, but the PostEntryExit form supports only qualitative comparisons between Entry and Exit, and a multi-variable arithmetic relation cannot be expressed.
 
 \smallskip
 \noindent\textbf{Implications.}
-What does this matrix reveal about IntentChecker's experimental coverage?
+What do these limitation patterns reveal about IntentChecker's experimental coverage?
+
+For the 21 L1--L3 cases, the Warning signal at the check point is not actionable as mitigation. It fires on both the buggy and bug-free code, so a developer cannot read it as evidence of the specific bug in question. The Warning nonetheless flags the check point as a location where the analyzer's state is too coarse to evaluate the annotation definitively, which can serve as a prompt to re-examine the semantics of that region---a review nudge rather than a mitigation signal. This residual utility is weaker than the Violated judgments RQ1 reports, but it preserves some diagnostic value even at the boundary of the engine's observable state.
 
 The Unusable cells (18 cases) mark a structural boundary of the value-level intent model. When the corrective reference lives outside the function's scope, no annotation a developer writes today can close the gap---this is a property of the intent language, not a tuning failure. The 10 cases in Algorithm / Unusable form the hardest subset: the bug is a missing or misplaced operation, and the developer's true intent is about what the code should \textit{do} rather than about any variable's value. These cases call for a complementary modeling paradigm---temporal properties over execution traces or structural pattern checks---rather than a value-level extension.
 
-The Usable Strong cells (7 cases) define IntentChecker's strongest regime: when the bug is a swapped operator, struct field, or identifier, a reviewer who compares against a sibling function or natural convention writes a fix-equivalent annotation, and the tool surfaces the bug immediately. These are the cases where IntentChecker amplifies careful review rather than replacing it.
+Within the 14 Usable L5 cases, annotation precision varies with bug type. Wrong-code bugs---a swapped operator, wrong struct field, or wrong identifier---yield fix-equivalent annotations: a reviewer comparing against a sibling function or natural convention writes a specification that essentially encodes the corrective patch (e.g., the \texttt{ltvBPS} comparison in 113\_H\_05). Missing-code bugs---an absent state update or helper call---yield directional annotations: the grammar can say ``this variable must change'' but does not pin the magnitude (e.g., the \texttt{totalLocked} omission in 192\_H\_01). Both fire Violated correctly and are therefore actionable. The former is closer to a specification, while the latter is closer to a nudge that still leaves the corrective value for the developer to supply.
 
-The Usable Weak cells (7 cases) occupy a useful but imprecise regime: the grammar can say ``this variable must change'' but not by how much. The tool fires Violated correctly, but the developer still has to determine the corrective value. The annotation acts as a nudge, not a spec.
-
-Two Usable cases---one in Value, one in Algorithm---sit in a narrow grammar-limit pocket that is neither Strong nor Weak: both require arithmetic over Entry and Exit values, which the current PostEntryExit form does not express. This and related grammar directions are discussed in \S\ref{sec:disc:tech}.
+Two Usable L4 cases---one in Value (35\_H\_10) and one in Algorithm (36\_H\_02)---sit in a narrow grammar-limit pocket: both require arithmetic over Entry and Exit values, which the current PostEntryExit form does not express. This and related grammar directions are discussed in \S\ref{sec:disc:tech}.
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
