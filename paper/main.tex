@@ -163,7 +163,7 @@ A validation engine applies this intent model to determine whether the developer
 
 IntentChecker is evaluated on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
 The evaluation is organized around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
-Importantly, our positioning with respect to existing tools is complementary rather than competitive: IntentChecker fills a distinct place in the development workflow by enabling intent-driven validation during editing, and is intended to coexist with auditing-time detectors rather than replace them.
+IntentChecker is positioned as a development-time complement to existing auditing-time detectors: it enables intent-driven validation during editing rather than competing with bug-pattern detectors on detection accuracy, and the RQ3 comparison is designed around this complementarity.
 
 \begin{table}[!t]
     \centering
@@ -189,9 +189,9 @@ Importantly, our positioning with respect to existing tools is complementary rat
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
-    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at cross-contract call boundaries (§\ref{sec:prelim}).
+    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values at cross-contract call boundaries (§\ref{sec:prelim}).
     \item A value-level intent model with a formal denotational semantics is presented, defining each annotation form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item IntentChecker is evaluated on 89 real-world numeric logic errors and positioned against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
+    \item IntentChecker is evaluated on 89 real-world numeric logic errors and benchmarked against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---with empirical results showing measurable differences in latency and coverage that substantiate the complementary positioning of development-time intent validation against auditing-time bug detection (§\ref{sec:evaluation}).
 \end{itemize}
 
 The remainder of this paper is organized as follows.
@@ -1035,6 +1035,11 @@ The evaluation environment consists of an 11th Gen Intel\textregistered{} Core\t
 i7-11390H CPU at 3.40\,GHz with 16.0\,GB RAM, running Windows 10 (64-bit).
 
 \smallskip
+\noindent\textbf{Implementation and Execution.}
+IntentChecker is implemented in Python~3.10 on top of SolQDebug's ANTLR4-based front-end (\S\ref{sec:prelim}), and operates directly on Solidity source code without requiring compilation or deployment.
+Although IntentChecker is designed for interactive use inside a Solidity editor, all experiments simulate this behavior in a controlled scripting environment: for each function, a sequence of incremental edits and annotations reproducing realistic developer activity is reconstructed and streamed into the interpreter, so that the per-case latency reported in \S\ref{sec:rq3} reflects the same per-annotation analysis budget the tool targets in-editor.
+
+\smallskip
 \noindent\textbf{Dataset Collection.}
 We construct a benchmark of 89 real-world numeric logic error instances drawn from three complementary sources, each contributing different error patterns under IntentChecker's scope (multi-contract / single-transaction).
 
@@ -1326,13 +1331,6 @@ RQ2 decomposes the 55 failure cases into two layers. The engine-layer limits (L1
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
-We compare IntentChecker against three tools on the 20 mitigated cases from RQ1:
-\textbf{ScType}~(ICSE~'24), a static type-checker that assigns financial types (token unit, scaling factor) to variables and detects type inconsistencies;
-\textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
-\textbf{NumScout}, an LLM-pruned symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
-Table~\ref{tab:rq3-signal} summarizes the four tools' detection signals: each existing tool ships with a fixed vocabulary---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---while IntentChecker takes developer-authored @During and @Post annotations per case.
-Each tool was executed three times on the same machine. IntentChecker and ScType are deterministic; GPTScan's two-step LLM filter and NumScout's LLM-pruned symbolic execution both introduce between-run variability, which is reflected in the box-plot spread of Fig.~\ref{fig:rq3-time}.
-
 \begin{table}[t]
 \centering
 \caption{Signal characterization of the four compared tools.}
@@ -1350,16 +1348,18 @@ Target class & Developer-specified & Type inconsistency & DeFi logic (10 rules) 
 \end{tabular}
 \end{table}
 
-RQ3 asks what the outputs of these three tools on the same 20 cases reveal about the two structural constraints of post-hoc numeric-logic-error detection identified in \S\ref{sec:background}: (C1) the detection criteria are authored by the tool designer, not by the developer whose code is under analysis---the \textbf{criteria axis}; and (C2) the tool runs after the developer has left the loop---the \textbf{position axis}.
+We compare IntentChecker against three tools on the 20 mitigated cases from RQ1: ScType~\citep{sctype}, GPTScan~\citep{gptscan}, and NumScout~\citep{numscout}, whose detection mechanisms are characterized in \S\ref{sec:background}.2.
+Table~\ref{tab:rq3-signal} summarizes the four tools' detection characteristics. GPTScan and NumScout rely on detection criteria fixed entirely at design time, namely ten DeFi rules and five numeric patterns, with no external input. ScType's financial type system is also fixed at design time, but its application requires a per-project type annotation file supplied by the tool user. IntentChecker treats the developer-authored @During and @Post annotations themselves as the detection criteria, written per case.
+
+RQ3 is organized around two axes, each an empirical reading of a structural constraint identified in \S\ref{sec:background}, applied to the three tools' outputs on these 20 cases. The \textbf{criteria axis} (C1) concerns whether the detection criteria are authored by the tool designer or by the developer. The \textbf{position axis} (C2) concerns whether the tool runs during or after the developer's editing loop.
 
 \smallskip
 \noindent\textbf{Criteria axis: what each tool is asked to look for.}
-Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification: \ding{51}\,=\,in-scope hit on the target, \ding{55}\,=\,in-scope miss, \textcolor{gray}{N/A}\,=\,out-of-scope or inapplicable.
-For GPTScan we use the per-contest results published in Sun~et~al.~\cite{gptscan}; \S\ref{sec:threats} discusses the model-snapshot drift behind this choice.
+Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification. A \ding{51} marks an in-scope hit, meaning the target bug's error pattern (Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function. A \ding{55} marks an in-scope miss. \textcolor{gray}{N/A} marks cases out of the tool's design scope or where the tool cannot be applied.
 
 \begin{table}[t]
 \centering
-\caption{Mitigation results on the 20 RQ1-mitigated cases under a scope-aware classification. \ding{51}\,=\,the target bug's class (Error Pattern column of Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function; \ding{55}\,=\,in-scope but unflagged; \textcolor{gray}{N/A}\,=\,out of the tool's design scope or the tool cannot be applied. Per-tool scopes and N/A rationales are discussed in the criteria axis below.}
+\caption{Scope-aware mitigation results on the 20 RQ1-mitigated cases. Classification scheme and per-tool scopes are defined in the criteria-axis paragraphs.}
 \label{tab:rq3-mitigation}
 \scriptsize
 \begin{tabular}{@{}llcccc@{}}
@@ -1378,44 +1378,46 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 45\_H\_01 & UToken.borrow & \ding{51} & \textcolor{gray}{N/A} & \ding{51} & \textcolor{gray}{N/A} \\
 47\_H\_02 & WrappedIbbtcEth.transferFrom & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 51\_H\_02 & SwapUtils.rampTargetPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
-56\_H\_02 & CDP.update & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+56\_H\_02 & CDP.update & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 58\_H\_02 & LpIssuer.\_chargeFees & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 60\_H\_01 & OptimisticLedgerLib.settleAccount & \ding{51} & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 62\_H\_08 & Stream.updateStreamInternal & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
-70\_H\_10 & LiquidityBasedTWAP.syncVaderPrice & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+70\_H\_10 & LiquidityBasedTWAP.syncVaderPrice & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 77\_H\_01 & MathLib.calcLiqTokenQty & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 78\_H\_02 & RebaseProxy.mint & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
-101\_H\_01 & LenderPool.\_calcPrincipalWithdrawable & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
+101\_H\_01 & LenderPool.\_calcPrincipalWithdrawable & \ding{51} & \ding{55} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \smallskip
-\indent\textbf{Pattern-driven vocabularies (GPTScan, NumScout).}
+\indent\textbf{Pattern-driven criteria (GPTScan, NumScout).}
 GPTScan's ten DeFi rules and NumScout's five numeric patterns define two fixed catalogs of buggy shapes.
 Within those catalogs the tools perform as designed: NumScout flags the five NumScout-origin samples in Table~\ref{tab:rq3-mitigation}---WANGMI (Div~In~Path), Nokon and HIT (Exchange~Problem), BoostToken/operator (Operator~Order~Issue), and BoostToken/indivisible (Minor~Amount~Retention)---and GPTScan's published per-contest results list 45\_H\_01 as a Wrong~Order~for~Interest hit on \texttt{UToken.borrow}, the one case among the seven overlapping Web3Bugs contests that matches its rule set.
 NumScout's LLM-pruned path selection introduces run-to-run variability: WANGMI, Nokon, and HIT reproduce their pattern detection in all three runs, while BoostToken/operator and BoostToken/indivisible surface the pattern in one of three runs; we mark both as \ding{51} in Table~\ref{tab:rq3-mitigation} on the basis that the catalog covers the bug and the tool does produce the expected signal on at least one execution.
-The remaining 14 cases involve wrong-formula, wrong-scale, wrong-decimals, and missing-update errors that are not enumerated by either catalog.
-These 14 misses are not deficiencies of the respective tools---both catalogs were constructed for different threat models---but they make (C1) empirically visible: a bug is catalog-authored or undetectable, and the bug class that dominates the 20 mitigated cases sits outside both catalogs.
-We verified the class-based reading by running NumScout on the 15 out-of-catalog cases.
-None produced an actionable signal at the intent-annotated target, either reporting no warning (e.g., SwordCrowdsale, 47\_H\_02) or reporting warnings on sibling functions (e.g., on Vader's Utils.sol, NumScout's Div~In~Path warning lands on \texttt{calcCoverage} while 5\_H\_07 and 5\_H\_08 target \texttt{calcAsymmetricShare} and \texttt{calcLiquidityUnits}).
+The remaining 15 cases fall outside NumScout's five-pattern catalog, and, with the single exception of GPTScan's hit on 45\_H\_01, outside GPTScan's ten DeFi rules as well. These misses are not deficiencies of the respective tools, since the catalogs were constructed for different threat models, but they make (C1) empirically visible: a bug is catalog-authored or undetectable.
+We verified this class-based reading by running NumScout on these 15 cases.
+None produced an actionable signal at the audit-reported target function: NumScout either returned no warning or flagged its catalog patterns on neighboring functions instead.
 
 \smallskip
-\indent\textbf{Type-driven vocabulary (ScType).}
-ScType generalizes beyond a catalog of shapes: any arithmetic operation whose operand types clash under its financial type system is flagged, regardless of which specific bug pattern the clash represents.
-Within that scope ScType flags 4 of the 20 cases---\texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits}, \texttt{WrappedIbbtcEth.transferFrom}, and \texttt{OptimisticLedgerLib.settleAccount}---on all of which it pinpoints the intent-annotated target.
-The remaining 16 divide into 13 without a type annotation file (a practical applicability limit) and 3 (\texttt{CDP.update}, \texttt{syncVaderPrice}, \texttt{\_calcPrincipalWithdrawable}) that lie inside type-checking's reach but are not type-level errors: every operand carries the correct financial type, yet the arithmetic produces a numerically wrong result.
-ScType is the closest point of comparison to IntentChecker because both partially relax (C1) by requiring developer-authored artifacts.
-The difference lies in what the developer authors.
-Type labels can be assigned without the developer having any specific output value in mind, so ScType extends coverage to cases where no such value is yet known, while IntentChecker covers value-level deviations that no consistent type labeling can distinguish from the correct computation.
-The two approaches fill adjacent niches rather than compete.
+\indent\textbf{Type-driven criteria (ScType).}
+ScType generalizes beyond a catalog of shapes: any arithmetic operation whose operand types clash under its financial type system is flagged, regardless of which specific bug pattern the clash represents, and the accounting-error class of bugs sits squarely inside this target scope.
+Of the 20 cases, 7 have the per-project type annotation file ScType requires; the remaining 13 are marked N/A in Table~\ref{tab:rq3-mitigation} as a practical applicability limit.
+On the 7 applicable cases, ScType flags 4---\texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits}, \texttt{WrappedIbbtcEth.transferFrom}, and \texttt{OptimisticLedgerLib.settleAccount}---and pinpoints the intent-annotated target on each.
+The remaining 3 (\texttt{CDP.update}, \texttt{syncVaderPrice}, \texttt{\_calcPrincipalWithdrawable}) are in scope but produce no warning: every operand carries the correct financial type, and the arithmetic still produces a numerically wrong result, so the bug is real but the type layer has nothing to clash on.
+ScType is the closest point of comparison to IntentChecker because both partially relax (C1) by requiring human-authored external artifacts rather than relying solely on design-time criteria.
+The two tools differ in what the author supplies and when.
+ScType expects per-project type annotation files, a task its own evaluation positions as an auditor or reviewer responsibility derived from project documentation, which leaves the tool on the auditing side of (C2).
+IntentChecker expects per-case value-level specifications written by the developer during editing, crossing (C2) as well.
+Type labels can be assigned without the author having any specific output value in mind, so ScType extends coverage to cases where no such value is yet known, while IntentChecker covers value-level deviations that no consistent type labeling can distinguish from the correct computation.
+Type-level and value-level authoring therefore address disjoint slices of the external-artifact design space.
 
 \smallskip
-\indent\textbf{Specification-driven vocabulary (IntentChecker).}
+\indent\textbf{Specification-driven criteria (IntentChecker).}
 IntentChecker's detection criteria are authored per case by the developer as @During and @Post conditions, so the detectable set for a given contract is not fixed at design time but shaped by whatever intent the developer articulates.
 The RQ1 result of 20/20 is the direct consequence: when the audit-report root cause can be written as a value-level relation over function-scope variables, the annotation carries that relation into the analysis and any deviation surfaces as Violated or Warning.
 The ceiling of this approach was quantified in RQ2, where 34 of 55 unmitigated cases fall on the annotation-layer boundary---structural relations over out-of-scope references, or awareness-gated specifications the developer did not recognize---giving the model a definable outer edge rather than open-ended scope.
-What the comparison with pattern- and type-driven tools makes visible here is that relocating the authoring of detection criteria from tool designer to developer is precisely the move that turns scattered catalog hits into a uniform \ding{51} column on this 20-case slice.
+The uniform \ding{51} column for IntentChecker in Table~\ref{tab:rq3-mitigation} is therefore not a coverage claim over arbitrary contracts but the consequence of letting the developer supply the detection criterion on the slice where the criterion exists.
 
 \begin{figure}[t]
     \centering
@@ -1427,8 +1429,9 @@ What the comparison with pattern- and type-driven tools makes visible here is th
 \smallskip
 \noindent\textbf{Position axis: when each tool is run.}
 Fig.~\ref{fig:rq3-time} reports per-case analysis times pooled over three runs (60 observations per 20-case tool, 21 for ScType's seven applicable cases).
-IntentChecker (mean 3.7\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
+IntentChecker (mean 3.7\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds and produce identical times across the three runs.
 GPTScan (mean 266\,s) runs approximately 72$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 719\,s, median 291\,s) is slower still, with several cases running to NumScout's 1800\,s symbolic-execution timeout.
+The box-plot spread visible in Fig.~\ref{fig:rq3-time} therefore comes entirely from these two LLM-driven pipelines, whose run-to-run variability is absent in the deterministic analyses.
 NumScout's lower tail in Fig.~\ref{fig:rq3-time} (observations near 0.02\,s) corresponds to 56\_H\_02, whose target is a Solidity library (\texttt{CDP}): the standalone library bytecode contains only the public-function dispatcher, not the \texttt{internal update()} body that is inlined into its callers, so NumScout's bytecode parser completes in milliseconds without analyzing the target function---a symptom of the same bytecode-level design that produces the unresolved-library-placeholder failures on 51\_H\_02 and 77\_H\_01.
 The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the model-snapshot drift that affects GPTScan's mitigation outputs (\S\ref{sec:threats}) because its pipeline structure has been unchanged since 2023.
 These latency numbers are not IntentChecker outperforming the others on a shared task.
