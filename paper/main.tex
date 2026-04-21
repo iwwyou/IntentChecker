@@ -1352,12 +1352,12 @@ RQ3 asks what the outputs of these three tools on the same 20 cases reveal about
 
 \smallskip
 \noindent\textbf{Criteria axis: what each tool is asked to look for.}
-Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification (\ding{51}\,=\,in-scope hit on the target, \ding{55}\,=\,in-scope miss, \textcolor{gray}{N/A}\,=\,out-of-scope or inapplicable; detailed rationales in \S\ref{sec:threats}).
+Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification: \ding{51}\,=\,in-scope hit on the target, \ding{55}\,=\,in-scope miss, \textcolor{gray}{N/A}\,=\,out-of-scope or inapplicable.
 For GPTScan we use the per-contest results published in Sun~et~al.~\cite{gptscan}; \S\ref{sec:threats} discusses the model-snapshot drift behind this choice.
 
 \begin{table}[t]
 \centering
-\caption{Mitigation results on the 20 RQ1-mitigated cases under a scope-aware classification. \ding{51}\,=\,the target bug's class (Error Pattern column of Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function; \ding{55}\,=\,in-scope but unflagged; \textcolor{gray}{N/A}\,=\,out of the tool's design scope or the tool cannot be applied. Per-tool scopes and N/A rationales are discussed in the criteria axis below and §\ref{sec:threats}.}
+\caption{Mitigation results on the 20 RQ1-mitigated cases under a scope-aware classification. \ding{51}\,=\,the target bug's class (Error Pattern column of Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function; \ding{55}\,=\,in-scope but unflagged; \textcolor{gray}{N/A}\,=\,out of the tool's design scope or the tool cannot be applied. Per-tool scopes and N/A rationales are discussed in the criteria axis below.}
 \label{tab:rq3-mitigation}
 \scriptsize
 \begin{tabular}{@{}llcccc@{}}
@@ -1446,21 +1446,19 @@ It is evidence that the bug class explored across RQ1--RQ3 is the class this joi
 \subsection{Threats to Validity}\label{sec:threats}
 
 \noindent\textbf{Internal validity.}
-The intent and debug annotations in RQ1 were authored by the researchers from the audit reports, not by the original developers; a different annotator could write a slightly different annotation, and a weak one could miss a bug a stronger one would catch.
+The intent and debug annotations in RQ1 were authored by the researchers from the audit reports, not by the original developers. A different annotator could write a slightly different annotation, and an imprecise one could miss a bug a more precise annotation would catch.
 We mitigate this by deriving each annotation directly from the audit report's stated root cause and recording it alongside each case in the supplementary material for independent re-evaluation.
-Running NumScout also required a one-line fix to an UnboundLocalError in its safeTransfer handler, external to the bugs under study.
 
 \smallskip
 \noindent\textbf{External validity.}
-Our 89-case benchmark is drawn from Web3Bugs (Code4rena) and NumScout (BNB Smart Chain), which together cover a substantial portion of publicly known numeric logic errors but are not exhaustive; findings may not generalize to underrepresented domains such as zero-knowledge circuits or non-DeFi applications.
-The RQ1 correlation analysis uses $n=20$ mitigated cases, so the reported Pearson coefficients should be read as indicative trends rather than causal claims.
+Our 89-case benchmark is drawn from Web3Bugs (Code4rena), NumScout (BNB Smart Chain), and Fly-in-the-Ointment. Together these sources cover a substantial portion of publicly documented Solidity numeric logic errors but are not exhaustive, and findings may not generalize to patterns absent from these curated sources.
+The RQ1 correlation analysis is based on a small sample of $n=20$ mitigated cases, so the reported Pearson coefficients should be read as indicative trends rather than causal claims.
 
 \smallskip
 \noindent\textbf{Construct validity.}
-RQ1's ``mitigation'' relies on the validation engine producing a non-Satisfied judgment rather than a downstream measurement of developer behavior; whether a developer reading it would correctly diagnose and fix the bug is future work.
-In RQ3, GPTScan mitigation results are taken from the per-contest breakdown in Sun~et~al.~\cite{gptscan} because GPTScan invokes OpenAI model aliases whose underlying snapshots have been redirected since 2023, and our April~2026 reruns produced rule activations at different functions than the published results; per-case latency in Fig.~\ref{fig:rq3-time} still uses our reruns because per-case timings were not published.
-Table~\ref{tab:rq3-mitigation} uses a scope-aware classification---N/A marks cases outside each tool's design scope, not detection failures---because the paper's argument concerns design-space coverage rather than in-scope effectiveness.
-Under an empirical-only alternative that counts any absence of a target-level warning as \ding{55}, none of IntentChecker's 20 \ding{51} entries would change.
+RQ1's ``mitigation'' relies on the validation engine producing a Violated judgment on the buggy code rather than a downstream measurement of developer behavior. Whether a developer reading it would correctly diagnose and fix the bug is future work.
+In RQ3, GPTScan mitigation results are taken from the per-contest breakdown published with Sun~et~al.~\citep{gptscan,gptscan_web3bugs} because GPTScan invokes OpenAI model aliases whose underlying snapshots have been redirected since 2023, and our April~2026 reruns produced rule activations at different functions than the published results. Per-case latency in Fig.~\ref{fig:rq3-time} uses our reruns for all four tools to ensure the same hardware, OS, and network conditions---the fair basis for latency comparison.
+Running NumScout required a one-line source-code fix to its safeTransfer handler in \texttt{feature\_detector/semantic\_analysis.py}~\citep{numscout_semantic}, which otherwise crashed with an UnboundLocalError on some benchmark contracts. The fix renames a mis-referenced local variable and is external to NumScout's detection logic, so it does not affect its findings on the bugs under study.
 
 \section{Discussion}\label{sec:discussion}
 
@@ -1660,8 +1658,11 @@ Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the 
 \bibitem[Chen et~al.(2025)]{numscout}
 Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
 
-\bibitem[NumScout(2026)]{numscout_dataset}
+\bibitem[NumScout(2026a)]{numscout_dataset}
 NumScout: 95 Samples Experiment Dataset. \url{https://github.com/NumScout/NumScout/tree/main/Experiment/95_Samples_Run} (2026). Accessed April 2026
+
+\bibitem[NumScout(2026b)]{numscout_semantic}
+NumScout: feature detector source code (\texttt{semantic\_analysis.py}). \url{https://github.com/NumScout/NumScout/blob/main/feature_detector/semantic_analysis.py} (2026). Accessed April 2026
 
 \bibitem[Consensys Diligence(2025a)]{mythril}
 Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2025). Accessed December 2025
@@ -1692,6 +1693,9 @@ IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyo
 
 \bibitem[IntentChecker(2026c)]{rq2supp}
 IntentChecker: RQ2 supplementary material---L4/L5 case classifications and annotations. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ2} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026d)]{rq1supp}
+IntentChecker: RQ1 supplementary material---per-case annotation plans and rationale. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ1/annotation_plans.md} (2026). Accessed April 2026
 
 \bibitem[Kong et~al.(2023)]{defitainter}
 Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124
@@ -1728,6 +1732,9 @@ Stephens, J., et al.: SmartPulse: automated checking of temporal properties in s
 
 \bibitem[Sun et~al.(2024)]{gptscan}
 Sun, Y., et al.: Gptscan: Detecting logic vulnerabilities in smart contracts by combining gpt with program analysis. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639117
+
+\bibitem[GPTScan(2023)]{gptscan_web3bugs}
+GPTScan: Web3Bugs per-contest evaluation results. \url{https://github.com/MetaTrustLabs/GPTScan-Web3Bugs} (2023). Accessed April 2026
 
 \bibitem[Tsankov et~al.(2018)]{securify}
 Tsankov, P., et al.: Securify: Practical security analysis of smart contracts. In: Proceedings of the 2018 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 67--82 (2018). https://doi.org/10.1145/3243734.3243780
