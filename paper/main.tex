@@ -147,7 +147,7 @@ SolQDebug, however, goes no further than reporting raw intervals---leaving corre
 
 With correctness judgment left to the developer, logic errors---bugs where program behavior diverges from developer intent---are particularly hard to catch, since neither the compiler nor the runtime raises any signal.
 A recent empirical study~\citep{defisecurity} confirms this difficulty: practitioners identified logic errors as the most difficult vulnerability type to detect.
-In response, several tools~\citep{numscout, gptscan, accountingerrors} explicitly target this class of bugs.
+In response, several tools~\citep{numscout, gptscan, sctype} explicitly target this class of bugs.
 Yet they all take the source code alone as their input, operating in an auditing or testing context.
 Moreover, what counts as correct in any given function is set by the developer who wrote it, so by the very definition of a logic error, detecting one requires knowing the developer's intent.
 However, current tools take a different approach: they rely on a fixed set of known vulnerabilities chosen by their designers, checking code against a pre-specified set of patterns.
@@ -253,13 +253,13 @@ The next subsection examines existing tools for numeric logic errors in light of
 Several tools target numeric logic errors.
 NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
 GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
-SCType~\citep{accountingerrors} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
+ScType~\citep{sctype} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
 These tools represent the current state of the art and have meaningfully advanced the field for auditing and testing workflows.
 For the development-phase debugging assistant goal articulated in §\ref{sec:background}.1, however, they share two structural constraints rooted in their design.
 
 \smallskip
 \noindent\textbf{(1) Detection criteria authored by the tool designer, not the developer.}
-Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{accountingerrors}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
+Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{sctype}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
 These criteria describe what counts as buggy code in general, not what counts as a violation of the specific developer's intent for the function being analyzed; a bug is therefore caught only to the extent that it happens to fit a shape the tool designer anticipated.
 This distinction is methodological, not quantitative: however rich the criteria, they are chosen by tool designers with no access to that specific intent.
 
@@ -1563,16 +1563,11 @@ by analyzing both source code and natural language artifacts including comments,
 The system employs a fine-tuned model with Tier of Thought (ToT) prompting that progressively predicts transaction contexts,
 generates and ranks invariants, and ultimately identifies vulnerabilities through three-tier reasoning.
 
-\citep{accountingerrors} proposes a novel type system for Solidity variables defined as tuples of $\langle$Financial Type, Scaling Factor, Token Unit, Address$\rangle$
-to detect accounting errors through type checking.
-The system reinterprets Solidity code based on detection patterns such as incorrectly adding balances with fees,
-enabling systematic identification of numeric logic errors that arise from mismatched financial operations.
-
 Furthermore, there are also approaches that address multiple transaction logic errors such as price manipulation~\citep{defiranger,defiguard,pomabuster,secplf,defitainter}
 and flash loan attacks~\citep{defitail,midnight}.
 
 The numeric logic error detectors above and IntentChecker occupy distinct points along the development--auditing timeline rather than competing on the same axis.
-NumScout, GPTScan, SmartInv, and the type-system approach of \citet{accountingerrors} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments.
+NumScout, GPTScan, SmartInv, and the type-system approach of \citet{sctype} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments.
 IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor.
 Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary, and §\ref{sec:rq3} characterizes that complementarity rather than arguing numerical superiority.
 
@@ -1755,7 +1750,7 @@ Wu, S., et al.: Defiranger: Detecting defi price manipulation attacks. IEEE Tran
 \bibitem[Xi et~al.(2024)]{pomabuster}
 Xi, R., Wang, Z., Pattabiraman, K.: POMABuster: Detecting Price Oracle Manipulation Attacks in Decentralized Finance. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 3923--3942 (2024). https://doi.org/10.1109/SP54263.2024.00257
 
-\bibitem[Zhang(2024)]{accountingerrors}
+\bibitem[Zhang(2024)]{sctype}
 Zhang, B.: Towards finding accounting errors in smart contracts. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639128
 
 \bibitem[Zhang et~al.(2024)]{nyx}

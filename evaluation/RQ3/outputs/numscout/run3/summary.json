@@ -1,0 +1,178 @@
+[
+  {
+    "case_id": "numscout_WANGMI",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1801.361474275589,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_Nokon",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "operator_order_issue",
+      "exchange_problem",
+      "exchange_rounding"
+    ],
+    "time": 209.57412886619568,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_SwordCrowdsale",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 0.1656174659729004,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_BoostToken_operator",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 84.32993721961975,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_BoostToken_indivisible",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 75.59419870376587,
+    "status": "ok"
+  },
+  {
+    "case_id": "numscout_HIT",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "exchange_problem",
+      "exchange_rounding",
+      "profit_opportunity"
+    ],
+    "time": 1076.5481951236725,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_45_H_01",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 408.9626054763794,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_101_H_01",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1802.9261074066162,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_47_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 380.16353726387024,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_78_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 1507.0279002189636,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_5_H_07",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1801.3770632743835,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_5_H_08",
+    "tool": "numscout",
+    "detected": true,
+    "detected_patterns": [
+      "div_in_path"
+    ],
+    "time": 1800.1457839012146,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_5_H_12",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 59.15696382522583,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_51_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 5.093329191207886,
+    "status": "external_library_linking"
+  },
+  {
+    "case_id": "web3bugs_56_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 0.03157687187194824,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_58_H_02",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 11.98273777961731,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_60_H_01",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 108.13608145713806,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_77_H_01",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 2.34375262260437,
+    "status": "external_library_linking"
+  },
+  {
+    "case_id": "web3bugs_62_H_08",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 282.56335496902466,
+    "status": "ok"
+  },
+  {
+    "case_id": "web3bugs_70_H_10",
+    "tool": "numscout",
+    "detected": false,
+    "detected_patterns": [],
+    "time": 53.47850847244263,
+    "status": "ok"
+  }
+]
