@@ -925,7 +925,7 @@ The warning case $j = W$ requires further composition and is handled in Step~4.
 When $j = W$, the risk score is composed from an internal probability $p_{\mathit{true}}$ and a risk-type classification over the violated-region components, then assembled into a value in $(0.0, 10.0)$ by a banded linear formula.
 
 \smallskip
-\noindent\textit{True probability (Algorithm~\ref{alg:risk-score}, line 10).}
+\textbf{True probability (Algorithm~\ref{alg:risk-score}, line 10).}
 The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes from Step~1:
 \[
 p_{\mathit{true}}(L, R, op) \;=\;
@@ -984,7 +984,7 @@ When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to point
 \end{description}
 
 \smallskip
-\noindent\textit{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
+\textbf{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
 For warning results, the engine classifies the violation pattern into three risk types based on which components of Table~\ref{tab:false-regions} are non-empty:
 \begin{itemize}
     \item \textbf{Type 1} --- no directional witness in $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ (only an overlap zone, representing a mild uncertainty);
@@ -993,7 +993,7 @@ For warning results, the engine classifies the violation pattern into three risk
 \end{itemize}
 
 \smallskip
-\noindent\textit{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
+\textbf{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
 
 This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
