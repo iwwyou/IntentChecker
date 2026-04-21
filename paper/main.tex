@@ -108,7 +108,7 @@
 
 \begin{document}
 
-\title[Solidity Intent Checker]{IntentChecker: An Intent-Model-Based\\Debugging Assistant for Mitigating Numeric Logic Errors\\in Solidity}
+\title[Solidity Intent Checker]{IntentChecker: An Intent-Model-Based Debugging Assistant for Mitigating Numeric Logic Errors in Solidity}
 
 \author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
 
@@ -188,10 +188,10 @@ IntentChecker is positioned as a development-time complement to existing auditin
 \smallskip
 \noindent\textbf{Contributions.}
 \begin{itemize}
-    \item This paper defines numeric logic errors and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time (§\ref{sec:background}).
-    \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values at cross-contract call boundaries (§\ref{sec:prelim}).
-    \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) and benchmarked against ScType, GPTScan, and NumScout along two axes derived from the structural constraints of existing tools---the criteria axis (who authors the detection criteria) and the position axis (when the tool is run)---with empirical results on coverage and latency that substantiate the complementary positioning of development-time intent validation against auditing-time bug detection (§\ref{sec:evaluation}).
+    \item This paper defines numeric logic errors and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
+    \item We extend SolQDebug's analysis scope from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values.
+    \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region.
+    \item IntentChecker is evaluated on 75 effective benchmark instances and compared with ScType, GPTScan, and NumScout along the criteria and position axes identified in §\ref{sec:background}, substantiating its complementary positioning against auditing-time detectors.
 \end{itemize}
 
 The remainder of this paper is organized as follows.
