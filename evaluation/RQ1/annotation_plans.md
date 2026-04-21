@@ -12,13 +12,13 @@
 - **Function**: mint
 - **Bug lines (original)**: 176; 184
 - **Pattern**: erroneous_accounting
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L5a: missing-state-update)`
 
 ### 버그 설명
 `mint()`에서 `liquidity`를 변경(line 176)하지만 `secondsPerLiquidity`를 업데이트하지 않음. `swap()`에서는 `secondsPerLiquidity += uint160((diff << 128) / liquidity)`로 올바르게 갱신하지만, `mint()`에서 동일한 갱신이 누락됨.
 
 ### Not Detectable 사유
-- `Changed(secondsPerLiquidity)` annotation으로 표현 가능하나, "liquidity가 변경될 때 secondsPerLiquidity도 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
+- `Changed(secondsPerLiquidity)` annotation으로 표현 가능하나, "liquidity가 변경될 때 secondsPerLiquidity도 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5a: missing-state-update)
 - `swap()`과의 일관성을 놓친 것이 버그 원인 — annotation 시점에서 그 일관성을 챙길 수 있었다면 코드에서도 챙겼을 것
 - 부가적으로, `abi.decode`로 파라미터가 전달되어 debugging annotation으로 concrete 값 설정 불가
 
@@ -45,7 +45,7 @@
 - **Bug lines (original)**: 403; 409; 413
 - **Bug lines (contraction)**: 203; 205; 207; 213
 - **Pattern**: erroneous_accounting
-- **Status**: contraction 진행중
+- **Status**: `annotated`
 
 ### Dependencies
 **Contracts**:
@@ -151,7 +151,7 @@ C8: accountBorrows[101].principal
 - **Function**: getLockedAmount
 - **Bug lines (original)**: 66
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-body-granularity)
+- **Status**: not_detectable (L1b: loop-body-granularity)
 
 ### Bug Description
 `getLockedAmount()`의 for loop 내에서 `newLockedAmount = array[i].lockedAmount - 1`로 되어 있으나, 올바른 구현은 `array[i].lockedAmount - amount`여야 함. `1`이 하드코딩되어 있어서 lockedAmount가 제대로 unlock되지 않음.
@@ -238,7 +238,7 @@ if (_amount > 0) {
 - **Function**: viewHourlyBondAmount
 - **Bug lines (original)**: 96; 97
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening-precision-loss)
+- **Status**: not_detectable (L1a: loop-widening-precision-loss)
 
 ### Bug Description
 `viewHourlyBondAmount()`에서 `applyInterest()`의 리턴값 해석이 잘못됨.
@@ -371,7 +371,7 @@ accumulatorFP = (acc * hourlyYield * secondsDelta) / (FP32 * 3600);
 - **Function**: _numberOfPrizesForIndex
 - **Bug lines (original)**: 422; 423; 424
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `_numberOfPrizesForIndex()`에서 특정 tier의 상금 개수를 계산할 때, while loop으로 모든 lower power를 빼서 올바른 값보다 작은 값을 반환.
@@ -426,7 +426,7 @@ if (_prizeTierIndex > 0) {
 - **Function**: consult
 - **Bug lines (original)**: 129; 152
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `consult()`에서 for loop 내부에서 `sumNative`와 `sumUSD`를 독립적으로 누적하여 최종적으로 `(sumUSD * decimals) / sumNative`로 나누는데, 각 pair의 native amount와 USD price가 올바르게 가중 결합되지 않아 잘못된 consultation 결과를 반환.
@@ -475,7 +475,7 @@ function consult(address token) public view returns (uint256 result) {
 - **Function**: consult
 - **Bug line (original)**: 156
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `consult()`의 최종 계산에서 `IERC20Metadata(token).decimals()` (= 18)를 사용하지만, 올바른 구현은 `10 ** IERC20Metadata(token).decimals()` (= 1e18)를 사용해야 함. scaling factor가 1e18이 아닌 18이 적용되어 결과가 크게 왜곡됨.
@@ -512,7 +512,7 @@ web3bugs_52_H_04와 동일한 컨트랙트, 동일한 함수, 동일한 버그 �
 - **Function**: getPegDeltaFrequency
 - **Bug line (original)**: 131
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `getPegDeltaFrequency()`에서 `count < auctionAverageLookback`일 때 분모를 `auctionAverageLookback` 대신 `count`로 나눠야 함. 현재 구현은 실제 관측 수보다 큰 분모를 사용하여 과소평가된 값을 반환.
@@ -544,7 +544,7 @@ function getPegDeltaFrequency() public view returns (uint256) {
 - **Function**: _calculateUSDVPrice (동일 구조: _calculateVaderPrice)
 - **Bug lines (original)**: 399; 403
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `_calculateUSDVPrice()`에서 pair가 2개 이상일 때 USDV 가격을 잘못 계산. "비율들의 가중평균"이 아니라 "가중평균들의 비율"을 계산함.
@@ -606,7 +606,7 @@ function _calculateUSDVPrice(
 - **Function**: syncVaderPrice
 - **Bug lines (original)**: 131; 140; 144; 147
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `syncVaderPrice()`의 for loop에서 `timeElapsed < pairData.updatePeriod`인 pair를 `continue`로 건너뛰는데, 이때 해당 pair의 기여분이 완전히 누락됨.
@@ -662,7 +662,7 @@ function syncVaderPrice() public override returns (...) {
 - **Function**: _calculateUSDVPrice
 - **Bug line (original)**: 412
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (loop-widening)
+- **Status**: not_detectable (L1a: loop-widening)
 
 ### Bug Description
 `_calculateUSDVPrice()`에서 Chainlink의 `foreignPrice`가 8 decimals (1e8 = $1)로 반환되는데, 프로토콜은 18 decimals (1e18 = $1)을 기대함. `foreignPrice`를 스케일링 없이 그대로 `totalUSD`에 누적하여, 최종 결과가 1e18이어야 할 것이 1e8로 반환됨.
@@ -688,7 +688,7 @@ return (totalUSD * 1 ether) / totalUSDV;  // Top / Top = Top
 - **Function**: resume
 - **Bug lines (original)**: 709; 710; 711
 - **Pattern**: erroneous_accounting
-- **Status**: `not_detectable (L1c: loop-body-granularity)`
+- **Status**: `not_detectable (L1b: loop-body-granularity)`
 
 ### Bug Description
 `resume()`에서 각 index pool의 상환액(`_redeemAmount`)을 계산할 때 나눗셈(`_divCeil`)을 사용하지만, 올바른 계산은 곱셈이어야 함.
@@ -701,11 +701,11 @@ return (totalUSD * 1 ether) / totalUSDV;  // Top / Top = Top
 
 Index가 1개면 shareOfIndex = 1e6이라 나눠도 동일. 2개 이상이면 각 index가 과다 상환.
 
-### 탐지 불가 사유 (L1c: loop-body-granularity)
+### 탐지 불가 사유 (L1b: loop-body-granularity)
 
 **Interface call은 이제 지원됨**: `vault.debts()`, `totalLiquidity()` → @IReturn으로 concrete 가능. L2a blocker 해소.
 
-**새로운 blocker: L1c**
+**새로운 blocker: L1b** (paper Fig 8 의 L1b: loop-body-granularity 에 대응)
 
 ```solidity
 uint256 _debt = vault.debts(address(this));  // vault = IVault → interface call → Top
@@ -769,7 +769,7 @@ function resume() external {
 - **Function**: belowMaintenanceThreshold
 - **Bug line (original)**: 203
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (external-call-state-unknown)
+- **Status**: not_detectable (L2b: external-call-state-unknown)
 
 ### Bug Description
 `belowMaintenanceThreshold()`에서 비교 방향이 반대. 함수 이름은 "maintenance threshold 이하인지"를 반환해야 하지만, 실제 구현은 건강한(healthy) 상태일 때 `true`를 반환:
@@ -841,7 +841,7 @@ function belowMaintenanceThreshold(CrossMarginAccount storage account)
 - **Function**: getYC
 - **Bug lines (original)**: 765; 767; 768
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (inexpressible-expected-value)
+- **Status**: not_detectable (L4a: inexpressible-expected-value)
 
 ### Bug Description
 StableSwap AMM에서 amplifier를 2개(A1, A2) 사용하며, pool balance 비율(`xp[0]` vs `xp[1]`)에 따라 어떤 A를 쓸지 `determineA()`가 결정한다. Swap이 target price를 넘어 A가 전환될 때, 올바른 구현은 swap을 target price 기준으로 **2단계로 분할**하여 각각 A1, A2를 적용해야 한다.
@@ -907,7 +907,7 @@ if (aNew == a){     // We have used the correct A
 - **Function**: addLiquidity
 - **Bug line (original)**: 1231
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (inexpressible-expected-value)
+- **Status**: not_detectable (L4a: inexpressible-expected-value)
 
 ### Bug Description
 
@@ -969,7 +969,7 @@ imbalanced liquidity 추가로 토큰 비율이 역전되면 (`xp[0] < xp[1]` �
 - **Function**: syncVaderPrice
 - **Bug line (original)**: 187
 - **Pattern**: inconsistent_state_updates
-- **Status**: detectable
+- **Status**: `annotated`
 
 ### Bug Description
 
@@ -1286,7 +1286,7 @@ function transfer(address account, uint256 amount) external override notPaused r
 - **Function**: exitVaultFillingVaultInitiate
 - **Bug lines (original)**: 280
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (inexpressible-expected-value)
+- **Status**: not_detectable (L4a: inexpressible-expected-value)
 
 ### Bug Description
 `exitVaultFillingVaultInitiate`에서 taker(msg.sender)에게 수수료가 2번 부과됨:
@@ -1413,7 +1413,7 @@ annotated 케이스(5_H_07: 주석이 spec, 5_H_12: 변수 의미론에서 자�
 - **Function**: _nonOptimalMintFee
 - **Bug line (original)**: 433
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (inexpressible-expected-value)
+- **Status**: not_detectable (L4a: inexpressible-expected-value)
 
 ### Bug Description
 `_nonOptimalMintFee`에서 optimal deposit ratio를 `(_amount0 * _reserve1) / _reserve0`으로 계산하는데, 이는 constant-product AMM 공식. HybridPool은 stableswap 방식이므로 optimal ratio가 reserve 비율과 다름 (amplification parameter A에 의해 커브가 flat). 결과적으로 fee가 과대/과소 계산됨.
@@ -1617,7 +1617,7 @@ PRBMath dependency 확보 완료 (npm에서 설치 후 복사). 그러나 PRBMat
 - **Function**: recoverTokens
 - **Bug lines (original)**: 654
 - **Pattern**: erroneous_accounting
-- **Status**: not_detectable (L2a: interface-call-return-top)
+- **Status**: `not_detectable (L4b: wrong-code — wrapper no state, balanceOf inline chain)`
 
 ### Bug Description
 `recoverTokens()`에서 excess depositToken 계산 시 `depositTokenFlashloanFeeAmount`을 빼지 않음. stream creator가 flashloan fee를 회수할 수 있어 governance의 fee 청구 또는 사용자 출금이 실패할 수 있음.
@@ -1625,12 +1625,12 @@ PRBMath dependency 확보 완료 (npm에서 설치 후 복사). 그러나 PRBMat
 - Correct: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount`
 - Report: sponsor(brockelmore) confirmed
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `balanceOf()` 반환값은 TOP이 아님
-- 그러나 `- depositTokenFlashloanFeeAmount` 차감이 누락된 missing-code 패턴 (L5a)
-- 올바른 formula에서 `balanceOf()` 결과가 named variable로 저장되지 않아 annotation에서 참조 불가
-- `recoverTokens()`는 storage variable 수정 없음 (safeTransfer만) → @Post 대상 제한
-- 누락된 차감을 annotation하려면 "flashloan fee가 excess에서 제외되어야 한다" 인지 필요 → bug awareness
+### Not Detectable 사유 (L4b: wrong-code)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_L5a_but_wrapper_no_state_balanceOf_inline_chain_I9_principle`)
+- 이전 L2a (interface-call-return-top) 분류는 잘못됨 — interface 는 이제 지원되므로 L2a 아님
+- `recoverTokens()` 는 wrapper 함수로 state 변경 없음 (safeTransfer 만). `balanceOf()` 결과가 named variable 로 저장되지 않고 inline chain 으로만 사용됨 → annotation grammar 의 Post/During 대상 state/local var 부재
+- I9 principle (grammar expressibility 우선) 에 따라 "missing term (depositTokenFlashloanFeeAmount 차감) bug awareness" 층보다 "wrapper no state + balanceOf inline" 의 구조적 한계가 상위 → L4b
+- Case9 wrapper family archetype
 
 ---
 
@@ -1669,7 +1669,7 @@ Web3Bugs repo의 코드가 이미 수정된 버전. buggy 코드에서는 `yetiT
 ---
 
 ## web3bugs_70_H_08
-- **Status**: not_detectable (interface-call-return-top)
+- **Status**: `not_detectable (L4b: wrong-code — wrapper no state, parameter overwrite)`
 - **Contract**: VaderReserve
 - **Function**: reimburseImpermanentLoss()
 - **Bug lines**: 98, 102
@@ -1681,12 +1681,12 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - Correct: `amount * 1e18 / usdvPrice`, `amount * vaderPrice / 1e18`
 - Report: sponsor 미확인 (judge resolved)
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `getUSDVPrice()`, `getVaderPrice()` 반환값은 TOP이 아님
-- 그러나 `* 1e18` / `/ 1e18` 스케일링 팩터가 누락된 missing-code 패턴 (L5a)
-- `amount` 파라미터가 line 98/102에서 overwrite → 원본 값 참조 불가 → 올바른 expected value 표현 제한
-- line 98: `@During amount > 0`으로 truncation-to-zero 탐지 가능하나, line 102 (inflation)는 탐지 불가
-- 두 branch 모두 커버하는 annotation 구성 불가 → L5a
+### Not Detectable 사유 (L4b: wrong-code)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_L5a_but_wrapper_no_state_parameter_overwrite_original_lost`)
+- wrapper 함수, self-state 없음 — 어떤 @Post state invariant 도 대상 없음
+- `amount` 파라미터가 line 98/102 에서 overwrite 되어 원본 값이 program 내 named var 로 보존되지 않음 → annotation grammar 로 correct scaling (`amount * 1e18 / usdvPrice`) 표현 불가 (원본 amount 가 scope 에서 사라짐)
+- I9 principle 에 따라 "스케일 팩터 인지 부족 (L5a 후보)" 보다 구조적 expressibility (wrapper + parameter overwrite) 가 선행 → L4b
+- Case1/Case10 wrapper version archetype (scaling factor missing 1e18)
 
 ---
 
@@ -1695,7 +1695,9 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - **Function**: borrow()
 - **Bug line (original)**: 248
 - **Pattern**: erroneous_accounting
-- **Status**: `annotated` (was: `not_detectable,interface-call-return-top`)
+- **Status**: `not_detectable (L2a: interface-call-return-top)`
+
+> Note: 이전에 "annotated (was: not_detectable,interface-call-return-top)" 로 승격을 시도했으나, paper Table 6 (20 mitigated cases) 및 dataset.csv 기준으로 `not_detectable` 유지가 ground truth. 아래 Intent Annotations 섹션은 시도한 annotation 기록용으로 보존.
 
 ### Bug Description
 `borrow()`에서 0.5% fee를 포함한 `increasingDebt = (_amount * 1005) / 1000`으로 개별 debt(`details[_id].debt`)를 증가시키지만, global `debts`는 fee 미포함 `_amount`로만 증가 → 개별 debt 합계와 global debts 불일치. `repay()`/`liquidate()`에서는 fee 포함 값으로 debts를 차감하므로 결국 debts가 underflow.
@@ -1769,7 +1771,7 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 ---
 
 ## web3bugs_52_H_16
-- **Status**: `not_detectable (L5b: wrong-code)`
+- **Status**: `not_detectable (L4b: wrong-code — view function no state)`
 - **Contract**: VaderRouter
 - **Function**: calculateOutGivenIn()
 - **Bug lines**: 488-491
@@ -1780,12 +1782,11 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - Correct: `calculateSwap(calculateSwap(amountIn, foreignReserve0, nativeReserve0), nativeReserve1, foreignReserve1)`
 - Report: sponsor(SamSteinGG) confirmed. 52_H_15와 동일한 wrong-arg-order 패턴.
 
-### Not Detectable 사유 (L5b: wrong-code)
-- Interface call은 이제 지원되어 `pool0.getReserves()`, `pool1.getReserves()` 반환값은 symbolic (TOP 아님)
-- `VaderMath.calculateSwap()`은 library pure 함수로 분석 가능 → 계산 추적 가능
-- 그러나 올바른 reserve 순서(pool0 first: foreign→native, pool1 second: native→foreign)를 annotation하려면 swap 방향 이해 필요
-- annotation grammar에서 `VaderMath.calculateSwap()` 함수 호출 불가 → 올바른 expected value 표현도 불가
-- 52_H_15 (wrong swap arg order)와 동일한 패턴 → bug awareness (L5b)
+### Not Detectable 사유 (L4b: wrong-code)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_L5b_but_view_function_no_state_I9_principle_L4b`) — view function 이 state 를 쓰지 않아 L5b 의 "bug awareness" 조건 대신 I9 principle (grammar expressibility) 적용, L4b
+- Interface call은 지원되지만 `VaderMath.calculateSwap()` library pure 함수는 annotation grammar 에서 직접 호출 불가
+- view function 이므로 @Post changed/Entry/Exit 대상 state variable 부재 → grammar 로 표현 가능한 invariant 가 원천적으로 없음 → L4b (grammar expressibility)
+- 52_H_15 twin case 와 동일한 router wrapper L4b archetype
 
 ---
 
@@ -1794,7 +1795,7 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - **Contract**: Router
 - **Function**: swapWithSynthsWithLimit
 - **Bug line**: 170 (original 기준)
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L2a: interface-call-return-top)`
 - **Bug**: Token→Token 스왑 시 두 번째 slippage check에서 첫 스왑의 base output 대신 원래 `inputAmount`를 사용
 - Buggy (line 170): `iUTILS(UTILS()).calcSwapSlip(inputAmount, iPOOLS(POOLS).getBaseAmount(outputToken))`
 - Correct: `iUTILS(UTILS()).calcSwapSlip(firstSwapOutput, iPOOLS(POOLS).getBaseAmount(outputToken))`
@@ -1821,6 +1822,7 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - **Contract**: CreditLine
 - **Function**: _borrowTokensToLiquidate
 - **Bug line**: 1050 (original 기준)
+- **Status**: `not_detectable (L4a: inexpressible-expected-value)`
 - **Bug**: `IPriceOracle(priceOracle).getLatestPrice(_borrowAsset, _collateralAsset)` — 인자 순서가 반대
 - Buggy: `getLatestPrice(_borrowAsset, _collateralAsset)` → borrow/collateral 비율
 - Correct: `getLatestPrice(_collateralAsset, _borrowAsset)` → collateral/borrow 비율
@@ -1856,6 +1858,7 @@ IL(Impermanent Loss) 보상금 계산 시 fixed-point 스케일링 누락:
 - **Contract**: ConstantProductPool
 - **Function**: burnSingle
 - **Bug line**: 175; 183 (original 기준)
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
 - **Bug**: swap 계산 시 `_reserve`를 사용했지만 `balance`를 사용해야 함
 - Buggy (175): `_getAmountOut(amount0, _reserve0 - amount0, _reserve1 - amount1)`
 - Correct: `_getAmountOut(amount0, balance0 - amount0, balance1 - amount1)`
@@ -2000,7 +2003,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: CTokenMultiOracle
 - **Function**: _setSource
 - **Bug Line**: 110
-- **Status**: `not_detectable,inexpressible-expected-value`
+- **Status**: `not_detectable (L4a: inexpressible-expected-value)`
 
 ### 버그 설명
 `_setSource()`(line 110)에서 `decimals_`를 18로 하드코딩. 그러나 Compound의 exchange rate는 `1 * 10^(18 - 8 + underlyingTokenDecimals)`로 스케일되므로, 올바른 decimals는 `10 + underlyingTokenDecimals`(예: USDC=16, DAI=28). 잘못된 decimals가 `_peek()`/`_get()`의 가격 스케일링 계산에 사용되어 가격 오류 발생.
@@ -2018,7 +2021,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: YearnYield
 - **Function**: getTokensForShares
 - **Bug Line**: 180
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L4a: interface-call-return-top)`
 
 ### 버그 설명
 `getTokensForShares()`(line 180)에서 `IyVault.getPricePerFullShare()`의 결과를 `1e18`로 나누지만, Yearn의 `getPricePerFullShare()`는 `vault.decimals()` precision(= underlying token decimals)으로 반환. 올바른 구현은 `div(10 ** vault.decimals())`. 18 decimals가 아닌 토큰(e.g. USDC=6)에서 변환 오류 발생.
@@ -2169,7 +2172,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: LenderPool
 - **Function**: terminate
 - **Bug Line**: 389, 400
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L5b: wrong-code)`
 
 ### 버그 설명
 `terminate()`에서 `_actualNotBorrowedInShares`(line 389)를 token/share 혼합 계산으로 구하고, `_totalInterestInShares`와 합쳐 `withdrawShares`(line 400)에 전달. token amount와 share를 혼합하여 잘못된 값 산출. 올바른 구현은 단순히 `_sharesHeld`를 직접 사용하여 전체 shares를 출금하는 것.
@@ -2187,7 +2190,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: Lock
 - **Function**: extendLock
 - **Bug Line**: 90, 91 (original)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L5a: missing-state-update)`
 
 ### 버그 설명
 `extendLock()`에서 토큰을 전송받지만(`transferFrom`, line 90) `totalLocked[_asset] += _amount` 업데이트가 누락됨. 이후 `release()` 호출 시 `totalLocked[asset] -= lockAmount`에서 underflow 발생하여 자금이 영구 잠김.
@@ -2195,7 +2198,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - `extendLock()` 내에 잘못된 numeric 연산이 아니라, 있어야 할 `totalLocked[_asset] += _amount` 코드가 누락됨
 - `totalLocked[_asset] Changed` 또는 `Before < After` post-condition으로 표현 가능하나, 이 annotation을 쓰려면 "totalLocked가 업데이트되어야 한다"는 사실을 이미 인지해야 함
-- `lock()`에서는 올바르게 `totalLocked += _amount`를 수행하지만, 개발자가 `extendLock()`에서 동일 업데이트가 필요하다는 일관성을 놓친 것이 버그의 원인 → 버그 인지 전제 (L5c)
+- `lock()`에서는 올바르게 `totalLocked += _amount`를 수행하지만, 개발자가 `extendLock()`에서 동일 업데이트가 필요하다는 일관성을 놓친 것이 버그의 원인 → 버그 인지 전제 (L5a: missing-state-update)
 
 ---
 
@@ -2204,7 +2207,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: Basket
 - **Function**: auctionBurn
 - **Bug Line**: 105 (original)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L4d: missing-state-update)`
 
 ### 버그 설명
 `auctionBurn()`에서 `_burn()` 후 `ibRatio` 업데이트가 누락됨. `handleFees()`에서 fee에 의한 `ibRatio` 업데이트는 수행하지만, burn에 의한 supply 감소에 대한 `ibRatio = ibRatio * startSupply / (startSupply - amount)` 업데이트가 없음. 이후 다른 사용자의 `burn()` 호출 시 `pushUnderlying()`에서 낮은 ibRatio로 인해 받는 underlying token이 줄어듦.
@@ -2212,7 +2215,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - `auctionBurn()` 내 `_burn()` 연산 자체는 올바름. 누락된 것은 burn 후 `ibRatio` 업데이트 코드
 - `handleFees()`가 이미 `ibRatio`를 변경하므로 단순 `Changed` annotation은 만족됨. burn에 의한 추가 업데이트가 필요하다는 것을 알아야 더 정밀한 annotation 작성 가능
-- `burn()`에서는 `handleFees()` → `pushUnderlying()` → `_burn()` 순서로 ibRatio 반영이 자연스럽지만, `auctionBurn()`에서는 별도 업데이트가 필요하다는 일관성을 놓친 것 → 버그 인지 전제 (L5c)
+- `burn()`에서는 `handleFees()` → `pushUnderlying()` → `_burn()` 순서로 ibRatio 반영이 자연스럽지만, `auctionBurn()`에서는 별도 업데이트가 필요하다는 일관성을 놓친 것 → grammar 상 multi-var product invariant(`ibRatio × totalSupply` 보존) 가 annotation grammar 의 Post/During 표현 범위 밖 → L4d (Algorithm/Usable, only L4d case)
 
 ---
 
@@ -2221,14 +2224,14 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: Basket
 - **Function**: handleFees
 - **Bug Line**: 136, 137 (original)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L5a: missing-state-update)`
 
 ### 버그 설명
 `handleFees()`에서 `startSupply == 0`일 때 `return;`으로 즉시 반환하면서 `lastFee = block.timestamp` 업데이트 누락. 이후 다시 mint/burn 시 stale `lastFee`로 fee를 계산하여, supply가 0이었던 기간에 대해서도 fee 부과.
 
 ### Not Detectable 사유
 - `handleFees()`의 3개 분기 중 2개(`lastFee == 0`, 정상 `else`)는 `lastFee = block.timestamp`를 수행하지만, `startSupply == 0` 분기에서만 누락
-- `lastFee Changed` post-condition으로 표현 가능하나, "supply가 0이어도 lastFee는 항상 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
+- `lastFee Changed` post-condition으로 표현 가능하나, "supply가 0이어도 lastFee는 항상 갱신되어야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5a: missing-state-update)
 
 ---
 
@@ -2237,14 +2240,14 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: Stream
 - **Function**: recoverTokens (bug line 672), root cause: claimReward
 - **Bug Line**: 672 (original, 증상 발현 지점)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L5a: missing-state-update)`
 
 ### 버그 설명
 `claimReward()`에서 reward token을 전송(line 575)하면서 `rewardTokenAmount`를 감소시키지 않음. `rewardTokenAmount`는 `fundStream()`에서만 증가. 이후 `recoverTokens()`에서 `excess = balanceOf(this) - (rewardTokenAmount + rewardTokenFeeAmount)` 계산 시, stale한 `rewardTokenAmount`로 인해 excess가 underflow 또는 0이 되어 토큰 회수 불가.
 
 ### Not Detectable 사유
 - Root cause는 `claimReward()`에서 `rewardTokenAmount -= rewardAmt` 누락 (missing state update)
-- `rewardTokenAmount Changed` 또는 `Before > After` post-condition으로 표현 가능하나, "reward 전송 시 rewardTokenAmount를 감소시켜야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5c)
+- `rewardTokenAmount Changed` 또는 `Before > After` post-condition으로 표현 가능하나, "reward 전송 시 rewardTokenAmount를 감소시켜야 한다"는 것을 알아야 annotation 작성 가능 → 버그 인지 전제 (L5a: missing-state-update)
 - Bug line 672 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
 
 ---
@@ -2254,7 +2257,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: Stream
 - **Function**: recoverTokens (bug line 654), root cause: creatorClaimSoldTokens
 - **Bug Line**: 654 (original, 증상 발현 지점)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L5a: missing-state-update)`
 
 ### 버그 설명
 `creatorClaimSoldTokens()`에서 deposit token을 전송(line 597)하면서 `depositTokenAmount`이나 `redeemedDepositTokens`를 업데이트하지 않음. 이후 `recoverTokens()`에서 `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)` 계산 시, stale한 값으로 인해 underflow 또는 잘못된 excess 산출.
@@ -2262,7 +2265,7 @@ currentFundingIndex = currentFundingIndex + 1;
 ### Not Detectable 사유
 - Root cause는 `creatorClaimSoldTokens()`에서 `redeemedDepositTokens = depositTokenAmount` 또는 `depositTokenAmount = 0` 누락 (missing state update)
 - 62_H_03과 동일 패턴: 토큰 전송 함수에서 tracking variable 미업데이트
-- Annotation 표현 가능하나 버그 인지 전제 (L5c)
+- Annotation 표현 가능하나 버그 인지 전제 (L5a: missing-state-update)
 - Bug line 654 자체도 `balanceOf()` 외부 호출 → TOP (L2a) 부가적 blocker 존재
 
 ---
@@ -2272,13 +2275,13 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: ConcentratedLiquidityPool
 - **Function**: burn
 - **Bug Line**: 217 (original)
-- **Status**: `not_detectable,missing-state-update`
+- **Status**: `not_detectable (L4c: missing-state-update)`
 
 ### 버그 설명
 `burn()`에서 position을 제거할 때 `reserve0 -= amount0fees` / `reserve1 -= amount1fees`로 fee 금액만 차감하고 실제 liquidity 제거 금액(`amount0`, `amount1`)을 차감하지 않음. 이후 `reserve` 기반 계산이 부풀려진 reserve 값을 사용하여 가격/유동성 왜곡 발생.
 
 ### Not Detectable 사유
-- `reserve0 -= amount0` 코드가 누락된 missing state update (L5c)
+- `reserve0 -= amount0` 코드가 누락된 missing state update (L4c: Value/Usable, grammar limit — Entry/Exit 방향은 표현 가능하나 magnitude-only difference 가 필요한데 arithmetic postEntryExit 지원 부재)
 - `@Post reserve0 == Before(reserve0) - amount0` annotation으로 표현 가능하나, "burn 시 amount0만큼 reserve를 차감해야 한다"는 것을 알아야 작성 가능 → 버그 인지 전제
 - 부가적으로, `abi.decode`로 파라미터(`lower`, `upper`, `amount`, `recipient`, `unwrapBento`)가 전달되어 debugging annotation으로 concrete 값 설정 불가 → 모든 decoded 변수가 TOP
 
@@ -2289,7 +2292,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: ConcentratedLiquidityPool
 - **Function**: mint, burn
 - **Bug Lines (original)**: 176 (mint), 242 (burn)
-- **Status**: `not_detectable,unsupported-construct-top`
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
 
 ### 버그 설명
 `mint()`과 `burn()`에서 liquidity 업데이트 조건이 `priceLower < currentPrice && currentPrice < priceUpper`로 strict inequality를 사용. `priceLower == currentPrice` (현재 가격이 position 하한과 정확히 일치)일 때 liquidity가 업데이트되지 않아 swap 금액 왜곡. 올바른 조건은 `priceLower <= currentPrice`.
@@ -2310,7 +2313,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: NFTPairWithOracle
 - **Function**: _lend
 - **Bug Line (original)**: 316
-- **Status**: `not_detectable,wrong-validation-operator`
+- **Status**: `not_detectable (L5b: wrong-validation-operator)`
 
 ### 버그 설명
 `_lend()`의 require 조건에서 `params.ltvBPS >= accepted.ltvBPS`로 검사하지만, lender 입장에서 낮은 LTV가 유리하므로 `params.ltvBPS <= accepted.ltvBPS`가 올바름. 예: borrower가 86% LTV를 요청하고 lender가 80%까지만 수용했는데, buggy 코드는 86%로 대출 실행 → lender에게 불리.
@@ -2328,17 +2331,16 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: SavingsAccountUtil (library)
 - **Function**: savingsAccountTransfer
 - **Bug Lines (original)**: 75, 77, 79
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L4a: wrapper-return-indifference)`
 
 ### 버그 설명
 `savingsAccountTransfer()`이 `_savingsAccount.transfer()`/`transferFrom()`의 실제 반환값(shares)을 무시하고 입력 파라미터 `_amount`를 그대로 반환. price per share ≠ 1일 때 실제 shares와 _amount가 다르므로, 호출측에서 잘못된 shares 수량이 기록되어 자금 손실 발생 (cancelPool 실패, 청산 실패 등).
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `_savingsAccount.transfer()` 반환값은 TOP이 아님
-- 그러나 buggy 코드에서 반환값이 **변수에 저장되지 않음** (무시됨) → annotation에서 참조 불가
-- 올바른 fix: `return _savingsAccount.transfer(...)` — 반환값 capture assignment가 누락 (L5a)
-- annotation grammar에서 함수 호출 불가 → `returnExpression == _savingsAccount.transfer(...)` 표현도 불가
-- 누락된 return value 캡처를 알려면 "transfer()가 shares를 반환한다" 인지 필요 → bug awareness
+### Not Detectable 사유 (L4a: wrapper-return-indifference)
+- **L4a 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_md_said_L5a_but_self_contradictory_limitation_types_md_says_L4a_confirmed`)
+- wrapper library 함수로 자체 state 없음. 반환값 capture assignment 가 코드에 아예 없어 annotation scope 의 named variable 로 bind 되지 않음 → grammar expressibility limit
+- IReturn 이 state-modifying interface transfer call 에 대해 arg-indifferent 하게 모델링되므로 buggy (_amount 반환) 와 correct (transfer() 반환) 가 semantic channel 로 구분되지 않음 → L4a (pure Type B wrapper)
+- Case7 twin (wrapper return misrouting drop pattern, pps/shares mismatch)
 
 ---
 
@@ -2347,17 +2349,17 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Contract**: StakedCitadel
 - **Function**: balance
 - **Bug Lines (original)**: 293, 294
-- **Status**: `not_detectable,interface-call-return-top`
+- **Status**: `not_detectable (L4b: missing-code — view function, missing call site)`
 
 ### 버그 설명
 `balance()`가 `token.balanceOf(address(this))`(vault 잔액)만 반환하고 `IStrategy(strategy).balanceOf()`(strategy 잔액)을 누락. 올바른 구현은 vault + strategy 합산. 이 값이 `_depositFor`, `_withdraw`, `_handleFees` 등 전체 accounting에 사용되어 shares mint/burn 계산이 심각하게 왜곡됨.
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `token.balanceOf()` 반환값은 TOP이 아님
-- 그러나 `IStrategy(strategy).balanceOf()` 호출 자체가 코드에 없음 → missing-code (L5a)
-- annotation grammar에서 함수 호출 불가 → `returnExpression == balanceOf(this) + strategy.balanceOf()` 표현 불가
-- 코드 주석에 "vault + strategy balance"라고 명시되어 있지만, 구현은 vault만 반환
-- 누락된 strategy balance 합산을 알려면 vault 아키텍처 이해 필요 → bug awareness
+### Not Detectable 사유 (L4b: missing-code)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_L5a_but_view_function_missing_call_site_G3_I9_L4b`)
+- `balance()` 는 view 함수 — state 변경 없음, @Post Entry/Exit/changed 대상 state var 없음
+- 누락된 `IStrategy(strategy).balanceOf()` 호출 자체가 코드에 존재하지 않으므로 annotation 이 참조할 call site (G3) 가 부재 → grammar 로 `returnExpression == balanceOf(this) + strategy.balanceOf()` 표현 불가
+- I9 principle: grammar expressibility (call site 부재) 가 bug awareness 층 보다 선행 → L4b (not L5a)
+- Case11/Case16/Case20 family (vault/strategy split pattern)
 
 ---
 
@@ -2367,7 +2369,7 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Function**: safetyCheck
 - **Bug line (original)**: 88
 - **Pattern**: erroneous_accounting
-- **Status**: `not_detectable (L5a: missing-code)`
+- **Status**: `not_detectable (L4b: inexpressible-intent — missing scope vars)`
 
 ### Bug Description
 `safetyCheck()`에서 stablecoin 가격 비율 체크가 불완전:
@@ -2376,10 +2378,10 @@ currentFundingIndex = currentFundingIndex + 1;
 3. NatSpec에 "Curve + external oracle" 체크라고 명시했으나 oracle 호출 없음
 - Report: sponsor(kristian-gro) confirmed, b/c check 추가
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `curvePool.get_dy()` 반환값은 TOP이 아님
-- 그러나 버그는 기존 코드의 잘못된 계산이 아니라 **누락된 체크**: `b/c` ratio 체크 미수행, external oracle 비교 미수행
-- 기존 loop의 `a/b`, `a/c` 계산은 정확 — 추가 코드가 필요한 missing-code 패턴 → L5a
+### Not Detectable 사유 (L4b: inexpressible-intent)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_md_said_L5a_but_post_condition_not_expressible_due_to_missing_scope_vars_limitation_types_L4b_confirmed`)
+- 이전 L5a(missing-code) 해석은 "b/c 체크 코드 추가" 방향이었으나, 실제 annotation 작성 시 필요한 scope variable(`b/c` ratio, external oracle 결과)이 view function `safetyCheck()` 의 local/state scope에 존재하지 않음 → grammar 자체로 표현 불가 → L4b
+- Interface call은 이제 지원되어 `curvePool.get_dy()` 반환값은 TOP이 아니지만, transitivity 보완식(`b/c`)을 위한 named variable이 함수 scope 밖 → L4b (grammar expressibility limit)
 
 ---
 
@@ -2389,17 +2391,17 @@ currentFundingIndex = currentFundingIndex + 1;
 - **Function**: exitEarly
 - **Bug lines (original)**: 83, 87
 - **Pattern**: erroneous_accounting
-- **Status**: `not_detectable (L5b: wrong-code)`
+- **Status**: `not_detectable (L4a: wrong-code)`
 
 ### Bug Description
 `exitEarly()`에서 `auction.amendAccountParticipation(msg.sender, _auctionId, amount, maltQuantity)` 호출 시, `maltQuantity`는 profit penalty가 적용된 값(실제보다 적음). `amount`(전체 commitment)는 그대로 차감되지만 `maltQuantity`(penalty 적용)만 차감되므로 `userMaltPurchased / userCommitment` 비율이 점점 높아짐. 반복 호출로 과다 수익 가능.
 - Report: sponsor(0xScotch) confirmed
 
-### Not Detectable 사유 (L5b: wrong-code)
-- Interface call은 이제 지원됨 (`dexHandler.sellMalt()` 등 @IReturn 가능)
-- 그러나 `amendAccountParticipation`은 state-modifying external call → 외부 컨트랙트 state 변화 검증 불가
-- 버그의 본질: penalty 적용된 `maltQuantity` 대신 원본 값을 전달해야 함 → wrong argument
-- 올바른 인자를 알려면 "penalty가 accounting에 어떻게 반영되어야 하는지" 이해 필요 → bug awareness → L5b
+### Not Detectable 사유 (L4a: wrong-code)
+- **L4a 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_md_says_L5b_but_limitation_types_md_says_L4a_objective_judgment_L4a`)
+- `amendAccountParticipation` 은 state-modifying external call — 외부 컨트랙트 state 변화 검증이 annotation scope 밖 (→ L4a inexpressible-expected-value 과 동일 계열: arg[N] 정답값이 원본 pre-penalty quantity 인데 이 값이 program 내 named variable 로 존재하지 않음)
+- IReturn arg indifference: annotation grammar 에서 `func.arg[N]` 체크 시 pre-penalty 원본값과 비교할 대상이 scope 에 없음 → 구조적 expressibility 한계 → L4a
+- I9 principle 에 의거, wrong-code 이지만 scope vars 부재가 더 근본이므로 L4a 로 통일 (Case4 twin, pre-vs-post penalty value collapse)
 
 ---
 
@@ -2505,17 +2507,16 @@ function withdraw() external onlyOwner {
 - **Contract**: AaveVault
 - **Function**: tvl (line 47), _push, _pull
 - **Bug Line (original)**: 47
-- **Status**: `not_detectable (L5a: missing-code)`
+- **Status**: `not_detectable (L4b: ordering-problem)`
 
 ### 버그 설명
 `tvl()`이 cached `_tvls` 배열을 반환. `_push()`에서 `updateTvls()`가 Aave lending pool deposit **후에** 호출되어, 호출측(LPIssuer)이 old tvl 기준으로 shares를 계산. Aave의 rebasing aToken 이자가 반영되기 전의 tvl로 과다한 shares 발행 → attacker가 이자 탈취 가능.
 
-### Not Detectable 사유 (L5a: missing-code)
-- Interface call은 이제 지원되어 `balanceOf()`, `deposit()` 등 반환값은 TOP이 아님
-- 그러나 버그의 본질은 **operation ordering**: `_push()` 시작에 `updateTvls()` 호출이 누락됨
-- 각 함수 개별적으로는 정상: `tvl()` → `return _tvls` (OK), `_push()` → deposit 후 updateTvls (OK), `updateTvls()` → balanceOf로 갱신 (OK)
-- fix: `_push()` 시작에 `updateTvls()` 추가 → missing-code (L5a)
-- `updateTvls()`가 deposit 전에 필요하다는 것을 알려면 stale-cache 취약점 인지 필요 → bug awareness
+### Not Detectable 사유 (L4b: ordering-problem)
+- **L4b 재분류 근거** (l4_l5_classification.csv reclass_reason: `annotation_plans_L5a_but_ordering_problem_not_expressible_L4b_per_function_type`)
+- 버그 본질은 `_push()` 내부의 **operation ordering**: `updateTvls()`가 deposit 전이 아니라 후에 호출됨
+- 각 함수 개별적으로는 정상 (`tvl()` view, `_push()` deposit+updateTvls 순, `updateTvls()` balanceOf 반영). ordering bug 은 단일 함수 scope 안 관계가 아니라 "stale cache 가 호출자에게 노출됨" 이라는 호출-흐름 속성
+- ordering 을 표현할 annotation grammar 원소(예: `@During before(updateTvls) before(deposit)`)가 없음 → grammar expressibility limit → L4b (not L5a)
 
 ---
 
@@ -2793,3 +2794,212 @@ State:
 - `@During toGive => msg.value`: antecedent `0 != 0` → violated (false) → vacuously true → **SATISFIED** ✓
 
 **Rationale**: "토큰 배포(toGive > 0)는 대가 지불(msg.value > 0)을 전제해야 한다"는 exchange 함수의 자연스러운 invariant. bug-awareness 불필요.
+
+---
+
+## numscout_WANGMI
+
+- **Contract**: WANGMI
+- **Function**: _transfer
+- **Bug line (original)**: 428
+- **Pattern**: div_in_path
+- **Status**: `annotated`
+
+### 버그 설명
+`_transfer()`에서 sell fee 처리 시 line 428: `tokensForLiquidity = tokensForLiquidity.add(fees.mul(sellLiquidityFee).div(sellTotalFees))` — `fees.mul(3).div(12)`가 `fees < 4`일 때 `0`으로 truncate. 이로 인해 sell이 발생해도 `tokensForLiquidity`가 증가하지 않는 편향(accumulation 누락) 발생. Div In Path의 전형적 패턴.
+
+### Annotation 계획
+
+**Contraction/input**: `evaluation/RQ1/cases/div_in_path/WANGMI_input.json` (contract 이름 WANGMI, _transfer override)
+
+**Dependencies**: IUniswapV2Router02, ERC20, Ownable, Context (OpenZeppelin 스타일)
+
+**Debug annotations (line 384, _transfer 시작)**:
+- `// @LocalVar _from = symbolicAddress 1`
+- `// @LocalVar to = symbolicAddress 2`
+- `// @LocalVar amount = [33, 33]` — 작은 수량으로 sellTotalFees=12 기준 truncation 시현
+- `// @StateVar uniswapV2Pair = symbolicAddress 2` — to == pair이므로 sell 분기 진입
+- `// @StateVar sellLiquidityFee = [3, 3]`, `sellTxFee = [9, 9]` → sellTotalFees = 12
+- `// @StateVar tokensForLiquidity = [100, 100]` (초기값)
+- (그 외 isLaunched=true, maxTx/Wallet 통과, isExcludedFromFees=false 등 env 설정)
+
+중간 계산: `fees = 33 * 12 / 100 = 3`, `fees.mul(3).div(12) = 3*3/12 = 0` → tokensForLiquidity += 0 → 증가 없음.
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 428 | tokensForLiquidity(Before < After) | violated | sell이 발생하면 fee가 누적되어야 하나 truncation으로 Before == After → violated |
+
+**Rationale**: paper §6.2 Guideline 3 (multi-step arithmetic) 7 case 중 하나. `fees * sellLiquidityFee / sellTotalFees` 는 truncation으로 sell fee 누적이 항상 0이 되는 경계를 가짐. Before/After 방향성으로 직접 포착.
+
+---
+
+## numscout_Nokon
+
+- **Contract**: Nokon
+- **Function**: buy
+- **Bug line (original)**: 51
+- **Pattern**: exchange_problem
+- **Status**: `annotated`
+
+### 버그 설명
+`buy()` line 51: `uint256 amountToBuy = msg.value / ethRateFix * calculateRate()` — division-first 후 multiplication이어서 `msg.value < ethRateFix` 범위에서 `msg.value / ethRateFix = 0`로 truncate, 결과 `amountToBuy = 0`. 사용자가 ETH 지불해도 토큰을 못 받는 exchange_problem 패턴.
+
+### Annotation 계획
+
+**Contraction/input**: `evaluation/RQ1/cases/exchange_problem/Nokon_input.json`
+
+**Dependencies**: 없음 (SafeMath using 만 있음, calculateRate는 내부 함수)
+
+**Debug annotations (line 49, buy 시작)**:
+- `// @GlobalVar msg.value = [50000000000500000, 50000000000500000]` — 0.05 ETH + 약간 (ethRateFix = 10000000000 보다 큰 값)
+- `// @StateVar presell = true`
+- `// @StateVar balances[address(this)] = [2000000000000, 2000000000000]` — dex 보유량 충분
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 51 | amountToBuy * ethRateFix >= msg.value * 250000 | violated | 이상적 공식(mul-first): `msg.value * rate / ethRateFix` 를 rearrange한 부등식. calculateRate 최솟값 250000 기준 하한 보장. buggy는 division-first로 truncation 발생 → 위반 |
+
+**Rationale**: paper §6.2 Guideline 3 (multi-step arithmetic). Division-first가 의도한 `msg.value × rate / ethRateFix`와 다른 결과를 주는 전형적 패턴. Multiplication-first 이상 공식과 비교하여 precision gap 노출.
+
+---
+
+## flyinointment_SwordCrowdsale
+
+- **Source**: Fly-in-the-Ointment (Greedy Contract dataset, paper §4.2 Dataset Collection, Table 1)
+- **Contract**: SwordCrowdsale
+- **Function**: refundMoney
+- **Bug line (original)**: 77-79 (dataset.csv의 `bug_line=33`은 contraction 기준)
+- **Pattern**: greedy_contract
+- **Status**: `annotated`
+
+### 버그 설명
+`refundMoney()`가 기여자에게 ETH 환불을 수행하면서 `weiRaised`를 감소시키지 않음. `contributorList[_address].contributionAmount = 0`와 `.tokensIssued = 0`만 갱신하고, `weiRaised -= amount` 가 누락됨. `forwardAllRaisedFunds()` 호출 시 `wallet.transfer(weiRaised)` 라인에서 실제 잔액보다 더 많은 ETH 송금 시도 → 상시 revert, 자금이 컨트랙트에 영구 잠김 (Greedy Contract).
+
+### Annotation 계획
+
+**Contraction/input**: `evaluation/RQ1/cases/greedy_contract/SwordCrowdsale_input.json`
+
+**Dependencies**: Ownable, Context (onlyOwner modifier 사용)
+
+**Debug annotations (line 76, refundMoney 시작)**:
+- `// @StateVar contributorList[_address].contributionAmount = [100, 100]` — 환불 대상 금액
+- `// @StateVar weiRaised = [1000, 1000]` — 초기 누적 모금액
+- owner/msg.sender 설정은 onlyOwner modifier 통과용
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| Post | 81 (refundMoney 종료 직후) | weiRaised(Entry > Exit) | violated | 환불 성공 시 누적 모금액은 감소해야 함. Buggy: Entry=1000, Exit=1000 → `Entry > Exit` false → violated |
+
+**Rationale**: paper Tab 1 NumScout(7) + Flyinointment(1) + Web3Bugs(81) = 89 dataset composition 중 유일한 Flyinointment-origin case. paper §6.2 Guideline 1 (directional annotation via Entry/Exit)의 대표적 적용 — `weiRaised` 가 refund 후 감소해야 한다는 자연스러운 directional intent.
+
+---
+
+## numscout_BoostToken_operator
+
+- **Contract**: BoostToken
+- **Function**: sendETHToTeam
+- **Bug lines (original)**: 141; 142
+- **Pattern**: operator_order_issue
+- **Status**: `annotated`
+
+### 버그 설명
+`sendETHToTeam(uint256 amount)` 내부의 두 라인:
+- Line 141: `_marketingWalletAddress.transfer(amount.div(12).mul(5))` — `amount / 12 * 5`, division-first. 의도는 amount의 5/12.
+- Line 142: `_dipWalletAddress.transfer(amount.div(9).mul(2))` — `amount / 9 * 2`, division-first. 의도는 amount의 2/9.
+
+두 경우 모두 `amount < 12` (혹은 `< 9`)에서 `amount.div(k) = 0` → truncation → transfer 금액 0. Operator order issue: `amount * 5 / 12` (mul-first) 가 올바른 순서.
+
+### Annotation 계획
+
+**Contraction/input**: `evaluation/RQ1/cases/operator_order_issue/BoostToken_input.json`
+
+**Dependencies**: Ownable, Context, SafeMath, Address (OpenZeppelin)
+
+**Debug annotations (line 140, sendETHToTeam 시작)**:
+- `// @LocalVar amount = [68, 68]` — 68 < 12 * 9 = 108 범위에서 `68/12*5 = 5*5 = 25`가 `68*5/12 = 28`보다 작음을 시현
+
+### Intent Annotations
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| During | 141 | transfer.arg[0] >= amount * 5 / 12 | violated | marketing wallet 송금량은 mul-first 하한값 이상이어야 함. buggy: 5*5=25 < 68*5/12=28 → violated |
+| During | 142 | transfer.arg[0] >= amount * 2 / 9 | violated | dip wallet 송금량은 mul-first 하한값 이상이어야 함. buggy: 7*2=14 < 68*2/9=15 → violated |
+
+**Rationale**: paper §6.2 Guideline 3 (multi-step arithmetic, 7 of 20) 대표 case. Function-arg 형태(`func.arg[N] relOp expr`)의 specialized @During 사용.
+
+---
+
+## web3bugs_8_H_03
+
+- **Contract**: NFTXVaultUpgradeable
+- **Function**: getRandomTokenIdFromFund
+- **Bug line (original)**: 414
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L3: unsupported-construct-top)`
+
+### Bug Description
+`getRandomTokenIdFromFund()` 가 random pick 시 ERC1155 의 `quantity1155` 을 고려하지 않음. 즉 quantity > 1 인 ERC1155 슬롯도 단일 확률로 sampled 되어 weight 가 잘못됨 (reports/8.md H-03).
+- Report: submission `code-423n4/2021-05-nftx-findings/issues/56`
+
+### Not Detectable 사유 (L3: unsupported-construct-top)
+- Random 값은 `keccak256(abi.encodePacked(block.timestamp, block.difficulty, ...)) % holdings.length` 로 계산됨
+- abstract interpreter 는 `keccak256` 을 opaque builtin 으로 취급 → 결과 TOP 으로 propagate
+- bug check 가 의존하는 "확률 분포의 편향" 은 값 수준 invariant 가 아님 — TOP 상태에서는 buggy/correct 동일 결과 (둘 다 TOP)
+- ERC1155 probability weight 는 counting argument 으로만 증명 가능 → intent annotation 의 interval domain 으로 구분 불가 → L3
+
+---
+
+## web3bugs_35_H_11
+
+- **Contract**: Ticks (library)
+- **Function**: cross
+- **Bug lines (original)**: 40, 49
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L5b: wrong-code)`
+
+### Bug Description
+`Ticks.cross()` 에서 swap 방향과 업데이트 대상 field 의 mapping 이 반대 (reports/35.md H-11):
+- `zeroForOne == true` (token0 → token1 swap, pool tick 감소): token1 fees outside 가 갱신되어야 하나 buggy 코드는 `feeGrowthOutside0` 갱신
+- `zeroForOne == false`: 대칭적으로 `feeGrowthOutside1` 대신 `feeGrowthOutside0` 갱신해야 함
+- 즉 `0` 과 `1` 이 swap 되어야 함
+
+### Not Detectable 사유 (L5b: wrong-code)
+- Struct field access, state array write 모두 지원되므로 L1/L2/L3 아님
+- 올바른 annotation 은 `@Post changed(ticks[nextTickToCross].feeGrowthOutside1, true)` (zeroForOne branch 기준, l4_l5 csv annotation_text 참조)
+- 이 annotation 은 **field 방향 지식**("zeroForOne → outside1 갱신") 을 전제 — 개발자가 이미 정확한 방향을 알고 있어야 작성 가능 → bug awareness → L5b
+- annotation_tier: weak (directional, paper §6.2 Guideline 1 "7 of 14 L5 expressible" 에 포함)
+
+### Intent Annotation (from l4_l5 csv)
+| Type | Expression | Expected | Rationale |
+|------|------------|----------|-----------|
+| Post | changed(ticks[nextTickToCross].feeGrowthOutside1, true) | violated | zeroForOne branch 에서 outside1 이 갱신되어야 하나 buggy 는 outside0 만 갱신 → unchanged → violated |
+
+---
+
+## web3bugs_52_H_15
+
+- **Contract**: VaderRouter
+- **Function**: _swap
+- **Bug line (original)**: 326
+- **Pattern**: erroneous_accounting
+- **Status**: `not_detectable (L4b: wrong-code — router wrapper)`
+
+### Bug Description
+`VaderRouter._swap()` 3-path hop 에서 pool 간 reserve 인자 순서가 뒤바뀜 (reports/52.md H-15):
+- 의도: foreign → native (pool0) → different foreign (pool1)
+- buggy: 첫 hop 에서 native amount 조건 체크가 foreign 기준으로 작동 → `require(nativeAmountIn == amountIn <= nativeBalance - nativeReserve == 0)` revert
+- Report: `code-423n4/2021-11-vader-findings/issues/161` (sponsor confirmed)
+
+### Not Detectable 사유 (L4b: wrong-code)
+- **L4b 분류 근거** (l4_l5_classification.csv: `original_class=L4b, final_class=L4b, reclass_reason=limitation_types_md_self_inconsistent_L4b_list_and_L5b_examples_both_contain_this_case_I9_principle_picks_L4b`)
+- VaderRouter 는 router wrapper — state 변경 없음, `BasePool.swap()` 을 외부 호출만 수행
+- `VaderMath.calculateSwap()` 은 pure library 이지만 annotation grammar 에서 직접 함수 호출 불가 → 올바른 expected swap result 표현 불가
+- 3-path 모두 revert 되므로 intent 가 도달하는 check point 자체가 없음 (silent sanction via require)
+- I9 principle: arg[N] lint-level (router wrapper no state) → L4b archetype (52_H_16 twin)
+
+### Intent Annotation (시도)
+| Type | Line | Expression | Expected | Rationale |
+|------|------|------------|----------|-----------|
+| (시도 불가) | 326 | (`VaderMath.calculateSwap(...)` 함수 호출 annotation grammar 밖) | — | router wrapper + 외부 pool call + grammar 제한으로 작성 불가 |

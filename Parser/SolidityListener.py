@@ -1,6 +1,6 @@
-# Generated from Solidity.g4 by ANTLR 4.13.1
+# Generated from Parser/Solidity.g4 by ANTLR 4.12.0
 from antlr4 import *
-if "." in __name__:
+if __name__ is not None and "." in __name__:
     from .SolidityParser import SolidityParser
 else:
     from SolidityParser import SolidityParser
@@ -845,6 +845,24 @@ class SolidityListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by SolidityParser#IntentShiftOp.
+    def enterIntentShiftOp(self, ctx:SolidityParser.IntentShiftOpContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentShiftOp.
+    def exitIntentShiftOp(self, ctx:SolidityParser.IntentShiftOpContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IntentShiftRoot.
+    def enterIntentShiftRoot(self, ctx:SolidityParser.IntentShiftRootContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentShiftRoot.
+    def exitIntentShiftRoot(self, ctx:SolidityParser.IntentShiftRootContext):
+        pass
+
+
     # Enter a parse tree produced by SolidityParser#AddSub.
     def enterAddSub(self, ctx:SolidityParser.AddSubContext):
         pass
@@ -878,6 +896,24 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#MulDivMod.
     def exitMulDivMod(self, ctx:SolidityParser.MulDivModContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IntentExponentiation.
+    def enterIntentExponentiation(self, ctx:SolidityParser.IntentExponentiationContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentExponentiation.
+    def exitIntentExponentiation(self, ctx:SolidityParser.IntentExponentiationContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#IntentExpRoot.
+    def enterIntentExpRoot(self, ctx:SolidityParser.IntentExpRootContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#IntentExpRoot.
+    def exitIntentExpRoot(self, ctx:SolidityParser.IntentExpRootContext):
         pass
 
 

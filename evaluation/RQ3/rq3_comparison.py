@@ -27,9 +27,14 @@ BASE = Path(__file__).resolve().parent                       # evaluation/RQ3
 PROJECT_ROOT = BASE.parent.parent                            # repo root
 CASE_CSV = BASE / "case_mapping.csv"
 RQ2_CSV = BASE.parent / "RQ1" / "rq2_results.csv"
+IC_RUN_CSVS = [BASE.parent / "validation_soundness" / f"rq2_run{i}.csv" for i in (1, 2, 3)]
 GPTSCAN_DIR = BASE / "outputs" / "gptscan" / "run1"
 SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
-NUMSCOUT_SUMMARY = BASE / "outputs" / "numscout" / "run1" / "summary.json"
+NUMSCOUT_RUN_DIRS = [BASE / "outputs" / "numscout" / f"run{i}" for i in (1, 2, 3)]
+# 51_H_02 and 77_H_01 require library-inlining (only present in run1) and are
+# classified N/A on scope grounds in Table~\ref{tab:rq3-mitigation}; exclude them
+# from the latency aggregation so NumScout is compared on uniformly 3-run data.
+NUMSCOUT_LATENCY_EXCLUDE = {"web3bugs_51_H_02", "web3bugs_77_H_01"}
 FIG_DIR = BASE / "figures"
 FIG_DIR.mkdir(exist_ok=True)
 PAPER_FIG_DIR = PROJECT_ROOT / "paper" / "figure"

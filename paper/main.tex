@@ -161,8 +161,8 @@ To that end, we present IntentChecker, a development-time intent validation tool
 The value-level intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
 A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification over all topological configurations of two integer intervals.
 
-We evaluate IntentChecker on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
-The evaluation organizes itself around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
+IntentChecker is evaluated on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
+The evaluation is organized around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
 Importantly, our positioning with respect to existing tools is complementary rather than competitive: IntentChecker fills a distinct place in the development workflow by enabling intent-driven validation during editing, and is intended to coexist with auditing-time detectors rather than replace them.
 
 \begin{table}[!t]
@@ -189,8 +189,8 @@ Importantly, our positioning with respect to existing tools is complementary rat
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
+    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at cross-contract call boundaries (§\ref{sec:prelim}).
     \item A value-level intent model with a formal denotational semantics is presented, defining each annotation form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction, introducing the @IReturn debug annotation to handle interface return values at deployment boundaries (§\ref{sec:prelim}).
     \item IntentChecker is evaluated on 89 real-world numeric logic errors and positioned against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---demonstrating that the three tools occupy distinct points in the development/auditing timeline rather than forming a single comparison along detection accuracy (§\ref{sec:evaluation}).
 \end{itemize}
 
@@ -199,7 +199,7 @@ Section~\ref{sec:background} motivates the development-time intent validation pr
 Section~\ref{sec:prelim} reviews the SolQDebug foundations and describes the scope extensions required for intent validation over multi-contract code.
 Section~\ref{sec:design} presents the design of IntentChecker, including its intent model and validation engine.
 Section~\ref{sec:evaluation} presents evaluation results across the three research questions.
-Section~\ref{sec:discussion} discusses the annotation authoring burden and remaining technical limitations.
+Section~\ref{sec:discussion} discusses the intent authoring effort, annotation guidelines, and remaining limitations.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
 
 \section{Background}\label{sec:background}

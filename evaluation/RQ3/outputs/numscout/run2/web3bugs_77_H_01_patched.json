@@ -1,7 +1,7 @@
 {
  "evm_code_coverage": "62.3",
  "instructions": "9959",
- "time": "1802.5608348846436",
+ "time": "1800.813404560089",
  "analysis": {
   "div_in_path": [
    [
@@ -41,5 +41,7 @@
  "address": "",
  "contract_count": 5,
  "storage_var_count": 13,
- "pub_fun_count": 20
+ "pub_fun_count": 20,
+ "_elapsed_wall": 1821.1030204296112,
+ "_run_tag": "patched"
 }

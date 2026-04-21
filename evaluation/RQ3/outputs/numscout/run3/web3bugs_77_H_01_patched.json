@@ -41,5 +41,7 @@
  "address": "",
  "contract_count": 5,
  "storage_var_count": 13,
- "pub_fun_count": 20
+ "pub_fun_count": 20,
+ "_elapsed_wall": 1828.9419782161713,
+ "_run_tag": "patched"
 }

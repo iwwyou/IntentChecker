@@ -343,13 +343,23 @@ intentValue
 
 //────────── 6-1)  숫자 / 비율 / 모듈러 ──────────
 arithExpr
-    : arithExpr ('+' | '-') arithTerm              #AddSub
+    : arithExpr ('<<' | '>>' | '>>>') arithAdd     #IntentShiftOp
+    | arithAdd                                     #IntentShiftRoot
+    ;
+
+arithAdd
+    : arithAdd ('+' | '-') arithTerm               #AddSub
     | arithTerm                                    #AddSubRoot
     ;
 
 arithTerm
-    : arithTerm ('*' | '/' | '%') arithFactor      #MulDivMod
-    | arithFactor                                  #MulDivModRoot
+    : arithTerm ('*' | '/' | '%') arithExp         #MulDivMod
+    | arithExp                                     #MulDivModRoot
+    ;
+
+arithExp
+    : arithFactor '**' arithExp                    #IntentExponentiation
+    | arithFactor                                  #IntentExpRoot
     ;
 
 arithFactor

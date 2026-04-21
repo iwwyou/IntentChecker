@@ -1,6 +1,6 @@
-# Generated from Solidity.g4 by ANTLR 4.13.1
+# Generated from Parser/Solidity.g4 by ANTLR 4.12.0
 from antlr4 import *
-if "." in __name__:
+if __name__ is not None and "." in __name__:
     from .SolidityParser import SolidityParser
 else:
     from SolidityParser import SolidityParser
@@ -474,6 +474,16 @@ class SolidityVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SolidityParser#IntentShiftOp.
+    def visitIntentShiftOp(self, ctx:SolidityParser.IntentShiftOpContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IntentShiftRoot.
+    def visitIntentShiftRoot(self, ctx:SolidityParser.IntentShiftRootContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SolidityParser#AddSub.
     def visitAddSub(self, ctx:SolidityParser.AddSubContext):
         return self.visitChildren(ctx)
@@ -491,6 +501,16 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#MulDivMod.
     def visitMulDivMod(self, ctx:SolidityParser.MulDivModContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IntentExponentiation.
+    def visitIntentExponentiation(self, ctx:SolidityParser.IntentExponentiationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#IntentExpRoot.
+    def visitIntentExpRoot(self, ctx:SolidityParser.IntentExpRootContext):
         return self.visitChildren(ctx)
 
 

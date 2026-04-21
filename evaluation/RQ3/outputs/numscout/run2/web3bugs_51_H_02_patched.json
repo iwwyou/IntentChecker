@@ -1,7 +1,7 @@
 {
  "evm_code_coverage": "15.4",
  "instructions": "20812",
- "time": "1802.7120444774628",
+ "time": "1801.0308306217194",
  "analysis": {
   "div_in_path": [],
   "operator_order_issue": [],
@@ -23,5 +23,7 @@
  "address": "",
  "contract_count": 10,
  "storage_var_count": 8,
- "pub_fun_count": 39
+ "pub_fun_count": 39,
+ "_elapsed_wall": 1828.7986829280853,
+ "_run_tag": "patched"
 }

@@ -1214,10 +1214,28 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         # intentValue : arithExpr ;
         return self.visit(ctx.arithExpr())
 
+    # Visit a parse tree produced by SolidityParser#IntentShiftOp.
+    def visitIntentShiftOp(self, ctx: SolidityParser.IntentShiftOpContext):
+        # Binary shift: arithExpr (<<|>>|>>>) arithAdd
+        left = self.visit(ctx.arithExpr())
+        right = self.visit(ctx.arithAdd())
+        operator = ctx.getChild(1).getText()  # <<, >>, or >>>
+        return Expression(
+            left=left,
+            operator=operator,
+            right=right,
+            expr_type='int',
+            context='IntentShiftContext'
+        )
+
+    # Visit a parse tree produced by SolidityParser#IntentShiftRoot.
+    def visitIntentShiftRoot(self, ctx: SolidityParser.IntentShiftRootContext):
+        return self.visit(ctx.arithAdd())
+
     # Visit a parse tree produced by SolidityParser#AddSub.
     def visitAddSub(self, ctx: SolidityParser.AddSubContext):
-        # Binary addition/subtraction: arithExpr (+|-) arithTerm
-        left = self.visit(ctx.arithExpr())
+        # Binary addition/subtraction: arithAdd (+|-) arithTerm
+        left = self.visit(ctx.arithAdd())
         right = self.visit(ctx.arithTerm())
         operator = ctx.getChild(1).getText()  # + or -
         return Expression(
@@ -1235,14 +1253,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#MulDivModRoot.
     def visitMulDivModRoot(self, ctx: SolidityParser.MulDivModRootContext):
-        # Recursively visit the arithFactor  
-        return self.visit(ctx.arithFactor())
+        # Recursively visit the arithExp
+        return self.visit(ctx.arithExp())
 
     # Visit a parse tree produced by SolidityParser#MulDivMod.
     def visitMulDivMod(self, ctx: SolidityParser.MulDivModContext):
-        # Binary multiplication/division/modulo: arithTerm (*|/|%) arithFactor
+        # Binary multiplication/division/modulo: arithTerm (*|/|%) arithExp
         left = self.visit(ctx.arithTerm())
-        right = self.visit(ctx.arithFactor())
+        right = self.visit(ctx.arithExp())
         operator = ctx.getChild(1).getText()  # *, /, or %
         return Expression(
             left=left,
@@ -1251,6 +1269,23 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             expr_type='int',
             context='MulDivModContext'
         )
+
+    # Visit a parse tree produced by SolidityParser#IntentExponentiation.
+    def visitIntentExponentiation(self, ctx: SolidityParser.IntentExponentiationContext):
+        # Exponentiation: arithFactor ** arithExp  (right-assoc)
+        left = self.visit(ctx.arithFactor())
+        right = self.visit(ctx.arithExp())
+        return Expression(
+            left=left,
+            operator='**',
+            right=right,
+            expr_type='int',
+            context='IntentExponentiationContext'
+        )
+
+    # Visit a parse tree produced by SolidityParser#IntentExpRoot.
+    def visitIntentExpRoot(self, ctx: SolidityParser.IntentExpRootContext):
+        return self.visit(ctx.arithFactor())
 
     # Visit a parse tree produced by SolidityParser#NumLiteral.
     def visitNumLiteral(self, ctx: SolidityParser.NumLiteralContext):
