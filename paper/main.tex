@@ -1429,6 +1429,7 @@ What the comparison with pattern- and type-driven tools makes visible here is th
 Fig.~\ref{fig:rq3-time} reports per-case analysis times pooled over three runs (60 observations per 20-case tool, 21 for ScType's seven applicable cases).
 IntentChecker (mean 3.7\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
 GPTScan (mean 266\,s) runs approximately 72$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 719\,s, median 291\,s) is slower still, with several cases running to NumScout's 1800\,s symbolic-execution timeout.
+NumScout's lower tail in Fig.~\ref{fig:rq3-time} (observations near 0.02\,s) corresponds to 56\_H\_02, whose target is a Solidity library (\texttt{CDP}): the standalone library bytecode contains only the public-function dispatcher, not the \texttt{internal update()} body that is inlined into its callers, so NumScout's bytecode parser completes in milliseconds without analyzing the target function---a symptom of the same bytecode-level design that produces the unresolved-library-placeholder failures on 51\_H\_02 and 77\_H\_01.
 The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the model-snapshot drift that affects GPTScan's mitigation outputs (\S\ref{sec:threats}) because its pipeline structure has been unchanged since 2023.
 These latency numbers are not IntentChecker outperforming the others on a shared task.
 They reflect the workflow position each tool was built for.

@@ -480,6 +480,7 @@ def fig_time_comparison(rows, ic_data, gpt_data, sc_data, ns_data, path):
     colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0"]
 
     bp = ax.boxplot(box_data, tick_labels=box_labels, patch_artist=True, widths=0.5,
+                    whis=[0, 100], showfliers=False,
                     medianprops=dict(color="black", linewidth=1.5))
     for patch, color in zip(bp["boxes"], colors):
         patch.set_facecolor(color)
