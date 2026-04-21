@@ -125,17 +125,18 @@
 
 \abstract{
 Smart contract development lacks the mature debugging infrastructure available in traditional software engineering.
-One missing piece is a mechanism for developers to declare their intended numeric behavior and have it checked against actual execution at development time.
+In particular, developer intent has no direct role in the analysis available at development time.
 For this reason, numeric logic errors---where program behavior diverges from developer intent---are particularly difficult to address.
 Existing detection tools instead match completed source code against pre-defined vulnerability patterns in a testing or auditing context.
-Errors outside these patterns have no practical path to early prevention.
-This paper presents IntentChecker, a development-time intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
-At its core is a value-level intent model comprising two annotation types---@During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution---and a semantics that classifies each annotation as Satisfied, Warning, or Violated given the intervals computed by abstract interpretation.
-A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score.
-We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing pattern-based tools, with analysis latency suitable for development-time use.
+As a result, errors outside these patterns have no practical path to early prevention.
+This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
+At its core is an intent model comprising annotations and a validation engine.
+Two annotation types let developers declare intent: @During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution.
+The validation engine classifies each annotation as Satisfied, Warning, or Violated against the intervals computed by abstract interpretation, and reports each result with a risk score.
+We evaluate IntentChecker on real-world numeric logic errors and show that it provides a detection signal complementary to existing auditing-time detectors, with analysis latency suitable for development-time use.
 }
 
-\keywords{Solidity, Numeric Logic Error, Debugging Assistant, Intent Model, Intent Validation}
+\keywords{Solidity, Numeric Logic Error, Debugging Assistant, Value-level Intent Validation, Intent Model}
 
 \maketitle
 
@@ -157,11 +158,10 @@ Logic errors are therefore most likely to arise in this space, and addressing su
 Meanwhile, developer preferences favor tools that run at development time. The same empirical study~\citep{defisecurity} reports a clear preference for IDE-integrated tools such as extensions and linters over standalone analyzers, favoring development-time tooling. It also reports a strong prioritization of low false negatives (92.3\%) over low false positives (50\%), matching the profile of sound over-approximating analyses such as abstract interpretation.
 These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
 
-To that end, we present IntentChecker, a development-time intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
-The value-level intent model is built around two annotation types that cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. A tri-valued semantics then maps each annotation to one of Satisfied, Warning, or Violated based on the intervals produced by abstract interpretation.
-A validation engine applies this intent model to determine whether the developer's intent is violated at each annotation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur; the underlying interval comparison primitive is mathematically proved sound against the intent model's set-theoretic specification over all topological configurations of two integer intervals.
+To that end, This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
+The intent model comprises two annotation types and a validation engine. The two annotation types cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. The validation engine, grounded in a formal denotational semantics, classifies each annotation as Satisfied, Warning, or Violated against the intervals produced by abstract interpretation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur.
 
-IntentChecker is evaluated on 89 real-world numeric logic errors drawn from Web3Bugs~\citep{exploitablebugs} and NumScout~\citep{numscout}.
+IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) drawn from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}.
 The evaluation is organized around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
 IntentChecker is positioned as a development-time complement to existing auditing-time detectors: it enables intent-driven validation during editing rather than competing with bug-pattern detectors on detection accuracy, and the RQ3 comparison is designed around this complementarity.
 
@@ -190,8 +190,8 @@ IntentChecker is positioned as a development-time complement to existing auditin
 \begin{itemize}
     \item We identify an unfilled gap in current Solidity tooling: the absence of a development-time mechanism for declaring and validating numeric intent, and we show that this gap is not a minor engineering oversight but a structural consequence of how existing numeric logic detection tools are designed (§\ref{sec:background}).
     \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values at cross-contract call boundaries (§\ref{sec:prelim}).
-    \item A value-level intent model with a formal denotational semantics is presented, defining each annotation form as a tri-valued outcome against abstract states, together with a validation engine whose interval comparison primitive is proved sound against the semantics, producing a graded signal (Satisfied / Warning / Violated) with a separately computed risk score and violated region (§\ref{sec:design}).
-    \item IntentChecker is evaluated on 89 real-world numeric logic errors and benchmarked against NumScout and GPTScan along three axes---signal characteristics, per-case latency, and coverage complementarity---with empirical results showing measurable differences in latency and coverage that substantiate the complementary positioning of development-time intent validation against auditing-time bug detection (§\ref{sec:evaluation}).
+    \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region (§\ref{sec:design}).
+    \item IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) and benchmarked against ScType, GPTScan, and NumScout along two axes derived from the structural constraints of existing tools---the criteria axis (who authors the detection criteria) and the position axis (when the tool is run)---with empirical results on coverage and latency that substantiate the complementary positioning of development-time intent validation against auditing-time bug detection (§\ref{sec:evaluation}).
 \end{itemize}
 
 The remainder of this paper is organized as follows.
@@ -284,8 +284,8 @@ IntentChecker realizes this direction by addressing each constraint with a dedic
 
 \smallskip
 \noindent\textbf{(1) Detection criteria authored by the developer, via intent annotations.}
-IntentChecker introduces a value-level intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a denotational semantics that maps each annotation to one of Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
-A validation engine reads these intervals, compares them against the declared intent, and reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
+IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a validation engine grounded in a denotational semantics that classifies each annotation as Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
+The engine reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
 
 \smallskip
 \noindent\textbf{(2) Analysis input: source code at development time, with the developer in the loop.}
@@ -1355,7 +1355,7 @@ RQ3 is organized around two axes, each an empirical reading of a structural cons
 
 \smallskip
 \noindent\textbf{Criteria axis: what each tool is asked to look for.}
-Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification. A \ding{51} marks an in-scope hit, meaning the target bug's error pattern (Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the intent-annotated target function. A \ding{55} marks an in-scope miss. \textcolor{gray}{N/A} marks cases out of the tool's design scope or where the tool cannot be applied.
+Table~\ref{tab:rq3-mitigation} reports per-case mitigation under a scope-aware classification. A \ding{51} marks an in-scope hit, meaning the target bug's error pattern (Table~\ref{tab:rq1-timing}) lies within the tool's design scope and the tool's output directly flags the audit-reported target function. A \ding{55} marks an in-scope miss. \textcolor{gray}{N/A} marks cases out of the tool's design scope or where the tool cannot be applied.
 
 \begin{table}[t]
 \centering
@@ -1398,26 +1398,21 @@ NumScout's LLM-pruned path selection introduces run-to-run variability: WANGMI, 
 The remaining 15 cases fall outside NumScout's five-pattern catalog, and, with the single exception of GPTScan's hit on 45\_H\_01, outside GPTScan's ten DeFi rules as well. These misses are not deficiencies of the respective tools, since the catalogs were constructed for different threat models, but they make (C1) empirically visible: a bug is catalog-authored or undetectable.
 We verified this class-based reading by running NumScout on these 15 cases.
 None produced an actionable signal at the audit-reported target function: NumScout either returned no warning or flagged its catalog patterns on neighboring functions instead.
+IntentChecker is not subject to this catalog ceiling because its @During/@Post specifications are authored per case rather than fixed at design time.
 
 \smallskip
 \indent\textbf{Type-driven criteria (ScType).}
 ScType generalizes beyond a catalog of shapes: any arithmetic operation whose operand types clash under its financial type system is flagged, regardless of which specific bug pattern the clash represents, and the accounting-error class of bugs sits squarely inside this target scope.
 Of the 20 cases, 7 have the per-project type annotation file ScType requires; the remaining 13 are marked N/A in Table~\ref{tab:rq3-mitigation} as a practical applicability limit.
-On the 7 applicable cases, ScType flags 4---\texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits}, \texttt{WrappedIbbtcEth.transferFrom}, and \texttt{OptimisticLedgerLib.settleAccount}---and pinpoints the intent-annotated target on each.
+On the 7 applicable cases, ScType flags 4---\texttt{calcAsymmetricShare}, \texttt{calcLiquidityUnits}, \texttt{WrappedIbbtcEth.transferFrom}, and \texttt{OptimisticLedgerLib.settleAccount}---and pinpoints the audit-reported target function on each.
 The remaining 3 (\texttt{CDP.update}, \texttt{syncVaderPrice}, \texttt{\_calcPrincipalWithdrawable}) are in scope but produce no warning: every operand carries the correct financial type, and the arithmetic still produces a numerically wrong result, so the bug is real but the type layer has nothing to clash on.
 ScType is the closest point of comparison to IntentChecker because both partially relax (C1) by requiring human-authored external artifacts rather than relying solely on design-time criteria.
-The two tools differ in what the author supplies and when.
+However, the two tools differ in what the author supplies and when.
 ScType expects per-project type annotation files, a task its own evaluation positions as an auditor or reviewer responsibility derived from project documentation, which leaves the tool on the auditing side of (C2).
-IntentChecker expects per-case value-level specifications written by the developer during editing, crossing (C2) as well.
-Type labels can be assigned without the author having any specific output value in mind, so ScType extends coverage to cases where no such value is yet known, while IntentChecker covers value-level deviations that no consistent type labeling can distinguish from the correct computation.
+Type labels can be assigned knowing only what type each variable holds, not what specific value it should produce, so ScType extends coverage to cases where the expected output is not yet fixed.
+By contrast, IntentChecker expects per-case value-level specifications written by the developer during editing, crossing (C2) as well.
+These specifications are stricter to author, but they catch deviations like the three ScType-in-scope cases above, where every operand carried the correct type yet the arithmetic still produced a numerically wrong result.
 Type-level and value-level authoring therefore address disjoint slices of the external-artifact design space.
-
-\smallskip
-\indent\textbf{Specification-driven criteria (IntentChecker).}
-IntentChecker's detection criteria are authored per case by the developer as @During and @Post conditions, so the detectable set for a given contract is not fixed at design time but shaped by whatever intent the developer articulates.
-The RQ1 result of 20/20 is the direct consequence: when the audit-report root cause can be written as a value-level relation over function-scope variables, the annotation carries that relation into the analysis and any deviation surfaces as Violated or Warning.
-The ceiling of this approach was quantified in RQ2, where 34 of 55 unmitigated cases fall on the annotation-layer boundary---structural relations over out-of-scope references, or awareness-gated specifications the developer did not recognize---giving the model a definable outer edge rather than open-ended scope.
-The uniform \ding{51} column for IntentChecker in Table~\ref{tab:rq3-mitigation} is therefore not a coverage claim over arbitrary contracts but the consequence of letting the developer supply the detection criterion on the slice where the criterion exists.
 
 \begin{figure}[t]
     \centering
@@ -1430,25 +1425,16 @@ The uniform \ding{51} column for IntentChecker in Table~\ref{tab:rq3-mitigation}
 \noindent\textbf{Position axis: when each tool is run.}
 Fig.~\ref{fig:rq3-time} reports per-case analysis times pooled over three runs (60 observations per 20-case tool, 21 for ScType's seven applicable cases).
 IntentChecker (mean 3.7\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds and produce identical times across the three runs.
-GPTScan (mean 266\,s) runs approximately 72$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 719\,s, median 291\,s) is slower still, with several cases running to NumScout's 1800\,s symbolic-execution timeout.
+By contrast, GPTScan (mean 266\,s) runs approximately 72$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 719\,s, median 291\,s) is slower still, with several cases running to NumScout's 1800\,s symbolic-execution timeout.
 The box-plot spread visible in Fig.~\ref{fig:rq3-time} therefore comes entirely from these two LLM-driven pipelines, whose run-to-run variability is absent in the deterministic analyses.
-NumScout's lower tail in Fig.~\ref{fig:rq3-time} (observations near 0.02\,s) corresponds to 56\_H\_02, whose target is a Solidity library (\texttt{CDP}): the standalone library bytecode contains only the public-function dispatcher, not the \texttt{internal update()} body that is inlined into its callers, so NumScout's bytecode parser completes in milliseconds without analyzing the target function---a symptom of the same bytecode-level design that produces the unresolved-library-placeholder failures on 51\_H\_02 and 77\_H\_01.
-The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the model-snapshot drift that affects GPTScan's mitigation outputs (\S\ref{sec:threats}) because its pipeline structure has been unchanged since 2023.
-These latency numbers are not IntentChecker outperforming the others on a shared task.
-They reflect the workflow position each tool was built for.
-Post-hoc audit and CI integration tolerate per-case latency in the minute range, so neither GPTScan nor NumScout was under pressure to compress that budget.
-IntentChecker's development-time positioning---executing inside the editor as code is written, which is the \S\ref{sec:background} constraint-(C2) reversal---imposes the opposite budget.
-If latency ran past a few seconds, the developer's editing rhythm would carry them past the point where the feedback is useful.
-The observed 3.7\,s mean therefore reads as a design-space requirement met rather than as a speed advantage, and it sets the outer envelope for any tool aiming to sit in the same slot.
 
 \smallskip
 \noindent\textbf{Synthesis.}
 The two axes are not independent evaluation dimensions but the empirical shadow of the two structural constraints identified in \S\ref{sec:background}.
-The criteria axis shows that the 20 mitigated cases sit outside the pattern and type catalogs of three state-of-the-art tools, and that the reason is structural: criteria authored by tool designers admit only the shapes those designers anticipated, and numeric logic errors extend beyond any fixed anticipation.
-The position axis shows that the latency envelopes of those tools are shaped by the post-hoc workflow they serve, and that stepping into the development-time slot where the developer can still supply intent requires compressing that envelope by roughly two orders of magnitude.
-IntentChecker occupies the joint corner of developer-authored criteria and development-time execution, the corner the two reversals jointly define.
-The comparison is not an argument to replace the existing tools.
-It is evidence that the bug class explored across RQ1--RQ3 is the class this joint corner was constructed to serve, and that the existing design space does not already cover it.
+The criteria axis shows that the 20 mitigated cases sit outside the pattern and type catalogs of three tools, and that the reason is structural: criteria authored by tool designers admit only the shapes those designers anticipated, and numeric logic errors extend beyond any fixed anticipation.
+The position axis shows that the latency envelopes of those tools are shaped by the post-hoc workflow they serve---audit and CI tolerate per-case latency in the minute range---while stepping into the development-time slot where the developer can still supply intent requires compressing that envelope by roughly two orders of magnitude. IntentChecker's observed 3.7\,s mean accordingly reads as a design-space requirement met rather than a speed advantage.
+Taken together, IntentChecker occupies the joint corner of developer-authored criteria and development-time execution, the corner the two reversals jointly define.
+Rather than competing with existing auditing-time detectors, it completes the detection design space by filling this development-time gap, which RQ1--RQ3 together characterize as both real and previously unoccupied.
 
 \subsection{Threats to Validity}\label{sec:threats}
 
@@ -1571,9 +1557,9 @@ generates and ranks invariants, and ultimately identifies vulnerabilities throug
 Furthermore, there are also approaches that address multiple transaction logic errors such as price manipulation~\citep{defiranger,defiguard,pomabuster,secplf,defitainter}
 and flash loan attacks~\citep{defitail,midnight}.
 
-The numeric logic error detectors above and IntentChecker occupy distinct points along the development--auditing timeline rather than competing on the same axis.
-NumScout, GPTScan, SmartInv, and the type-system approach of \citet{sctype} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments.
-IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor.
+The numeric logic error detectors above and IntentChecker differ along both axes identified in §\ref{sec:background}.2: who authors the detection criteria and when the tool is run.
+NumScout, GPTScan, SmartInv, and the type-system approach of \citet{sctype} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments---criteria fixed at design time and applied post-hoc.
+IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor, crossing both axes simultaneously.
 Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary, and §\ref{sec:rq3} characterizes that complementarity rather than arguing numerical superiority.
 
 \subsection{Specification-based Smart Contract Verification}
@@ -1605,7 +1591,7 @@ generating counterexamples when violations are detected to help developers under
 While specification-based approaches formalise contract-level properties in dedicated specification languages---Scribble's annotation language, Idealist's loop and call invariants, Solvent's SMT-encoded liquidity properties---and discharge verification obligations over completed code, IntentChecker's intent model occupies a different point in the design space with three distinguishing characteristics.
 First, its annotation language targets value-level numeric intent on individual variables at specific program points, not contract-level invariants or temporal properties.
 Second, its denotational semantics (§\ref{sec:intent-semantics}) maps each annotation form to a tri-valued validation outcome over the abstract states produced by interval-domain analysis, giving the annotation language a formal foundation comparable in rigor to the specification languages above while remaining cheap enough to evaluate at development time.
-Third, because IntentChecker performs interval-domain analysis that tracks actual value ranges through library function calls (e.g., SafeMath operations) rather than treating libraries as black boxes, it can validate intent over step-by-step numeric computations rather than only over post-condition-style abstract properties.
+Third, the annotation grammar allows intent to be declared at any program point within a function (not only at function entry/exit), and IntentChecker's interval-domain analysis tracks actual value ranges through library function calls (e.g., SafeMath operations) rather than treating libraries as black boxes, so declared intent can be validated against computations as they unfold rather than only against boundary properties.
 The two approaches are therefore complementary in workflow stage (development-time vs.\ audit/verification-time), in granularity (value-level vs.\ contract-level), and in the specification style they support.
 
 \subsection{Tools for Strengthening Security During Development Phase}
@@ -1616,21 +1602,17 @@ The platform integrates existing static analysis tools including Oyente~\citep{o
 \citep{solhint} provides a Solidity linter that detects predefined vulnerability patterns including low-level calls, reentrancy, and deprecated function usage during development.
 The tool enforces security best practices by checking for patterns such as proper visibility declarations, send result validation, and secure compiler version usage.
 
-While these development-phase tools rely on predefined detection patterns for known vulnerabilities,
-IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches these specified intentions.
+While these development-phase tools rely on design-time detection criteria for known vulnerability patterns,
+IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches the declared intent.
 IntentChecker also extends SolQDebug's analysis scope beyond a single contract to a multi-contract single-transaction scope that includes inheritance, libraries, interfaces, and an arithmetic Yul subset, which is what makes intent validation feasible on realistic DeFi code.
 
 \section{Conclusion}\label{sec:conclusion}
 
-We presented IntentChecker, a development-time intent validation tool that extends SolQDebug with (i) a value-level intent model---two annotation types (@During/@Post) equipped with a formal denotational semantics that maps each annotation to a tri-valued outcome against abstract states, (ii) a validation engine whose interval comparison primitive is proved sound against that semantics, producing graded Satisfied/Warning/Violated signals with separately computed risk scores and violated regions, and (iii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
+We presented IntentChecker, a development-time value-level intent validation tool that extends SolQDebug with (i) an intent model comprising two annotation types (@During/@Post) and a validation engine grounded in a formal denotational semantics that produces graded Satisfied/Warning/Violated judgments against abstract states with separately computed risk scores and violated regions, and (ii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
 
-On 75 effective benchmark instances (89 collected, 14 excluded) from Web3Bugs and NumScout, IntentChecker surfaced 20 bugs via Violated judgments at interactive speeds (mean 3.69\,s per case).
-RQ2's expressibility analysis showed that 14 of the 34 intent-model limitation cases are expressible under bug awareness, while 20 represent a hard grammar ceiling---identifying concrete extension points for the intent model.
-IntentChecker's positioning relative to existing detection tools is complementary: it fills the development-time gap that auditing-time tools structurally cannot occupy.
+On 75 effective benchmark instances drawn from Web3Bugs, NumScout, and the Greedy Contract dataset of \citet{flyinointment}, IntentChecker mitigated 20 cases by returning Violated judgments at a mean 3.69\,s per case (RQ1). RQ2 traced the remaining 55 cases to two levels of limitation. Of these, 21 are analysis-engine limits where the interval-domain state at the check point is too coarse to distinguish the bug. The other 34 are annotation-grammar limits rooted in two structural properties of the value-level intent model: value-level annotations can express a bug only when the corrective variable is in the function's scope, and algorithm-level bugs lie outside what a value-level grammar is designed to express. RQ3 then compared IntentChecker with existing detectors and empirically confirmed that their coverage and latency envelopes are bounded by both structural axes this paper identifies, namely who authors the detection criteria and when the tool is run.
 
-The primary practical limitation is the annotation authoring burden, which future work can address through LLM-assisted annotation suggestion (lowering the L5 bug-awareness ceiling) and auto-repair from violated regions.
-On the analyzer side, extending Yul support and multi-transaction reasoning would close the remaining technical limitations.
-More broadly, this work adds ``development-time intent validator'' as a third category alongside pattern-based detectors and formal verifiers in the design space for numeric logic error tools.
+These results position IntentChecker as complementary to existing detection tools: rather than competing on detection accuracy, it fills the development-time slot that auditing-time tools structurally cannot occupy. Future work targets LLM-assisted annotation suggestion and auto-repair, along with capturing contract-level intent.
 
 \section*{Acknowledgements}
 This work was supported by the Institute of Information \& communications Technology Planning \& Evaluation (IITP) grant funded by the Korean government (MSIT) (RS-2021-II210177, High Assurance of Smart Contract for Secure Software Development Life Cycle), the Technology development Program (RS-2025-25455127) funded by the Ministry of SMEs and Startups (MSS, Korea), and the ``Regional Innovation System \& Education (RISE)'' through the Seoul RISE Center, funded by the Ministry of Education (MOE) and the Seoul Metropolitan Government (2025-RISE-01-003-01).
