@@ -606,8 +606,10 @@ commonClause & $\rightarrow$ & returnExpression relOp intentValue             & 
              & $|$           & changed ( intentValue , true $|$ false )        & $(C_{\text{chg}})$ \\[6pt]
 
 intentValue & $\rightarrow$ & arithExpr & \\[2pt]
-arithExpr   & $\rightarrow$ & arithExpr (+ $|$ -) arithTerm $|$ arithTerm & \\
-arithTerm   & $\rightarrow$ & arithTerm (* $|$ / $|$ \%) arithFactor $|$ arithFactor & \\
+arithExpr   & $\rightarrow$ & arithExpr ($\ll$ $|$ $\gg$ $|$ $\ggg$) arithAdd $|$ arithAdd & \\
+arithAdd    & $\rightarrow$ & arithAdd (+ $|$ -) arithTerm $|$ arithTerm & \\
+arithTerm   & $\rightarrow$ & arithTerm (* $|$ / $|$ \%) arithExp $|$ arithExp & \\
+arithExp    & $\rightarrow$ & arithFactor ** arithExp $|$ arithFactor & \\
 arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ ( arithExpr ) & \\[2pt]
 varRef      & $\rightarrow$ & identifier subAccess* & \\
 subAccess   & $\rightarrow$ & . identifier $|$ [ expr ] & \\[6pt]
