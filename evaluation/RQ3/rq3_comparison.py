@@ -26,15 +26,10 @@ import numpy as np
 BASE = Path(__file__).resolve().parent                       # evaluation/RQ3
 PROJECT_ROOT = BASE.parent.parent                            # repo root
 CASE_CSV = BASE / "case_mapping.csv"
-RQ2_CSV = BASE.parent / "RQ1" / "rq2_results.csv"
 IC_RUN_CSVS = [BASE.parent / "validation_soundness" / f"rq2_run{i}.csv" for i in (1, 2, 3)]
-GPTSCAN_DIR = BASE / "outputs" / "gptscan" / "run1"
+GPTSCAN_RUN_DIRS = [BASE / "outputs" / "gptscan" / f"run{i}" for i in (1, 2, 3)]
 SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
 NUMSCOUT_RUN_DIRS = [BASE / "outputs" / "numscout" / f"run{i}" for i in (1, 2, 3)]
-# 51_H_02 and 77_H_01 require library-inlining (only present in run1) and are
-# classified N/A on scope grounds in Table~\ref{tab:rq3-mitigation}; exclude them
-# from the latency aggregation so NumScout is compared on uniformly 3-run data.
-NUMSCOUT_LATENCY_EXCLUDE = {"web3bugs_51_H_02", "web3bugs_77_H_01"}
 FIG_DIR = BASE / "figures"
 FIG_DIR.mkdir(exist_ok=True)
 PAPER_FIG_DIR = PROJECT_ROOT / "paper" / "figure"
@@ -60,114 +55,126 @@ def load_annotated_cases():
     return cases
 
 # =====================================================================
-# 2. Load IntentChecker results from RQ2 CSV
+# 2. Load IntentChecker results from 3 per-run CSVs
 # =====================================================================
 def load_intentchecker(annotated_cases):
-    """Return {case_id: {"detected": bool, "time": float}}
+    """Return {case_id: {"detected": bool, "times": [t1,t2,t3],
+                         "time": mean, "stdev_time": stdev}}
 
     annotated_cases: dict {case_id: row_from_case_mapping}
     """
-    ic = {}
-    # Load all RQ2 rows (may have duplicate case names with different categories)
-    rq2_rows = []
-    if RQ2_CSV.exists():
-        with open(RQ2_CSV, encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                rq2_rows.append(row)
+    ic = {cid: {"detected": True, "times": [],
+                "time": None, "stdev_time": None}
+          for cid in annotated_cases}
 
-    def find_rq2_row(case_name, category=None):
-        """Find best matching RQ2 row by case name and optionally category."""
-        candidates = [r for r in rq2_rows if r["case"] == case_name]
+    def find_row(rq2_rows, case_name, category=None):
+        candidates = [r for r in rq2_rows if r.get("case") == case_name]
         if not candidates:
             return None
         if len(candidates) == 1:
             return candidates[0]
-        # Multiple rows with same case name (e.g., BoostToken): match by category
         if category:
             for c in candidates:
                 if c.get("category", "") == category:
                     return c
         return candidates[0]
 
-    for cid, case_info in annotated_cases.items():
-        row = None
-        pattern = case_info.get("pattern", "")
-
-        # Try exact match first (e.g., web3bugs_5_H_07)
-        row = find_rq2_row(cid, category=cid)
+    def resolve_row(rq2_rows, cid, case_info):
+        # Try exact match by case_id as case name (e.g., web3bugs_5_H_07)
+        row = find_row(rq2_rows, cid, category=cid)
         if row is None and cid.startswith("numscout_"):
-            # numscout_WANGMI -> try "WANGMI"
-            # numscout_BoostToken_operator -> try "BoostToken" with category matching pattern
-            contract_name = case_info.get("contract_name", "")
-            # Try contract name with pattern as category (RQ2 uses pattern as category)
-            row = find_rq2_row(contract_name, category=pattern)
+            contract = case_info.get("contract_name", "")
+            pattern = case_info.get("pattern", "")
+            row = find_row(rq2_rows, contract, category=pattern)
             if row is None:
-                # Fallback: try without category filter
-                row = find_rq2_row(contract_name)
+                row = find_row(rq2_rows, contract)
+        return row
 
-        if row:
-            detected = row.get("result", "") == "VIOLATED"
-            time_sec = float(row.get("analysis_time_sec", 0))
-            ic[cid] = {"detected": detected, "time": time_sec}
-        else:
-            # All annotated cases are VIOLATED by design
-            ic[cid] = {"detected": True, "time": None}
+    for csv_path in IC_RUN_CSVS:
+        if not csv_path.exists():
+            continue
+        with open(csv_path, encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+        for cid, case_info in annotated_cases.items():
+            row = resolve_row(rows, cid, case_info)
+            if row is None:
+                continue
+            try:
+                t = float(row.get("analysis_time_sec", 0))
+            except (TypeError, ValueError):
+                continue
+            if t > 0:
+                ic[cid]["times"].append(t)
+            ic[cid]["detected"] = row.get("result", "") == "VIOLATED"
+
+    for cid, d in ic.items():
+        times = d["times"]
+        d["time"] = float(np.mean(times)) if times else None
+        d["stdev_time"] = float(np.std(times, ddof=1)) if len(times) > 1 else None
     return ic
 
 # =====================================================================
-# 3. Load GPTScan results (run1 individual JSONs + metadata)
+# 3. Load GPTScan results across 3 runs
 # =====================================================================
 def load_gptscan(annotated_cases):
-    """Return {case_id: {"strict": bool, "loose": bool, "time": float, "patterns": list}}"""
-    gpt = {}
-    for cid, info in annotated_cases.items():
-        result_file = GPTSCAN_DIR / f"{cid}.json"
-        meta_file = GPTSCAN_DIR / f"{cid}.json.metadata.json"
+    """Return {case_id: {"strict": bool, "loose": bool,
+                         "times": [t1,t2,t3], "time": mean, "stdev_time": stdev,
+                         "patterns": list, "file_patterns": list}}
 
-        if not result_file.exists():
-            gpt[cid] = {"strict": False, "loose": False, "time": None, "patterns": [],
-                        "file_patterns": []}
+    NOTE: Mitigation results (Table~\\ref{tab:rq3-mitigation}) use the
+    per-contest ground-truth published in Sun et al., not the ``loose''
+    flag computed here. The ``strict/loose/file_patterns'' fields feed
+    only the supporting markdown and the summary CSV; the timings feed
+    Figure~\\ref{fig:rq3-time}.
+    """
+    gpt = {cid: {"strict": False, "loose": False, "times": [],
+                 "time": None, "stdev_time": None,
+                 "patterns": [], "file_patterns": []}
+           for cid in annotated_cases}
+
+    for run_dir in GPTSCAN_RUN_DIRS:
+        if not run_dir.exists():
             continue
+        for cid, info in annotated_cases.items():
+            result_file = run_dir / f"{cid}.json"
+            meta_file = run_dir / f"{cid}.json.metadata.json"
+            if not result_file.exists():
+                continue
 
-        with open(result_file, encoding="utf-8") as f:
-            data = json.load(f)
-        findings = data.get("results", []) if isinstance(data, dict) else []
+            with open(result_file, encoding="utf-8") as f:
+                data = json.load(f)
+            findings = data.get("results", []) if isinstance(data, dict) else []
 
-        # Load metadata for time
-        time_sec = None
-        if meta_file.exists():
-            with open(meta_file, encoding="utf-8") as f:
-                meta = json.load(f)
-            time_sec = meta.get("used_time")
+            if meta_file.exists():
+                with open(meta_file, encoding="utf-8") as f:
+                    meta = json.load(f)
+                t = meta.get("used_time")
+                if t is not None:
+                    try:
+                        gpt[cid]["times"].append(float(t))
+                    except (TypeError, ValueError):
+                        pass
 
-        # Target file from case_mapping
-        target_sol = info.get("target_sol_file", "").replace("\\", "/").split("/")[-1]
+            target_sol = info.get("target_sol_file", "").replace("\\", "/").split("/")[-1]
+            all_patterns = set(gpt[cid]["patterns"])
+            file_matched_patterns = set(gpt[cid]["file_patterns"])
+            file_matched = gpt[cid]["loose"]
+            for finding in findings:
+                code = finding.get("code", "")
+                all_patterns.add(code)
+                for af in finding.get("affectedFiles", []):
+                    fp = af.get("filePath", "").replace("\\", "/")
+                    if target_sol and target_sol in fp:
+                        file_matched = True
+                        file_matched_patterns.add(code)
+            gpt[cid]["patterns"] = sorted(all_patterns)
+            gpt[cid]["file_patterns"] = sorted(file_matched_patterns)
+            gpt[cid]["loose"] = file_matched
 
-        # Check findings
-        all_patterns = set()
-        file_matched = False
-        file_matched_patterns = set()
-        for finding in findings:
-            code = finding.get("code", "")
-            all_patterns.add(code)
-            for af in finding.get("affectedFiles", []):
-                fp = af.get("filePath", "").replace("\\", "/")
-                if target_sol and target_sol in fp:
-                    file_matched = True
-                    file_matched_patterns.add(code)
-
-        # Strict: GPTScan has NO rule for erroneous_accounting / calculation errors
-        # Its patterns are price-manipulation, no-slippage-limit-check, first-deposit, etc.
-        # These are fundamentally different bug types -> strict = always False
-        strict = False
-
-        gpt[cid] = {
-            "strict": strict,
-            "loose": file_matched,
-            "time": time_sec,
-            "patterns": sorted(all_patterns),
-            "file_patterns": sorted(file_matched_patterns),
-        }
+    for cid, d in gpt.items():
+        times = d["times"]
+        d["time"] = float(np.mean(times)) if times else None
+        d["stdev_time"] = float(np.std(times, ddof=1)) if len(times) > 1 else None
     return gpt
 
 # =====================================================================
@@ -213,30 +220,57 @@ def load_sctype(annotated_ids):
     return sc
 
 # =====================================================================
-# 4b. Load NumScout results (run1 summary)
+# 4b. Load NumScout results across 3 runs
 # =====================================================================
 def load_numscout(annotated_ids):
-    """Return {case_id: {"detected": bool, "time": float, "patched": bool,
-                         "patterns": list, "evm_coverage": float, "status": str}}"""
-    ns = {cid: {"detected": False, "time": None, "patched": False,
-                "patterns": [], "evm_coverage": None, "status": "no_result"}
+    """Return {case_id: {"detected": bool, "times": [t1,t2,t3],
+                         "time": mean, "stdev_time": stdev,
+                         "patched": bool, "patterns": list, "status": str}}
+
+    Authoritative source is the per-case JSON file, preferring the
+    ``_patched.json`` variant when present (51_H_02 and 77_H_01 require
+    the library-inlined variant to avoid NumScout's unresolved-library-
+    placeholder error; the run-level ``summary.json`` may still carry
+    the old linking-error entry that predates the patched re-run).
+    """
+    ns = {cid: {"detected": False, "times": [],
+                "time": None, "stdev_time": None,
+                "patched": False, "patterns": [], "status": "no_result"}
           for cid in annotated_ids}
-    if not NUMSCOUT_SUMMARY.exists():
-        return ns
-    with open(NUMSCOUT_SUMMARY, encoding="utf-8") as f:
-        data = json.load(f)
-    for entry in data:
-        cid = entry["case_id"]
-        if cid not in ns:
+
+    for run_dir in NUMSCOUT_RUN_DIRS:
+        if not run_dir.exists():
             continue
-        ns[cid] = {
-            "detected": bool(entry.get("detected", False)),
-            "time": entry.get("time"),
-            "patched": bool(entry.get("patched", False)),
-            "patterns": entry.get("detected_patterns", []),
-            "evm_coverage": entry.get("evm_coverage"),
-            "status": entry.get("status", "ok"),
-        }
+        for cid in annotated_ids:
+            # Prefer the library-inlined variant if the case produced one.
+            patched_file = run_dir / f"{cid}_patched.json"
+            plain_file = run_dir / f"{cid}.json"
+            if patched_file.exists():
+                result_file, is_patched = patched_file, True
+            elif plain_file.exists():
+                result_file, is_patched = plain_file, False
+            else:
+                continue
+            with open(result_file, encoding="utf-8") as f:
+                data = json.load(f)
+            if "bool_defect" not in data:
+                continue
+            t = data.get("_elapsed_wall", data.get("time"))
+            if t is not None:
+                try:
+                    ns[cid]["times"].append(float(t))
+                except (TypeError, ValueError):
+                    pass
+            patterns = [k for k, v in data.get("bool_defect", {}).items() if v]
+            ns[cid]["patterns"] = patterns
+            ns[cid]["detected"] = len(patterns) > 0
+            ns[cid]["patched"] = ns[cid]["patched"] or is_patched
+            ns[cid]["status"] = "ok_patched" if is_patched else "ok"
+
+    for cid, d in ns.items():
+        times = d["times"]
+        d["time"] = float(np.mean(times)) if times else None
+        d["stdev_time"] = float(np.std(times, ddof=1)) if len(times) > 1 else None
     return ns
 
 # =====================================================================
@@ -261,22 +295,28 @@ def build_table(annotated_cases, ic_data, gpt_data, sc_data, ns_data):
             # IntentChecker
             "IC_detected": ic.get("detected", True),
             "IC_time": ic.get("time"),
+            "IC_stdev": ic.get("stdev_time"),
+            "IC_n_runs": len(ic.get("times", [])),
             # GPTScan
             "GPT_strict": gp.get("strict", False),
             "GPT_loose": gp.get("loose", False),
             "GPT_time": gp.get("time"),
+            "GPT_stdev": gp.get("stdev_time"),
+            "GPT_n_runs": len(gp.get("times", [])),
             "GPT_patterns": "; ".join(gp.get("file_patterns", [])),
             # ScType
             "SC_applicable": sc.get("applicable", False),
             "SC_detected": sc.get("detected"),
             "SC_time": sc.get("avg_time"),
             "SC_stdev": sc.get("stdev_time"),
+            "SC_n_runs": len(sc.get("times", [])),
             # NumScout
             "NS_detected": ns.get("detected", False),
             "NS_time": ns.get("time"),
+            "NS_stdev": ns.get("stdev_time"),
+            "NS_n_runs": len(ns.get("times", [])),
             "NS_patched": ns.get("patched", False),
             "NS_patterns": "; ".join(ns.get("patterns", [])),
-            "NS_evm_coverage": ns.get("evm_coverage"),
         }
         rows.append(row)
     return rows
@@ -287,10 +327,12 @@ def build_table(annotated_cases, ic_data, gpt_data, sc_data, ns_data):
 def write_csv(rows, path):
     fieldnames = [
         "case_id", "source", "contract", "function", "pattern",
-        "IC_detected", "IC_time",
-        "GPT_strict", "GPT_loose", "GPT_time", "GPT_patterns",
-        "SC_applicable", "SC_detected", "SC_time", "SC_stdev",
-        "NS_detected", "NS_time", "NS_patched", "NS_patterns", "NS_evm_coverage",
+        "IC_detected", "IC_time", "IC_stdev", "IC_n_runs",
+        "GPT_strict", "GPT_loose", "GPT_time", "GPT_stdev", "GPT_n_runs",
+        "GPT_patterns",
+        "SC_applicable", "SC_detected", "SC_time", "SC_stdev", "SC_n_runs",
+        "NS_detected", "NS_time", "NS_stdev", "NS_n_runs",
+        "NS_patched", "NS_patterns",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -401,22 +443,27 @@ def fig_detection_heatmap(rows, path):
     print(f"[OK] Heatmap written: {path}")
 
 
-def fig_time_comparison(rows, sc_data, path):
-    """Box plot / bar chart comparing analysis times across tools."""
-    # IntentChecker times
-    ic_times = [r["IC_time"] for r in rows if r["IC_time"] is not None]
+def fig_time_comparison(rows, ic_data, gpt_data, sc_data, ns_data, path):
+    """Box plot / bar chart comparing analysis times across tools.
 
-    # GPTScan times (per annotated case)
-    gpt_times = [r["GPT_time"] for r in rows if r["GPT_time"] is not None]
+    Uses per-case per-run times (flattened) for every tool that has multi-run
+    data, so the boxplot distribution reflects the across-runs variance rather
+    than pre-aggregated per-case means.
+    """
+    def _flatten(data_dict, only_applicable=False):
+        out = []
+        for _cid, data in data_dict.items():
+            if only_applicable and not data.get("applicable"):
+                continue
+            for t in data.get("times", []):
+                if t is not None:
+                    out.append(float(t))
+        return out
 
-    # ScType times: collect per-run data for the 7 applicable cases
-    sc_all_times = []
-    for cid, data in sc_data.items():
-        if data["applicable"] and data["times"]:
-            sc_all_times.extend(data["times"])
-
-    # NumScout times (single run, 20 cases)
-    ns_times = [r["NS_time"] for r in rows if r["NS_time"] is not None]
+    ic_times = _flatten(ic_data)
+    sc_all_times = _flatten(sc_data, only_applicable=True)
+    gpt_times = _flatten(gpt_data)
+    ns_times = _flatten(ns_data)
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5),
                              gridspec_kw={"width_ratios": [2, 1]})
@@ -544,7 +591,7 @@ def fig_detection_rate(rows, path):
 # =====================================================================
 # 8. Markdown summary
 # =====================================================================
-def write_summary(rows, ic_data, gpt_data, sc_data, path):
+def write_summary(rows, ic_data, gpt_data, sc_data, ns_data, path):
     n = len(rows)
 
     ic_detected = sum(1 for r in rows if r["IC_detected"])
@@ -553,14 +600,21 @@ def write_summary(rows, ic_data, gpt_data, sc_data, path):
     sc_applicable = [r for r in rows if r["SC_applicable"]]
     sc_n = len(sc_applicable)
     sc_detected = sum(1 for r in sc_applicable if r["SC_detected"])
+    ns_detected = sum(1 for r in rows if r["NS_detected"])
 
-    # Time stats
-    ic_times = [r["IC_time"] for r in rows if r["IC_time"] is not None]
-    gpt_times = [r["GPT_time"] for r in rows if r["GPT_time"] is not None]
-    sc_times_all = []
-    for cid, data in sc_data.items():
-        if data["applicable"] and data["times"]:
-            sc_times_all.extend(data["times"])
+    # Time stats (flattened per-run observations across all available runs)
+    def _flatten(data_dict, only_applicable=False):
+        out = []
+        for _cid, data in data_dict.items():
+            if only_applicable and not data.get("applicable"):
+                continue
+            out.extend(float(t) for t in data.get("times", []) if t is not None)
+        return out
+
+    ic_times = _flatten(ic_data)
+    sc_times_all = _flatten(sc_data, only_applicable=True)
+    gpt_times = _flatten(gpt_data)
+    ns_times = _flatten(ns_data)
 
     def time_stats(times):
         if not times:
@@ -568,15 +622,7 @@ def write_summary(rows, ic_data, gpt_data, sc_data, path):
         return (f"mean={np.mean(times):.1f}s, median={np.median(times):.1f}s, "
                 f"min={np.min(times):.1f}s, max={np.max(times):.1f}s")
 
-    # IC time note
-    ic_times_available = sum(1 for r in rows if r["IC_time"] is not None)
     ic_time_note = ""
-    if ic_times_available < n:
-        ic_time_note = (
-            f"\n\n> Note: IntentChecker timing data available for {ic_times_available}/{n} cases. "
-            f"Cases with shared contract names (e.g., BoostToken used for two different patterns) "
-            f"share the same analysis time from RQ2."
-        )
 
     # Heatmap-style detection matrix for markdown
     detection_matrix_lines = []
@@ -587,8 +633,9 @@ def write_summary(rows, ic_data, gpt_data, sc_data, path):
         sc_mark = "Y" if r["SC_detected"] else ("N" if r["SC_applicable"] else "N/A")
         gpt_s_mark = "Y" if r["GPT_strict"] else "N"
         gpt_l_mark = "Y" if r["GPT_loose"] else "N"
+        ns_mark = "Y" if r["NS_detected"] else "N"
         detection_matrix_lines.append(
-            f"| {short} | {r['contract']}.{r['function']} | {ic_mark} | {sc_mark} | {gpt_s_mark} | {gpt_l_mark} | TBD |"
+            f"| {short} | {r['contract']}.{r['function']} | {ic_mark} | {sc_mark} | {gpt_s_mark} | {gpt_l_mark} | {ns_mark} |"
         )
 
     # ScType per-case detail
@@ -631,7 +678,7 @@ in Solidity smart contracts.
 - **IntentChecker**: Symbolic abstract interpretation with Z3 solver, guided by developer-specified intent annotations (pre/post-conditions).
 - **ScType**: Static type-checking for financial type consistency, requiring per-contract type annotation files.
 - **GPTScan**: LLM-based multi-step analysis pipeline targeting DeFi-specific vulnerability patterns (price manipulation, slippage, etc.).
-- **NumScout**: _(Results pending; placeholder included for future update.)_
+- **NumScout**: LLM-pruned symbolic execution targeting five numeric defect patterns (Div~In~Path, Operator~Order~Issue, Exchange~Problem, Precision~Loss~Trend, Minor~Amount~Retention).
 
 ---
 
@@ -643,7 +690,7 @@ in Solidity smart contracts.
 | ScType | {sc_detected} | {sc_n} | {sc_detected/sc_n*100:.1f}% |
 | GPTScan (strict) | {gpt_strict} | {n} | {gpt_strict/n*100:.1f}% |
 | GPTScan (loose) | {gpt_loose} | {n} | {gpt_loose/n*100:.1f}% |
-| NumScout | TBD | TBD | TBD |
+| NumScout | {ns_detected} | {n} | {ns_detected/n*100:.1f}% |
 
 **Definitions:**
 - **Strict detection**: The tool identifies the same *type* of bug as the ground truth
@@ -664,17 +711,17 @@ in Solidity smart contracts.
 
 ---
 
-## 3. Analysis Time
+## 3. Analysis Time (flattened per-run observations)
 
-| Metric | IntentChecker | ScType | GPTScan |
-|--------|---------------|--------|---------|
-| Mean | {np.mean(ic_times):.1f}s | {np.mean(sc_times_all):.1f}s | {np.mean(gpt_times):.0f}s |
-| Median | {np.median(ic_times):.1f}s | {np.median(sc_times_all):.1f}s | {np.median(gpt_times):.0f}s |
-| Min | {np.min(ic_times):.1f}s | {np.min(sc_times_all):.1f}s | {np.min(gpt_times):.0f}s |
-| Max | {np.max(ic_times):.1f}s | {np.max(sc_times_all):.1f}s | {np.max(gpt_times):.0f}s |
-| Samples | {len(ic_times)} | {len(sc_times_all)} (3 runs x {sc_n} cases) | {len(gpt_times)} |
+| Metric | IntentChecker | ScType | GPTScan | NumScout |
+|--------|---------------|--------|---------|----------|
+| Mean | {np.mean(ic_times):.1f}s | {np.mean(sc_times_all):.1f}s | {np.mean(gpt_times):.0f}s | {np.mean(ns_times):.0f}s |
+| Median | {np.median(ic_times):.1f}s | {np.median(sc_times_all):.1f}s | {np.median(gpt_times):.0f}s | {np.median(ns_times):.0f}s |
+| Min | {np.min(ic_times):.1f}s | {np.min(sc_times_all):.1f}s | {np.min(gpt_times):.0f}s | {np.min(ns_times):.0f}s |
+| Max | {np.max(ic_times):.1f}s | {np.max(sc_times_all):.1f}s | {np.max(gpt_times):.0f}s | {np.max(ns_times):.0f}s |
+| Samples | {len(ic_times)} | {len(sc_times_all)} | {len(gpt_times)} | {len(ns_times)} |
 
-GPTScan is ~{speed_ratio:.0f}x slower than IntentChecker on average.
+GPTScan is ~{speed_ratio:.0f}x slower than IntentChecker on average; NumScout is slower still.
 IntentChecker and ScType are both local analysis tools that complete in seconds.{ic_time_note}
 
 ---
@@ -867,9 +914,10 @@ def main():
     write_csv(rows, BASE / "rq3_comparison_table.csv")
     fig_detection_heatmap(rows, FIG_DIR / "detection_heatmap.pdf")
     time_fig_path = FIG_DIR / "time_comparison.pdf"
-    fig_time_comparison(rows, sc_data, time_fig_path)
+    fig_time_comparison(rows, ic_data, gpt_data, sc_data, ns_data, time_fig_path)
     fig_detection_rate(rows, FIG_DIR / "detection_rate.pdf")
-    write_summary(rows, ic_data, gpt_data, sc_data, BASE / "rq3_comparison_summary.md")
+    write_summary(rows, ic_data, gpt_data, sc_data, ns_data,
+                  BASE / "rq3_comparison_summary.md")
 
     # 5. Copy the time-comparison figure into the paper directory under the
     # filename referenced by main.tex (fig:rq3-time).

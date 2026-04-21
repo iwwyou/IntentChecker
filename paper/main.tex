@@ -1331,7 +1331,7 @@ We compare IntentChecker against three tools on the 20 mitigated cases from RQ1:
 \textbf{GPTScan}~(ICSE~'24), an LLM-based multi-step pipeline that matches functions against ten DeFi-specific vulnerability rules (price manipulation, slippage, etc.); and
 \textbf{NumScout}, an LLM-pruned symbolic-execution engine that searches for five predefined numeric defect patterns (division-in-path, operator order, exchange problem, precision loss, minor amount retention).
 Table~\ref{tab:rq3-signal} summarizes the four tools' detection signals: each existing tool ships with a fixed vocabulary---ten DeFi rules for GPTScan, five numeric patterns for NumScout, a financial type system for ScType---while IntentChecker takes developer-authored @During and @Post annotations per case.
-Each tool was executed three times on the same machine. ScType and NumScout produce deterministic output, while GPTScan's LLM-based pipeline may vary across runs.
+Each tool was executed three times on the same machine. IntentChecker and ScType are deterministic; GPTScan's two-step LLM filter and NumScout's LLM-pruned symbolic execution both introduce between-run variability, which is reflected in the box-plot spread of Fig.~\ref{fig:rq3-time}.
 
 \begin{table}[t]
 \centering
@@ -1394,6 +1394,7 @@ HIT & HIT.getTokens & \ding{51} & \textcolor{gray}{N/A} & \textcolor{gray}{N/A} 
 \indent\textbf{Pattern-driven vocabularies (GPTScan, NumScout).}
 GPTScan's ten DeFi rules and NumScout's five numeric patterns define two fixed catalogs of buggy shapes.
 Within those catalogs the tools perform as designed: NumScout flags the five NumScout-origin samples in Table~\ref{tab:rq3-mitigation}---WANGMI (Div~In~Path), Nokon and HIT (Exchange~Problem), BoostToken/operator (Operator~Order~Issue), and BoostToken/indivisible (Minor~Amount~Retention)---and GPTScan's published per-contest results list 45\_H\_01 as a Wrong~Order~for~Interest hit on \texttt{UToken.borrow}, the one case among the seven overlapping Web3Bugs contests that matches its rule set.
+NumScout's LLM-pruned path selection introduces run-to-run variability: WANGMI, Nokon, and HIT reproduce their pattern detection in all three runs, while BoostToken/operator and BoostToken/indivisible surface the pattern in one of three runs; we mark both as \ding{51} in Table~\ref{tab:rq3-mitigation} on the basis that the catalog covers the bug and the tool does produce the expected signal on at least one execution.
 The remaining 14 cases involve wrong-formula, wrong-scale, wrong-decimals, and missing-update errors that are not enumerated by either catalog.
 These 14 misses are not deficiencies of the respective tools---both catalogs were constructed for different threat models---but they make (C1) empirically visible: a bug is catalog-authored or undetectable, and the bug class that dominates the 20 mitigated cases sits outside both catalogs.
 We verified the class-based reading by running NumScout on the 15 out-of-catalog cases.
@@ -1425,16 +1426,16 @@ What the comparison with pattern- and type-driven tools makes visible here is th
 
 \smallskip
 \noindent\textbf{Position axis: when each tool is run.}
-Fig.~\ref{fig:rq3-time} reports per-case analysis time averaged over three runs.
-IntentChecker (mean 4.5\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
-GPTScan (mean 267\,s) runs approximately 59$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 772\,s, median 517\,s) is slower still, with several Web3Bugs cases running to NumScout's 1800\,s symbolic-execution timeout.
+Fig.~\ref{fig:rq3-time} reports per-case analysis times pooled over three runs (60 observations per 20-case tool, 21 for ScType's seven applicable cases).
+IntentChecker (mean 3.7\,s) and ScType (mean 13.9\,s) are both local, deterministic analyses that complete in seconds.
+GPTScan (mean 266\,s) runs approximately 72$\times$ slower because its pipeline is sequential OpenAI API round-trips through a two-step LLM filter, and NumScout (mean 719\,s, median 291\,s) is slower still, with several cases running to NumScout's 1800\,s symbolic-execution timeout.
 The order-of-magnitude gap (seconds vs.\ minutes per case) is insensitive to the model-snapshot drift that affects GPTScan's mitigation outputs (\S\ref{sec:threats}) because its pipeline structure has been unchanged since 2023.
 These latency numbers are not IntentChecker outperforming the others on a shared task.
 They reflect the workflow position each tool was built for.
 Post-hoc audit and CI integration tolerate per-case latency in the minute range, so neither GPTScan nor NumScout was under pressure to compress that budget.
 IntentChecker's development-time positioning---executing inside the editor as code is written, which is the \S\ref{sec:background} constraint-(C2) reversal---imposes the opposite budget.
 If latency ran past a few seconds, the developer's editing rhythm would carry them past the point where the feedback is useful.
-The observed 4.5\,s mean therefore reads as a design-space requirement met rather than as a speed advantage, and it sets the outer envelope for any tool aiming to sit in the same slot.
+The observed 3.7\,s mean therefore reads as a design-space requirement met rather than as a speed advantage, and it sets the outer envelope for any tool aiming to sit in the same slot.
 
 \smallskip
 \noindent\textbf{Synthesis.}

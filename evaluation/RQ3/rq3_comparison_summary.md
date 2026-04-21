@@ -9,7 +9,7 @@ in Solidity smart contracts.
 - **IntentChecker**: Symbolic abstract interpretation with Z3 solver, guided by developer-specified intent annotations (pre/post-conditions).
 - **ScType**: Static type-checking for financial type consistency, requiring per-contract type annotation files.
 - **GPTScan**: LLM-based multi-step analysis pipeline targeting DeFi-specific vulnerability patterns (price manipulation, slippage, etc.).
-- **NumScout**: _(Results pending; placeholder included for future update.)_
+- **NumScout**: LLM-pruned symbolic execution targeting five numeric defect patterns (Div~In~Path, Operator~Order~Issue, Exchange~Problem, Precision~Loss~Trend, Minor~Amount~Retention).
 
 ---
 
@@ -20,8 +20,8 @@ in Solidity smart contracts.
 | IntentChecker | 20 | 20 | 100.0% |
 | ScType | 4 | 7 | 57.1% |
 | GPTScan (strict) | 0 | 20 | 0.0% |
-| GPTScan (loose) | 9 | 20 | 45.0% |
-| NumScout | TBD | TBD | TBD |
+| GPTScan (loose) | 11 | 20 | 55.0% |
+| NumScout | 7 | 20 | 35.0% |
 
 **Definitions:**
 - **Strict detection**: The tool identifies the same *type* of bug as the ground truth
@@ -38,40 +38,40 @@ in Solidity smart contracts.
 
 | Case | Contract.Function | IC | ScType | GPTScan (strict) | GPTScan (loose) | NumScout |
 |------|-------------------|-----|--------|-------------------|-----------------|----------|
-| BoostToken_ind | BoostToken.sendETHToTeam | Y | N/A | N | N | TBD |
-| BoostToken_op | BoostToken.sendETHToTeam | Y | N/A | N | N | TBD |
-| HIT | HIT.getTokens | Y | N/A | N | N | TBD |
-| Nokon | Nokon.buy | Y | N/A | N | N | TBD |
-| SwordCrowdsale | SwordCrowdsale.refundMoney | Y | N/A | N | N | TBD |
-| WANGMI | WANGMI._transfer | Y | N/A | N | Y | TBD |
-| 101_H_01 | LenderPool._calculatePrincipalWithdrawable | Y | N | N | Y | TBD |
-| 45_H_01 | UToken.borrow | Y | N/A | N | Y | TBD |
-| 47_H_02 | WrappedIbbtcEth.transferFrom | Y | Y | N | N | TBD |
-| 51_H_02 | Swap.rampTargetPrice | Y | N/A | N | N | TBD |
-| 56_H_02 | CDP.update | Y | N | N | N | TBD |
-| 58_H_02 | LpIssuer._chargeFees | Y | N/A | N | Y | TBD |
-| 5_H_07 | Utils.calcAsymmetricShare | Y | Y | N | Y | TBD |
-| 5_H_08 | Utils.calcLiquidityUnits | Y | Y | N | Y | TBD |
-| 5_H_12 | Pools.getAddedAmount | Y | N/A | N | Y | TBD |
-| 60_H_01 | Collateral.settleAccount | Y | Y | N | N | TBD |
-| 62_H_08 | Stream.updateStreamInternal | Y | N/A | N | N | TBD |
-| 70_H_10 | LiquidityBasedTWAP.syncVaderPrice | Y | N | N | Y | TBD |
-| 77_H_01 | Exchange.calculateLiquidityTokenQtyForSingleAssetEntry | Y | N/A | N | N | TBD |
-| 78_H_02 | RebaseProxy.mint | Y | N/A | N | Y | TBD |
+| BoostToken_ind | BoostToken.sendETHToTeam | Y | N/A | N | Y | N |
+| BoostToken_op | BoostToken.sendETHToTeam | Y | N/A | N | Y | N |
+| HIT | HIT.getTokens | Y | N/A | N | N | Y |
+| Nokon | Nokon.buy | Y | N/A | N | N | Y |
+| SwordCrowdsale | SwordCrowdsale.refundMoney | Y | N/A | N | N | N |
+| WANGMI | WANGMI._transfer | Y | N/A | N | Y | Y |
+| 101_H_01 | LenderPool._calculatePrincipalWithdrawable | Y | N | N | Y | N |
+| 45_H_01 | UToken.borrow | Y | N/A | N | Y | Y |
+| 47_H_02 | WrappedIbbtcEth.transferFrom | Y | Y | N | N | N |
+| 51_H_02 | Swap.rampTargetPrice | Y | N/A | N | N | N |
+| 56_H_02 | CDP.update | Y | N | N | N | N |
+| 58_H_02 | LpIssuer._chargeFees | Y | N/A | N | Y | N |
+| 5_H_07 | Utils.calcAsymmetricShare | Y | Y | N | Y | Y |
+| 5_H_08 | Utils.calcLiquidityUnits | Y | Y | N | Y | Y |
+| 5_H_12 | Pools.getAddedAmount | Y | N/A | N | Y | N |
+| 60_H_01 | Collateral.settleAccount | Y | Y | N | N | N |
+| 62_H_08 | Stream.updateStreamInternal | Y | N/A | N | N | N |
+| 70_H_10 | LiquidityBasedTWAP.syncVaderPrice | Y | N | N | Y | N |
+| 77_H_01 | Exchange.calculateLiquidityTokenQtyForSingleAssetEntry | Y | N/A | N | N | Y |
+| 78_H_02 | RebaseProxy.mint | Y | N/A | N | Y | N |
 
 ---
 
-## 3. Analysis Time
+## 3. Analysis Time (flattened per-run observations)
 
-| Metric | IntentChecker | ScType | GPTScan |
-|--------|---------------|--------|---------|
-| Mean | 4.5s | 13.9s | 267s |
-| Median | 2.9s | 11.5s | 153s |
-| Min | 0.4s | 3.0s | 1s |
-| Max | 18.4s | 25.8s | 750s |
-| Samples | 20 | 21 (3 runs x 7 cases) | 20 |
+| Metric | IntentChecker | ScType | GPTScan | NumScout |
+|--------|---------------|--------|---------|----------|
+| Mean | 3.7s | 13.9s | 266s | 719s |
+| Median | 1.5s | 11.5s | 149s | 291s |
+| Min | 0.3s | 3.0s | 1s | 0s |
+| Max | 18.4s | 25.8s | 812s | 1829s |
+| Samples | 60 | 21 | 60 | 60 |
 
-GPTScan is ~59x slower than IntentChecker on average.
+GPTScan is ~72x slower than IntentChecker on average; NumScout is slower still.
 IntentChecker and ScType are both local analysis tools that complete in seconds.
 
 ---
@@ -85,26 +85,26 @@ it is identifying a different vulnerability.
 
 | Case | Loose Match | Patterns on Target File | Time |
 |------|-------------|------------------------|------|
-| BoostToken_ind | No match | - | 69s |
-| BoostToken_op | No match | - | 66s |
+| BoostToken_ind | File match | price-manipulation | 71s |
+| BoostToken_op | File match | price-manipulation | 72s |
 | HIT | No match | - | 9s |
-| Nokon | No match | - | 26s |
+| Nokon | No match | - | 24s |
 | SwordCrowdsale | No match | - | 1s |
-| WANGMI | File match | no-slippage-limit-check | 36s |
-| 101_H_01 | File match | price-manipulation; wrong-order-interest | 750s |
-| 45_H_01 | File match | price-manipulation | 271s |
-| 47_H_02 | No match | - | 12s |
-| 51_H_02 | No match | - | 129s |
-| 56_H_02 | No match | - | 621s |
-| 58_H_02 | File match | price-manipulation | 390s |
-| 5_H_07 | File match | price-manipulation | 543s |
-| 5_H_08 | File match | price-manipulation | 514s |
-| 5_H_12 | File match | no-slippage-limit-check; price-manipulation | 529s |
-| 60_H_01 | No match | - | 25s |
-| 62_H_08 | No match | - | 96s |
-| 70_H_10 | File match | price-manipulation | 499s |
-| 77_H_01 | No match | - | 177s |
-| 78_H_02 | File match | price-manipulation | 573s |
+| WANGMI | File match | no-slippage-limit-check | 39s |
+| 101_H_01 | File match | price-manipulation; wrong-order-interest | 780s |
+| 45_H_01 | File match | price-manipulation | 298s |
+| 47_H_02 | No match | - | 13s |
+| 51_H_02 | No match | - | 125s |
+| 56_H_02 | No match | - | 543s |
+| 58_H_02 | File match | price-manipulation | 345s |
+| 5_H_07 | File match | price-manipulation | 550s |
+| 5_H_08 | File match | price-manipulation; wrong-order-interest | 543s |
+| 5_H_12 | File match | no-slippage-limit-check; price-manipulation | 543s |
+| 60_H_01 | No match | - | 21s |
+| 62_H_08 | No match | - | 92s |
+| 70_H_10 | File match | price-manipulation | 497s |
+| 77_H_01 | No match | - | 175s |
+| 78_H_02 | File match | price-manipulation | 580s |
 
 ---
 
@@ -147,7 +147,7 @@ operator order issues, precision loss, etc.). Its rule set targets price manipul
 slippage, and related DeFi-specific patterns. This means GPTScan **structurally cannot
 detect** the class of bugs IntentChecker targets, resulting in 0% strict detection rate.
 
-Even in the loose comparison, GPTScan's 9/20 file-level matches all correspond
+Even in the loose comparison, GPTScan's 11/20 file-level matches all correspond
 to *different* vulnerability types (e.g., price-manipulation on the same file), not the
 actual numeric logic error.
 
@@ -166,9 +166,9 @@ actual numeric logic error.
   but fails to detect the bug (e.g., the bug is not a type inconsistency).
 
 ### 6.3 Speed Comparison
-- IntentChecker (4.5s avg) and ScType (13.9s avg)
+- IntentChecker (3.7s avg) and ScType (13.9s avg)
   are **local analysis tools** that complete in seconds.
-- GPTScan (267s avg, ~59x slower) is significantly
+- GPTScan (266s avg, ~72x slower) is significantly
   slower due to its multi-step LLM-based pipeline.
 - IntentChecker's speed makes it suitable for CI/CD integration and interactive developer
   workflows.
@@ -179,7 +179,7 @@ actual numeric logic error.
 | Annotation needed | Developer intent (pre/post) | Financial types | None |
 | Bug types detected | Numeric logic errors | Type inconsistency | Price manipulation, slippage |
 | Analysis approach | Abstract interpretation + Z3 | Type inference | LLM + static analysis |
-| Avg. time | 4.5s | 13.9s | 267s |
+| Avg. time | 3.7s | 13.9s | 266s |
 | Coverage | 20/20 (100%) | 4/7 (57%) | 0/20 (strict: 0%) |
 
 ---
@@ -193,7 +193,7 @@ actual numeric logic error.
    and could be combined for broader coverage. IntentChecker catches all 3
    cases that ScType misses among the overlapping set.
 3. **Speed advantage over LLM-based tools**: IntentChecker's symbolic approach
-   provides fast (~59x faster than GPTScan), deterministic analysis
+   provides fast (~72x faster than GPTScan), deterministic analysis
    suitable for CI/CD integration.
 4. **Annotation trade-off**: While IntentChecker requires intent annotations,
    this is analogous to type annotations for ScType. The annotations serve as
