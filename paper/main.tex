@@ -1466,94 +1466,80 @@ Under an empirical-only alternative that counts any absence of a target-level wa
 
 \subsection{Annotation Authoring Burden and Future Automation}\label{sec:disc:burden}
 
-IntentChecker's mitigation results in §\ref{sec:rq1} are conditional on the developer supplying intent and debug annotations.
-This is by design---the entire approach is predicated on the developer making their intent explicit---but it nevertheless constitutes the tool's most significant practical limitation.
+IntentChecker's mitigation results are conditional on the developer supplying intent and debug annotations.
+This is by design: the entire approach is predicated on the developer making their intent explicit. Accordingly, IntentChecker requires direct authoring effort from the developer.
 Two distinct kinds of effort are involved.
 
 \smallskip
-\noindent\textbf{Effort 1: writing intent annotations for unfamiliar code.}
-The intent model assumes that the developer can articulate, in the grammar of @During/@Post annotations, what the function is supposed to do.
-For code the developer wrote themselves a few minutes ago, this is unproblematic: the intent is still in the developer's head.
-For code the developer is reviewing, modifying, or debugging without prior context, the intent must first be reconstructed from the surrounding code, comments, and external specifications, and only then can it be encoded as an annotation.
-This reconstruction step is not free, and it is exactly the step that the L5 (bug-awareness-required) limitation in §\ref{sec:rq2} measures: when the correct intent is non-obvious, an annotation that captures it cannot be written without already knowing the bug.
+\noindent\textbf{Effort 1: writing intent annotations.}
+The intent model requires the developer to articulate, in the grammar of @During/@Post annotations, what the function is supposed to do. This translation from a mental model of intent into grammar-expressible assertions is itself effort: the developer must decide which properties to assert at which program points and must express each assertion within the grammar's syntactic form.
 
 \smallskip
 \noindent\textbf{Effort 2: supplying debug annotations for realistic execution paths.}
 Even for code whose intent is clear, IntentChecker can only analyze the path that the developer's debug annotations actually exercise.
-@StateVar, @LocalVar, and @IReturn require the developer to choose representative ranges; choosing ranges that miss the buggy region produces a false negative, while choosing ranges that are too wide invites widening and produces uninformative Warning judgments.
-The range choice also fixes the soundness envelope: a Satisfied judgment provably holds for every combination of values within the declared ranges (from the set-theoretic definition of the comparison primitive in §\ref{sec:intent-semantics} applied pointwise) but not outside them, so a bug that only manifests at representable-value boundaries can be missed.
-This is the standard cost of any annotation-based analysis---traditional debuggers also only execute the inputs the developer provides---and developers mitigate it by iteratively refining ranges when Warning results draw attention to specific sub-intervals.
-
-\smallskip
-\noindent\textbf{The circularity objection.}
-A natural question is whether writing a correct intent annotation already presupposes knowing the bug---in which case the tool would only confirm what the developer already knows.
-The concern is legitimate, and our RQ2 analysis quantifies it precisely: 14 of the 34 intent-model limitation cases (L5) require bug awareness before the annotation can be written, confirming that for those cases, independent discovery through annotation alone is not realistic.
-However, this circularity is not unique to IntentChecker; it is inherent in any specification-based approach, from formal pre/post-conditions to Scribble annotations to test oracles.
-What differs across tools is how much of the specification burden falls on the developer.
-For the 20 mitigated cases in RQ1, the annotations were derivable from the developer's own stated intent (e.g., ``this fee should equal $x$'', ``this balance should decrease after withdrawal'') without requiring knowledge of the specific bug.
-The L5 cases, by contrast, identify the boundary where intent-driven annotation reaches its limit and external assistance---such as automated annotation suggestion---becomes necessary.
-This observation directly motivates the LLM-assisted workflow described below: rather than expecting the developer to write all annotations from scratch, a suggestion layer can propose candidate annotations that the developer accepts, rejects, or refines, shifting the task from generation to validation and partially breaking the circularity.
+Debug annotations require the developer to choose representative ranges for each entry-point value the function reads. Choosing ranges that miss the buggy region produces a false negative, while choosing ranges that are too wide invites widening and produces uninformative Warning judgments. Either way, Satisfied judgments hold only within the declared ranges.
+This is the standard cost of any debugging paradigm---traditional debuggers also only execute the inputs the developer provides---and developers mitigate it by iteratively refining ranges when Warning results draw attention to specific sub-intervals.
 
 \smallskip
 \noindent\textbf{Future direction: LLM-assisted annotation suggestion and auto-repair.}
-A natural way to lower both barriers is to combine IntentChecker with a large language model that observes the same source the developer is editing.
+A natural way to lower both annotation-authoring efforts is to combine IntentChecker with a large language model that observes the same source the developer is editing.
 For intent annotations, the LLM could generate candidate @During/@Post annotations by reading the surrounding function, the contract's NatSpec comments, and the developer's recent commit messages, presenting the candidates as suggestions that the developer accepts or edits.
-For debug annotations, the LLM could propose representative ranges based on the function's call sites elsewhere in the codebase or based on standard token decimals (e.g., 18 for most ERC20 tokens, 6 for USDC).
-Beyond annotation suggestion, an LLM that has access to IntentChecker's Violated judgment and violated region could also propose code edits that move the violated region out of the reachable interval, effectively turning the awareness signal into a candidate fix.
-We deliberately leave both directions as future work; what matters for this paper is that they are natural extensions enabled by, rather than blocked by, the current design.
+For debug annotations, the LLM could propose representative ranges based on the function's call sites elsewhere in the codebase or based on standard token decimals.
+A second direction complements suggestion with repair: an LLM that has access to IntentChecker's Violated judgment and violated region could propose code edits that move the violated region out of the reachable interval, effectively turning the awareness signal into a candidate fix.
+We leave both directions as future work. They are natural extensions of the intent model and validation engine presented in this paper.
 
 \subsection{Intent Annotation Guidelines}\label{sec:disc:guidelines}
 
-The annotation grammar (§\ref{sec:design}) defines what can be written; the question that remains is when a developer should write which annotation.
-The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations are not the ones that verify what the developer did write, but the ones that catch what the developer forgot to write.
+Within the value-level intent model, the annotation grammar (§\ref{sec:design}) defines what can be written; the question that remains is when a developer should write which annotation.
+The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations express what the code does not already make explicit---an omitted state update, an unchecked relation between output and input, or the mathematical intent behind a lossy arithmetic path.
 We distill three non-obvious guidelines from this observation.
 
 \smallskip
-\noindent\textbf{Guideline 1: Enumerate all state variables a function should affect, not just those it does affect.}
+\noindent\textbf{Guideline 1: Enumerate state variables a function should affect, not just those it does affect.}
 Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
-Bugs of omission (the 7 missing-code cases, all L5 Weak) arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
-After writing a function, the developer should list every state variable whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
-In our data, this single practice---checking what should change rather than what does change---would have caught 7 of the 14 L5 expressible cases and 5 of the 8 mitigated @Post cases, all without requiring any knowledge of the specific bug.
+Bugs of omission arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
+After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
+In our data, this practice would catch 7 of the 14 L5 expressible cases---all without requiring any knowledge of the specific bug's magnitude---and the same directional forms (Entry/Exit, changed()) account for 3 of the 8 @Post annotations used in RQ1 (Table~\ref{tab:rq1-overview}).
 
 \smallskip
-\noindent\textbf{Guideline 2: When two state variables should move together, annotate their relationship, not each one in isolation.}
-Several benchmark cases involve accounting pairs (e.g., a per-user balance and a global total, a deposit ledger and a reward tracker) that should stay in sync.
-Annotating each variable independently catches only missing-update bugs; annotating their relationship (e.g., @Post globalTotal(Entry\,-\,Exit) $\geq$ userBalance(Entry\,-\,Exit)) catches bugs where both variables are updated but by inconsistent amounts.
-This pattern recurs in 4 of the 20 mitigated cases (all Erroneous Accounting) and is the dominant form in the invariant-masked L4 subcase (one Algorithm/Usable case), where independent annotations on each variable succeed but the cross-variable invariant fails.
+\noindent\textbf{Guideline 2: Anchor output expectations to known quantities.}
+Many functions with numeric outputs have a known relationship---a bound, an equality, or a monotonic relation---with quantities already in scope: input parameters, related state variables, or values derivable from specific input instantiations.
+Encoding this relationship as a @During or @Post annotation catches wrong-implementation bugs where the code runs without error but produces a directionally wrong or out-of-bound result.
+Examples include @Post \texttt{\_balances[to] <= amount} bounding the output against the transferred amount (RebaseProxy.mint), @During \texttt{\_principalWithdrawable <= \_totalLiquidityWithdrawable} comparing two related state variables (LenderPool.\_calcPrincipalWithdrawable), and @Post \texttt{returnExpression == \_balance - mapToken\_tokenAmount[\_token]} asserting the return against a state-derived formula (Pools.getAddedAmount).
+This pattern recurs in 4 of the 20 mitigated cases, surfacing bugs through a violated relation even when the developer cannot pre-specify the exact output value.
 
 \smallskip
 \noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
 Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
 Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
-Writing the intent annotation in the ideal form---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the truncated code path against the non-truncated reference, surfacing the discrepancy automatically.
-This pattern accounts for 7 of the 20 mitigated cases (Div In Path, Operator Order Issue, Exchange Problem, and Precision Loss Trend), all of which were caught by annotations that express the mathematically correct expression rather than restating what the code already does.
+Writing the intent annotation with the multiplication-before-division ordering---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the code's early-truncation path against a form that defers truncation to the final division, surfacing the precision gap automatically.
+This pattern accounts for 7 of the 20 mitigated cases---those involving multi-step arithmetic with precision-sensitive ordering---all of which were caught by annotations that express the mathematically correct expression rather than restating what the code already does.
 
-\subsection{Limitations}\label{sec:disc:tech}
+\subsection{Current Limitations}\label{sec:disc:tech}
 
 Beyond the annotation authoring burden discussed in §\ref{sec:disc:burden}, two tool-side technical boundaries and one methodological limit of the present evaluation remain.
 
 \smallskip
-\noindent\textbf{Multi-transaction scope.}
-IntentChecker's analysis scope is multi-contract but single-transaction.
-A whole class of important numeric properties cannot be expressed as an intent within a single transaction because they relate quantities established by different transactions in the contract's lifetime.
+\noindent\textbf{Contract-level intent.}
+IntentChecker's intent model operates on individual functions within a single transaction.
+A class of numeric properties, however, constitutes contract-level intent---properties that relate quantities established by different transactions across the contract's lifetime rather than within a single function execution.
 The canonical example is the ERC20 conservation property totalSupply == sum(balances): any single function execution may temporarily increment one side and not the other, but across the entire transaction history the two must agree.
 Another example is the price oracle manipulation pattern, where the buggy behavior only manifests when one transaction sets up state that a later transaction reads.
-Capturing such properties as intents would require tracking state across transactions and aggregating across all balance entries, both of which lie outside the current single-transaction interval-domain analysis.
-This is a known boundary of the development-time intent validation approach we have taken, and is more naturally addressed by post-hoc tools or formal verification frameworks that analyze entire contract lifecycles.
+Capturing contract-level intent would require tracking state across transactions and aggregating across all balance entries, both of which lie outside the current function-level, single-transaction interval-domain analysis.
 
 \smallskip
-\noindent\textbf{Non-arithmetic Yul and other unsupported Solidity constructs.}
+\noindent\textbf{Unsupported Solidity constructs.}
 The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(c) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
 However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
-The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, address(this).balance (whose value depends on the EVM-level execution context rather than on tracked state), and other built-ins whose results depend on opaque cryptographic or VM-level operations.
+The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, and other built-ins whose results depend on opaque cryptographic operations.
 Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Fig.~\ref{fig:rq1-limitations}).
-Extending the Yul visitor to handle memory and storage opcodes and the abstract interpreter to handle a wider set of opaque builtins is a meaningful but bounded engineering task.
 
 \smallskip
 \noindent\textbf{Evaluation methodology: developer study.}
 This paper evaluates IntentChecker through structural analysis---what the tool can and cannot detect (RQ1), what the intent model can and cannot express (RQ2), and how the tool compares with existing detectors (RQ3)---rather than through a developer study measuring perceived usability or annotation intuitiveness.
-A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery compared to existing debugging workflows.
-Designing such a study requires careful attention to participant recruitment (sufficient Solidity expertise) and ecological validity (realistic development tasks rather than isolated code snippets), and we defer it to future work as an independent evaluation axis that builds on the structural foundation established here.
+A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery than existing debugging workflows.
+Meaningful results for such a study require realistic development-time conditions~\citep{defisecurity}, which in IntentChecker's current form are dominated by two confounds: the manual annotation-authoring burden described in §\ref{sec:disc:burden}, which is specifically what the envisioned LLM-assisted suggestion layer is designed to reduce, and the analyzer coverage gaps above, which bias task selection toward cases the tool already handles.
+We therefore defer the usability study to after both the LLM-assisted annotation layer and the analyzer extensions are in place, where the study can assess the intended workflow rather than its current manual-authoring approximation.
 
 \section{Related Works}\label{sec:related}
 \subsection{Numeric Logic Error Detection in Solidity}
