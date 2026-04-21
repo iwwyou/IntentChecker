@@ -152,38 +152,18 @@ In response, several tools~\citep{numscout, gptscan, sctype} explicitly target t
 Yet they all take the source code alone as their input, operating in an auditing or testing context.
 Moreover, what counts as correct in any given function is set by the developer who wrote it, so by the very definition of a logic error, detecting one requires knowing the developer's intent.
 However, current tools take a different approach: they rely on a fixed set of known vulnerabilities chosen by their designers, checking code against a pre-specified set of patterns.
-This mismatch is most consequential for numeric computation, which sits at the core of most smart contract code: our analysis~\citep{dappscananalysis} of 101 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,023 non-trivial functions, finds numeric types in 82\% of them (Table~\ref{tab:variable_distribution}).
+This mismatch is most consequential for numeric computation, which sits at the core of most smart contract code: our analysis~\citep{dappscananalysis} of 101 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,023 non-trivial functions, finds numeric types in 82\% of them.
 Logic errors are therefore most likely to arise in this space, and addressing such numeric logic errors calls for a fundamentally different kind of analysis: one that takes developer intent as direct input rather than attempting to recover it from code.
 
 Meanwhile, developer preferences favor tools that run at development time. The same empirical study~\citep{defisecurity} reports a clear preference for IDE-integrated tools such as extensions and linters over standalone analyzers, favoring development-time tooling. It also reports a strong prioritization of low false negatives (92.3\%) over low false positives (50\%), matching the profile of sound over-approximating analyses such as abstract interpretation.
 These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
 
-To that end, This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
+To that end, this paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
 The intent model comprises two annotation types and a validation engine. The two annotation types cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. The validation engine, grounded in a formal denotational semantics, classifies each annotation as Satisfied, Warning, or Violated against the intervals produced by abstract interpretation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur.
 
 IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) drawn from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}.
 The evaluation is organized around three research questions: the extent to which IntentChecker can surface real-world numeric logic errors through its graded signal (RQ1), the intent model's expressibility ceiling for cases that require bug awareness (RQ2), and how IntentChecker's feedback compares with existing pattern-based detection tools in terms of signal characteristics, latency, and coverage complementarity (RQ3).
 IntentChecker is positioned as a development-time complement to existing auditing-time detectors: it enables intent-driven validation during editing rather than competing with bug-pattern detectors on detection accuracy, and the RQ3 comparison is designed around this complementarity.
-
-\begin{table}[!t]
-    \centering
-    \caption{Distribution of Variable Types in Smart Contract Functions~\citep{dappscananalysis}}
-    \label{tab:variable_distribution}
-    \small
-    \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcc}
-        \hline
-        \textbf{Category} & \textbf{Count} & \textbf{Percentage (\%)} \\
-        \hline
-        Contracts analyzed & 101 & --- \\
-        Functions considered for analysis & 1{,}023 & 100.00 \\
-        \hline
-        Functions using \textbf{uint} & 798 & 78.01 \\
-        Functions using \textbf{int} & 5 & 0.49 \\
-        Functions using \textbf{uint} and \textbf{int} & 42 & 4.11 \\
-        Functions using other types & 178 & 17.40 \\
-        \hline
-    \end{tabular*}
-\end{table}
 
 \smallskip
 \noindent\textbf{Contributions.}
@@ -1678,7 +1658,7 @@ Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in
 IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accessed April 2026
 
 \bibitem[IntentChecker(2026b)]{dappscananalysis}
-IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/DappSCAN_contract_analysis} (2026). Accessed April 2026
+IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyou/IntentChecker/blob/main/evaluation/DappSCAN_contract_analysis/contract_analysis_table.xlsx} (2026). Accessed April 2026
 
 \bibitem[IntentChecker(2026c)]{rq2supp}
 IntentChecker: RQ2 supplementary material---L4/L5 case classifications and annotations. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ2} (2026). Accessed April 2026
