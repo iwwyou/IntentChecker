@@ -143,8 +143,9 @@ We evaluate IntentChecker on real-world numeric logic errors and show that it pr
 \section{Introduction}
 
 The debugging toolchain available to smart contract developers remains far less mature than what traditional software engineering provides.
-Our prior work, SolQDebug~\citep{solqdebug}, addressed this immaturity by performing statement-level interval-domain abstract interpretation at development time, eliminating the compile-deploy-trace cycle that traditionally makes Solidity debugging slow.
+Our prior work, SolQDebug~\citep{solqdebug}, addressed this immaturity by performing statement-level interval-domain abstract interpretation at development time.
 SolQDebug, however, goes no further than reporting raw intervals---leaving correctness judgment entirely to the developer---and its analysis remains confined to a single contract and a single transaction.
+This burden is compounded by the widespread use of large language models (LLMs) such as Claude~\citep{claude}, ChatGPT~\citep{chatgpt}, and Gemini~\citep{gemini} for code generation, where the generated code is not verified against its intended behavior.
 
 With correctness judgment left to the developer, logic errors---bugs where program behavior diverges from developer intent---are particularly hard to catch, since neither the compiler nor the runtime raises any signal.
 A recent empirical study~\citep{defisecurity} confirms this difficulty: practitioners identified logic errors as the most difficult vulnerability type to detect.
@@ -1016,7 +1017,7 @@ i7-11390H CPU at 3.40\,GHz with 16.0\,GB RAM, running Windows 10 (64-bit).
 
 \smallskip
 \noindent\textbf{Implementation and Execution.}
-IntentChecker is implemented in Python~3.10 on top of SolQDebug's ANTLR4-based front-end (\S\ref{sec:prelim}), and operates directly on Solidity source code without requiring compilation or deployment.
+IntentChecker is implemented in Python~3.10, and operates directly on Solidity source code without requiring compilation or deployment.
 Although IntentChecker is designed for interactive use inside a Solidity editor, all experiments simulate this behavior in a controlled scripting environment: for each function, a sequence of incremental edits and annotations reproducing realistic developer activity is reconstructed and streamed into the interpreter, so that the per-case latency reported in \S\ref{sec:rq3} reflects the same per-annotation analysis budget the tool targets in-editor.
 
 \smallskip
@@ -1538,9 +1539,9 @@ Furthermore, there are also approaches that address multiple transaction logic e
 and flash loan attacks~\citep{defitail,midnight}.
 
 The numeric logic error detectors above and IntentChecker differ along both axes identified in §\ref{sec:background}.2: who authors the detection criteria and when the tool is run.
-NumScout, GPTScan, SmartInv, and the type-system approach of \citet{sctype} are all designed to run over completed code and recover developer intent indirectly through pattern catalogs, language-model inference, or financial type assignments---criteria fixed at design time and applied post-hoc.
+Detectors that rely on pattern catalogs, language-model inference, or type rules are all designed to run over completed code, with criteria fixed at design time and applied post-hoc.
 IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor, crossing both axes simultaneously.
-Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary, and §\ref{sec:rq3} characterizes that complementarity rather than arguing numerical superiority.
+Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary.
 
 \subsection{Specification-based Smart Contract Verification}
 Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
@@ -1567,12 +1568,11 @@ by converting both the contract code and user-defined liquidity properties into 
 The system then checks whether the contract satisfies these properties using SMT solvers,
 generating counterexamples when violations are detected to help developers understand potential liquidity issues.
 
-
-While specification-based approaches formalise contract-level properties in dedicated specification languages---Scribble's annotation language, Idealist's loop and call invariants, Solvent's SMT-encoded liquidity properties---and discharge verification obligations over completed code, IntentChecker's intent model occupies a different point in the design space with three distinguishing characteristics.
-First, its annotation language targets value-level numeric intent on individual variables at specific program points, not contract-level invariants or temporal properties.
-Second, its denotational semantics (§\ref{sec:intent-semantics}) maps each annotation form to a tri-valued validation outcome over the abstract states produced by interval-domain analysis, giving the annotation language a formal foundation comparable in rigor to the specification languages above while remaining cheap enough to evaluate at development time.
-Third, the annotation grammar allows intent to be declared at any program point within a function (not only at function entry/exit), and IntentChecker's interval-domain analysis tracks actual value ranges through library function calls (e.g., SafeMath operations) rather than treating libraries as black boxes, so declared intent can be validated against computations as they unfold rather than only against boundary properties.
-The two approaches are therefore complementary in workflow stage (development-time vs.\ audit/verification-time), in granularity (value-level vs.\ contract-level), and in the specification style they support.
+While the specification-based approaches above provide dedicated specification languages and discharge verification obligations through SMT solving, symbolic execution, or assertion injection over completed code, IntentChecker's intent model occupies a different point in the design space.
+First, its annotation language targets value-level numeric intent expressed as interval-valued relationships over specific variables and program points, whereas specification-based languages above express properties as Boolean assertions over types or contract state.
+Second, its tri-valued validation engine (§\ref{sec:intent-semantics}) operates over the intervals produced by interval-domain abstract interpretation, which is light enough to run at development time as the developer writes code, whereas SMT-based and symbolic-execution-based checks are discharged as verification tasks after coding is complete.
+Third, each annotation yields a graded outcome (Satisfied, Warning, or Violated) along with a risk score and the sub-intervals where the violation may occur, pointing the developer to the problematic value region rather than returning a binary verification verdict.
+The two approaches are therefore complementary in specification style, verification backend, and workflow stage.
 
 \subsection{Tools for Strengthening Security During Development Phase}
 Development-phase security tools integrate vulnerability detection directly into the coding workflow, enabling developers to identify and address security issues as they write code rather than in post-development analysis.
@@ -1584,7 +1584,6 @@ The tool enforces security best practices by checking for patterns such as prope
 
 While these development-phase tools rely on design-time detection criteria for known vulnerability patterns,
 IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches the declared intent.
-IntentChecker also extends SolQDebug's analysis scope beyond a single contract to a multi-contract single-transaction scope that includes inheritance, libraries, interfaces, and an arithmetic Yul subset, which is what makes intent validation feasible on realistic DeFi code.
 
 \section{Conclusion}\label{sec:conclusion}
 
@@ -1615,6 +1614,9 @@ The benchmark of 89 real-world numeric logic error instances curated from Web3Bu
 \bibitem[Arora et~al.(2024)]{secplf}
 Arora, S., et al.: SecPLF: Secure protocols for loanable funds against oracle manipulation attacks. In: Proceedings of the 19th ACM Asia Conference on Computer and Communications Security (ASIACCS), pp. 1394--1405 (2024). https://doi.org/10.1145/3634737.3637681
 
+\bibitem[Anthropic(2026)]{claude}
+Anthropic: Claude. \url{https://www.anthropic.com/} (2026). Accessed April 2026
+
 \bibitem[Bartoletti et~al.(2024)]{solvent}
 Bartoletti, M., et al.: Solvent: liquidity verification of smart contracts. In: International Conference on Integrated Formal Methods (iFM), pp. 256--266 (2024). \url{https://doi.org/10.1007/978-3-031-76554-4_14}
 
@@ -1633,14 +1635,14 @@ NumScout: 95 Samples Experiment Dataset. \url{https://github.com/NumScout/NumSco
 \bibitem[NumScout(2026b)]{numscout_semantic}
 NumScout: feature detector source code (\texttt{semantic\_analysis.py}). \url{https://github.com/NumScout/NumScout/blob/main/feature_detector/semantic_analysis.py} (2026). Accessed April 2026
 
-\bibitem[Consensys Diligence(2025a)]{mythril}
-Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2025). Accessed December 2025
+\bibitem[Consensys Diligence(2026a)]{mythril}
+Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2026). Accessed April 2026
 
-\bibitem[Consensys Diligence(2025b)]{mythx}
-Consensys Diligence: MythX. \url{https://mythx.io/} (2025). Accessed December 2025
+\bibitem[Consensys Diligence(2026b)]{mythx}
+Consensys Diligence: MythX. \url{https://mythx.io/} (2026). Accessed April 2026
 
-\bibitem[Consensys Diligence(2025c)]{scribble}
-Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2025). Accessed January 2026
+\bibitem[Consensys Diligence(2026c)]{scribble}
+Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2026). Accessed April 2026
 
 \bibitem[Eshghie et~al.(2024)]{highguard}
 Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
@@ -1650,6 +1652,9 @@ Feist, J., Grieco, G., Groce, A.: Slither: A static analysis framework for smart
 
 \bibitem[Gurfinkel et~al.(2015)]{seahorn}
 Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Conference on Computer Aided Verification, pp. 343--361 (2015). \url{https://doi.org/10.1007/978-3-319-21690-4_20}
+
+\bibitem[Google(2026)]{gemini}
+Google: Gemini. \url{https://gemini.google.com/} (2026). Accessed April 2026
 
 \bibitem[Jeon et~al.(2025)]{solqdebug}
 Jeon, I., et al.: SolQDebug: Debug Solidity Quickly for Interactive Immediacy in Smart Contract Development (2025). https://doi.org/10.21203/rs.3.rs-8077153/v1
@@ -1672,8 +1677,8 @@ Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in d
 \bibitem[Li et~al.(2025)]{defitail}
 Li, X., et al.: Penetrating the hostile: Detecting defi protocol exploits through cross-contract analysis. IEEE Transactions on Information Forensics and Security 20, 11759--11774 (2025). https://doi.org/10.1109/TIFS.2025.3626979
 
-\bibitem[LLVM(2025)]{libfuzzer}
-LLVM: libFuzzer. \url{https://llvm.org/docs/LibFuzzer.html} (2025). Accessed December 2025
+\bibitem[LLVM(2026)]{libfuzzer}
+LLVM: libFuzzer. \url{https://llvm.org/docs/LibFuzzer.html} (2026). Accessed April 2026
 
 \bibitem[Luu et~al.(2016)]{oyente}
 Luu, L., et al.: Making smart contracts smarter. In: Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 254--269 (2016). https://doi.org/10.1145/2976749.2978309
@@ -1681,11 +1686,14 @@ Luu, L., et al.: Making smart contracts smarter. In: Proceedings of the 2016 ACM
 \bibitem[Nguyen et~al.(2023)]{idealist}
 Nguyen, T.D., et al.: An idealist's approach for smart contract correctness. In: International Conference on Formal Engineering Methods, pp. 11--28 (2023). \url{https://doi.org/10.1007/978-981-99-7584-6_2}
 
-\bibitem[Pearson(2025)]{pearson_r}
-Pearson correlation coefficient. \url{https://en.wikipedia.org/wiki/Pearson_correlation_coefficient} (2025). Accessed April 2026
+\bibitem[OpenAI(2026)]{chatgpt}
+OpenAI: ChatGPT. \url{https://chatgpt.com/} (2026). Accessed April 2026
 
-\bibitem[Protofire(2025)]{solhint}
-Protofire: Solhint. \url{https://github.com/protofire/solhint} (2025). Accessed Janauary 2026
+\bibitem[Pearson(2026)]{pearson_r}
+Pearson correlation coefficient. \url{https://en.wikipedia.org/wiki/Pearson_correlation_coefficient} (2026). Accessed April 2026
+
+\bibitem[Protofire(2026)]{solhint}
+Protofire: Solhint. \url{https://github.com/protofire/solhint} (2026). Accessed April 2026
 
 \bibitem[Ramezany et~al.(2023)]{midnight}
 Ramezany, S., Setthawong, R., Setthawong, P.: Midnight: An Efficient Event-driven EVM Transaction Security Monitoring Approach For Flash Loan Detection. In: Proceedings of the 2023 20th International Joint Conference on Computer Science and Software Engineering (JCSSE), pp. 237--241 (2023). https://doi.org/10.1109/JCSSE58229.2023.10201970
