@@ -169,7 +169,7 @@ IntentChecker is positioned as a development-time complement to existing auditin
 \smallskip
 \noindent\textbf{Contributions.}
 \begin{itemize}
-    \item This paper defines numeric logic errors, classifies their representative patterns by abstraction level (value-level vs algorithm-level), and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
+    \item This paper defines numeric logic errors and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
     \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values.
     \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region.
     \item IntentChecker is evaluated on 75 effective benchmark instances, on which it surfaces 20 numeric logic errors as Violated judgments at a mean 3.69\,s per case, and is compared with ScType, GPTScan, and NumScout along the criteria and position axes to substantiate its complementary role as a development-time debugging assistant.
@@ -177,7 +177,8 @@ IntentChecker is positioned as a development-time complement to existing auditin
 
 The remainder of this paper is organized as follows.
 Section~\ref{sec:background} motivates the development-time intent validation problem and surveys the structural limitations of existing detection tools.
-Section~\ref{sec:design} presents the design of IntentChecker, including the deployment-unit scope, the @During/@Post intent annotations, the @IReturn debug annotation for interface return values, and the validation engine.
+Section~\ref{sec:prelim} reviews the SolQDebug foundations and describes the scope extensions required for intent validation over multi-contract code.
+Section~\ref{sec:design} presents the design of IntentChecker, including its intent model and validation engine.
 Section~\ref{sec:evaluation} presents evaluation results across the three research questions.
 Section~\ref{sec:discussion} discusses the intent authoring effort, annotation guidelines, and remaining limitations.
 Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
@@ -193,61 +194,44 @@ Bugs that allow transactions to complete successfully without compile-time or ru
 but violate the developer's intended relationships among numerical values during function execution.
 \end{definition}
 
-\begin{table}[t]
-\centering
-\caption{Representative single-transaction numeric logic error patterns from prior work, classified by bug abstraction level.}
-\label{tab:nle-patterns}
-\footnotesize
-\begin{tabular}{@{}p{4.2cm}p{8.5cm}@{}}
-\toprule
-Pattern & Description \\
-\midrule
-\multicolumn{2}{@{}l}{\textit{\textbf{Value-level: the wrong number flows through a computation.}}} \\
-\midrule
-Div In Path~\citep{numscout}
-  & Division results used in conditions can lead to unexpected control flow due to integer truncation. \\
-Exchange Problem~\citep{numscout}
-  & Rounding errors in exchange calculations may result in zero output despite valid input, or receiving tokens without payment. \\
-Precision Loss Trend~\citep{numscout}
-  & Integer division's inherent truncation tends to favor one side, potentially misaligning with protocol intent. \\
-Minor Amount Retention~\citep{numscout}
-  & Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock. \\
-\midrule
-\multicolumn{2}{@{}l}{\textit{\textbf{Algorithm-level: operations are structurally arranged in a wrong way.}}} \\
-\midrule
-Operator Order Issue~\citep{numscout}
-  & Arithmetic order matters: $a/b*c \neq a*c/b$ due to intermediate truncation. \\
-Erroneous Accounting / Wrong Interest Rate Order~\citep{gptscan, exploitablebugs}
-  & Balance calculations using outdated or prematurely updated interest rates yield incorrect results. \\
-Erroneous Accounting / Wrong Checkpoint Order~\citep{gptscan, exploitablebugs}
-  & Incorrect ordering between state updates and checkpoints leads to reward miscalculation. \\
-Inconsistent State Updates~\citep{exploitablebugs}
-  & A required state variable update is omitted, causing subsequent calculations to use stale values (e.g., failing to accrue interest before a balance query). \\
-Greedy Contract~\citep{flyinointment}
-  & Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-These errors come in two forms.
+These errors can manifest in different execution contexts.
 Single-transaction errors occur within the execution of a single function call---where computation, function calls, and output generation happen in one atomic sequence.
 In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
 Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, which manifest only through state changes accumulated across multiple function invocations.
 
-This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. The choice aligns with our broader goal of a development-phase debugging assistant: a single-transaction error's intended behavior is determined within the function the developer is currently writing, so the developer can declare it as input at the moment of writing. Multiple-transaction errors, whose intent spans sequences of calls authored at different times, are left to future work.
+This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. This focus is shaped by our broader goal: a development-phase debugging assistant that surfaces logic errors as developers write each function, where the developer's intent is still available as a direct input. Multiple-transaction errors are left to future work.
+The representative single-transaction numeric logic error patterns identified in prior work are summarized below:
 
-This paper organizes the representative single-transaction patterns identified in prior work along a single axis that will recur throughout the paper: the bug's abstraction level. The same axis later delineates IntentChecker's design target (its intent model is deliberately confined to value-level relations; §\ref{sec:design}) and characterizes where the model reaches and where it does not (§\ref{sec:rq2}).
 \begin{itemize}
-    \item \textbf{Value-level errors}---logic errors at the value level: a wrong operator, a swapped identifier, or truncation that produces a numerically incorrect result.
-    \item \textbf{Algorithm-level errors}---logic errors in the structural arrangement of operations: operation ordering, an absent state update, or a missing procedure call.
-\end{itemize}
-Table~\ref{tab:nle-patterns} lists the prior-work patterns under each category.
+    \item \textbf{Div In Path}~\citep{numscout}: Division results used in conditions can lead to unexpected control flow due to integer truncation.
 
-The next subsection examines existing tools for numeric logic errors.
+    \item \textbf{Operator Order Issue}~\citep{numscout}: Arithmetic order matters: a/b*c $\neq$ a*c/b due to intermediate truncation.
+
+    \item \textbf{Exchange Problem}~\citep{numscout}: Rounding errors in exchange calculations may result in zero output despite valid input, or receiving tokens without payment.
+
+    \item \textbf{Precision Loss Trend}~\citep{numscout}: Integer division's inherent truncation tends to favor one side, potentially misaligning with protocol intent.
+
+    \item \textbf{Minor Amount Retention}~\citep{numscout}: Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock.
+
+    \item \textbf{Erroneous Accounting}~\citep{gptscan, exploitablebugs}: Incorrect implementation of business model formulas introduces errors that accumulate into substantial losses. Representative sub-patterns include:
+    \begin{itemize}
+        \item Wrong Interest Rate Order: Balance calculations using outdated or prematurely updated interest rates yield incorrect results.
+        \item Wrong Checkpoint Order: Incorrect ordering between state updates and checkpoints leads to reward miscalculation.
+    \end{itemize}
+
+    \item \textbf{Inconsistent State Updates}~\citep{exploitablebugs}: A required state variable update is omitted, causing subsequent calculations to use stale values. For example, failing to accrue interest before a balance query produces incorrect results.
+
+    \item \textbf{Greedy Contract}~\citep{flyinointment}: Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock.
+
+\end{itemize}
+
+Despite their diversity, these error patterns share a common root: the actual behavior diverges from what the developer intended.
+A straightforward consequence is that any tool that hopes to flag such bugs reliably must reason about the intended behavior, not only the written code.
+The next subsection examines existing tools for numeric logic errors in light of this requirement.
 
 \subsection{Structural Constraints of Existing Tools}
 
-Despite the abstraction-level split, the bugs above share a common root: the actual behavior diverges from the developer's intent. Reliable flagging therefore requires reasoning about that intent, not only the written code. Several tools target numeric logic errors with this requirement in mind.
+Several tools target numeric logic errors.
 NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
 GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
 ScType~\citep{sctype} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
@@ -286,20 +270,115 @@ Because the developer authors these annotations per case, the criteria are speci
 
 \smallskip
 \noindent\textbf{(2) Analysis input: source code at development time, with the developer in the loop.}
-For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written. SolQDebug operates on a ``range in, range out'' principle: the developer supplies bounded ranges for entry-point values the function reads (transaction context, storage state, parameters) through debug annotations, and the analyzer reports the intervals each variable reaches at every program point, without itself judging whether those intervals correspond to correct or buggy behavior. To remain responsive as code is being written, it accepts partial code fragments through specialized grammar entry rules and maintains an incremental control-flow graph that resumes analysis from the edit point rather than restarting on every change.
+For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written.
 This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, opening the channel that (1) requires: per-case intent declared in the editor reaches the analysis directly, rather than being guessed from the source code after the fact.
 
 \smallskip
 This design positions IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
+The next section reviews the SolQDebug foundation on which IntentChecker is built.
+
+\section{Preliminaries: SolQDebug and its Scope Extension}\label{sec:prelim}
+
+This section presents the analysis foundation that IntentChecker's intent validation builds upon: a development-time pipeline producing the interval-domain abstract states that the validation engine consumes.
+§\ref{sec:prelim:foundations} reviews the parts of SolQDebug~\citep{solqdebug} that IntentChecker relies on, and §\ref{sec:prelim:extension} introduces the scope extensions added for multi-contract single-transaction analysis.
+
+\subsection{SolQDebug}\label{sec:prelim:foundations}
+
+SolQDebug is a development-time debugging assistant for Solidity that provides statement-level feedback through interval-domain abstract interpretation.
+It addresses two forms of inefficiency in traditional Solidity debugging: the temporal cost of the compile--deploy--setup--trace cycle in tools such as Remix IDE, and the iterative cost imposed by the non-reversible state model of the EVM.
+Both inefficiencies are resolved by performing the entire analysis inside the editor, without contacting any blockchain node.
+To keep this in-editor operation responsive as code is being written, SolQDebug extends the Solidity ANTLR grammar with seven specialized entry rules that accept partial code fragments---a lone else branch, a function header without a body, a single statement inside an existing block, and so on---and maintains an incremental control-flow graph so that abstract interpretation can resume from the edit point rather than restart on every edit.
+Finally, SolQDebug preserves the analyzer's state before a debug annotation is applied and restores it afterwards, so that ranges can be injected and retracted without invalidating previously computed intervals.
+
+\smallskip
+\noindent\textbf{Debug annotations: specifying entry-point values as bounded ranges.}
+SolQDebug's analysis takes as input the bounded ranges that the developer supplies for each entry-point value the function reads.
+Given these inputs, interval-domain abstract interpretation runs through the function and reports the intervals each variable reaches during execution, giving the developer a concrete view of how the function behaves under the chosen scenario.
+Debug annotations are how these inputs are supplied; three families cover the three sources of entry-point values:
+\begin{itemize}
+    \item @GlobalVar---for EVM execution-context variables such as msg.value, msg.sender, and block.timestamp, whose values are supplied by the enclosing transaction and its block rather than by contract storage or function parameters. The developer declares a representative range reflecting the invocation context under which the function is expected to execute.
+    \item @StateVar---for state variables held in contract storage, whose values are determined by prior transactions (e.g., totalSupply, a user's balance, a lending pool's reserves). SolQDebug has no way to know what value these variables hold at the start of the function being debugged; the developer declares a representative range instead.
+    \item @LocalVar---for function parameters whose values are supplied by the caller. This is how the developer specifies the test cases under which the function should be analyzed. Variables declared inside the function body are not injectable, because overriding values the analyzer computes from the code itself would break soundness.
+\end{itemize}
+In all three cases, the developer supplies a bounded range for each entry-point value, and the analyzer proceeds under those ranges.
+Values the developer chooses not to constrain remain at $\top$ (``any value'') and propagate through the analysis as such---the result is still sound, just too wide to be informative for debugging.
+
+\smallskip
+\noindent\textbf{Range in, range out: no built-in judgment.}
+SolQDebug makes no judgment about whether the intervals it computes are ``correct''. It neither compares them against any specification nor flags any as buggy, and their interpretation is left to the developer.
+Adding this interpretation layer on top of SolQDebug's ``range in, range out'' foundation is the role of IntentChecker's validation engine (§\ref{sec:design}).
+
+\smallskip
+\noindent\textbf{Analysis scope.}
+SolQDebug analyzes a single contract for a single transaction.
+Inter-contract calls, inheritance, and library invocations are out of this scope; the next subsection describes how IntentChecker extends the analysis to handle the realistic multi-contract code where real numeric logic errors tend to live.
+
+\subsection{Scope Extension for Multi-Contract Single-Transaction Analysis}\label{sec:prelim:extension}
+
+This subsection details the three extensions that realize the multi-contract single-transaction scope introduced in §\ref{sec:proposed-overview}.
+The scope admits a single atomic transaction touching several contracts in the same source file or its immediate dependencies, while remaining confined to one execution step; the extensions are (a) a deployment-unit model covering in-scope contract resolution, (b) interface-typed variables and the @IReturn debug annotation, and (c) a practically useful subset of inline assembly.
+
+\smallskip
+\noindent\textbf{(a) Deployment unit and in-scope resolution.}
+Because IntentChecker debugs one function at a time, during analysis it may step into code that the target function calls---inherited parent functions and library functions invoked via Solidity's using for directive.
+For the debug annotations the developer placed on the target contract's state variables to remain valid inside such code, the called code must execute over the same storage as the target.
+This holds for inherited parents, whose state variables are compiled into the target's own storage layout, and for libraries invoked via delegatecall, which run under the target's address;
+this collection---target contract, inherited parents, and storage-sharing libraries---is called the target's deployment unit, and IntentChecker treats all of it as in-scope.
+External contracts---separately deployed contracts invoked through an address or an interface-typed variable---are out of this deployment unit by default, because their storage sits at a different address that the target's debug annotations cannot reach.
+This default, however, leaves the analyzer unable to reason about the many DeFi functions that depend on external oracle queries or token balance lookups.
+Extension (b) below describes how @IReturn allows a restricted form of data injection across this deployment boundary for view and pure interface calls.
+
+\smallskip
+\noindent\textbf{(b) @IReturn: Interface Return Value Debug Annotation.}
+Interface-typed variables (e.g., IOracle oracle) present a structural problem that debug annotations on state or local variables cannot solve: the implementation code behind the interface is not present in the source file at all, so SolQDebug's abstract interpreter must return $\top$ for any value derived from an interface call.
+This $\top$ then propagates into every downstream computation, defeating the purpose of intent validation for any function that reads an oracle or queries an external token contract.
+
+Our observation is that this situation is semantically identical to what the three existing debug annotations already handle.
+In all three cases, the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view.
+An interface call's return value is a fourth instance of the same pattern and admits the same mechanism, with the developer supplying a bounded range and the analyzer proceeding under it.
+This matches the philosophy of debugging that SolQDebug embodies, where the developer supplies the inputs defining the scenario to inspect and the analyzer reports how the function behaves under them.
+
+Interface calls differ from the other three inputs in one important way---they may modify the external contract's state.
+The analyzer cannot see the interface's implementation, so it cannot model any such effect; it can only substitute the developer's range as the return value.
+A state-modifying interface call would, in general, mutate the callee's storage, and allowing injection on such calls would let the developer specify the return value but silently omit that side effect, producing a model that does not correspond to any real execution.
+This injection is therefore restricted to view and pure interface functions, which Solidity explicitly marks as having no state-modifying side effects, making the developer-supplied range a complete description of the call's observable behavior.
+
+This intuition is formalized as @IReturn, a new debug annotation that lets the developer bind a range to the return value of a view or pure interface function.
+Two surface syntaxes are supported:
+\begin{itemize}
+    \item \textbf{Pattern A (variable-qualified).}
+    // @IReturn pool.getPrincipal() = [0, 0] binds the return value of getPrincipal on an interface-typed variable (pool must be declared as some interface type).
+    \item \textbf{Pattern B (explicit cast).}
+    // @IReturn IERC20(token).balanceOf() = [200, 200] binds the return value of balanceOf when the call is written as an explicit cast of an address variable to an interface type.
+\end{itemize}
+Both patterns may target structured return values through an access chain, including struct members (vault.delayedStrategyParams().performanceFee) and chained interface calls (engine.mochiProfile().maxCollateralFactor()), so that a single return value can be partially specified and partially left as $\top$.
+
+\smallskip
+\noindent\textbf{(c) Arithmetic-focused inline assembly support.}
+Solidity's inline assembly (assembly \{ ... \}) is written in Yul and frequently appears in arithmetic-heavy code, particularly in high-precision libraries such as FullMath or ABDKMath.
+SolQDebug originally treated any inline assembly block as a single opaque region, leaving all affected variables at $\top$.
+IntentChecker implements a dedicated Yul visitor that recognizes the subset of Yul used for arithmetic computation and translates it into the same expression representation used by the rest of the analyzer.
+Concretely, the visitor supports variable declarations (let x := expr) and assignments (var := expr) inside a yulBlock, and maps the following Yul built-ins to their Solidity operator counterparts:
+\begin{itemize}
+    \item \textbf{Arithmetic}: add, sub, mul, div/sdiv, mod/smod, exp.
+    \item \textbf{Comparison}: lt/gt/slt/sgt/eq.
+    \item \textbf{Bitwise}: and, or, xor.
+    \item \textbf{Shifts}: shl, shr, sar.
+    \item \textbf{Unary}: not, iszero.
+    \item \textbf{Three-argument modular}: mulmod and addmod, which are expanded into $(a \cdot b) \bmod n$ and $(a + b) \bmod n$, respectively.
+\end{itemize}
+This coverage captures the arithmetic that high-precision libraries typically express in Yul to bypass Solidity's overflow checks, while avoiding the control-flow and memory features (if, for, switch, mload/mstore, sload/sstore) whose abstract semantics would require separate engineering beyond the scope of this paper.
+Yul built-ins outside the supported subset (e.g., keccak256, call, log0) are handled conservatively by leaving their results at $\top$, preserving soundness.
+
+\smallskip
+\noindent\textbf{Summary.}
+Taken together, these three extensions broaden SolQDebug's single-contract single-transaction scope to cover the ways modern Solidity contracts are actually structured: multiple contracts per source file, library-mediated arithmetic, oracle-style interface calls, and hand-written Yul for performance-critical arithmetic.
+All extensions preserve SolQDebug's ``range in, range out'' character, so the intent validation layer built on top of this extended analyzer is the subject of the next section.
 
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
 
 Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
-
-\smallskip
-\noindent\textbf{Analysis scope.}
-IntentChecker debugs one function at a time within its \emph{deployment unit}---the target contract together with its inherited parents and storage-sharing libraries invoked via Solidity's \texttt{using for} directive (which run under the target's address through \texttt{delegatecall}). All such code executes over the same storage layout, so debug annotations placed on the target contract's state variables remain valid when the analyzer steps into a parent or library function. External contracts---separately deployed contracts invoked through an address or interface-typed variable---sit outside this unit, because their storage resides at a different address that the target's annotations cannot reach. The @IReturn debug annotation, described below, provides a restricted form of injection across this boundary for view and pure interface calls. This scope extends SolQDebug's original single-contract single-transaction analysis~\citep{solqdebug} to cover the multi-contract single-transaction code where realistic numeric logic errors tend to live.
 
 \begin{figure}[t]
     \centering
@@ -312,9 +391,9 @@ IntentChecker debugs one function at a time within its \emph{deployment unit}---
 \noindent\textbf{Input.}
 IntentChecker receives three types of input:
 \begin{itemize}
-    \item \textbf{Source Fragment}---Solidity source fragments (block or statement) provided incrementally as the developer writes code, supported through SolQDebug's partial-fragment grammar (§\ref{sec:proposed-overview}).
+    \item \textbf{Source Fragment}---Solidity source fragments (block or statement) provided incrementally as the developer writes code, as introduced in §\ref{sec:prelim:foundations}.
     \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in this paper for interface call return values.
+    \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in §\ref{sec:prelim:extension}(b) for interface call return values.
 \end{itemize}
 In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file.
 
@@ -329,22 +408,12 @@ For each intent annotation, IntentChecker produces:
 
 \smallskip
 \noindent\textbf{Internal Modules.}
-Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new @IReturn annotation and the multi-contract deployment-unit scope, while Phase~3 is IntentChecker's core contribution.
+Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new annotation and scope of §\ref{sec:prelim:extension}, while Phase~3 is IntentChecker's core contribution.
 \begin{itemize}
     \item \textbf{Phase~1 --- Parsing Module.} Uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and additionally delegates the Solidity source fragments to the official Solidity compiler for semantic validation.
-    \item \textbf{Phase~2 --- Analysis Module.} Performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed. When a debug annotation is received, the Snapshot Manager (reused unchanged from SolQDebug) preserves the current analysis state, allowing the analyzer to overwrite the targeted variable's interval with the developer-supplied range, re-analyze affected code paths, and restore the pre-annotation state afterwards; the same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration. The module additionally supports inline assembly written in Yul for arithmetic computation, leaving non-arithmetic constructs at $\top$.
+    \item \textbf{Phase~2 --- Analysis Module.} Performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed. When a debug annotation is received, the Snapshot Manager (reused unchanged from SolQDebug) preserves the current analysis state, allowing the analyzer to overwrite the targeted variable's interval with the developer-supplied range, re-analyze affected code paths, and restore the pre-annotation state afterwards; the same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration.
     \item \textbf{Phase~3 --- Validation Engine.} Draws on two signals from the earlier phases---parsed intent annotations from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point. For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
 \end{itemize}
-
-\smallskip
-\noindent\textbf{Debug annotation details.}
-@GlobalVar, @StateVar, and @LocalVar are inherited from SolQDebug~\citep{solqdebug}; each lets the developer supply a bounded range for an entry-point value the function reads---transaction/block context (@GlobalVar), contract storage (@StateVar), or a function parameter (@LocalVar)---so that abstract interpretation proceeds under the chosen scenario rather than over $\top$. Variables declared inside the function body are not injectable, because overriding values the analyzer computes from the code itself would break soundness; values the developer chooses not to constrain remain at $\top$ and propagate as such.
-
-@IReturn extends this mechanism to the return values of interface calls. Interface-typed variables (e.g., \texttt{IOracle oracle}) present a structural problem the other three annotations cannot solve: the implementation behind the interface is not present in the source file, so SolQDebug's abstract interpreter must return $\top$ for any value derived from an interface call, and this $\top$ propagates into every downstream computation, defeating intent validation for any function that reads an oracle or queries an external token contract. The observation behind @IReturn is that this situation is semantically identical to what the three existing annotations already handle: the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view, and the analyzer proceeds under that range. An interface call's return value is a fourth instance of the same pattern.
-
-Interface calls differ from the other three inputs in that they may modify the external contract's state. The analyzer cannot see the interface's implementation, so it cannot model any such effect; allowing injection on a state-modifying call would let the developer specify the return value while silently omitting the side effect, producing a model that does not correspond to any real execution. Injection is therefore restricted to view and pure interface functions, which Solidity explicitly marks as having no state-modifying side effects, making the developer-supplied range a complete description of the call's observable behavior.
-
-Two surface syntaxes are supported. \textbf{Pattern A (variable-qualified):} \texttt{// @IReturn pool.getPrincipal() = [0, 0]} binds the return value of \texttt{getPrincipal} on an interface-typed variable (\texttt{pool} must be declared as some interface type). \textbf{Pattern B (explicit cast):} \texttt{// @IReturn IERC20(token).balanceOf() = [200, 200]} binds the return value of \texttt{balanceOf} when the call is written as an explicit cast of an address variable to an interface type. Both patterns may target structured return values through an access chain, including struct members (\texttt{vault.delayedStrategyParams().performanceFee}) and chained interface calls (\texttt{engine.mochiProfile().maxCollateralFactor()}), so a single return value can be partially specified and partially left as $\top$.
 
 \subsection{Examples of Intent Annotation Usage}
 
@@ -407,8 +476,8 @@ function mint(address to, uint256 amount)
 \end{figure}
 
 The @Post \_balances[to] $\leq$ amount annotation (line~16) expresses the intent that no user should receive more shares than the tokens they deposited.
-The @IReturn debug annotation (lines~8--9) injects the range $[1500\,\text{e}18, 1500\,\text{e}18]$ for the external balanceOf call (line~14), which the analyzer would otherwise evaluate as $\top$.
-The transferFrom (line~11) is state-modifying and therefore cannot carry an @IReturn annotation, per the view/pure restriction described in §\ref{sec:design}.
+The @IReturn debug annotation (lines~8--9) injects the range $[1500\,\text{e}18, 1500\,\text{e}18]$ for the external balanceOf call (line~14), which the analyzer would otherwise evaluate as $\top$ (§\ref{sec:prelim:extension}(b)).
+The transferFrom (line~11) is state-modifying and therefore cannot carry an @IReturn annotation per §\ref{sec:prelim:extension}(b).
 With these annotations, IntentChecker computes the proxy amount and finds that it exceeds amount, reporting Violated.
 This example demonstrates how @IReturn enables intent validation for functions that depend on external contract state.
 
@@ -1206,7 +1275,7 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
   \begin{itemize}
     \item \textbf{L1a (Loop widening, 8).} A variable that the bug check depends on is widened to $\top$ inside a preceding loop, and the $\top$ propagates past the loop exit to the check point.
     \item \textbf{L1b (Loop body granularity, 2).} The bug manifests at a specific point inside a loop body, but the analyzer's state at that point is a single summary joined over all iterations. Per-iteration observation is not a check point the intent annotation model exposes.
-    \item \textbf{L2a (Interface call return $\top$, 3).} The bug check depends on a value derived from a state-modifying interface call. The implementation is unavailable and @IReturn applies only to view/pure calls (§\ref{sec:design}), so the return collapses to $\top$ and propagates to the check point.
+    \item \textbf{L2a (Interface call return $\top$, 3).} The bug check depends on a value derived from a state-modifying interface call. The implementation is unavailable and @IReturn applies only to view/pure calls (§\ref{sec:prelim:extension}(b)), so the return collapses to $\top$ and propagates to the check point.
     \item \textbf{L2b (External call, unknown external state, 1).} The bug check depends on the return of a cross-contract call whose implementation is available through dependency pre-analysis. An L1, L2a, or L3 pattern within the callee's own body causes $\top$ to propagate to its return value, which then reaches the check point.
     \item \textbf{L3 (Unsupported construct, 7).} The bug check depends on a value that flows through an unsupported construct---abi.decode, opaque hash builtins, or non-arithmetic Yul---which the analyzer treats as $\top$, and the $\top$ propagates to the check point.
   \end{itemize}
@@ -1218,8 +1287,9 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
     \item \textbf{L5 (Bug-awareness limit, 14 cases).} The correct specification lies within the annotation grammar's scope---it can be written as a relationship among the variables the target function uses. Writing it requires the developer to articulate the intended relationship with enough precision to distinguish it from the buggy one, which in practice presupposes having already recognized the bug.
   \end{itemize}
 
-  \noindent To distinguish the bug patterns IntentChecker's value-level intent model can address from those that fall outside its scope, the 34 cases are classified along two orthogonal axes. The first is the Value/Algorithm distinction introduced in §\ref{sec:background}.1 (Table~\ref{tab:nle-patterns}): whether the bug lies at the value level (a wrong operator, swapped identifier, or missing assignment) or at the algorithm level (operation ordering, missing procedure call). The second is the reference location:
+  \noindent To distinguish the bug patterns IntentChecker's value-level intent model can address from those that fall outside its scope, the 34 cases are further classified along two orthogonal axes:
   \begin{itemize}
+    \item \textbf{Bug nature.} A \textbf{Value} bug is a logic error at the value level, such as a wrong operator, swapped identifier, or missing assignment. An \textbf{Algorithm} bug is a logic error at the algorithm level, such as operation ordering, or a missing procedure call.
     \item \textbf{Reference location.} A \textbf{Usable} reference is bound to a variable the function already reads, such as a local variable, parameter, or contract state variable. An \textbf{Unusable} reference is bound elsewhere, such as in external contract state, in the return of a call the function does not make, or in no variable the program represents at all.
   \end{itemize}
 
@@ -1230,7 +1300,7 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
     \item \textbf{Algorithm / Usable (3).} All relevant variables are in scope, but the correct specification is a structural relation---a multi-variable invariant, an operation ordering, or a missing helper call---that the grammar does not directly support. Two cases are L5, and one is an L4 case requiring arithmetic over Entry and Exit values. In 112\_H\_01 (StakerVault.transfer), the balance update precedes the checkpoint push, whereas the sibling transferFrom establishes the correct order. Both state variables are accessible to the function.
     \item \textbf{Algorithm / Unusable (10).} The correct specification is a structural relation and requires references outside the function's scope. All ten cases are L4. In 51\_H\_04 (SwapUtils.getYC), a swap crossing the target price requires splitting at the crossing point where the amplifier changes. This point is the solution to a nonlinear equation and appears nowhere in the program as a named variable.
   \end{itemize}
-  \noindent These 34 cases reveal two properties of the value-level intent model. First, expressibility and awareness separate cleanly: all 14 L5 cases fall in Usable cells, and all 18 Unusable cases fall in L4. Once the corrective reference is reachable, expressibility is no longer the blocker---awareness is. Once it lies outside the function's scope, no annotation closes the gap regardless of awareness. Second, the Algorithm half is L4-heavy (11 of 13). This is consistent with the pattern classification in §\ref{sec:background}.1 (Table~\ref{tab:nle-patterns}): the patterns identified there as Algorithm-level---operation ordering, missing-call patterns---are structural relations that lie outside the value-level grammar's design target by construction. Within the expressible scope, the 14 L5 cases are catalogued with per-case annotations in the supplementary material~\citep{rq2supp}.
+  \noindent These 34 cases reveal two properties of the value-level intent model. First, expressibility and awareness separate cleanly: all 14 L5 cases fall in Usable cells, and all 18 Unusable cases fall in L4. Once the corrective reference is reachable, expressibility is no longer the blocker---awareness is. Once it lies outside the function's scope, no annotation closes the gap regardless of awareness. Second, the Algorithm half is L4-heavy (11 of 13), confirming that structural relations---operation ordering, multi-variable invariants, missing-call patterns---lie outside the value-level grammar's design target. Within the expressible scope, the 14 L5 cases are catalogued with per-case annotations in the supplementary material~\citep{rq2supp}.
 \end{itemize}
 
 \smallskip
@@ -1428,7 +1498,7 @@ Capturing contract-level intent would require tracking state across transactions
 
 \smallskip
 \noindent\textbf{Unsupported Solidity constructs.}
-IntentChecker's Yul support targets arithmetic computation---add, sub, mul, div/sdiv, mod/smod, exp, comparison and bitwise operators, shifts, and the modular forms mulmod/addmod---which covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, by far the most common use case in DeFi libraries.
+The arithmetic-focused Yul subset described in §\ref{sec:prelim:extension}(c) covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, which is by far the most common use case in DeFi libraries.
 However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
 The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, and other built-ins whose results depend on opaque cryptographic operations.
 Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Fig.~\ref{fig:rq1-limitations}).
