@@ -170,9 +170,9 @@ IntentChecker is positioned as a development-time complement to existing auditin
 \noindent\textbf{Contributions.}
 \begin{itemize}
     \item This paper defines numeric logic errors, classifies their representative patterns by abstraction level (value-level vs algorithm-level), and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
-    \item SolQDebug's analysis scope is extended from single-contract to multi-contract single-transaction. As part of this extension, the @IReturn debug annotation is introduced to bind abstract intervals to interface return values.
     \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region.
     \item IntentChecker is evaluated on 75 effective benchmark instances, on which it surfaces 20 numeric logic errors as Violated judgments at a mean 3.69\,s per case, and is compared with ScType, GPTScan, and NumScout along the criteria and position axes to substantiate its complementary role as a development-time debugging assistant.
+    \item Building on the evaluation results, this paper turns recurring patterns across the mitigated and L5 cases into three practical guidelines for authoring intent annotations: enumerating expected state effects, anchoring outputs to in-scope quantities, and expressing arithmetic intent at the mathematically ideal level.
 \end{itemize}
 
 The remainder of this paper is organized as follows.
@@ -1019,37 +1019,7 @@ p_{\mathit{true}}(L, R, op) \;=\;
 \begin{figure}[t]
 \centering
 
-% Row 1: (a) canonical, (b) L extends below R
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.4cm, y=0.3cm,
-    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    pair/.style={dashed, blue!60!black, line width=0.5pt},
-    rRef/.style={dotted, black!50, line width=0.4pt},
-    txt/.style={font=\tiny},
-]
-\draw[rRef] (0, -0.3) -- (0, 8);
-\draw[rRef] (6, -0.3) -- (6, 8);
-\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
-\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
-\foreach \x/\h in {1/1, 2/2, 3/3, 4/4, 5/5, 6/6} {
-  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
-}
-\draw[pair, <->] (1, 1.2) to[bend left=35] (6, 6.2);
-\draw[pair, <->] (2, 2.2) to[bend left=25] (5, 5.2);
-\draw[pair, <->] (3, 3.2) to[bend left=15] (4, 4.2);
-\node[txt, blue!60!black] at (3.5, 8.5) {$a+b=7$};
-\draw[ax] (-0.5, 0) -- (7.5, 0);
-\node[txt, anchor=west] at (7.5, 0) {$l$};
-\node[txt, anchor=east] at (0.6, 1) {$a$};
-\node[txt, anchor=east] at (0.6, 6) {$b$};
-\end{tikzpicture}
-\caption{Canonical: $|T_w|=6$, $a{=}1$, $b{=}6$.}
-\label{fig:arith-canonical}
-\end{subfigure}
-\hfill
+% Row 1: (a) L extends below R, (b) L inside R
 \begin{subfigure}[b]{0.48\linewidth}
 \centering
 \begin{tikzpicture}[
@@ -1078,10 +1048,7 @@ p_{\mathit{true}}(L, R, op) \;=\;
 \caption{$L$ extends below $R$: $|T_w|=4$, $a{=}1$, $b{=}4$.}
 \label{fig:arith-lower}
 \end{subfigure}
-
-\vspace{8pt}
-
-% Row 2: (c) L inside R, (d) L extends above R
+\hfill
 \begin{subfigure}[b]{0.48\linewidth}
 \centering
 \begin{tikzpicture}[
@@ -1109,6 +1076,39 @@ p_{\mathit{true}}(L, R, op) \;=\;
 \end{tikzpicture}
 \caption{$L$ inside $R$: $|T_w|=4$, $a{=}2$, $b{=}5$.}
 \label{fig:arith-inside}
+\end{subfigure}
+
+\vspace{8pt}
+
+% Row 2: (c) L surrounds R (canonical), (d) L extends above R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {1/1, 2/2, 3/3, 4/4, 5/5, 6/6} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (1, 1.2) to[bend left=35] (6, 6.2);
+\draw[pair, <->] (2, 2.2) to[bend left=25] (5, 5.2);
+\draw[pair, <->] (3, 3.2) to[bend left=15] (4, 4.2);
+\node[txt, blue!60!black] at (3.5, 8.5) {$a+b=7$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (0.6, 1) {$a$};
+\node[txt, anchor=east] at (0.6, 6) {$b$};
+\end{tikzpicture}
+\caption{$L$ surrounds $R$ (canonical): $|T_w|=6$, $a{=}1$, $b{=}6$.}
+\label{fig:arith-canonical}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\linewidth}
@@ -1170,7 +1170,7 @@ For warning results, the engine classifies the violation pattern into three risk
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
 
 \smallskip
-This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Within each band, score magnitude rises monotonically with the underlying violation probability $1 - p_{\mathit{true}}$, so developers can prioritize reviews directly by score without inspecting the underlying probability or region structure.
+This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Developers can therefore prioritize reviews directly by score without inspecting the underlying probability or region structure.
 
 This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
 
@@ -1385,6 +1385,8 @@ Four of the five metrics exhibit a strong positive correlation ($r>0.8$):
   \item \textbf{Debug annotations} ($r=0.80$) adds tracked variables to the abstract state, increasing per-step cost proportionally.
 \end{itemize}
 The consistently strong correlation across these four metrics ($r \ge 0.80$, $n=20$) suggests that analysis time scales approximately linearly with the size and complexity of the analysis input within the range observed in our benchmark.
+Within this trend, the three slowest cases combine the metrics differently: div\_in\_path\_WANGMI and web3bugs\_45\_H\_01 are at the upper end of source-line count and internal-call depth, while web3bugs\_58\_H\_02 owes its 9.7\,s time to four loops---more than any other case---whose fixpoint iterations dominate the abstract interpreter's per-case cost despite a shorter body.
+The remaining metric, by contrast, departs from this linear pattern:
 \begin{itemize}
   \item \textbf{External calls} ($r=0.69$) shows a comparatively weaker correlation. Dependencies are excluded from per-case time as noted above, and interface function calls lack an implementation body, so the analyzer resolves them to $\top$ or a user-supplied @IReturn value without traversal.
 \end{itemize}
@@ -1611,11 +1613,36 @@ Running NumScout required a one-line source-code fix to its safeTransfer handler
 
 \section{Discussion}\label{sec:discussion}
 
+\subsection{Intent Annotation Guidelines}\label{sec:disc:guidelines}
+
+Within the value-level intent model, the annotation grammar (§\ref{sec:design}) defines what can be written. The question that remains is when a developer should write which annotation.
+The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations express what the code does not already make explicit---an omitted state update, an unchecked relation between output and input, or the mathematical intent behind a lossy arithmetic path.
+Three non-obvious guidelines are distilled from this observation.
+
+\smallskip
+\noindent\textbf{Guideline 1: Enumerate state variables a function should affect, not just those it actually affects.}
+Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
+Bugs of omission arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
+After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
+Crucially, this practice depends only on the developer enumerating expected effects, not on any prior knowledge of the specific bug.
+
+\smallskip
+\noindent\textbf{Guideline 2: Anchor output expectations to known quantities.}
+Many functions with numeric outputs have a known relationship---a bound, an equality, or a monotonic relation---with quantities already in scope: input parameters, related state variables, or values derivable from specific input instantiations.
+Encoding this relationship as a @During or @Post annotation catches wrong-implementation bugs where the code runs without error but produces a directionally wrong or out-of-bound result.
+Examples include @Post \texttt{\_balances[to] <= amount} bounding the output against the transferred amount (RebaseProxy.mint), @During \texttt{\_principalWithdrawable <= \_totalLiquidityWithdrawable} comparing two related state variables (LenderPool.\_calcPrincipalWithdrawable), and @Post \texttt{returnExpression == \_balance - mapToken\_tokenAmount[\_token]} asserting the return against a state-derived formula (Pools.getAddedAmount).
+Such an annotation surfaces bugs through a violated relation even when the developer cannot pre-specify the exact output value.
+
+\smallskip
+\noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
+Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
+Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
+Writing the intent annotation with the multiplication-before-division ordering---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the code's early-truncation path against a form that defers truncation to the final division, surfacing the precision gap automatically.
+
 \subsection{Annotation Authoring Burden and Future Automation}\label{sec:disc:burden}
 
 IntentChecker's mitigation results are conditional on the developer supplying intent and debug annotations.
 This is by design: the entire approach is predicated on the developer making their intent explicit. Accordingly, IntentChecker requires direct authoring effort from the developer.
-Two distinct kinds of effort are involved.
 
 \smallskip
 \noindent\textbf{Effort 1: writing intent annotations.}
@@ -1630,37 +1657,11 @@ This is the standard cost of any debugging paradigm---traditional debuggers also
 \smallskip
 \noindent\textbf{Future direction: LLM-assisted annotation suggestion and auto-repair.}
 A natural way to lower both annotation-authoring efforts is to combine IntentChecker with a large language model that observes the same source the developer is editing.
-For intent annotations, the LLM could generate candidate @During/@Post annotations by reading the surrounding function, the contract's NatSpec comments, and the developer's recent commit messages, presenting the candidates as suggestions that the developer accepts or edits.
-For debug annotations, the LLM could propose representative ranges based on the function's call sites elsewhere in the codebase or based on standard token decimals.
-A second direction complements suggestion with repair: an LLM that has access to IntentChecker's Violated judgment and violated region could propose code edits that move the violated region out of the reachable interval, effectively turning the awareness signal into a candidate fix.
-Both directions are left as future work. They are natural extensions of the intent model and validation engine presented in this paper.
-
-\subsection{Intent Annotation Guidelines}\label{sec:disc:guidelines}
-
-Within the value-level intent model, the annotation grammar (§\ref{sec:design}) defines what can be written; the question that remains is when a developer should write which annotation.
-The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations express what the code does not already make explicit---an omitted state update, an unchecked relation between output and input, or the mathematical intent behind a lossy arithmetic path.
-Three non-obvious guidelines are distilled from this observation.
-
-\smallskip
-\noindent\textbf{Guideline 1: Enumerate state variables a function should affect, not just those it does affect.}
-Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
-Bugs of omission arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
-After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
-In our data, this practice would catch 7 of the 14 L5 expressible cases---all without requiring any knowledge of the specific bug's magnitude---and the same directional forms (Entry/Exit, changed()) account for 3 of the 8 @Post annotations used in RQ1 (Table~\ref{tab:rq1-overview}).
-
-\smallskip
-\noindent\textbf{Guideline 2: Anchor output expectations to known quantities.}
-Many functions with numeric outputs have a known relationship---a bound, an equality, or a monotonic relation---with quantities already in scope: input parameters, related state variables, or values derivable from specific input instantiations.
-Encoding this relationship as a @During or @Post annotation catches wrong-implementation bugs where the code runs without error but produces a directionally wrong or out-of-bound result.
-Examples include @Post \texttt{\_balances[to] <= amount} bounding the output against the transferred amount (RebaseProxy.mint), @During \texttt{\_principalWithdrawable <= \_totalLiquidityWithdrawable} comparing two related state variables (LenderPool.\_calcPrincipalWithdrawable), and @Post \texttt{returnExpression == \_balance - mapToken\_tokenAmount[\_token]} asserting the return against a state-derived formula (Pools.getAddedAmount).
-This pattern recurs in 4 of the 20 mitigated cases, surfacing bugs through a violated relation even when the developer cannot pre-specify the exact output value.
-
-\smallskip
-\noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
-Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
-Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
-Writing the intent annotation with the multiplication-before-division ordering---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the code's early-truncation path against a form that defers truncation to the final division, surfacing the precision gap automatically.
-This pattern accounts for 7 of the 20 mitigated cases---those involving multi-step arithmetic with precision-sensitive ordering---all of which are caught by annotations that express the mathematically correct expression rather than restating what the code already does.
+For intent annotations, the LLM could generate candidate @During/@Post annotations from the partial code the developer is currently writing, conditioned on two paper-internal artifacts---the intent annotation guidelines (§\ref{sec:disc:guidelines}) as structural priors and the per-case annotated benchmark as in-grammar exemplars---and present them as suggestions the developer accepts or edits.
+For debug annotations, the LLM could propose representative ranges from invocation patterns visible in the project under edit and from per-pattern range exemplars in the annotated benchmark.
+Such annotation suggestions can reduce the manual authoring effort for both the 20 mitigated cases and the 14 L5 cases identified in RQ2 (Fig.~\ref{fig:rq1-limitations}).
+A second direction proposes in-editor code repair: when IntentChecker returns a Violated judgment, the LLM suggests edits that bring the program's actual behavior within the developer's declared intent, for them to evaluate before committing.
+Both directions are left as future work, building on this paper's intent model, validation engine, guidelines (§\ref{sec:disc:guidelines}), and per-case annotated benchmark.
 
 \subsection{Current Limitations}\label{sec:disc:tech}
 
@@ -1762,7 +1763,7 @@ IntentChecker enables developers to specify their intended numeric behaviors thr
 
 \section{Conclusion}\label{sec:conclusion}
 
-This paper presents IntentChecker, a development-time value-level intent validation tool that extends SolQDebug with (i) an intent model comprising two annotation types (@During/@Post) and a validation engine grounded in a formal denotational semantics that produces graded Satisfied/Warning/Violated judgments against abstract states with separately computed risk scores and violated regions, and (ii) a scope extension to multi-contract single-transaction analysis covering inheritance, libraries, interfaces, and an arithmetic Yul subset.
+This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope. The tool classifies developer-supplied @During/@Post intent annotations as Satisfied, Warning, or Violated against the abstract states produced by interval-domain analysis, grounded in a formal denotational semantics, and reports a risk score and the violated region per annotation.
 
 On 75 effective benchmark instances drawn from Web3Bugs, NumScout, and the Greedy Contract dataset of \citet{flyinointment}, IntentChecker mitigated 20 cases by returning Violated judgments at a mean 3.69\,s per case (RQ1). RQ2 traced the remaining 55 cases to two levels of limitation. Of these, 21 are analysis-engine limits where the interval-domain state at the check point is too coarse to distinguish the bug. The other 34 are annotation-grammar limits rooted in two structural properties of the value-level intent model: value-level annotations can express a bug only when the corrective variable is in the function's scope, and algorithm-level bugs lie outside what a value-level grammar is designed to express. RQ3 then compared IntentChecker with existing detectors and empirically confirmed that their coverage and latency envelopes are bounded by both structural axes this paper identifies, namely who authors the detection criteria and when the tool is run.
 
