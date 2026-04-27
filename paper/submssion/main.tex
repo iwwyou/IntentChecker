@@ -234,79 +234,65 @@ Single-transaction errors occur within the execution of a single function call--
 In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
 Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, which manifest only through state changes accumulated across multiple function invocations.
 
-This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. The choice aligns with our broader goal of a development-phase debugging assistant: a single-transaction error's intended behavior is determined within the function the developer is currently writing, so the developer can declare it as input at the moment of writing. Multiple-transaction errors, whose intent spans sequences of calls authored at different times, are left to future work.
-
-This paper organizes the representative single-transaction patterns identified in prior work along a single axis that will recur throughout the paper: the bug's abstraction level. The same axis later delineates IntentChecker's design target (its intent model is deliberately confined to value-level relations; §\ref{sec:design}) and characterizes where the model reaches and where it does not (§\ref{sec:rq2}).
+This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. The choice aligns with our broader goal of a development-phase debugging assistant: a single-transaction error's intended behavior is determined within the function the developer is currently writing, so the developer can declare it as input at the moment of writing. Multiple-transaction errors, whose intent spans sequences of calls authored at different times, are left to future work. Within this focus, this paper introduces a single organizing axis for the representative patterns from prior work: the bug's abstraction level (Table~\ref{tab:nle-patterns}). The axis recurs throughout the paper, later delineating IntentChecker's design target (its intent model is deliberately confined to value-level relations; §\ref{sec:design}) and characterizing where the model reaches and where it does not (§\ref{sec:rq2}).
 \begin{itemize}
     \item \textbf{Value-level errors}---logic errors at the value level: a wrong operator, a swapped identifier, or truncation that produces a numerically incorrect result.
     \item \textbf{Algorithm-level errors}---logic errors in the structural arrangement of operations: operation ordering, an absent state update, or a missing procedure call.
 \end{itemize}
-Table~\ref{tab:nle-patterns} lists the prior-work patterns under each category.
 
 The next subsection examines existing tools for numeric logic errors.
 
 \subsection{Structural Constraints of Existing Tools}
 
-Despite the abstraction-level split, the bugs above share a common root: the actual behavior diverges from the developer's intent. Reliable flagging therefore requires reasoning about that intent, not only the written code. Several tools target numeric logic errors with this requirement in mind.
+Several tools target numeric logic errors.
 NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
 GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
 ScType~\citep{sctype} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
 These tools represent the current state of the art and have meaningfully advanced the field for auditing and testing workflows.
-However, when measured against the role of a development-time debugging assistant---a tool that runs alongside the developer during editing and reasons about the intent of the specific function being written---they share two structural constraints rooted in their design.
+However, on numeric logic errors specifically, these tools share two structural constraints, both rooted in the absence of any channel for per-case intent: who authors the detection criteria, and what input the analysis takes.
 
 \smallskip
-\noindent\textbf{(1) Detection criteria authored by the tool designer, not the developer.}
+\noindent\textbf{(1) Detection criteria: authored by the tool designer, not by the developer.}
 Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{sctype}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
-These criteria encode shapes of code that have been buggy in prior contracts, not what counts as a violation of the developer's intent for this specific function. A bug is caught only when its surface form matches one of those prior shapes; bugs whose buggy/correct distinction depends on per-function intent fall outside the catalog by construction.
+These criteria encode shapes of code that have been buggy in prior contracts, not what counts as a violation of the developer's intent for this specific function. A bug is caught only when its surface form matches one of those prior shapes.
 
 \smallskip
-\noindent\textbf{(2) Analysis input: source code at audit time, with the developer no longer in the loop.}
+\noindent\textbf{(2) Analysis phase: audit time, with the developer no longer in the loop.}
 Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
 They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
-Because these tools run downstream of authoring, the developer of the code under analysis cannot be queried for clarification or asked to supply per-case input; the tool must work entirely with the source code as written. Per-case intent therefore has no channel into the analysis, leaving the criteria in (1) as the only configurable input---configured once at design time.
+Because these tools run downstream of authoring, the developer of the code under analysis is no longer available to be queried for clarification or to supply per-case input. The tool must therefore work entirely with the source code as written, and per-case intent has no channel into the analysis.
 
 \smallskip
 \noindent\textbf{These two constraints are structural, not tool-specific.}
 The above constraints are not characterized as failures of any specific tool, since the tools cited above are well-engineered within the design space they chose.
-The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---requires intent to be guessed rather than supplied, which is a constraint on what can be expressed as input, not on how well the guessing is implemented.
-This guessing is feasible for vulnerability classes whose buggy form is invariant across contracts: reentrancy and unchecked overflow have the same shape regardless of what the developer intended.
-Numeric logic errors, however, are intent-dependent by definition---the same arithmetic can be the correct formula in one contract (e.g., intentional floor division for fair-share rounding) and a silent bug in another (e.g., precision loss in token minting), distinguishable only by reference to what the developer intended this specific function to compute.
+The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---requires intent to be inferred from code shape rather than supplied by the developer, which is a constraint on what can be expressed as input, not on how well the inference is implemented.
+This inference is reliable for vulnerability classes whose buggy form is invariant across contracts: a reentrancy pattern or an unchecked overflow is buggy regardless of what the developer intended, so the catalog's implicit intent assumption holds.
+Numeric logic errors, by contrast, are intent-dependent by definition---the same arithmetic can be the correct formula in one contract (e.g., intentional floor division for fair-share rounding) and a silent bug in another (e.g., precision loss in token minting), distinguishable only by reference to what the developer intended this specific function to compute.
 A design space that excludes per-case intent has no signal on which to base that distinction.
-To step outside this constraint, the input must be enlarged (the developer must supply their intent) and the tool must be moved earlier in time (run during editing, when the developer is still available to supply that intent). These two moves are jointly necessary: running earlier without intent input merely accelerates the same designer-authored guessing.
+To step outside this constraint, the input must be enlarged (the developer must supply their intent) and the tool must be moved earlier in time (run during editing, when the developer is still available to supply that intent). These two moves are jointly necessary.
 
 \subsection{Proposed Overview}\label{sec:proposed-overview}
 
 IntentChecker addresses each of these constraints with a dedicated component.
 
 \smallskip
-\noindent\textbf{(1) Detection criteria authored by the developer, via intent annotations.}
+\noindent\textbf{(1) Detection criteria: authored by the developer, via intent annotations.}
 IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a validation engine grounded in a denotational semantics that classifies each annotation as Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
 The engine reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
 Because the developer authors these annotations per case, the criteria are specific to the function being written rather than fixed to designer-anticipated shapes from prior contracts.
 
 \smallskip
-\noindent\textbf{(2) Analysis input: source code at development time, with the developer in the loop.}
+\noindent\textbf{(2) Analysis phase: development time, with the developer in the loop.}
 For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written. SolQDebug operates on a ``range in, range out'' principle: the developer supplies bounded ranges for entry-point values the function reads (transaction context, storage state, parameters) through debug annotations, and the analyzer reports the intervals each variable reaches at every program point, without itself judging whether those intervals correspond to correct or buggy behavior. To remain responsive as code is being written, it accepts partial code fragments through specialized grammar entry rules and maintains an incremental control-flow graph that resumes analysis from the edit point rather than restarting on every change.
 This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, opening the channel that (1) requires: per-case intent declared in the editor reaches the analysis directly, rather than being guessed from the source code after the fact.
 
 \smallskip
-This design positions IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
+Together, these two components position IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
 
 \section{The Design of IntentChecker}\label{sec:design}
 \subsection{System Architecture}
 
 Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
-
-\smallskip
-\noindent\textbf{Analysis scope.}
-IntentChecker debugs one function at a time within its \emph{deployment unit}---the target contract together with its inherited parents and storage-sharing libraries invoked via Solidity's \texttt{using for} directive (which run under the target's address through \texttt{delegatecall}). All such code executes over the same storage layout, so debug annotations placed on the target contract's state variables remain valid when the analyzer steps into a parent or library function. External contracts---separately deployed contracts invoked through an address or interface-typed variable---sit outside this unit, because their storage resides at a different address that the target's annotations cannot reach. The @IReturn debug annotation, described below, provides a restricted form of injection across this boundary for view and pure interface calls. This scope extends SolQDebug's original single-contract single-transaction analysis~\citep{solqdebug} to cover the multi-contract single-transaction code where realistic numeric logic errors tend to live.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{Fig1.pdf}
-    \caption{System architecture of IntentChecker.}
-    \label{fig:architecture}
-\end{figure}
 
 \smallskip
 \noindent\textbf{Input.}
@@ -327,6 +313,13 @@ For each intent annotation, IntentChecker produces:
     \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
 \end{itemize}
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{Fig1.pdf}
+    \caption{System architecture of IntentChecker.}
+    \label{fig:architecture}
+\end{figure}
+
 \smallskip
 \noindent\textbf{Internal Modules.}
 Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new @IReturn annotation and the multi-contract deployment-unit scope, while Phase~3 is IntentChecker's core contribution.
@@ -337,14 +330,9 @@ Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the
 \end{itemize}
 
 \smallskip
-\noindent\textbf{Debug annotation details.}
-@GlobalVar, @StateVar, and @LocalVar are inherited from SolQDebug~\citep{solqdebug}; each lets the developer supply a bounded range for an entry-point value the function reads---transaction/block context (@GlobalVar), contract storage (@StateVar), or a function parameter (@LocalVar)---so that abstract interpretation proceeds under the chosen scenario rather than over $\top$. Variables declared inside the function body are not injectable, because overriding values the analyzer computes from the code itself would break soundness; values the developer chooses not to constrain remain at $\top$ and propagate as such.
-
-@IReturn extends this mechanism to the return values of interface calls. Interface-typed variables (e.g., \texttt{IOracle oracle}) present a structural problem the other three annotations cannot solve: the implementation behind the interface is not present in the source file, so SolQDebug's abstract interpreter must return $\top$ for any value derived from an interface call, and this $\top$ propagates into every downstream computation, defeating intent validation for any function that reads an oracle or queries an external token contract. The observation behind @IReturn is that this situation is semantically identical to what the three existing annotations already handle: the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view, and the analyzer proceeds under that range. An interface call's return value is a fourth instance of the same pattern.
-
-Interface calls differ from the other three inputs in that they may modify the external contract's state. The analyzer cannot see the interface's implementation, so it cannot model any such effect; allowing injection on a state-modifying call would let the developer specify the return value while silently omitting the side effect, producing a model that does not correspond to any real execution. Injection is therefore restricted to view and pure interface functions, which Solidity explicitly marks as having no state-modifying side effects, making the developer-supplied range a complete description of the call's observable behavior.
-
-Two surface syntaxes are supported. \textbf{Pattern A (variable-qualified):} \texttt{// @IReturn pool.getPrincipal() = [0, 0]} binds the return value of \texttt{getPrincipal} on an interface-typed variable (\texttt{pool} must be declared as some interface type). \textbf{Pattern B (explicit cast):} \texttt{// @IReturn IERC20(token).balanceOf() = [200, 200]} binds the return value of \texttt{balanceOf} when the call is written as an explicit cast of an address variable to an interface type. Both patterns may target structured return values through an access chain, including struct members (\texttt{vault.delayedStrategyParams().performanceFee}) and chained interface calls (\texttt{engine.mochiProfile().maxCollateralFactor()}), so a single return value can be partially specified and partially left as $\top$.
+\noindent\textbf{Analysis scope.}
+IntentChecker analyzes one function at a time within a multi-contract scope, extending SolQDebug's~\citep{solqdebug} original single-contract analysis to cover libraries and inherited parents that share storage with the target contract. External contracts---separately deployed and reached through an address or interface-typed variable---sit outside this scope, because their storage resides at a different address that the target's annotations cannot reach.
+This exclusion creates a problem for analysis: any value derived from an interface call resolves to $\top$ and propagates into every downstream computation, defeating intent validation for functions that read oracles or external token state. To address this, @IReturn extends the same range-injection mechanism the three existing annotations rely on: the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view, and the analyzer proceeds under it. Interface functions split into two cases: those declared view or pure, where Solidity guarantees no state-modifying side effects, and those that may modify state---potentially even re-entering the target function. Injection is restricted to the former, allowing intent validation to proceed under the developer-supplied range rather than being defeated by $\top$ propagation.
 
 \subsection{Examples of Intent Annotation Usage}
 
@@ -724,7 +712,7 @@ Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]
 
 Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
 The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds.
-Fig.~\ref{fig:region-partition} illustrates this partition for the canonical warning configuration of $op = \text{``$>$''}$.
+Fig.~\ref{fig:region-partition} illustrates this partition for $op = \text{``$>$''}$ across the spectrum of $L$ vs $R$ relative positions on the integer line: from $L$ entirely below $R$ (Verdict: Violated) through several warning configurations to $L$ entirely above $R$ (Verdict: Satisfied). The same Table~\ref{tab:op-formulas} formulas apply throughout, with $\max(0, \cdot)$ clamping handling the empty regions in each configuration.
 
 \begin{table}[t]
 \centering
@@ -751,60 +739,222 @@ not\,in & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \c
 
 \begin{figure}[t]
 \centering
-\vspace{4pt}
+
+% Row 1: (a) L below R, (b) L extends below R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
 \begin{tikzpicture}[
-    x=0.85cm, y=0.5cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.5pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.5pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.5pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.5pt},
-    ax/.style={->, line width=0.6pt, black!70},
-    tick/.style={line width=0.5pt, black!70},
-    txt/.style={font=\scriptsize},
-    tny/.style={font=\tiny},
-    Tlbl/.style={font=\small},
-    braced/.style={decorate, decoration={brace, amplitude=3pt, mirror, raise=1pt}},
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
 ]
-
-% R (same thickness as L, above L)
-\fill[Rbox] (6, 6.0) rectangle (12, 7.4);
-\node[Tlbl] at (9, 6.7) {$R$};
-\draw[tick] (6, 5.8) -- (6, 7.6);
-\draw[tick] (12, 5.8) -- (12, 7.6);
-\node[tny, anchor=south] at (6, 7.6) {$r_{\min}$};
-\node[tny, anchor=south] at (12, 7.6) {$r_{\max}$};
-
-% L (thicker, partitioned)
-\fill[Tvbox] (2, 3.8) rectangle (6, 5.2);
-\fill[Twbox] (6, 3.8) rectangle (12, 5.2);
-\fill[Tsbox] (12, 3.8) rectangle (16, 5.2);
-\node[Tlbl] at (4, 4.5) {$T_v$};
-\node[Tlbl] at (9, 4.5) {$T_w$};
-\node[Tlbl] at (14, 4.5) {$T_s$};
-\draw[tick] (2, 3.6) -- (2, 5.4);
-\draw[tick] (16, 3.6) -- (16, 5.4);
-\node[tny, anchor=north] at (2, 3.6) {$l_{\min}$};
-\node[tny, anchor=north] at (16, 3.6) {$l_{\max}$};
-\node[txt, anchor=east] at (1.8, 4.5) {$L$};
-
-% Braces below L
-\draw[braced] (2, 2.8) -- (6, 2.8);
-\node[tny, anchor=north] at (4, 2.7) {$|T_v|{=}r_{\min}{-}l_{\min}{+}1$};
-\draw[braced] (6, 2.8) -- (12, 2.8);
-\node[tny, anchor=north] at (9, 2.7) {$|T_w|{=}r_{\max}{-}r_{\min}$};
-\draw[braced] (12, 2.8) -- (16, 2.8);
-\node[tny, anchor=north] at (14, 2.7) {$|T_s|{=}l_{\max}{-}r_{\max}$};
-
-% Axis
-\draw[ax] (0, 1.8) -- (17, 1.8);
-\node[txt, anchor=west] at (17, 1.8) {$\mathbb{Z}$};
-
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (2, 3.0) rectangle (6, 4.0);
+\node[Tlbl] at (4, 3.5) {$T_v$};
+\node[Tlbl, anchor=east] at (1.8, 3.5) {$L$};
+\draw[tick] (2, 2.8) -- (2, 4.2);
+\draw[tick] (6, 2.8) -- (6, 4.2);
+\node[txt, anchor=north] at (2, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (6, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
 \end{tikzpicture}
+\caption{$L$ below $R$: $T_v = L$ (Violated).}
+\label{fig:region-fullyv}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
+\fill[Twbox] (8, 3.0) rectangle (10, 4.0);
+\node[Tlbl] at (6, 3.5) {$T_v$};
+\node[Tlbl] at (9, 3.5) {$T_w$};
+\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
+\draw[tick] (4, 2.8) -- (4, 4.2);
+\draw[tick] (10, 2.8) -- (10, 4.2);
+\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (10, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ extends below $R$: $T_s = \emptyset$ (Warning).}
+\label{fig:region-lower}
+\end{subfigure}
 
-\vspace{6pt}
-\caption{Partition of $L$ on the integer line $\mathbb{Z}$ for $op = \text{``$>$''}$ in the canonical warning case ($l_{\min} < r_{\min} < r_{\max} < l_{\max}$). Region sizes match Table~\ref{tab:op-formulas}'s $op = \text{``$>$''}$ row.}
+\vspace{8pt}
+
+% Row 2: (c) L inside R, (d) L surrounds R (canonical)
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Twbox] (9, 3.0) rectangle (11, 4.0);
+\node[Tlbl] at (10, 3.5) {$T_w$};
+\node[Tlbl, anchor=east] at (8.8, 3.5) {$L$};
+\draw[tick] (9, 2.8) -- (9, 4.2);
+\draw[tick] (11, 2.8) -- (11, 4.2);
+\node[txt, anchor=north] at (9, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (11, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ inside $R$: $T_w = L$ (Warning).}
+\label{fig:region-Rcontains}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
+\fill[Twbox] (8, 3.0) rectangle (12, 4.0);
+\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
+\node[Tlbl] at (6, 3.5) {$T_v$};
+\node[Tlbl] at (10, 3.5) {$T_w$};
+\node[Tlbl] at (14, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
+\draw[tick] (4, 2.8) -- (4, 4.2);
+\draw[tick] (16, 2.8) -- (16, 4.2);
+\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ surrounds $R$ (canonical): all three regions non-empty (Warning).}
+\label{fig:region-canonical}
+\end{subfigure}
+
+\vspace{8pt}
+
+% Row 3: (e) L extends above R, (f) L above R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Twbox] (10, 3.0) rectangle (12, 4.0);
+\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
+\node[Tlbl] at (11, 3.5) {$T_w$};
+\node[Tlbl] at (14, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (9.8, 3.5) {$L$};
+\draw[tick] (10, 2.8) -- (10, 4.2);
+\draw[tick] (16, 2.8) -- (16, 4.2);
+\node[txt, anchor=north] at (10, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ extends above $R$: $T_v = \emptyset$ (Warning).}
+\label{fig:region-upper}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tsbox] (14, 3.0) rectangle (18, 4.0);
+\node[Tlbl] at (16, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (13.8, 3.5) {$L$};
+\draw[tick] (14, 2.8) -- (14, 4.2);
+\draw[tick] (18, 2.8) -- (18, 4.2);
+\node[txt, anchor=north] at (14, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (18, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ above $R$: $T_s = L$ (Satisfied).}
+\label{fig:region-fullys}
+\end{subfigure}
+
+\caption{Spectrum of $L$ vs $R$ configurations for $op = \text{``$>$''}$.}
 \label{fig:region-partition}
-\vspace{4pt}
 \end{figure}
 
 \smallskip
@@ -868,49 +1018,143 @@ p_{\mathit{true}}(L, R, op) \;=\;
 
 \begin{figure}[t]
 \centering
-\vspace{4pt}
+
+% Row 1: (a) canonical, (b) L extends below R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
 \begin{tikzpicture}[
-    x=0.85cm, y=0.5cm,
+    x=0.4cm, y=0.3cm,
     bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.6pt, black!70},
-    txt/.style={font=\scriptsize},
-    tny/.style={font=\tiny},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
 ]
-
-\foreach \x/\h in {4/0.4, 5/0.8, 6/1.2, 7/1.6, 8/2.0} {
-  \fill[bar] (\x-0.35, 0) rectangle (\x+0.35, \h);
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {1/1, 2/2, 3/3, 4/4, 5/5, 6/6} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
 }
-
-\draw[ax] (3, 0) -- (9.5, 0);
-\draw[ax] (3.3, -0.2) -- (3.3, 2.3);
-
-\node[tny, anchor=north] at (4, -0.1) {$r_{\min}{+}1$};
-\node[tny, anchor=north] at (8, -0.1) {$r_{\max}$};
-\node[tny, anchor=east] at (3.2, 0.35) {$a$};
-\node[tny, anchor=east] at (3.2, 1.95) {$b$};
-
-\node[txt, anchor=west] at (11, 1.0)
-  {$\displaystyle E_w = \frac{(a+b)\,|T_w|}{2\,n_R}$};
-
+\draw[pair, <->] (1, 1.2) to[bend left=35] (6, 6.2);
+\draw[pair, <->] (2, 2.2) to[bend left=25] (5, 5.2);
+\draw[pair, <->] (3, 3.2) to[bend left=15] (4, 4.2);
+\node[txt, blue!60!black] at (3.5, 8.5) {$a+b=7$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (0.6, 1) {$a$};
+\node[txt, anchor=east] at (0.6, 6) {$b$};
 \end{tikzpicture}
+\caption{Canonical: $|T_w|=6$, $a{=}1$, $b{=}6$.}
+\label{fig:arith-canonical}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {1/1, 2/2, 3/3, 4/4} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (1, 1.2) to[bend left=30] (4, 4.2);
+\draw[pair, <->] (2, 2.2) to[bend left=20] (3, 3.2);
+\node[txt, blue!60!black] at (2.5, 5.8) {$a+b=5$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (0.6, 1) {$a$};
+\node[txt, anchor=east] at (0.6, 4) {$b$};
+\end{tikzpicture}
+\caption{$L$ extends below $R$: $|T_w|=4$, $a{=}1$, $b{=}4$.}
+\label{fig:arith-lower}
+\end{subfigure}
 
-\vspace{6pt}
-\caption{Count of $r \in R$ satisfying $l > r$ across $T_w$ for the canonical warning configuration. The count grows arithmetically from $a = 1$ at $l = r_{\min}{+}1$ to $b = n_R - 1$ at $l = r_{\max}$; summing over $T_w$ and dividing by $n_R$ yields $E_w$.}
+\vspace{8pt}
+
+% Row 2: (c) L inside R, (d) L extends above R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {2/2, 3/3, 4/4, 5/5} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (2, 2.2) to[bend left=30] (5, 5.2);
+\draw[pair, <->] (3, 3.2) to[bend left=20] (4, 4.2);
+\node[txt, blue!60!black] at (3.5, 6.8) {$a+b=7$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (1.6, 2) {$a$};
+\node[txt, anchor=east] at (1.6, 5) {$b$};
+\end{tikzpicture}
+\caption{$L$ inside $R$: $|T_w|=4$, $a{=}2$, $b{=}5$.}
+\label{fig:arith-inside}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {3/3, 4/4, 5/5, 6/6} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (3, 3.2) to[bend left=30] (6, 6.2);
+\draw[pair, <->] (4, 4.2) to[bend left=20] (5, 5.2);
+\node[txt, blue!60!black] at (4.5, 8) {$a+b=9$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (2.6, 3) {$a$};
+\node[txt, anchor=east] at (2.6, 6) {$b$};
+\end{tikzpicture}
+\caption{$L$ extends above $R$: $|T_w|=4$, $a{=}3$, $b{=}6$.}
+\label{fig:arith-upper}
+\end{subfigure}
+
+\caption{Arithmetic-sequence visualization of $E_w$ across warning configurations for $op = \text{``$>$''}$ with $n_R = 7$.}
 \label{fig:arithmetic-series}
-\vspace{4pt}
 \end{figure}
 
-\begin{description}
-\item[$op \in \{\text{in}, \text{not\,in}\}$.] $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
-\item[$op = \text{``=''}$ or $\text{``$\neq$''}$ with $n_R > 1$.] Each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
-\item[Otherwise ($>$, $\geq$, $<$, $\leq$, and $=$/$\neq$ with $n_R = 1$).] The warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
-Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$ (visualised in Fig.~\ref{fig:arithmetic-series}), so
+\begin{itemize}
+\item For $op \in \{\text{in}, \text{not\,in}\}$, $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
+\item For $op = \text{``=''}$ or $\text{``$\neq$''}$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
+\item Otherwise (when $op \in \{>, \geq, <, \leq\}$, or $=$/$\neq$ with $n_R = 1$), the warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$. Fig.~\ref{fig:arithmetic-series} visualizes this sequence across the four warning configurations identified in Fig.~\ref{fig:region-partition}; in each panel, pairing symmetric terms (first with last, second with second-to-last, and so on) yields a constant pair-sum equal to $a + b$, so the $|T_w|$ counts sum to $(a+b)|T_w|/2$, and dividing by $n_R$ gives
 \[
 E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
 \]
 where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
 When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to pointwise evaluation.
-\end{description}
+\end{itemize}
 
 \smallskip
 \textbf{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
@@ -924,6 +1168,9 @@ For warning results, the engine classifies the violation pattern into three risk
 \smallskip
 \textbf{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
 Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
+
+\smallskip
+This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Within each band, score magnitude rises monotonically with the underlying violation probability $1 - p_{\mathit{true}}$, so developers can prioritize reviews directly by score without inspecting the underlying probability or region structure.
 
 This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
 
@@ -1218,9 +1465,10 @@ RQ2 classifies the 55 instances for which IntentChecker cannot produce a Violate
     \item \textbf{L5 (Bug-awareness limit, 14 cases).} The correct specification lies within the annotation grammar's scope---it can be written as a relationship among the variables the target function uses. Writing it requires the developer to articulate the intended relationship with enough precision to distinguish it from the buggy one, which in practice presupposes having already recognized the bug.
   \end{itemize}
 
-  \noindent To distinguish the bug patterns IntentChecker's value-level intent model can address from those that fall outside its scope, the 34 cases are classified along two orthogonal axes. The first is the Value/Algorithm distinction introduced in §\ref{sec:background}.1 (Table~\ref{tab:nle-patterns}): whether the bug lies at the value level (a wrong operator, swapped identifier, or missing assignment) or at the algorithm level (operation ordering, missing procedure call). The second is the reference location:
+  \noindent To distinguish the bug patterns IntentChecker's value-level intent model can address from those that fall outside its scope, the 34 cases are classified along two orthogonal axes. The first is the Value/Algorithm distinction introduced in §\ref{sec:background}.1 (Table~\ref{tab:nle-patterns}): whether the bug lies at the value level (a wrong operator, swapped identifier, or missing assignment) or at the algorithm level (operation ordering, missing procedure call). The second is the reference location, classifying each case by whether the corrective reference is reachable from the target function:
   \begin{itemize}
-    \item \textbf{Reference location.} A \textbf{Usable} reference is bound to a variable the function already reads, such as a local variable, parameter, or contract state variable. An \textbf{Unusable} reference is bound elsewhere, such as in external contract state, in the return of a call the function does not make, or in no variable the program represents at all.
+    \item \textbf{Usable.} The reference is bound to a variable the function already reads, such as a local variable, parameter, or contract state variable.
+    \item \textbf{Unusable.} The reference is bound elsewhere, such as in external contract state, in the return of a call the function does not make, or in no variable the program represents at all.
   \end{itemize}
 
   \noindent The four resulting cells partition the 34 cases. Each cell is illustrated below with a representative bug from our benchmark.
