@@ -15,13 +15,13 @@ pre-analyzed and cached, so it does not affect per-case analysis time):
   5. debug_total        — @StateVar + @LocalVar + @GlobalVar + @IReturn count
 
 Outputs:
-  - evaluation/validation_soundness/rq1_metrics.csv
-  - evaluation/validation_soundness/rq1_correlations.csv
-  - evaluation/validation_soundness/rq2_run{i}.csv (when --runs > 0)
+  - evaluation/RQ1/rq1_metrics.csv
+  - evaluation/RQ1/rq1_correlations.csv
+  - evaluation/RQ1/rq1_run{i}.csv (when --runs > 0)
 
 Usage:
-    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py           # use existing rq2_results.csv
-    .venv/Scripts/python.exe evaluation/validation_soundness/collect_metrics.py --runs 3  # run 3x, average
+    .venv/Scripts/python.exe evaluation/RQ1/collect_metrics.py           # use existing rq1_results.csv
+    .venv/Scripts/python.exe evaluation/RQ1/collect_metrics.py --runs 3  # run 3x, average
 """
 
 import argparse
@@ -37,11 +37,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 MAIN_EVAL_DIR = PROJECT_ROOT / "evaluation" / "RQ1"
-MAIN_RESULTS = MAIN_EVAL_DIR / "rq2_results.csv"
-SOUNDNESS_DIR = PROJECT_ROOT / "evaluation" / "validation_soundness"
-OUT_CSV = SOUNDNESS_DIR / "rq1_metrics.csv"
-CORR_CSV = SOUNDNESS_DIR / "rq1_correlations.csv"
-PLOTS_DIR = SOUNDNESS_DIR / "plots"
+MAIN_RESULTS = MAIN_EVAL_DIR / "rq1_results.csv"
+OUT_CSV = MAIN_EVAL_DIR / "rq1_metrics.csv"
+CORR_CSV = MAIN_EVAL_DIR / "rq1_correlations.csv"
 
 CASE_JSONS = [
     "cases/div_in_path/WANGMI_input.json",
@@ -232,7 +230,7 @@ def extract_source_metrics(json_path: Path) -> dict:
 # run_all.py result loading
 # ─────────────────────────────────────────────────────────────
 
-def load_rq2_results(csv_path: Path = MAIN_RESULTS) -> dict:
+def load_rq1_results(csv_path: Path = MAIN_RESULTS) -> dict:
     if not csv_path.exists():
         return {}
     out = {}
@@ -246,31 +244,31 @@ def load_rq2_results(csv_path: Path = MAIN_RESULTS) -> dict:
     return out
 
 
-def run_rq2_evaluation() -> None:
+def run_rq1_evaluation() -> None:
     runner = MAIN_EVAL_DIR / "run_all.py"
     print(f"[info] Running {runner} ...")
     subprocess.run([sys.executable, str(runner)], check=False)
 
 
-def run_rq2_n_times(n: int) -> dict:
+def run_rq1_n_times(n: int) -> dict:
     timings = defaultdict(list)
     last_results = {}
 
     for i in range(1, n + 1):
         print(f"\n========== run {i}/{n} ==========")
-        run_rq2_evaluation()
+        run_rq1_evaluation()
 
         if not MAIN_RESULTS.exists():
             print(f"[error] {MAIN_RESULTS} not produced after run {i}")
             continue
 
-        snapshot = SOUNDNESS_DIR / f"rq2_run{i}.csv"
+        snapshot = MAIN_EVAL_DIR / f"rq1_run{i}.csv"
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(MAIN_RESULTS, snapshot)
         print(f"[ok] snapshot → {snapshot}")
 
-        rq2 = load_rq2_results()
-        for key, data in rq2.items():
+        rq1 = load_rq1_results()
+        for key, data in rq1.items():
             timings[key].append(data["analysis_time_sec"])
             last_results[key] = data["result"]
 
@@ -315,7 +313,7 @@ def load_existing_time_rows(path: Path) -> dict:
 # Analysis
 # ─────────────────────────────────────────────────────────────
 
-def collect_rows(case_jsons, rq2_agg: dict, fallback_times: dict) -> list[dict]:
+def collect_rows(case_jsons, rq1_agg: dict, fallback_times: dict) -> list[dict]:
     rows = []
     for rel in case_jsons:
         path = MAIN_EVAL_DIR / rel
@@ -327,7 +325,7 @@ def collect_rows(case_jsons, rq2_agg: dict, fallback_times: dict) -> list[dict]:
             else f"{category}_{case_name}"
         )
         metrics = extract_source_metrics(path)
-        agg = rq2_agg.get((case_name, category), {})
+        agg = rq1_agg.get((case_name, category), {})
 
         if "analysis_time_mean" in agg:
             time_fields = {
@@ -452,33 +450,33 @@ def main():
         "--runs", type=int, default=0,
         help="Run run_all.py N times and average. 0 = skip re-running and "
              "re-use analysis_time_* from the existing rq1_metrics.csv if present, "
-             "or read rq2_results.csv if that is the only thing available.",
+             "or read rq1_results.csv if that is the only thing available.",
     )
     args = parser.parse_args()
 
-    rq2_agg: dict = {}
+    rq1_agg: dict = {}
     fallback_times = load_existing_time_rows(OUT_CSV)
 
     if args.runs > 0:
-        rq2_agg = run_rq2_n_times(args.runs)
-        if not rq2_agg:
+        rq1_agg = run_rq1_n_times(args.runs)
+        if not rq1_agg:
             print("[error] No timings collected. Aborting.")
             sys.exit(1)
     else:
-        # --runs=0: prefer existing metrics CSV times; if absent, try rq2_results.csv
+        # --runs=0: prefer existing metrics CSV times; if absent, try rq1_results.csv
         if fallback_times:
             print(f"[info] Re-using analysis times from existing {OUT_CSV.name}")
         else:
             if not MAIN_RESULTS.exists():
                 print(f"[info] {MAIN_RESULTS} not found and no {OUT_CSV.name} "
                       "to fall back on. Running run_all.py once ...")
-                run_rq2_evaluation()
-            rq2_agg = load_rq2_results()
-            if not rq2_agg:
+                run_rq1_evaluation()
+            rq1_agg = load_rq1_results()
+            if not rq1_agg:
                 print(f"[error] no timing data available. Aborting.")
                 sys.exit(1)
 
-    rows = collect_rows(CASE_JSONS, rq2_agg, fallback_times)
+    rows = collect_rows(CASE_JSONS, rq1_agg, fallback_times)
     write_csv(rows, OUT_CSV)
     n_runs = rows[0].get("n_runs", 1) if rows else 0
     print(f"\n[ok] Per-case metrics → {OUT_CSV}  ({len(rows)} cases, {n_runs} runs each)")

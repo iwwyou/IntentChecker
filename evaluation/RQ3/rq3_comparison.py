@@ -26,7 +26,7 @@ import numpy as np
 BASE = Path(__file__).resolve().parent                       # evaluation/RQ3
 PROJECT_ROOT = BASE.parent.parent                            # repo root
 CASE_CSV = BASE / "case_mapping.csv"
-IC_RUN_CSVS = [BASE.parent / "validation_soundness" / f"rq2_run{i}.csv" for i in (1, 2, 3)]
+IC_RUN_CSVS = [BASE.parent / "RQ1" / f"rq1_run{i}.csv" for i in (1, 2, 3)]
 GPTSCAN_RUN_DIRS = [BASE / "outputs" / "gptscan" / f"run{i}" for i in (1, 2, 3)]
 SCTYPE_RUNS = [BASE / "outputs" / "sctype" / f"run{i}" for i in (1, 2, 3)]
 NUMSCOUT_RUN_DIRS = [BASE / "outputs" / "numscout" / f"run{i}" for i in (1, 2, 3)]
@@ -67,8 +67,8 @@ def load_intentchecker(annotated_cases):
                 "time": None, "stdev_time": None}
           for cid in annotated_cases}
 
-    def find_row(rq2_rows, case_name, category=None):
-        candidates = [r for r in rq2_rows if r.get("case") == case_name]
+    def find_row(ic_rows, case_name, category=None):
+        candidates = [r for r in ic_rows if r.get("case") == case_name]
         if not candidates:
             return None
         if len(candidates) == 1:
@@ -79,15 +79,15 @@ def load_intentchecker(annotated_cases):
                     return c
         return candidates[0]
 
-    def resolve_row(rq2_rows, cid, case_info):
+    def resolve_row(ic_rows, cid, case_info):
         # Try exact match by case_id as case name (e.g., web3bugs_5_H_07)
-        row = find_row(rq2_rows, cid, category=cid)
+        row = find_row(ic_rows, cid, category=cid)
         if row is None and cid.startswith("numscout_"):
             contract = case_info.get("contract_name", "")
             pattern = case_info.get("pattern", "")
-            row = find_row(rq2_rows, contract, category=pattern)
+            row = find_row(ic_rows, contract, category=pattern)
             if row is None:
-                row = find_row(rq2_rows, contract)
+                row = find_row(ic_rows, contract)
         return row
 
     for csv_path in IC_RUN_CSVS:

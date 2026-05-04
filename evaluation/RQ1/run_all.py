@@ -1,8 +1,11 @@
 """
-RQ2 전체 케이스 실행 + CSV 출력
+RQ1 전체 케이스 실행 + CSV 출력
 
 각 케이스를 main.py subprocess로 실행하여
 분석 시간(dependency 제외), intent 타입, 결과를 수집한다.
+출력은 evaluation/RQ1/rq1_results.csv 로 저장된다.
+3-run 평균/표준편차 + 5개 complexity metric 까지 모은 rq1_metrics.csv
+는 collect_metrics.py 가 본 스크립트를 N 회 호출해서 만든다.
 
 Usage:
     python evaluation/RQ1/run_all.py                # 전체 실행 + CSV 출력
@@ -191,9 +194,9 @@ def run_case(json_rel: str) -> dict:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="RQ2 전체 실행")
+    parser = argparse.ArgumentParser(description="RQ1 전체 실행")
     parser.add_argument("--case", help="특정 케이스만 실행 (부분 매칭)")
-    parser.add_argument("--csv", default="evaluation/RQ1/rq2_results.csv", help="CSV 출력 경로")
+    parser.add_argument("--csv", default="evaluation/RQ1/rq1_results.csv", help="CSV 출력 경로")
     args = parser.parse_args()
 
     targets = CASE_JSONS
@@ -203,7 +206,7 @@ def main():
             print(f"'{args.case}'에 매칭되는 케이스 없음")
             return
 
-    print(f"=== RQ2 Evaluation: {len(targets)} cases ===\n")
+    print(f"=== RQ1 Evaluation: {len(targets)} cases ===\n")
 
     results = []
     for i, json_rel in enumerate(targets, 1):
