@@ -1,242 +1,242 @@
 # L4/L5 Case-by-Case Deep Review
 
-**대상**: 34개 not_detectable cases (L4a 10, L4b 8, L4c 1, L4d 1, L5a 7, L5b 7)
-**목적**: 각 case의 audit report + source code를 바탕으로 분류 타당성·근본 원인 재검토, paper (Introduction / RQ2 / Discussion) 반영용 insight 도출.
+**Target**: 34 not_detectable cases (L4a 10, L4b 8, L4c 1, L4d 1, L5a 7, L5b 7)
+**Purpose**: Re-examine the validity of classification and root causes for each case based on its audit report and source code, deriving insights for the paper (Introduction / RQ2 / Discussion).
 
 ---
 
-# Paper-Ready Insights (누적)
+# Paper-Ready Insights (cumulative)
 
-아래는 case 분석에서 추출된 **교차 관찰** — 논문 본문(RQ1 / RQ2 / Discussion)에 바로 인용·편집 가능한 형태. Case별 상세는 하위 섹션 참조.
+The following are **cross-cutting observations** extracted from the case analyses — in a form ready for direct citation/editing in the paper body (RQ1 / RQ2 / Discussion). See the subsections for per-case detail.
 
-## I1. Annotation grammar ≠ Abstract interpretation 엔진
+## I1. Annotation grammar != Abstract interpretation engine
 
-**관찰** (Case 1 유래): IntentChecker에는 두 개의 분리된 언어 계층이 있고 paper 본문에서 혼동될 위험이 있음:
+**Observation** (from Case 1): IntentChecker has two separate language layers, and there is a risk of conflating them in the paper body:
 
-- **분석 엔진 (abstract interpretation)**: `**`, 비트 연산, 루프, external view 호출 등 풍부한 Solidity 연산을 soundly 추상화 가능.
-- **Intent annotation grammar**: 변수·정수 리터럴·interval `[a,b]`·`+ − × / %`·괄호만 허용 — 엔진이 다룰 수 있는 것의 **엄격한 하위집합**.
-- **Debug annotations** (`@StateVar`, `@LocalVar`, `@IReturn` 등): **분석 엔진을 위한** 값 공급 장치. Intent annotation grammar를 확장하는 수단이 아님. 두 layer는 설계상 독립.
+- **Analysis engine (abstract interpretation)**: can soundly abstract a rich set of Solidity operations including `**`, bitwise operations, loops, external view calls, etc.
+- **Intent annotation grammar**: only allows variables, integer literals, intervals `[a,b]`, `+ − × / %`, and parentheses — a **strict subset** of what the engine can handle.
+- **Debug annotations** (`@StateVar`, `@LocalVar`, `@IReturn`, etc.): value-supply mechanisms **for the analysis engine**. Not a means of extending the intent annotation grammar. The two layers are independent by design.
 
-**Paper 반영**:
-- Figure 6 (grammar BNF) 캡션에 한 문장 — annotation grammar의 단순성이 의도된 design choice이며 엔진 제약이 아님을 명시.
-- RQ2 opening — 두 axis(engine expressiveness / annotation expressiveness) 분리 선언.
-- L4a·L5 본문에서 "IntentChecker가 `**`를 지원 안 함" 같은 표현 금지 — "annotation grammar가 `**`를 포함하지 않음"으로 정확히 표기.
+**Paper integration**:
+- Add one sentence to the Figure 6 (grammar BNF) caption — make explicit that the simplicity of the annotation grammar is an intended design choice, not an engine limitation.
+- RQ2 opening — declare the separation of the two axes (engine expressiveness / annotation expressiveness).
+- In L4a/L5 body text, prohibit phrasing such as "IntentChecker does not support `**`" — instead state precisely "the annotation grammar does not include `**`".
 
-## I2. L4a / L5a 판정 기준 — "전지적 개발자 테스트" (I7과 함께 읽을 것)
+## I2. L4a / L5a decision criterion — the "omniscient-developer test" (read together with I7)
 
-**판정 기준** (Case 2 유래, Case 4에서 정제):
-> 버그를 정확히 알고 있는 개발자가 grammar만 가지고 **정답 intent를 직접 표현하는** annotation을 작성할 수 있는가?
-> - **가능** → **L5a/L5b** (*behavior deficit*): annotation 표현 가능, "어떤 annotation을 쓸지" 결정이 버그 인지 전제.
-> - **불가능** → **L4a** (*expressibility deficit*): 전지적 개발자조차 intent를 직접 표현할 수 없음.
+**Decision criterion** (from Case 2, refined in Case 4):
+> Can a developer who knows the bug exactly write an annotation that **directly expresses the correct intent** using only the grammar?
+> - **Yes** → **L5a/L5b** (*behavior deficit*): annotation is expressible; deciding "which annotation to write" presupposes bug awareness.
+> - **No** → **L4a** (*expressibility deficit*): even an omniscient developer cannot directly express the intent.
 
-**중요 단서 (Case 4에서 교훈)**: "grammar-expressible distinguishing annotation의 존재"만으로 L5 결론 내리면 안 됨. Local proxy annotation이 우연히 distinguishing power를 갖는 경우까지 포함하면 분류가 무의미. **Intent-level expressibility** 요구 (→ I7).
+**Important caveat (lesson from Case 4)**: One must not conclude L5 based solely on the "existence of a grammar-expressible distinguishing annotation". Including cases where a local proxy annotation accidentally has distinguishing power renders the classification meaningless. **Intent-level expressibility** is required (→ I7).
 
-**Paper 반영**:
-- L4a·L5a 도입부에 정제된 기준을 공식 판정 룰로 선언.
-- L5a 본문: "bug-awareness required"는 **증상**이고 원인은 "annotation 공간이 충분히 풍부해 선택이 의미를 갖는다".
+**Paper integration**:
+- Declare the refined criterion as a formal decision rule at the start of L4a/L5a sections.
+- L5a body: "bug-awareness required" is a **symptom**; the cause is "the annotation space is rich enough that the choice carries meaning".
 
-## I3. L4a 내부 primary blocker — 세 갈래
+## I3. Primary blockers within L4a — three branches
 
-**세 축** (Case 1·2·3·4 유래):
+**Three axes** (from Cases 1, 2, 3, 4):
 
-- **(α) 변수-관계에 함수 호출이 포함 (Case 1, Case 3 유형)**: scope에는 correct 관계식에 기여하는 변수들이 있으나, 관계 자체가 **함수 호출 결과**(external interface view 또는 internal view)를 피연산자로 요구. intentValue는 변수·상수만 허용하므로 함수가 관계 안에 들어갈 수 없음.
-- **(β) 관계 맺을 변수 자체 부재 (Case 2 유형)**: correct RHS가 가리키는 도메인(예: underlying token decimals)에 대한 **proxy 변수가 scope·컨트랙트 어디에도 없음**. RHS가 scope 변수의 기여 없이 "literal + 외부 값"으로만 구성.
-- **(γ) Multi-point accounting을 single-point annotation으로 표현 불가 (Case 4 유형)**: 버그가 단일 라인 수식 오류가 아니라 **여러 external call의 조합적 net effect**. 각 call의 local arg는 유효하지만 net이 의도와 다름. Intent는 multi-point balance 변화 — single-point annotation으로 포착 불가. External state(ERC20 balance 등) 의존 경우 많음.
+- **(α) The variable relation includes a function call (Case 1, Case 3 type)**: variables that contribute to the correct relation exist in scope, but the relation itself requires the **return value of a function call** (an external interface view or an internal view) as an operand. Since intentValue allows only variables and constants, the function cannot enter the relation.
+- **(β) The variable to be related is itself absent (Case 2 type)**: there is **no proxy variable anywhere in scope or in the contract** for the domain referenced by the correct RHS (e.g., underlying token decimals). The RHS consists only of "literal + external value" without any contribution from scope variables.
+- **(γ) Multi-point accounting cannot be expressed as a single-point annotation (Case 4 type)**: the bug is not a single-line formula error but the **combinatorial net effect of multiple external calls**. Each call's local args are valid, but the net differs from the intent. The intent is a multi-point balance change — it cannot be captured by a single-point annotation. Often depends on external state (e.g., ERC20 balance).
 
-**공통**: 세 축 모두 pure annotation-only workflow에서 intent 직접 표현 실패.
+**Common ground**: all three axes fail to express intent directly within a pure annotation-only workflow.
 
-**Paper 반영**:
-- L4a 본문(line 1307) 재서술에서 세 축을 구분 언급 혹은 대표 case 열거.
-- Discussion에서 grammar 확장 효과는 축에 따라 다름 — (α)는 제한적 함수 reference 허용으로 해소 여지, (β)는 코드 수정 필요, (γ)는 multi-point accumulator 개념을 annotation language에 도입해야 함.
+**Paper integration**:
+- In the rewrite of the L4a body (line 1307), distinguish the three axes or list representative cases.
+- In the Discussion, the effect of grammar extension differs by axis — (α) admits partial relief by allowing limited function references; (β) requires code modification; (γ) requires introducing a multi-point accumulator concept into the annotation language.
 
-## I4. L4a / L5 경계의 투과성 — auxiliary local 주입
+## I4. Permeability of the L4a / L5 boundary — auxiliary local injection
 
-**관찰** (Case 2·3 유래): 개발자가 **side-effect-free auxiliary local**을 production code에 주입하면 (e.g., `uint256 D0 = _computeLiquidity(...)` 혹은 `uint8 uD = IERC20(...).decimals()`), scope landscape가 확장되어 annotation이 grammar-expressible해짐. 그러나 주입 결정 자체가 "이 값이 correctness에 중요하다"는 판단 → 버그 인지 전제 → **L5 영역으로 이동**.
+**Observation** (from Cases 2, 3): if a developer injects a **side-effect-free auxiliary local** into production code (e.g., `uint256 D0 = _computeLiquidity(...)` or `uint8 uD = IERC20(...).decimals()`), the scope landscape expands and the annotation becomes grammar-expressible. However, the decision to inject is itself a judgment that "this value is important to correctness" → presupposes bug awareness → **moves into the L5 region**.
 
-**함의**: L4a / L5 경계는 **pure annotation-only workflow** 전제 하에서만 고정. "annotation-driven refactor" (annotation 작성 위해 auxiliary 변수 도입 허용) 환경에서는 L4a 다수가 L5로 재분류됨.
+**Implication**: the L4a / L5 boundary is fixed only under the **pure annotation-only workflow** assumption. In an "annotation-driven refactor" environment (where introducing auxiliary variables to support annotation writing is allowed), many L4a cases would be reclassified as L5.
 
-**Paper 반영**:
-- Discussion/future work에서 "annotation-driven refactor" 워크플로우를 대안으로 제시 — grammar 확장보다 실용적일 수 있음.
+**Paper integration**:
+- In Discussion/future work, present "annotation-driven refactor" as an alternative workflow — possibly more practical than grammar extension.
 
-## I5. "Silent sanction" 위험 — fail-by-confirmation mode (L4a 전반)
+## I5. The "silent sanction" risk — fail-by-confirmation mode (across L4a)
 
-**관찰** (Case 3·4 유래): 개발자가 코드·natspec의 자연스러운 의도를 annotation으로 옮기면 **buggy 코드와 tautologically 일치**하는 경우가 발생. IntentChecker가 "올바르다"고 재확인하는 failure mode.
+**Observation** (from Cases 3, 4): when a developer translates the natural intent of the code/natspec into an annotation, the result can be **tautologically consistent with the buggy code**. IntentChecker then re-confirms it as "correct" — a failure mode.
 
-**두 failure mode**:
-- **Mode-1 (fail-silent-by-omission)**: annotation 작성 시도 자체가 실패 → 아예 판정이 안 나옴.
-- **Mode-2 (fail-by-confirmation, silent sanction)**: annotation이 grammar-expressible하고 buggy에서 Satisfied → 버그가 통과.
+**Two failure modes**:
+- **Mode-1 (fail-silent-by-omission)**: writing the annotation itself fails → no verdict is produced at all.
+- **Mode-2 (fail-by-confirmation, silent sanction)**: the annotation is grammar-expressible and Satisfied on the buggy code → the bug passes.
 
-**Silent sanction 발생 양상** (case별):
-- **Case 3 (29_H_05)**: Grammar의 rational-polynomial 표현 범위가 CP 공식 가족을 포함하고 이것이 buggy. "Grammar-algebraic coincidence".
-- **Case 4 (39_H_02)**: L280 위 natspec "transfer premium minus fee from maker to sender"가 buggy 구현과 동기화되어 있어, natspec을 따라 쓴 annotation이 buggy를 validation. **Natspec-code consistency**.
+**Where silent sanction arises** (per case):
+- **Case 3 (29_H_05)**: the rational-polynomial expressive range of the grammar covers the CP formula family, and that formula is the buggy one. "Grammar-algebraic coincidence".
+- **Case 4 (39_H_02)**: the natspec above L280 ("transfer premium minus fee from maker to sender") is synchronized with the buggy implementation, so an annotation written following the natspec validates the buggy code. **Natspec-code consistency**.
 
-**Paper 인용 가치**:
-- 단순 grammar 확장이 Mode-2를 해소하지 못함.
-- L4a를 "inexpressibility" 단일 메시지로 요약하면 Mode-2 위험을 숨김. Discussion에서 별도 언급 권장.
-- Annotation-driven workflow는 **natspec review**와 함께 가야 함 — 자연스러운 intent가 buggy 구현을 따라가고 있지 않은지 점검하는 과정이 annotation 자체만큼 중요.
+**Paper citation value**:
+- Simple grammar extension does not resolve Mode-2.
+- Summarizing L4a as a single message of "inexpressibility" hides the Mode-2 risk. A separate mention in Discussion is recommended.
+- Annotation-driven workflow must go hand in hand with **natspec review** — the process of checking that the natural intent has not drifted to track the buggy implementation is as important as the annotation itself.
 
-## I6. L4a 경계 관찰 — general form vs specific form
+## I6. L4a boundary observation — general form vs specific form
 
-**관찰** (Case 2 유래): L4a case의 correctness 조건이 "parameter에 따라 달라지는 값"일 때, **특정 instance 고정** 시 상수 annotation은 grammar-expressible. 하지만:
-- 모든 instance에 적용되는 단일 annotation → 외부 값 참조 필요 → **L4a**.
-- Instance별 상수 박기 → 표현 가능하되 상수 = 정답 지식 → **L5a-flavored** (bug-awareness).
+**Observation** (from Case 2): when an L4a case's correctness condition is "a value that varies with the parameters", **fixing a specific instance** makes a constant annotation grammar-expressible. However:
+- A single annotation that applies to all instances → requires referencing an external value → **L4a**.
+- Hardcoding a constant per instance → expressible, but the constant = the answer knowledge → **L5a-flavored** (bug-awareness).
 
-**함의**: "일반화된 intent annotation"의 표현력과 "특정 사례용 intent annotation"의 표현력이 구분되어야 하며, annotation 재사용성이 structural 한계의 다른 축을 드러냄.
+**Implication**: the expressiveness of "generalized intent annotation" and that of "instance-specific intent annotation" must be distinguished; annotation reusability reveals another axis of structural limitation.
 
-## I7b. L4a/L5b 경계 재검토 — "Type A vs Type B" (미확정, 후속 정리 필요)
+## I7b. Re-examination of the L4a/L5b boundary — "Type A vs Type B" (unsettled, follow-up needed)
 
-**발견 경로** (Case 5 분석 중 사용자 제안): L4a로 분류된 케이스를 "scope 내 proxy 변수 존재 여부"로 이분해 보면:
+**Discovery path** (suggested by the user during Case 5 analysis): bisecting cases classified as L4a by "whether a proxy variable exists in scope":
 
-- **Type A (proxy in scope, correct 값에 가까운 변수가 있으나 현재 코드가 올바르게 활용 안 함)**: 이론적으로 `@Post return == correct_formula_using_proxy` 형태 annotation이 grammar-expressible 가능 → **사실상 L5b (wrong-code) 쪽이 맞을 수 있음**.
-- **Type B (proxy 부재, correct 값과 연결될 scope·state 변수 자체 없음)**: grammar로 표현 경로 원천 봉쇄 → **L4a 정통**.
+- **Type A (proxy in scope; a variable close to the correct value exists, but the current code does not use it correctly)**: in theory an annotation of the form `@Post return == correct_formula_using_proxy` could be grammar-expressible → **may in fact be L5b (wrong-code)**.
+- **Type B (no proxy; no scope or state variable connects to the correct value at all)**: the expression path is fundamentally blocked by the grammar → **proper L4a**.
 
-**현재까지 case 적용**:
-- Case 1 (25_H_01): `source.decimals` struct field — **Type A 후보**. 기존 L4a 분류 재검토 필요.
-- Case 2, 3, 4, 5: **Type B** 확인.
+**Application so far**:
+- Case 1 (25_H_01): the `source.decimals` struct field — **Type A candidate**. Re-examination of the existing L4a classification needed.
+- Cases 2, 3, 4, 5: confirmed **Type B**.
 
-**미확정 사항**:
-- Case 1이 Type A로 확정되면 L4a → L5b 재분류 필요.
-- 나머지 L4a case(7개) 중 Type A가 더 있는지 전수조사 필요.
-- "Proxy가 있으나 buggy 코드가 잘못된 변수를 사용" vs "proxy가 있으나 buggy 코드가 변수 자체는 맞게 썼으나 연산이 틀림"의 세분 기준 필요 가능성.
+**Unsettled items**:
+- If Case 1 is confirmed Type A, L4a → L5b reclassification is needed.
+- A full sweep of the remaining L4a cases (7) is needed to find more Type A.
+- A finer criterion may be needed between "proxy exists but the buggy code uses the wrong variable" vs "proxy exists, the buggy code uses the right variable but the operation is wrong".
 
-**함의 (paper 수준)**: 기존 I3 α/β/γ 삼분보다 이 **이분법이 더 cleanly cut**. "intent-level expressibility 가능 여부"를 scope 관찰만으로 기계적 판정 가능. 단 경계 모호한 case(struct 깊은 field, 상속 state 등)에서 운영 기준 필요.
+**Implication (paper level)**: this **bisection cuts more cleanly** than the prior I3 α/β/γ trichotomy. Whether "intent-level expressibility is possible" can be decided mechanically by scope inspection alone. However, operating guidelines are needed for borderline cases (deeply nested struct fields, inherited state, etc.).
 
-**Paper 반영 (잠정)**:
-- 전체 L4a 검토 완료 후 Type A/B 분포 통계 제시 — grammar 확장이 얼마나 해소할지의 상한.
-- Discussion에서 "L4a 중 Type A는 grammar 확장보다 annotation_plans 작성 시 proxy 찾기 원칙 정립으로 해소 가능, Type B는 구조적 한계"로 분기 메시지.
+**Paper integration (tentative)**:
+- After completing the full L4a review, present the Type A/B distribution statistics — an upper bound on how much grammar extension would resolve.
+- In Discussion, branch the message: "Within L4a, Type A can be resolved by establishing a proxy-finding principle when writing annotation_plans, rather than by extending the grammar; Type B is a structural limitation."
 
 ## I8-pre. Classification priority: **L4 > L1-L3 > L5**
 
-**원칙**: case가 여러 한계 축에 걸리면 **methodology 적용 가능성**이 가장 상위. 적용 불가 차원을 먼저 적용.
+**Principle**: when a case spans multiple limitation axes, **applicability of the methodology** has the highest priority. Apply the inapplicability dimension first.
 
 ```
-Pipeline 적용성 관점:
-  (0) Intent annotation 표현 가능한가?  → 불가 시 L4 (파이프라인 진입 실패, tool silent)
-  (1) 엔진이 abstract value 계산하는가? → widening/TOP 시 L1-L3 (Warning 발생, signal 있음)
-  (2) 대조 verdict 산출하는가?         → 작성된 annotation이 bug 인지 전제면 L5
+Pipeline-applicability viewpoint:
+  (0) Is the intent annotation expressible? → if no, L4 (pipeline entry fails, tool silent)
+  (1) Does the engine compute an abstract value? → if widening/TOP, L1-L3 (Warning emitted, signal present)
+  (2) Does it produce a contrasting verdict? → if the written annotation presupposes bug awareness, L5
 ```
 
-- **L4 primary**: annotation을 쓸 수 없음 → Satisfied/Warning/Violated 어느 verdict도 없음 → tool이 해당 함수에 침묵. **Methodology 자체의 적용 불가** — 가장 근본적 한계.
-- **L1-L3 secondary**: annotation은 쓸 수 있음. Engine이 widening/TOP이라 Warning 발생. 최소한 "뭔가 이상" signal 제공.
-- **L5 tertiary**: pipeline 작동. 단, 작성된 annotation의 *방향*이 정답에 맞아야 의미.
+- **L4 primary**: the annotation cannot be written → no Satisfied/Warning/Violated verdict → the tool is silent on that function. **The methodology itself is inapplicable** — the most fundamental limitation.
+- **L1-L3 secondary**: the annotation can be written. The engine widens/TOPs and produces a Warning. At least provides "something is wrong" signal.
+- **L5 tertiary**: the pipeline operates. However, the *direction* of the written annotation must align with the correct answer to be meaningful.
 
-**실용적 함의**:
-- Case가 L4 + L1-L3 둘 다 해당 시 **L4로 분류**, L1-L3는 secondary note.
-- 즉 L4 확정 case에 대해 L1-L3 실험 불필요 (Case 6의 newBalances loop widening 실험 등).
-- Paper narrative: L4가 main novel contribution (annotation language 표현력 한계 → future direction: grammar 확장). L1-L3는 공통 AI 도구 과제라 덜 distinctive.
+**Practical implications**:
+- If a case satisfies both L4 and L1-L3, **classify as L4**, with L1-L3 as a secondary note.
+- That is, no need to run L1-L3 experiments for cases confirmed as L4 (e.g., the newBalances loop widening experiment in Case 6).
+- Paper narrative: L4 is the main novel contribution (annotation language expressiveness limit → future direction: grammar extension). L1-L3 is a common AI-tool challenge and less distinctive.
 
 ---
 
-## I9. `.arg[n]` 채널은 lint-level, L5b 판정 근거로 사용하지 않음
+## I9. The `.arg[n]` channel is lint-level; do not use it as the basis for an L5b verdict
 
-**발견 경로** (Case 4·8 연쇄 재검토): `.arg[n]` intent annotation이 grammar-expressible하여 buggy/correct arg 순서를 구분할 수 있음. 그러나:
+**Discovery path** (cascading re-examination of Cases 4, 8): a `.arg[n]` intent annotation is grammar-expressible and can distinguish buggy from correct argument order. However:
 
-- **성격**: `.arg[n]`은 **소스 코드의 argument identifier 선택**을 검사. 프로그램 **값**의 의미를 검사하는 semantic intent와 성격이 다름. 본질적으로 **lint-style pattern check**.
-- **기존 도구와 overlap**: Slither 등 pattern-matching 정적분석이 이미 covers. IntentChecker의 고유 기여 영역 아님.
+- **Nature**: `.arg[n]` checks the **argument identifier choice in source code**. Its character differs from a semantic intent that checks the meaning of program **values**. It is essentially a **lint-style pattern check**.
+- **Overlap with existing tools**: pattern-matching static analyzers such as Slither already cover this. Not in IntentChecker's distinctive contribution area.
 
-**Paper 분류 원칙**:
-- `.arg[n]`으로 catch되더라도 **L5b 분류 근거로 쓰지 않음**.
-- L4a/L5 경계는 **semantic intent 채널** (return value 의미, state change 의미)에서 판정.
-- 즉 `@Post returnExpression == correct_expr`, `@Post changed(stateVar, true)` 등에서 correct_expr이 표현 가능한가로 L4a/L5 결정.
+**Paper classification principle**:
+- Even if a bug is caught by `.arg[n]`, **do not use it as the basis for an L5b classification**.
+- The L4a/L5 boundary is decided on the **semantic intent channel** (return value meaning, state-change meaning).
+- That is, decide L4a/L5 based on whether `correct_expr` is expressible in `@Post returnExpression == correct_expr`, `@Post changed(stateVar, true)`, etc.
 
-**적용 예시**:
-- Case 4 (39_H_02): semantic intent(net flow) 표현 불가 → **L4a**. `.arg[n]` 있어도 무관.
-- Case 8 (61_H_01): semantic intent(`_ratioOfPrices` 의미) 표현 불가 (@IReturn arg-indifference로 엔진이 buggy/correct 구분 못 함) → **L4a**.
-- Case 7 (59_H_05): semantic intent(pre-penalty maltQuantity) 표현 불가 → **L4a**.
+**Application examples**:
+- Case 4 (39_H_02): the semantic intent (net flow) is inexpressible → **L4a**. Independent of the existence of `.arg[n]`.
+- Case 8 (61_H_01): the semantic intent (the meaning of `_ratioOfPrices`) is inexpressible (the engine cannot distinguish buggy from correct due to @IReturn arg-indifference) → **L4a**.
+- Case 7 (59_H_05): the semantic intent (pre-penalty maltQuantity) is inexpressible → **L4a**.
 
-**대조 (기존 L5b 예시들)**:
-- 52_H_15 (pool swap arg order): `.arg[n]`으로만 catch 가능. 이 원칙 적용 시 **L5b 지위도 재검토 필요** — 어쩌면 L4a로 재분류 대상.
-- 113_H_05 (require 연산자): 단순 비교 연산자 오류. `.arg[n]` 아닌 semantic 비교로도 가능한지 검토 필요.
-- 35_H_11 (struct field 오류): 비슷하게 재검토 필요.
+**Contrast (existing L5b examples)**:
+- 52_H_15 (pool swap arg order): catchable only via `.arg[n]`. Under this principle, **its L5b status also requires re-examination** — possibly a candidate for reclassification as L4a.
+- 113_H_05 (require operator): a simple comparison-operator error. Need to examine whether a non-`.arg[n]` semantic comparison is also possible.
+- 35_H_11 (struct field error): similarly requires re-examination.
 
-**미해결 (후속 case에서)**: 기존 L5b 분류들도 이 원칙 하에서 L4a로 재분류될 가능성. L5b 섹션 검토 시 체계적으로 재평가.
+**Unresolved (in subsequent cases)**: existing L5b classifications may also be reclassified as L4a under this principle. Reassess systematically when reviewing the L5b section.
 
-**Paper 함의**:
-- L5b를 "detectable with bug awareness"로 feature하려면 semantic-level annotation이 가능해야 함.
-- `.arg[n]`만으로 catch되는 경우는 IntentChecker novelty에 포함시키지 말 것.
+**Paper implications**:
+- For L5b to be featured as "detectable with bug awareness", semantic-level annotations must be possible.
+- Cases catchable only via `.arg[n]` should not be counted in IntentChecker's novelty.
 
 ---
 
-## I8. Value error vs Algorithm error × Type A/B (Paper narrative의 주 matrix)
+## I8. Value error vs Algorithm error × Type A/B (the main matrix of the paper narrative)
 
-**용어 선택 근거**: Paper Introduction·Background는 "numeric logic error"를 상위 umbrella로 사용. 이와 계층 충돌 없이 sub-class 구분하기 위해 **"algorithm error"** 사용 ("logic error"는 umbrella 전용 용어).
+**Reason for terminology**: the paper Introduction/Background uses "numeric logic error" as the umbrella term. To distinguish sub-classes without a hierarchical conflict, **"algorithm error"** is used ("logic error" is reserved for the umbrella).
 
 ```
 numeric logic error (umbrella)
-├── value error      : 상수·피연산자·단일 값 오류 — 한 줄 수정
-└── algorithm error  : 공식 선택·flow 구성·decomposition 누락 — 구조 수정
+├── value error      : constant / operand / single-value error — one-line fix
+└── algorithm error  : formula choice / flow composition / missing decomposition — structural fix
 ```
 
-**목적**: "IntentChecker가 무엇을 풀고 무엇을 못 푸는가"의 대칭적 narrative 제공. I1–I7은 blocker-side 편향이었으므로 이를 **solvable ↔ unsolvable** 양방향 구조로 재편.
+**Purpose**: provide a symmetric narrative of "what IntentChecker solves and what it does not". Since I1-I7 were biased toward the blocker side, restructure them as a bidirectional **solvable ↔ unsolvable** structure.
 
-**두 축**:
-- **Value error vs Algorithm error** (fix 크기·성격 축):
-  - Value error: 특정 location의 상수·피연산자가 틀림. Fix = 한 줄·한 값 교정.
-  - Algorithm error: 공식 선택·flow 구성·decomposition이 틀림. Fix = 알고리즘 재구조 혹은 multi-line 재작성.
-  - 경계 case 존재 (한 줄 fix이나 의미는 flow 설계 교정 등).
-- **Type A vs Type B** (scope 내 proxy 존재 축, I7b):
-  - Type A: proxy 변수 존재 → 기존 scope에서 annotation 가능.
-  - Type B: proxy 부재 → scope 밖 값 필요.
+**Two axes**:
+- **Value error vs Algorithm error** (axis on fix size/character):
+  - Value error: a constant or operand at a specific location is wrong. Fix = one-line, one-value correction.
+  - Algorithm error: formula choice, flow composition, or decomposition is wrong. Fix = algorithmic restructuring or multi-line rewrite.
+  - Borderline cases exist (e.g., a one-line fix whose meaning is a flow-design correction).
+- **Type A vs Type B** (axis on whether a proxy exists in scope, I7b):
+  - Type A: a proxy variable exists → annotation possible from the existing scope.
+  - Type B: no proxy → a value outside the scope is required.
 
-**2×2 matrix (잠정)**:
+**2×2 matrix (tentative)**:
 
 |  | Value error | Algorithm error |
 |---|---|---|
-| **Type A** | 기존 scope var로 `@Post == correct_value` 표현 가능 → 주로 **L5b (detectable)** | 기존 scope var로 post-condition 구성 가능 → **L5a (missing-code detectable)** |
-| **Type B** | 필요 value가 scope 밖 → **L4a axis β** — future: proxy 발굴 원칙 | 알고리즘 decomposition 필요 → **L4a axis α/γ** — future: annotation-driven refactor / sequential grammar |
+| **Type A** | `@Post == correct_value` expressible with existing scope vars → mostly **L5b (detectable)** | post-condition can be composed with existing scope vars → **L5a (missing-code detectable)** |
+| **Type B** | needed value is outside scope → **L4a axis β** — future: proxy-discovery principle | algorithmic decomposition required → **L4a axis α/γ** — future: annotation-driven refactor / sequential grammar |
 
-**지금까지 5 case 잠정 매핑**:
-- Case 1 (25_H_01): Value error / Type A 후보 (Case 1 재검토 시 확정).
+**Tentative mapping of the 5 cases so far**:
+- Case 1 (25_H_01): Value error / Type A candidate (to be confirmed when Case 1 is re-examined).
 - Case 2 (25_H_05): **Value error / Type B**.
-- Case 3 (29_H_05): **Algorithm error / Type B** — 단일 단계 (wrong formula choice).
+- Case 3 (29_H_05): **Algorithm error / Type B** — single step (wrong formula choice).
 - Case 4 (39_H_02): **Algorithm error / Type B** — cross-line fee flow composition.
 - Case 5 (51_H_04): **Algorithm error / Type B** — multi-step decomposition missing.
 
-**Paper narrative 전략**:
-- **RQ1 (solvable)**: Type A 영역 대부분 + Type B 중 grammar-expressible 부분.
-- **RQ2 (unsolvable)**: Type B cell별 분기 메시지:
-  - Value/B: proxy 부재가 blocker → proxy 발굴 annotation 방법론 제안.
-  - Algorithm/B: 재구조 필요 → grammar 확장 한계 + annotation-driven refactor 대안.
-- **Discussion → Future direction**: cell별 해소 경로가 질적으로 다름을 축으로.
+**Paper narrative strategy**:
+- **RQ1 (solvable)**: most of the Type A region + the grammar-expressible portion of Type B.
+- **RQ2 (unsolvable)**: branched message per Type B cell:
+  - Value/B: the absence of a proxy is the blocker → propose a proxy-discovery annotation methodology.
+  - Algorithm/B: restructuring required → grammar extension limit + annotation-driven refactor as alternative.
+- **Discussion → Future direction**: the resolution path for each cell differs qualitatively, organized along the axis.
 
-**주의**: matrix를 엄격한 partition으로 강제하지 않음. 경계 case는 **주 관점**만 기록, 34 case 전체 검토 완료 후 **summary 섹션에서 cell별 집계 + 대표 예시** 선정. 현재는 각 case §5에 `**[Category]**` 태그만 달아둠.
+**Note**: the matrix is not enforced as a strict partition. For borderline cases, only the **principal viewpoint** is recorded; after the full review of the 34 cases, a **summary section will aggregate per cell + select representative examples**. Currently each case §5 carries only a `**[Category]**` tag.
 
-## I7. Formal expressibility ≠ Intent-level expressibility (L4a/L5 경계의 진짜 기준)
+## I7. Formal expressibility != Intent-level expressibility (the true criterion of the L4a/L5 boundary)
 
-**발견 경로** (Case 4 재검토 중): I2 "전지적 개발자 테스트"를 순수 formal criterion ("grammar-expressible distinguishing annotation 존재?")으로 적용하면, **local proxy annotation**이 우연히 distinguishing power를 갖는 케이스까지 L5로 분류하게 됨 → 분류가 의미를 잃음.
+**Discovery path** (during Case 4 re-examination): if I2's "omniscient-developer test" is applied as a purely formal criterion ("does a grammar-expressible distinguishing annotation exist?"), then **local proxy annotations** that happen to have distinguishing power get classified as L5 → the classification loses meaning.
 
-**교정된 criterion**:
-- **Formal expressibility**: grammar가 어떤 형태의 distinguishing annotation(proxy 포함)을 허용하는가? (약한 조건)
-- **Intent-level expressibility**: grammar가 **정답 intent를 직접 표현하는** annotation을 허용하는가? (강한 조건, L4a/L5 경계의 진짜 기준)
+**Corrected criterion**:
+- **Formal expressibility**: does the grammar admit some form of distinguishing annotation (including proxies)? (weak condition)
+- **Intent-level expressibility**: does the grammar admit an annotation that **directly expresses the correct intent**? (strong condition, the true criterion of the L4a/L5 boundary)
 
-**Case 4 적용**:
-- Formal: `@During .arg[2] == premiumFilled` 존재 → 표현 가능.
-- Intent-level: 진짜 intent는 "sender net flow = premiumFilled - fee" (외부 ERC20 balance) → 표현 불가 → **L4a**.
-- Local `.arg[n]` proxy는 cross-line 역산 + 외부 표준 지식 + natspec override로 얻어지는 derived form이지 intent 자체가 아님.
+**Application to Case 4**:
+- Formal: `@During .arg[2] == premiumFilled` exists → expressible.
+- Intent-level: the true intent is "sender net flow = premiumFilled - fee" (external ERC20 balance) → inexpressible → **L4a**.
+- The local `.arg[n]` proxy is a derived form obtained through cross-line back-derivation + external standard knowledge + natspec override; not the intent itself.
 
-**Paper 반영**:
-- I2 판정 룰을 intent-level 기준으로 rewrite.
-- RQ2 opening 혹은 L4a 도입부에 "formal proxy annotation이 우연히 distinguishing하는 경우도 있으나 분류는 intent-level에 의해 결정됨"을 명시. 리뷰어 challenge 방어.
-- Discussion — intent-level expressibility 개념이 IntentChecker design philosophy의 핵심임을 강조 (annotation은 intent를 옮기는 언어이지 구현을 덮는 test가 아님).
+**Paper integration**:
+- Rewrite the I2 decision rule on the intent-level criterion.
+- In the RQ2 opening or the L4a introduction, state explicitly: "formal proxy annotations may incidentally distinguish, but the classification is decided by intent-level expressibility". Defends against reviewer challenge.
+- Discussion — emphasize that the concept of intent-level expressibility is at the core of IntentChecker's design philosophy (annotation is a language for transferring intent, not a test for shadowing the implementation).
 
 ---
 
-Grammar 제약 빠른 참고 (**paper revision 기준, `**` 포함**):
-- **intentValue**: 변수(member/index access 포함) · 정수 리터럴 · `[a,b]` · `+ - * / % **` · 괄호.
-- **불가**: 함수 호출, 비트 연산(`<<`, `>>`, `&`, `|`, `^`), 사용자 정의 호출, scope 밖 변수.
-- **Debug annotations**: `@IReturn`은 view/pure interface 호출에만. Intent grammar와 독립 (I1 참조).
-- **변경 사항 (기록용)**: 초기 작성 시 `**` 미지원 가정이었으나 paper revision에서 추가 예정. 그 이전 case (1, 10)의 G2_annotation_only 태그는 **더 이상 blocker 아님**. 다만 G1 (함수 호출)·G3 (scope 부재) 축은 불변.
+Quick reference for grammar constraints (**post-paper-revision baseline, includes `**`**):
+- **intentValue**: variables (including member/index access), integer literals, `[a,b]`, `+ - * / % **`, parentheses.
+- **Not allowed**: function calls, bitwise operations (`<<`, `>>`, `&`, `|`, `^`), user-defined calls, variables outside scope.
+- **Debug annotations**: `@IReturn` only on view/pure interface calls. Independent of intent grammar (see I1).
+- **Change record (for the log)**: initial drafts assumed `**` was unsupported, but it will be added in the paper revision. The G2_annotation_only tag on prior cases (1, 10) is **no longer a blocker**. However, the G1 (function call) and G3 (scope absence) axes are unchanged.
 
-근본 원인 G-카테고리:
-- **G1** grammar 내 함수 호출 부재
-- **G2** grammar 내 비트·지수 연산 부재
-- **G3** intermediate variable 코드에 없고 grammar로 도출 불가
-- **G4** 상태 변경 자체 없음 (view/pure, library, 외부 위임)
-- **G5** buggy/correct 질적 동일 · 양적 차이 (`changed`/entry-exit 구분 불가)
-- **G6** 다중 변수 invariant (곱 보존 등) PostEntryExit 표현 불가
-- **G7** 버그 인지 전제 (정답 annotation = fix 지식)
-- **G8** 외부 contract state 의존 (`@IReturn` 허용 범위 밖)
-- **G9** 기타
+Root-cause G-categories:
+- **G1** no function call in grammar
+- **G2** no bitwise / exponent operations in grammar
+- **G3** intermediate variable absent in code and not derivable in grammar
+- **G4** no state change at all (view/pure, library, external delegation)
+- **G5** buggy/correct qualitatively identical, only quantitatively different (`changed`/entry-exit cannot distinguish)
+- **G6** multi-variable invariant (e.g., product preservation) not expressible in PostEntryExit
+- **G7** bug awareness presupposed (the correct annotation = fix knowledge)
+- **G8** depends on external contract state (outside the allowed range of `@IReturn`)
+- **G9** other
 
 ---
 
@@ -244,13 +244,13 @@ Grammar 제약 빠른 참고 (**paper revision 기준, `**` 포함**):
 
 ---
 
-### Case 1 — `web3bugs_25_H_01` (현재 분류: **L4a**)
+### Case 1 — `web3bugs_25_H_01` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/25.md` → `[H-01] CompositeMultiOracle returns wrong decimals for prices?`
+- **Source**: `reports/25.md` → `[H-01] CompositeMultiOracle returns wrong decimals for prices?`
 - **Severity**: High. **Warden**: cmichel (C4 2021-08-yield micro)
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (verbatim excerpt)**:
 
   > The `CompositeMultiOracle.peek/get` functions seem to return wrong prices. A single price is computed as:
   > ```
@@ -265,50 +265,51 @@ Grammar 제약 빠른 참고 (**paper revision 기준, `**` 포함**):
   >
   > The issue is that `peek` assumes the final price is in 18 decimals (`value = price * amount / 1e18`) but `_peek`/`_get` don't enforce this.
 
-- **권고된 수정안**:
+- **Recommended fix**:
   ```solidity
   priceOut = priceIn * priceOut / (10 ** IOracle(source.source).decimals());
   ```
-  — 분모를 "오라클 자신이 말하는 출력 precision"으로. Sponsor(alcueca)는 이후 "모든 하위 oracle이 18 decimals를 갖도록 강제"하는 invariant로 patch.
+  — make the denominator "the output precision the oracle itself reports". The sponsor (alcueca) subsequently patched it as an invariant "force every sub-oracle to have 18 decimals".
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the code's meaning
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose and system role
 
-`CompositeMultiOracle` — Yield Protocol v2의 **가격 집계기(price aggregator)**. 직접 pair가 없는 A→B 가격을 구할 때 `paths[A][B] = [X₁, X₂, …]` 경유점으로 여러 하위 `IOracle`을 **곱셈 체이닝**하여 합성 환율을 얻음. Yield의 vault 담보 평가·liquidation·CR(collateralization ratio) 계산의 **가격 진실 공급원**.
+`CompositeMultiOracle` — a **price aggregator** in Yield Protocol v2. When there is no direct pair for A→B, it uses `paths[A][B] = [X₁, X₂, …]` as relay points and **multiplicatively chains** several sub-`IOracle`s to obtain a synthesized exchange rate. A **price source of truth** for Yield's vault collateral valuation, liquidation, and CR (collateralization ratio) computation.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function role within the contract
 
-두 private helper:
-- `_peek(base, quote, priceIn, updateTimeIn) → (priceOut, updateTimeOut)` (line 110–118, view)
-- `_get(...)` (line 120–128, `_peek`의 mirror — `.peek` 대신 `.get`)
+Two private helpers:
+- `_peek(base, quote, priceIn, updateTimeIn) → (priceOut, updateTimeOut)` (line 110-118, view)
+- `_get(...)` (line 120-128, mirror of `_peek` — uses `.get` instead of `.peek`)
 
-공개 `peek`/`get` (line 74–108)가 path를 순회하며 각 홉마다 이 helper를 호출. 즉 **체이닝의 단일 단계**를 curried multiplier로 수행.
+The public `peek`/`get` (line 74-108) traverses the path, calling these helpers at each hop. That is, they perform a **single hop of the chain** as a curried multiplier.
 
-**`base`/`quote` 용어가 두 층위에서 재사용됨에 주의** (이 case 이해의 핵심):
-- **공개 `peek(base, quote, amount)` 관점**: `base` = 변환 출발 토큰(A), `quote` = 변환 도착 토큰(B). 사용자 관점의 최종 "A→B".
-- **내부 `_peek(base, quote, …)` 관점**: 한 홉만 처리. `base`는 "이번 홉의 출발", `quote`는 "이번 홉의 도착". path 순회 중 **이전 홉의 도착이 다음 홉의 base로 바뀜** (line 84 `base_ = path[p]`). `base_`가 경로 위를 전진하는 포인터 역할.
+**Note that the terms `base`/`quote` are reused across two layers** (key to understanding this case):
+- **From the public `peek(base, quote, amount)` perspective**: `base` = the source token of the conversion (A); `quote` = the destination token (B). The user-facing final "A→B".
+- **From the internal `_peek(base, quote, …)` perspective**: only one hop. `base` = "the source of this hop"; `quote` = "the destination of this hop". During path traversal, **the destination of the previous hop becomes the base of the next hop** (line 84 `base_ = path[p]`). `base_` acts as a pointer advancing along the path.
 
-##### (2c) 함수 의도 (수식 + 스케일 규약)
+##### (2c) Function intent (formula + scaling convention)
 
-내부 환율 표현 규약: **`price`는 언제나 "rate × 10^18" 형태의 18-decimal fixed-point 누적 환율**.
-- 시작값 `price = 1e18` (= rate 1.0, 아무 홉도 거치지 않음).
-- 각 홉이 하는 일: "이번 홉의 raw 환율을 누적가에 곱하고 다시 18-dp로 정규화".
+Internal exchange-rate convention: **`price` is always an 18-decimal fixed-point cumulative rate of the form "rate × 10^18"**.
+- Initial value `price = 1e18` (= rate 1.0, no hops traversed).
+- What each hop does: "multiply the raw rate of this hop into the cumulative value, then renormalize back to 18-dp".
 
-수식:
+Formula:
 ```
 priceOut = priceIn    ×    raw_price_from_oracle    /   10^(output_scale)
            ^^^^^^^^        ^^^^^^^^^^^^^^^^^^^^^         ^^^^^^^^^^^^^^^^
-           누적 환율(18dp)  이번 홉 환율(scale-dp)        정규화 divisor
+           cumulative      this-hop rate (scale-dp)      normalization divisor
+           rate (18dp)
 ```
 
-**"priceIn을 곱한다" 직관**: rate composition. `USDC→USDT = USDC→DAI × DAI→USDT`. 각 홉은 자기 몫만 제공, 누적은 곱셈.
+**Intuition for "multiply by priceIn"**: rate composition. `USDC→USDT = USDC→DAI × DAI→USDT`. Each hop contributes its own share, and accumulation is multiplicative.
 
-**"18 decimals로 정렬한다" 직관**: 오라클이 `10^scale`로 부풀린 숫자를 돌려주므로, 같은 크기로 나눠 다시 "순수 rate × 10^18"로 되돌림. 그래야 다음 홉 곱셈 때 스케일이 누적 오염되지 않음.
+**Intuition for "align to 18 decimals"**: the oracle returns a number inflated by `10^scale`, so dividing by the same magnitude returns it to a "pure rate × 10^18". This way the scale is not progressively contaminated when multiplied by the next hop.
 
-**Invariant (peek 계약)**: `peek(base, quote, amount) = value` ⇒ "`amount` 단위의 base 토큰은 현재 환율 기준 `value` 단위의 quote 토큰과 경제적으로 동등". `amount`·`value` 모두 각 토큰의 native integer representation (1 USDC = `1e6`, 1 DAI = `1e18`).
+**Invariant (`peek` contract)**: `peek(base, quote, amount) = value` ⇒ "`amount` units of the base token are economically equivalent to `value` units of the quote token at the current rate". Both `amount` and `value` are in each token's native integer representation (1 USDC = `1e6`, 1 DAI = `1e18`).
 
-##### (2d) Line-by-line 분석 (`_peek` line 110–118)
+##### (2d) Line-by-line analysis (`_peek` line 110-118)
 
 ```solidity
 113  Source memory source = sources[base][quote];
@@ -318,133 +319,133 @@ priceOut = priceIn    ×    raw_price_from_oracle    /   10^(output_scale)
 117  updateTimeOut = (updateTimeOut < updateTimeIn) ? updateTimeOut : updateTimeIn;
 ```
 
-- **L113**: `sources[base][quote]` 조회 — `Source { address source; uint8 decimals; }`. `decimals`는 `_setSource`(line 131)에서 `IOracle(source).decimals()`를 snapshot — **의도상 하위 오라클의 출력 정밀도**.
-- **L114**: source 미설정 시 revert.
-- **L115**: 하위 오라클에게 "`10^source.decimals` 단위 base"의 quote 환산가를 요청 → `priceOut = raw_oracle_price`. 코멘트 "Get price for one unit"는 `source.decimals`를 **token decimals**로 전제한 표현 (cmichel 해석 지점).
-- **L116 (BUG)**: `priceIn * priceOut / 10^source.decimals`. 분모의 의미론적 역할은 "오라클 출력 precision 제거"여야 하나, 변수 이름(`source.decimals`)이 모호. 실제 구현에서는 `_setSource`가 `IOracle.decimals()` 값을 넣어 수치적으로는 맞지만, **코드가 자기 의도를 표현하지 않아** 취약.
-- **L117**: freshness 전파 (가장 오래된 updateTime 보존).
+- **L113**: looks up `sources[base][quote]` — `Source { address source; uint8 decimals; }`. `decimals` is snapshotted from `IOracle(source).decimals()` in `_setSource` (line 131) — **intended as the sub-oracle's output precision**.
+- **L114**: revert if the source is not set.
+- **L115**: asks the sub-oracle for the quote conversion of "base in units of `10^source.decimals`" → `priceOut = raw_oracle_price`. The comment "Get price for one unit" presumes `source.decimals` to be **token decimals** (cmichel's interpretation point).
+- **L116 (BUG)**: `priceIn * priceOut / 10^source.decimals`. The semantic role of the denominator should be "remove the oracle's output precision", but the variable name (`source.decimals`) is ambiguous. In the actual implementation, `_setSource` stores `IOracle.decimals()` so it is numerically correct, but **the code does not express its own intent** and is therefore fragile.
+- **L117**: freshness propagation (preserve the older updateTime).
 
-##### (2e) 버그의 근본 의미 (예시 포함)
+##### (2e) Root meaning of the bug (with examples)
 
-**예시 A — 정상 동작** (`source.decimals == 18`, 모든 환율 1.0):
+**Example A — normal operation** (`source.decimals == 18`, all rates 1.0):
 
-| hop | `priceIn` | sub raw | 계산 | `priceOut` |
+| hop | `priceIn` | sub raw | calculation | `priceOut` |
 |---|---|---|---|---|
-| USDC→DAI | `1e18` | `1e18` | `1e18*1e18/1e18` | `1e18` ✅ |
-| DAI→USDT | `1e18` | `1e18` | `1e18*1e18/1e18` | `1e18` ✅ |
+| USDC→DAI | `1e18` | `1e18` | `1e18*1e18/1e18` | `1e18` OK |
+| DAI→USDT | `1e18` | `1e18` | `1e18*1e18/1e18` | `1e18` OK |
 
-최종: `value = 1e18 * 1e6 / 1e18 = 1e6` → 1 USDT. 정확.
+Final: `value = 1e18 * 1e6 / 1e18 = 1e6` → 1 USDT. Correct.
 
-**예시 B — cmichel 해석 (버그 시나리오)**: USDC source의 `source.decimals = 6` (토큰 decimals). 오라클 실제 출력은 여전히 18-dp.
+**Example B — cmichel's interpretation (bug scenario)**: USDC source with `source.decimals = 6` (token decimals). The oracle's actual output is still 18-dp.
 
-| hop | `priceIn` | sub call | raw | 잘못된 나눗셈 | `priceOut` |
+| hop | `priceIn` | sub call | raw | wrong division | `priceOut` |
 |---|---|---|---|---|---|
-| USDC→DAI | `1e18` | peek(...,10^6) | `1e18` | `1e18*1e18/1e6` | **`1e30`** ❌ |
+| USDC→DAI | `1e18` | peek(...,10^6) | `1e18` | `1e18*1e18/1e6` | **`1e30`** WRONG |
 | DAI→USDT | `1e30` | peek(...,10^18) | `1e18` | `1e30*1e18/1e18` | `1e30` |
 
-최종: `value = 1e30 * 1e6 / 1e18 = 1e18` → USDT 관점 `1e18/1e6 = 10^12` USDT. 1 USDC가 1조 USDT로 평가됨.
+Final: `value = 1e30 * 1e6 / 1e18 = 1e18` → from the USDT viewpoint, `1e18/1e6 = 10^12` USDT. 1 USDC is valued as a trillion USDT.
 
-오류 지점: **첫 홉의 `/1e6`**. 오라클이 18-dp로 돌려준 숫자를 6-dp로 나눠 `10^12` 배율이 누적가에 주입, 마지막까지 남음.
+Error site: **the first hop's `/1e6`**. The number returned by the oracle in 18-dp is divided by 6-dp, injecting a factor of `10^12` into the cumulative value, which persists to the end.
 
-**Protocol-level 결과**: Yield vault가 담보 평가 시 `value`를 담보 수량으로 사용 → 평가액이 `10^k` 배 부풀거나 축소 → 무담보 대출 혹은 정상 포지션의 즉시 liquidation → 양방향 자산 손실.
+**Protocol-level result**: a Yield vault uses `value` as the collateral quantity in collateral valuation → valuations are inflated or shrunk by `10^k` → unsecured loans or instant liquidation of healthy positions → bidirectional asset loss.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
 ```solidity
 priceOut = priceIn * priceOut / (10 ** IOracle(source.source).decimals());
 ```
-분모를 "저장된 숫자 `source.decimals`"가 아니라 "지금 이 순간 하위 오라클이 말하는 자기 decimals"로. 변수명의 모호성과 무관하게 수학적으로 정확.
+The denominator becomes "the sub-oracle's currently-reported decimals", not "the stored number `source.decimals`". Mathematically correct regardless of the variable name's ambiguity.
 
-#### 3. IntentChecker annotation 시도
+#### 3. IntentChecker annotation attempt
 
-**(a) state variable 변화?** 없음. `_peek`는 view, `_get`도 storage write 없음. Post `changed`/entry-exit 대상 부재.
+**(a) State variable change?** None. `_peek` is view, and `_get` performs no storage write. No target for `Post changed`/entry-exit.
 
-**(b) 올바른 반환값을 arithExpr로?**
+**(b) Correct return value as an arithExpr?**
 ```
 @Post returnExpression == priceIn * priceOut_raw / (10 ^ IOracle(source.source).decimals())
 ```
-- `10 ** x` / `10 ^ x` → **G2** (지수 부재).
-- `IOracle(source.source).decimals()` → **G1** (함수 호출 부재). `@IReturn`으로 view call 공급을 시도해도 결과를 `**`와 함께 쓸 방법이 없음.
-- 하위 raw `priceOut`은 `@IReturn`으로 공급 가능하지만 `10^decimals` 나눗셈 표현 자체가 막힘.
-- 우회로 `1e18` 하드코딩 → 코드에 없는 invariant를 annotation이 선행 주장하는 꼴, 의미 왜곡.
+- `10 ** x` / `10 ^ x` → **G2** (no exponentiation).
+- `IOracle(source.source).decimals()` → **G1** (no function call). Even attempting to supply the view call via `@IReturn`, there is no way to use the result together with `**`.
+- The sub-call's raw `priceOut` can be supplied via `@IReturn`, but the `10^decimals` division itself is blocked.
+- Workaround of hardcoding `1e18` → makes the annotation pre-assert an invariant that does not exist in the code; meaning is distorted.
 
-**(c) 버그 인지 전제?** 표현 불가 단계에서 막힘 → L5 후보 아님.
+**(c) Bug-awareness presupposed?** Blocked at the inexpressibility step → not an L5 candidate.
 
-**예측**: 어떤 형식이어도 파싱/표현 불가 → buggy/correct 양쪽 판정 없음.
+**Prediction**: regardless of form, parsing/expression fails → no verdict on either buggy or correct.
 
-#### 4. 분류 타당성
+#### 4. Classification validity
 
-- 현재: **L4a**. ✅ 유지.
-- blocker 본질: 올바른 분모가 `10^IOracle(...).decimals()` — **지수 + 함수 호출** 조합에 의존. 새 중간값이 target 함수 scope 밖 (`_setSource`에만 있음).
-- `annotation_plans.md` line 360의 "Interface call은 이제 지원되어 ... TOP이 아님" 설명은 맞지만 **진짜 blocker인 G1/G2/G3**를 가리는 면이 있음 → 보강 필요.
+- Current: **L4a**. Maintain.
+- Nature of the blocker: the correct denominator is `10^IOracle(...).decimals()` — depends on the **combination of exponentiation and a function call**. The new intermediate value lies outside the target function's scope (only present in `_setSource`).
+- The note in `annotation_plans.md` line 360 — "interface calls are now supported, so this is not TOP" — is correct, but it tends to obscure **the true blockers G1/G2/G3** → needs reinforcement.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (impedance mismatch)**: IntentChecker의 intent annotation은 **함수 trace 상에 실제로 존재하는 값들 사이의 1차 관계**를 표현하는 변수-관계 언어. 즉 허용되는 피연산자는 (i) 함수 local/parameter/storage 변수, (ii) 정수 리터럴, (iii) `@IReturn`으로 label된 **코드에 이미 있는 호출**의 반환. 반면 이 버그의 correctness 조건은 `IOracle(source.source).decimals()` — **함수가 호출하지 않는 함수**의 반환값 — 에 대한 관계. 즉 "annotation이 말할 수 있는 세계"와 "correctness가 요구하는 세계"가 단절. 아래 G-카테고리는 모두 이 한 mismatch의 표면 증상.
+**Essence (impedance mismatch)**: IntentChecker's intent annotation is a variable-relation language expressing **first-order relations among values that actually exist on the function trace**. That is, the allowed operands are (i) function locals/parameters/storage variables, (ii) integer literals, and (iii) the return values of **calls already present in the code** labeled by `@IReturn`. By contrast, this bug's correctness condition is a relation involving `IOracle(source.source).decimals()` — **the return of a function the function does not call**. In other words, "the world the annotation can speak about" and "the world correctness requires" are disconnected. The G-categories below are all surface symptoms of this single mismatch.
 
-- **G1 (문법적 표면)** — annotation 문법에 함수 호출 자리가 없음. `IOracle(...).decimals()`를 intentValue에 쓸 수 없다는 직접적 제약.
-- **G3 (의미론적 표면)** — 설령 grammar가 허용해도 `.decimals()` 호출 사이트가 `_peek`/`_get` 본문에 없어 `@IReturn`으로의 우회 불가. `_setSource`에만 존재하므로 target 함수 trace 바깥.
-- **G2 (보조, annotation-only)** — annotation 문법이 `**`를 포함하지 않아 `10 ** x` 형태 표현 불가. ※ **단, 이 한계는 annotation 언어에 국한됨** — abstract interpretation 엔진은 `**`를 지원하므로 **buggy 런타임의 `10 ** source.decimals` 계산은 정밀하게 추상화됨** (TOP 아님). 따라서 G2는 "분석 불가"의 표면이 아니라 "정답 표현 불가"의 표면. (별도 paper correction 필요 — `paper_corrections.md` 참조.)
-- **G4 (augmenting)** — view/effectively-view 함수라 post-state 채널도 닫힘 → G1/G3가 유일 채널이면서 막힘.
+- **G1 (syntactic surface)** — the annotation grammar has no slot for function calls. A direct restriction prevents writing `IOracle(...).decimals()` in intentValue.
+- **G3 (semantic surface)** — even if the grammar allowed it, the `.decimals()` call site does not exist in the body of `_peek`/`_get`, so the `@IReturn` workaround is unavailable. It exists only in `_setSource`, outside the target function's trace.
+- **G2 (auxiliary, annotation-only)** — the annotation grammar does not include `**`, so `10 ** x` cannot be expressed. **Note: this limitation is restricted to the annotation language** — the abstract interpretation engine supports `**`, so **the buggy runtime's `10 ** source.decimals` computation is precisely abstracted** (not TOP). Therefore G2 is a surface symptom of "cannot express the correct answer", not "cannot analyze". (A separate paper correction is needed — see `paper_corrections.md`.)
+- **G4 (augmenting)** — being view/effectively-view, the post-state channel is also closed → G1/G3 are the only channels and are blocked.
 
-**[Category (I8)]**: **Value error / Type A 후보** — `source.decimals` 가 snapshot proxy. 재검토 필요 (audit 해석 분기 존재).
+**[Category (I8)]**: **Value error / Type A candidate** — `source.decimals` is a snapshot proxy. Re-examination needed (audit interpretation has branches).
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested rewrite of paper sentence
 
-현재 (main.tex line 1307):
+Current (main.tex line 1307):
 > **L4a (Inexpressible expected value, 10).** The correct expected value depends on a new intermediate computation, an external contract's state, or a function call that does not appear in the program; no intentValue expression can be constructed.
 
-개선안 (impedance mismatch로 상위 명제화):
+Proposed rewrite (elevated as an impedance mismatch):
 > **L4a (Inexpressible expected value, 10).** The corrective specification references values that the target function's trace does not produce — most commonly, the return of a function the target does not call. Since `intentValue` is a first-order language over variables and call returns already bound in the function (`@IReturn` applies only to call sites already present in the code), no expression matches the correctness condition.
 
-(Annotation 문법이 `**`를 포함하지 않는 별개의 한계는 본문 표현력 논의에서 분리해 기술 — 아래 Case 1 에서 제안.)
+(The separate limitation that the annotation grammar does not include `**` is described separately from the main expressiveness discussion — proposed below in Case 1.)
 
 ---
 
-### Case 2 — `web3bugs_25_H_05` (현재 분류: **L4a**)
+### Case 2 — `web3bugs_25_H_05` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/25.md` → `[H-05] Exchange rates from Compound are assumed with 18 decimals`
+- **Source**: `reports/25.md` → `[H-05] Exchange rates from Compound are assumed with 18 decimals`
 - **Severity**: High. **Warden**: shw.
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (verbatim excerpt)**:
   > `CTokenMultiOracle` assumes the exchange rates of Compound always have 18 decimals. According to the Compound documentation, the exchange rate returned from `exchangeRateCurrent`/`exchangeRateStored` is scaled by `1 * 10^(18 - 8 + Underlying Token Decimals)`. Using a wrong decimal number on the exchange rate could cause incorrect pricing on tokens. See `CTokenMultiOracle.sol#L110`.
-- **권고된 수정안**: "get the decimals of the underlying tokens to set the correct decimal of a Source."
+- **Recommended fix**: "get the decimals of the underlying tokens to set the correct decimal of a Source."
 - **Sponsor**: confirmed and patched (`e9c1ee5532...`).
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the code's meaning
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose and system role
 
-`CTokenMultiOracle` — Compound cToken과 그 underlying ERC20 간 환율을 Yield 시스템 내부 표현(18-dp)으로 노출하는 **어댑터 oracle**. e.g. cDAI ↔ DAI, cUSDC ↔ USDC. `CompositeMultiOracle`(case 1)이 path 구성 시 하위 `IOracle` 중 하나로 이 어댑터를 지목할 수 있으므로, **cToken 기반 Yield vault의 담보 평가 전 구간**에 영향.
+`CTokenMultiOracle` — an **adapter oracle** that exposes the exchange rate between a Compound cToken and its underlying ERC20 in the Yield system's internal representation (18-dp). e.g., cDAI ↔ DAI, cUSDC ↔ USDC. Since `CompositeMultiOracle` (case 1) can designate this adapter as one of the sub-`IOracle`s when constructing a path, it affects **the entire collateral-valuation pipeline of cToken-based Yield vaults**.
 
-Compound의 `exchangeRate`는 "1 cToken이 얼마만큼의 underlying을 대표하는가"를 나타내는 raw 숫자로, Compound는 이를 **`10^(18 - 8 + uD)` 스케일** (여기서 `uD` = underlying 토큰 decimals)로 리턴. cToken 자체 decimals는 8 고정. 예: cDAI (uD=18) → 스케일 `10^28`, cUSDC (uD=6) → 스케일 `10^16`.
+Compound's `exchangeRate` is a raw number representing "how much underlying one cToken represents", and Compound returns it on a **scale of `10^(18 - 8 + uD)`** (where `uD` = underlying token decimals). A cToken's own decimals are fixed at 8. e.g., cDAI (uD=18) → scale `10^28`; cUSDC (uD=6) → scale `10^16`.
 
-Yield 내부 규약: 모든 오라클의 출력은 18-dp (`decimals = 18` public constant, line 14).
+Yield internal convention: every oracle's output is in 18-dp (`decimals = 18` public constant, line 14).
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function role within the contract
 
-- `_setSource(cTokenId, underlying, source)` (line 109–124, internal): `sources[cTokenId][underlying]`와 `sources[underlying][cTokenId]` 양방향 엔트리 설정. 후자는 `inverse = true`.
-- 이 함수가 저장하는 `decimals` 값이 이후 모든 `_peek`/`_get` 호출의 **가격 스케일 정규화 파라미터**가 됨.
+- `_setSource(cTokenId, underlying, source)` (line 109-124, internal): sets bidirectional entries `sources[cTokenId][underlying]` and `sources[underlying][cTokenId]`. The latter has `inverse = true`.
+- The `decimals` value stored by this function becomes the **price-scale normalization parameter** for every subsequent `_peek`/`_get` call.
 
-L110 `uint8 decimals_ = 18;` — 이 한 줄이 버그.
+L110 `uint8 decimals_ = 18;` — this single line is the bug.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formula)
 
-`_peek`/`_get` 내부 정규화 (line 82–86):
+`_peek`/`_get` internal normalization (line 82-86):
 ```solidity
 if (source.inverse)  price = 10 ** (source.decimals + 18) / rawPrice;   // underlying → cToken
 else                 price = rawPrice * 10 ** (18 - source.decimals);   // cToken → underlying
 ```
-여기서 `source.decimals`의 의미론적 역할 = **"rawPrice가 들고 있는 scale"** = `10 + uD` (= 18 - 8 + uD).
+Here the semantic role of `source.decimals` = **"the scale carried by rawPrice"** = `10 + uD` (= 18 - 8 + uD).
 
-그러므로 `_setSource` 의도:
+Therefore the intent of `_setSource`:
 ```
 decimals_ = 10 + IERC20(CTokenInterface(source).underlying()).decimals()
 ```
-예: cDAI → `decimals_ = 28`, cUSDC → `decimals_ = 16`.
+e.g., cDAI → `decimals_ = 28`; cUSDC → `decimals_ = 16`.
 
-##### (2d) Line-by-line 분석 (`_setSource` line 109–124)
+##### (2d) Line-by-line analysis (`_setSource` line 109-124)
 
 ```solidity
 109  function _setSource(bytes6 cTokenId, bytes6 underlying, address source) internal {
@@ -465,158 +466,158 @@ decimals_ = 10 + IERC20(CTokenInterface(source).underlying()).decimals()
 124      // }
 ```
 
-- **L110 (BUG)**: `decimals_`를 하드코딩 `18`. 주석 `// Does the borrowing rate have 18 decimals?`는 개발자도 확신이 없었음을 드러냄 — 결국 틀린 가정을 코드로 박음.
-- **L111**: tautology (`18 <= 18`). 실제 underlying decimals를 조회했다면 이 guard가 의미를 가졌을 것.
-- **L112–116**: 정방향 엔트리 저장. `decimals = 18`이 `_peek` 분기의 `18 - 18 = 0` 지수로 흘러감 → `price = rawPrice * 10^0 = rawPrice`. Underlying이 DAI면 `rawPrice`는 `10^28` 스케일인데 18-dp 규약을 주장하는 price로 그대로 노출 → **10^10 배 부풀림**.
-- **L117–121**: 역방향 엔트리 (inverse). 동일 `decimals = 18`로 저장 → `_peek`의 inverse 분기 `10^(18+18) / rawPrice = 10^36 / rawPrice`. Underlying이 DAI면 `10^36 / 10^28 = 10^8`대 값이 나오는데, 18-dp price 규약 위배.
-- **L122–123**: 양방향 이벤트.
+- **L110 (BUG)**: `decimals_` is hardcoded to `18`. The comment `// Does the borrowing rate have 18 decimals?` reveals that the developer was uncertain — and ultimately committed a wrong assumption to code.
+- **L111**: tautology (`18 <= 18`). If the actual underlying decimals had been queried, this guard would have had meaning.
+- **L112-116**: stores the forward entry. `decimals = 18` flows into the `_peek` branch as the exponent `18 - 18 = 0` → `price = rawPrice * 10^0 = rawPrice`. If the underlying is DAI, `rawPrice` is on the `10^28` scale, but is exposed as a price asserting the 18-dp convention → **inflated by a factor of 10^10**.
+- **L117-121**: stores the reverse entry (inverse). Same `decimals = 18` is stored → in the `_peek` inverse branch, `10^(18+18) / rawPrice = 10^36 / rawPrice`. If the underlying is DAI, this yields a value on the order of `10^36 / 10^28 = 10^8`, violating the 18-dp price convention.
+- **L122-123**: bidirectional events.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-`_setSource`에 "underlying의 decimals를 조회하라"는 명령이 없어, 저장된 `source.decimals = 18`이 이후 모든 환율 계산에서 **잘못된 정규화 지수**로 사용. `_peek`/`_get`의 수식은 대수적으로 맞지만, 입력 파라미터 `source.decimals`가 틀려 체계적 스케일 오차.
+Because `_setSource` lacks the instruction "look up underlying's decimals", the stored `source.decimals = 18` is used as a **wrong normalization exponent** in every subsequent rate computation. The formulas in `_peek`/`_get` are algebraically correct, but the input parameter `source.decimals` is wrong, producing systematic scale errors.
 
-Protocol-level: case 1과 같은 경로 — Yield vault가 이 오라클 결과를 담보 평가에 사용 → cUSDC 담보가 10^2배 축소 평가되어 즉시 liquidation, 또는 cDAI 담보가 10^10배 부풀어 무담보 대출. **체계적 편향** (버그 방향이 underlying 토큰마다 다름)이라 공격자가 유리한 방향을 선택 가능.
+Protocol-level: same path as Case 1 — a Yield vault uses this oracle's result for collateral valuation → cUSDC collateral is undervalued by 10^2× and instantly liquidated, or cDAI collateral is inflated by 10^10× and used for unsecured loans. **A systematic bias** (the bug direction differs by underlying token), allowing an attacker to choose the favorable direction.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고를 구현 수준으로:
+Implementing the audit recommendation:
 ```solidity
 uint8 uD = IERC20(CTokenInterface(source).underlying()).decimals();
 uint8 decimals_ = uint8(10 + uD);
-require(decimals_ <= 36, "Unsupported decimals");   // _peek inverse branch overflow 방지
+require(decimals_ <= 36, "Unsupported decimals");   // prevent overflow in _peek inverse branch
 ```
-Sponsor는 이 방향으로 commit `e9c1ee5532...`에 patch.
+The sponsor patched in this direction in commit `e9c1ee5532...`.
 
-#### 3. IntentChecker annotation 시도
+#### 3. IntentChecker annotation attempt
 
-**(a) state variable 변화?** — `sources[...][...]`에 write 있음 (L112, L117). `changed(sources[cTokenId][underlying], true)`는 buggy/correct 모두 satisfied (둘 다 쓴다, 값만 다름). → 질적 구분 불가.
+**(a) State variable change?** — there are writes to `sources[...][...]` (L112, L117). `changed(sources[cTokenId][underlying], true)` is satisfied by both buggy and correct (both write, only the values differ). → cannot distinguish qualitatively.
 
-**(b) 올바른 값의 산술 표현?** — 이상적 annotation:
+**(b) Arithmetic expression of the correct value?** — ideal annotation:
 ```
 @Post sources[cTokenId][underlying].decimals == 10 + IERC20(CTokenInterface(source).underlying()).decimals()
 ```
-- `IERC20(...).decimals()`, `CTokenInterface(source).underlying()` → **G1** (함수 호출). 둘 다 view라 `@IReturn` 이론적 허용 대상이지만:
-  - `_setSource` 본문에 해당 호출 사이트 **없음** (underlying이나 decimals를 가져오지 않음).
-  - `@IReturn`은 코드에 존재하는 call expression에만 값 공급. 존재하지 않는 호출을 annotation으로 "가상 주입" 불가.
-- 숫자만 두고 본다면 `10 + <token decimals>`는 단순 `+`이므로 grammar 허용. 그러나 `<token decimals>`에 해당하는 변수가 함수 scope·상속 scope 어디에도 없음 → **G3**.
-- 우회: `@LocalVar`로 `decimals_` 값 자체를 넣어도 이는 **입력을 buggy 값 `18`로 정답 선언**하는 꼴. Value condition 불가.
+- `IERC20(...).decimals()`, `CTokenInterface(source).underlying()` → **G1** (function calls). Both are view, so theoretically eligible for `@IReturn`, but:
+  - The corresponding call sites **do not exist** in the body of `_setSource` (it does not fetch underlying or decimals).
+  - `@IReturn` only supplies values for call expressions present in the code. It cannot "virtually inject" a non-existent call by annotation.
+- Considering only the numbers, `10 + <token decimals>` is a plain `+`, allowed by the grammar. However, no variable for `<token decimals>` exists anywhere in the function scope or inherited scope → **G3**.
+- Workaround: putting the value of `decimals_` itself in via `@LocalVar` would be **declaring the input as the buggy value `18` to be the correct answer**. Value condition is impossible.
 
-**(c) 버그 인지 전제?** 여기 도달하지 못함.
+**(c) Bug-awareness presupposed?** Does not get this far.
 
-**예측**: annotation 작성 단계에서 표현 실패 → 양쪽 판정 없음.
+**Prediction**: expression fails at the annotation-writing step → no verdict on either side.
 
-#### 4. 분류 타당성
+#### 4. Classification validity
 
-- 현재: **L4a**. ✅ 유지.
-- blocker: 올바른 값이 "코드에 존재하지 않는 두 view 호출의 반환에 의존". 심지어 hop별 계산 결과가 아닌 **저장되는 파라미터 자체의 값**이 틀려 모든 downstream 계산에 파급.
-- `annotation_plans.md` line 2006–2012 설명은 정확. 다만 "새로운 중간 계산 필요"가 G1+G3 조합임을 명시하면 더 날카로움.
+- Current: **L4a**. Maintain.
+- Blocker: the correct value depends on "the returns of two view calls that do not exist in the code". Furthermore, what is wrong is not a hop-wise computation result but **the value of the stored parameter itself**, which propagates to all downstream computations.
+- The explanation in `annotation_plans.md` lines 2006-2012 is accurate. However, making explicit that "a new intermediate computation is required" is the combination G1+G3 would be sharper.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (한 줄)**: L110의 `decimals_ = 18`이 틀렸음을 IntentChecker가 알아채려면, buggy/correct를 구분하는 grammar-expressible annotation을 **기존 `CTokenMultiOracle` 변수 landscape 만으로** 구성할 수 있어야 함. 그런데 **전지적 개발자조차 그런 annotation을 작성할 수 없음** — 관계식의 피연산자가 컨트랙트 어디에도 없기 때문. (이 점이 L5a "missing-code"와의 결정적 차이: L5a는 landscape는 충분하되 "어떤 annotation을 쓸지" 결정이 버그 인지 전제 — 이 case는 landscape 자체가 부족.)
+**Essence (one-liner)**: for IntentChecker to detect that `decimals_ = 18` at L110 is wrong, a grammar-expressible annotation distinguishing buggy from correct must be constructible **using only the existing variable landscape of `CTokenMultiOracle`**. But **even an omniscient developer cannot write such an annotation** — because the operands of the relation do not exist anywhere in the contract. (This is the decisive difference from L5a "missing-code": in L5a, the landscape is sufficient but the choice of "which annotation to write" presupposes bug awareness — in this case the landscape itself is insufficient.)
 
-**변수 현황 검증** — L110 시점에 참조 가능한 식별자와 `decimals_`와의 관계 가능성:
+**Variable inventory check** — identifiers visible at L110 and possible relations to `decimals_`:
 
-| 식별자 | 타입 | `decimals_`와의 관계 |
+| Identifier | Type | Relation possible with `decimals_` |
 |---|---|---|
-| `decimals` (contract constant) | `uint8` = 18 | `decimals_ == decimals` → 동어반복 (18 == 18). buggy/correct 구분 불가 |
-| `cTokenId`, `underlying` | `bytes6` | 타입 mismatch — 수치 산술 불가 |
-| `source` | `address` | 타입 mismatch |
-| `sources[...][...]` | struct mapping | L110 시점엔 미기입, 이후 `decimals_` 자체로 채워짐 |
+| `decimals` (contract constant) | `uint8` = 18 | `decimals_ == decimals` → tautology (18 == 18). Cannot distinguish buggy/correct |
+| `cTokenId`, `underlying` | `bytes6` | Type mismatch — no numeric arithmetic |
+| `source` | `address` | Type mismatch |
+| `sources[...][...]` | struct mapping | Empty at L110, then filled with `decimals_` itself |
 
-→ 올바른 값 `10 + uD`의 피연산자 `uD` (underlying decimals)에 **상응하는 변수가 컨트랙트 어디에도 없음**. 값을 얻으려면 `CTokenInterface(source).underlying()` 후 `IERC20(...).decimals()` 두 번의 외부 호출이 필요하고, 두 호출 모두 이 함수(`_setSource`)에 쓰이지 않음.
+→ **No variable in the contract corresponds to the operand `uD` (underlying decimals)** of the correct value `10 + uD`. To obtain the value, two external calls — `CTokenInterface(source).underlying()` followed by `IERC20(...).decimals()` — are needed, and neither is used in this function (`_setSource`).
 
-G-표면:
-- **G1** — `CTokenInterface(...).underlying()`·`IERC20(...).decimals()`를 intentValue에 쓸 수 없음.
-- **G3** — 위 호출들의 반환을 담는 변수 부재 + **호출 사이트 자체 부재** → `@IReturn` 우회도 불가.
-- **G2 해당 없음** — 필요한 산술은 `10 + x`. grammar 허용 연산만. 문제는 오로지 `x`를 얻을 수 없다는 것.
+G-surface:
+- **G1** — `CTokenInterface(...).underlying()` and `IERC20(...).decimals()` cannot be written in intentValue.
+- **G3** — no variable holds the returns of these calls + **the call sites themselves do not exist** → the `@IReturn` workaround is also unavailable.
+- **G2 not applicable** — the required arithmetic is `10 + x`. Only operations allowed by the grammar. The sole problem is that `x` cannot be obtained.
 
-**Case 1 대비 부수 관찰**: Case 1의 `_peek`은 `10 ** source.decimals`로 decimals 수치 도메인을 한 번은 통과. Case 2의 `_setSource`는 decimals 도메인에 전혀 진입하지 않음 — `18` 은 흔적이 아니라 fabrication. 런타임 trace의 깊이는 다르나, **annotation 차단 측면에서는 둘 다 "관계 피연산자가 컨트랙트에 없다"로 수렴**.
+**Side observation vs Case 1**: Case 1's `_peek` passes through the decimals numeric domain at least once via `10 ** source.decimals`. Case 2's `_setSource` does not enter the decimals domain at all — `18` is fabrication, not a trace. The runtime trace depths differ, but **on the annotation-blocking side, both converge to "the relation operands are not in the contract"**.
 
-**L4a ↔ L5 경계 관찰** — 특정 cToken-underlying pair를 고정하면 상수 annotation (`sources[cDAI][DAI].decimals == 28`)은 grammar-expressible. 하지만:
-- 모든 pair에 단일 annotation을 달려면 uD 참조 필요 → uD는 컨트랙트 밖 → **L4a**.
-- Pair별 상수 박기는 표현 가능하나 상수 = 정답 지식 → **L5a-flavored** (bug-awareness).
+**L4a ↔ L5 boundary observation** — fixing a specific cToken-underlying pair makes a constant annotation (`sources[cDAI][DAI].decimals == 28`) grammar-expressible. However:
+- Attaching a single annotation across all pairs requires referencing uD → uD is outside the contract → **L4a**.
+- Hardcoding constants per pair is expressible, but the constant = the answer knowledge → **L5a-flavored** (bug-awareness).
 
-이 "general form ↔ specific form" 분리는 L4a와 L5의 경계 현상으로 paper에 인용 가치.
+This separation between "general form ↔ specific form" is a boundary phenomenon between L4a and L5 worth citing in the paper.
 
-**[Category (I8)]**: **Value error / Type B** — 하드코딩 `18` 자리에 correct 값 `10 + uD`의 `uD` proxy가 scope·contract 어디에도 없음. L4a 정통.
+**[Category (I8)]**: **Value error / Type B** — at the position of the hardcoded `18`, no proxy for `uD` (the operand of the correct value `10 + uD`) exists in scope or in the contract. Proper L4a.
 
 ---
 
-### Case 3 — `web3bugs_29_H_05` (현재 분류: **L4a**)
+### Case 3 — `web3bugs_29_H_05` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/29.md` → `[H-05] hybrid pool uses wrong non_optimal_mint_fee`
+- **Source**: `reports/29.md` → `[H-05] hybrid pool uses wrong non_optimal_mint_fee`
 - **Severity**: High. **Warden**: broccoli (C4 2021-09-sushitrident).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (verbatim excerpt)**:
   > When an LP provider deposits an imbalanced amount of tokens, a swap fee is applied. `HybridPool` uses the same `_nonOptimalMintFee` as `constantProductPool`; however, since the two pools use different AMM curves, the ideal balance is not the same.
   >
   > Stable swap pools are designed for 1B+ TVL. Any issue related to pricing/fee is serious. I consider this is a high-risk issue.
-- **권고된 수정안**: Curve의 `StableSwap3Pool.vy#L322-L337` 방식으로 재작성 — 입금 전후 invariant `D` 차이 기반으로 ideal balance 계산.
+- **Recommended fix**: rewrite in the manner of Curve's `StableSwap3Pool.vy#L322-L337` — compute the ideal balance based on the difference of the invariant `D` before and after deposit.
 - **Sponsor**: confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the code's meaning
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose and system role
 
-`HybridPool` — Sushi **Trident**의 stableswap pool template. 1:1에 가까운 자산 쌍(예: USDC-USDT, DAI-USDC)에 대해 Curve-style amplified invariant `D`를 사용해 슬리피지를 최소화. Trident router·aggregator가 이 pool과 상호작용하며, pool 내 모든 가격·유동성·수수료 계산은 stableswap invariant에 종속.
+`HybridPool` — a stableswap pool template in Sushi **Trident**. For asset pairs close to 1:1 (e.g., USDC-USDT, DAI-USDC), it minimizes slippage using a Curve-style amplified invariant `D`. The Trident router/aggregator interacts with this pool, and all price/liquidity/fee computations within the pool are subordinate to the stableswap invariant.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function role within the contract
 
-`_nonOptimalMintFee(_amount0, _amount1, _reserve0, _reserve1) → (token0Fee, token1Fee)` (line 426–441, internal view). 
-- 호출자: `mint(bytes data)` (line 99).
-- 역할: LP provider가 **불균형 입금** 시 암묵적 swap이 일어난 것으로 간주하고 그만큼 swap fee를 부과. 입금 후 보상 LP 토큰 수를 계산하기 전에 fee를 차감.
-- 잘못된 fee는 protocol revenue의 과소/과다 징수, LP 간 가치 이전 왜곡으로 이어짐.
+`_nonOptimalMintFee(_amount0, _amount1, _reserve0, _reserve1) → (token0Fee, token1Fee)` (line 426-441, internal view).
+- Caller: `mint(bytes data)` (line 99).
+- Role: when an LP provider makes an **imbalanced deposit**, treat it as if an implicit swap occurred and charge the corresponding swap fee. The fee is deducted before computing the LP token reward.
+- A wrong fee leads to under/over-collection of protocol revenue and to distorted value transfer between LPs.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formula)
 
-Stableswap 이론 기반 올바른 의도:
-- D₀ = current invariant (입금 전): `D₀ = computeLiquidity(_reserve0, _reserve1)`
+The correct intent based on stableswap theory:
+- D₀ = current invariant (pre-deposit): `D₀ = computeLiquidity(_reserve0, _reserve1)`
 - D₁ = post-deposit invariant: `D₁ = computeLiquidity(_reserve0 + _amount0, _reserve1 + _amount1)`
-- 각 토큰 i의 **ideal balance** (balanced growth 하에서): `idealᵢ = D₁ × _reserveᵢ / D₀`
-- **Imbalance** (실제 post-balance – idealᵢ): `|(_reserveᵢ + _amountᵢ) − idealᵢ|`
+- For each token i, the **ideal balance** (under balanced growth): `idealᵢ = D₁ × _reserveᵢ / D₀`
+- **Imbalance** (actual post-balance − idealᵢ): `|(_reserveᵢ + _amountᵢ) − idealᵢ|`
 - Fee per token: `swapFee × imbalanceᵢ / (2 × MAX_FEE)`
 
-즉, "ideal balance"의 정의가 curve에 따라 달라짐:
-- **Constant product** (xy=k): `idealᵢ = _amountⱼ × _reserveᵢ / _reserveⱼ` — reserve 비율.
-- **Stableswap** (D-invariant): 위 수식. D를 Newton iteration으로 계산해야 함.
+That is, the definition of "ideal balance" depends on the curve:
+- **Constant product** (xy=k): `idealᵢ = _amountⱼ × _reserveᵢ / _reserveⱼ` — reserve ratio.
+- **Stableswap** (D-invariant): the formula above. D must be computed by Newton iteration.
 
-##### (2d) Line-by-line 분석 (line 426–441)
+##### (2d) Line-by-line analysis (line 426-441)
 
 ```solidity
 431  ) internal view returns (uint256 token0Fee, uint256 token1Fee) {
 432      if (_reserve0 == 0 || _reserve1 == 0) return (0, 0);
-433      uint256 amount1Optimal = (_amount0 * _reserve1) / _reserve0;   // BUG — CP 공식
+433      uint256 amount1Optimal = (_amount0 * _reserve1) / _reserve0;   // BUG — CP formula
 434
 435      if (amount1Optimal <= _amount1) {
 436          token1Fee = (swapFee * (_amount1 - amount1Optimal)) / (2 * MAX_FEE);
 437      } else {
-438          uint256 amount0Optimal = (_amount1 * _reserve0) / _reserve1;   // BUG — CP 공식
+438          uint256 amount0Optimal = (_amount1 * _reserve0) / _reserve1;   // BUG — CP formula
 439          token0Fee = (swapFee * (_amount0 - amount0Optimal)) / (2 * MAX_FEE);
 440      }
 441  }
 ```
 
-- **L432**: 빈 pool 처리 — 둘 중 하나 0이면 fee 없음. (virgin mint 시 적용.)
-- **L433 (BUG)**: `amount1Optimal = _amount0 × _reserve1 / _reserve0`. 이는 **constant-product** pool의 balanced deposit 공식. StableSwap에서는 reserve 비율이 ideal deposit 비율이 아님 (amplification A가 curve를 flatten).
-- **L435**: 입금한 `_amount1`이 CP 기준 optimal 이하면 → token1 부족 → token1 측에 fee 부과.
-- **L436**: `token1Fee = swapFee × (_amount1 - amount1Optimal) / (2 × MAX_FEE)`. 수식 구조는 맞지만 `amount1Optimal`이 틀림.
-- **L437–440**: 반대 분기, 동일하게 CP 공식으로 `amount0Optimal` 계산 후 fee. 동일 버그.
-- **L441**: 종료.
+- **L432**: empty-pool handling — if either is 0, no fee. (Applies on virgin mint.)
+- **L433 (BUG)**: `amount1Optimal = _amount0 × _reserve1 / _reserve0`. This is the **constant-product** pool's balanced-deposit formula. In StableSwap, the reserve ratio is not the ideal deposit ratio (the amplification A flattens the curve).
+- **L435**: if the deposited `_amount1` is below CP-optimal → token1 is short → fee is charged on the token1 side.
+- **L436**: `token1Fee = swapFee × (_amount1 - amount1Optimal) / (2 × MAX_FEE)`. The structure of the formula is right, but `amount1Optimal` is wrong.
+- **L437-440**: opposite branch; same bug, computing `amount0Optimal` with the CP formula and then the fee.
+- **L441**: end.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-HybridPool은 amplification `A`를 가진 stableswap curve로 운영되어, **가격 곡선이 구간별로 flat**. A가 클수록 소액 임밸런스가 유발하는 가격 이탈이 작음. 따라서 "LP가 얼마나 imbalanced 했는가"의 측정 기준이 **reserve ratio**가 아니라 **invariant D 기반 ideal balance**.
+HybridPool runs on a stableswap curve with amplification `A`, so **the price curve is piecewise flat**. The larger `A`, the smaller the price deviation caused by small imbalances. Therefore the criterion for "how imbalanced was the LP" is **not the reserve ratio** but the **invariant-D-based ideal balance**.
 
-CP 공식을 그대로 쓰면:
-- 정상 stableswap 환경(작은 price impact)에서 **imbalance가 과대 평가** → 실제 유발된 swap보다 큰 fee 부과. LP가 억울하게 손해.
-- 극단적 불균형(near-depeg)에서는 반대로 **과소 평가** 가능성도 존재.
-- 공격 관점: LP가 이 공식을 역산해 보상을 얻을 수 있는 deposit 패턴을 설계 가능 (MEV).
+Using the CP formula directly:
+- In a normal stableswap environment (small price impact), **imbalance is overestimated** → a fee larger than the actually induced swap is charged. The LP loses unjustly.
+- At extreme imbalance (near depeg), **underestimation** is also possible.
+- From an attacker's viewpoint: an LP can reverse-engineer this formula to design deposit patterns that yield rewards (MEV).
 
-Protocol-level: stableswap의 1B+ TVL 설계 전제 하에서 소규모 fee 왜곡도 누적 금액으로는 크며, pool의 유인 구조 (LP가 imbalance 기여한 만큼 부담) 자체가 파손.
+Protocol-level: under stableswap's 1B+ TVL design assumption, even small fee distortions accumulate to large amounts, and the pool's incentive structure (the LP bears in proportion to the imbalance contribution) itself breaks.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
 ```solidity
 function _nonOptimalMintFee(...) internal view returns (uint256 token0Fee, uint256 token1Fee) {
@@ -633,108 +634,108 @@ function _nonOptimalMintFee(...) internal view returns (uint256 token0Fee, uint2
     token1Fee = swapFee * diff1 / (2 * MAX_FEE);
 }
 ```
-Curve StableSwap3Pool.vy L322–337의 전형적 구조. `_computeLiquidity` (line 341)는 HybridPool이 이미 정의한 internal view function — Newton iteration 내장.
+The canonical structure of Curve StableSwap3Pool.vy L322-337. `_computeLiquidity` (line 341) is an internal view function HybridPool already defines — Newton iteration built in.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점 포함)
+#### 3. IntentChecker annotation attempt (including a development-time perspective)
 
-**개발 시점 가정**: HybridPool 저자는 stableswap 구조를 이해하고 있음 (`_computeLiquidity`, `_getY`, `_getYD` 작성). 버그 인지 없이 `_nonOptimalMintFee`에 annotation을 달려 하면?
+**Development-time assumption**: HybridPool's author understands the stableswap structure (they wrote `_computeLiquidity`, `_getY`, `_getYD`). What if, without bug awareness, they try to attach annotations to `_nonOptimalMintFee`?
 
-**(a) state variable 변화?** — `_nonOptimalMintFee`는 `internal view`, storage write 없음. `changed`/entry-exit 채널 부재.
+**(a) State variable change?** — `_nonOptimalMintFee` is `internal view`, with no storage write. The `changed`/entry-exit channels are absent.
 
-**(b) 기존 landscape의 grammar-expressible annotation으로 buggy/correct 구분?**
+**(b) Distinguishing buggy/correct with grammar-expressible annotations on the existing landscape?**
 
-함수 scope 변수: `_amount0`, `_amount1`, `_reserve0`, `_reserve1`, `swapFee`, `MAX_FEE`, `amount1Optimal`(or `amount0Optimal`), `token0Fee`, `token1Fee`. 모두 uint256. Grammar-expressible annotation은 이들의 **다항 산술 결합**뿐.
+In-scope variables: `_amount0`, `_amount1`, `_reserve0`, `_reserve1`, `swapFee`, `MAX_FEE`, `amount1Optimal` (or `amount0Optimal`), `token0Fee`, `token1Fee`. All uint256. Grammar-expressible annotations are only **polynomial-arithmetic combinations** of these.
 
-발달 시점 개발자가 자연스럽게 시도할 만한 annotation들:
+Annotations a development-time developer would naturally try:
 
-1. **상·하한 bound**: `@Post token1Fee <= swapFee * _amount1 / MAX_FEE`. Grammar OK. 그러나 buggy·correct 모두 satisfied → 구분 불가.
-2. **비율 기반 intent**: `@Post token1Fee == swapFee * (_amount1 - _amount0 * _reserve1 / _reserve0) / (2 * MAX_FEE)` (개발자가 "imbalance = _amount1 − CP-optimal"로 정의한 경우). Grammar OK. **하지만 이것이 정확히 buggy 코드의 수식** → buggy는 tautologically satisfied, correct는 violated. 결과: **IntentChecker가 correct를 violation으로 오판**.
-3. **올바른 stableswap 공식**: `@Post token1Fee == swapFee * (_new1 - D1 * _reserve1 / D0) / (2 * MAX_FEE)` 형식. `D0`·`D1`이 함수 scope에 없음 → **표현 실패**.
+1. **Upper/lower bound**: `@Post token1Fee <= swapFee * _amount1 / MAX_FEE`. Grammar OK. But satisfied by both buggy and correct → cannot distinguish.
+2. **Ratio-based intent**: `@Post token1Fee == swapFee * (_amount1 - _amount0 * _reserve1 / _reserve0) / (2 * MAX_FEE)` (when the developer defines "imbalance = _amount1 − CP-optimal"). Grammar OK. **But this is exactly the formula of the buggy code** → buggy is tautologically satisfied; correct is violated. Result: **IntentChecker incorrectly judges the correct code as a violation**.
+3. **Correct stableswap formula**: of the form `@Post token1Fee == swapFee * (_new1 - D1 * _reserve1 / D0) / (2 * MAX_FEE)`. `D0`/`D1` are not in the function scope → **expression fails**.
 
-→ **핵심 관찰 (수학적 엄밀)**: Grammar의 expressive range = scope 변수에 대한 **rational-polynomial 함수**. 반면 correct ideal balance는 stableswap invariant D에 의존하며, D는 3차 방정식 `D³ − 16A·xy·D + 16A·xy·(x+y) − 4xy·D = 0`의 해로 **rational-polynomial이 아님** (Cardano 공식 적용 시 세제곱근 등장). 따라서 `A`, `_reserve0`, `_reserve1`가 모두 scope 안에 있음에도 **이들의 어떤 rational-polynomial 조합도 D와 같아지지 않음**. 재료 부족이 아니라 **허용된 연산의 닫힘 범위** 밖 (자·컴퍼스로 각의 삼등분 불가와 같은 구조적 제약).
+→ **Key observation (mathematically rigorous)**: the grammar's expressive range = **rational-polynomial functions** of the scope variables. The correct ideal balance, however, depends on the stableswap invariant D, and D is the solution of the cubic equation `D³ − 16A·xy·D + 16A·xy·(x+y) − 4xy·D = 0` which is **not rational-polynomial** (cube roots appear under Cardano's formula). Therefore, even though `A`, `_reserve0`, `_reserve1` are all in scope, **no rational-polynomial combination of them equals D**. Not a shortage of materials, but rather **outside the closure of the allowed operations** (a structural constraint analogous to the impossibility of trisecting an angle with compass and straightedge).
 
-이 맥락에서 개발자가 자연스럽게 시도하는 "경제학적으로 가장 그럴듯한" rational-polynomial specification(`_amount_j × _reserveᵢ / _reserveⱼ`)이 하필 **buggy 공식 그 자체**. Grammar가 허용하는 다른 표현도 많지만 그 어느 것도 correct가 아니며, 가장 단순·직관적 후보가 buggy와 일치해 **IntentChecker가 오히려 버그를 sanction하는 위험**을 낳음.
+In this context, the "most economically plausible" rational-polynomial specification a developer naturally tries (`_amount_j × _reserveᵢ / _reserveⱼ`) is precisely **the buggy formula itself**. Many other expressions are allowed by the grammar, but none of them is correct, and the simplest, most intuitive candidate happens to coincide with the buggy code, creating the risk of **IntentChecker actively sanctioning the bug**.
 
-**(c) 보조 local 주입 우회?**: 개발자가 `uint256 D0 = _computeLiquidity(_reserve0, _reserve1);`를 함수 상단에 추가해 landscape 확장 가능. 그러면 `@Post amount1Optimal == D1 * _reserve1 / D0`가 grammar-expressible. 그러나:
-- 이 주입은 **production code 변경**이며, 개발자가 "D가 fee 계산에 관여한다"는 것을 알고 있어야 수행 → **버그 인지 전제**.
-- 주입 이후에는 "buggy amount1Optimal = CP 기반 ≠ D 기반 ideal"이므로 annotation이 fire — 즉 **L4a가 auxiliary injection을 통해 L5 영역으로 이동**.
+**(c) Auxiliary local injection workaround?**: the developer can extend the landscape by adding `uint256 D0 = _computeLiquidity(_reserve0, _reserve1);` at the top of the function. Then `@Post amount1Optimal == D1 * _reserve1 / D0` is grammar-expressible. However:
+- This injection is a **production code change**, and the developer must know that "D is involved in fee computation" to perform it → **bug-awareness presupposed**.
+- After injection, "buggy amount1Optimal = CP-based ≠ D-based ideal", so the annotation fires — i.e., **L4a moves into the L5 region via auxiliary injection**.
 
-**"Pure annotation-only" paradigm에서는 표현 불가** → L4a 확정.
+**Inexpressible under "pure annotation-only" paradigm** → confirmed L4a.
 
-#### 4. 분류 타당성
+#### 4. Classification validity
 
-- 현재: **L4a**. ✅ 유지.
-- blocker 본질: 함수의 기존 variable landscape에서 grammar-expressible annotation 중 어떤 것도 buggy/correct를 구분하지 못함. Grammar의 algebraic 범위가 CP 공식 가족을 정확히 덮음 — 즉 **grammar로 쓸 수 있는 정답 후보들이 모두 실은 오답(buggy 코드 자체)** 이라는 특이한 배치.
-- `annotation_plans.md` line 1419–1424 설명은 정확. 다만 "D가 Newton iteration으로 계산됨"이라는 표현이 한계의 원인을 독자에게 정확히 전달하는지 — **분석 엔진은 `_computeLiquidity`를 호출·추상화할 수 있으나 annotation grammar가 함수 호출을 허용하지 않는다**는 점을 명시하면 더 분명.
+- Current: **L4a**. Maintain.
+- Nature of the blocker: in the function's existing variable landscape, no grammar-expressible annotation distinguishes buggy from correct. The grammar's algebraic range exactly covers the CP formula family — i.e., a peculiar arrangement where **all "candidate correct answers" expressible by the grammar are in fact wrong (the buggy code itself)**.
+- The explanation in `annotation_plans.md` lines 1419-1424 is accurate. However, the phrase "D is computed by Newton iteration" — does it convey to the reader the true cause of the limitation? Making explicit that **the analysis engine can call/abstract `_computeLiquidity`, but the annotation grammar does not allow function calls** would be clearer.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (I3 axis α — 변수-관계에 함수 호출이 포함)**: `_nonOptimalMintFee` scope에는 correct 관계에 기여하는 변수들(`_reserve0`, `_reserve1`, `_amount0`, `_amount1`, `swapFee`, `MAX_FEE`, `A`, `N_A`, `A_PRECISION`)이 **존재함**. 문제는 correct 관계식이 이들 사이의 rational-polynomial 조합만으로는 표현되지 않고 **`_computeLiquidity(_reserve0, _reserve1)`, `_computeLiquidity(_reserve0 + _amount0, _reserve1 + _amount1)` 두 internal 함수 호출 결과**를 피연산자로 요구한다는 점. intentValue grammar는 변수·상수만 허용하므로 함수 호출이 관계 안에 들어갈 수 없음.
+**Essence (I3 axis α — function call inside variable relation)**: in `_nonOptimalMintFee`'s scope, the variables contributing to the correct relation (`_reserve0`, `_reserve1`, `_amount0`, `_amount1`, `swapFee`, `MAX_FEE`, `A`, `N_A`, `A_PRECISION`) **do exist**. The problem is that the correct relation cannot be expressed as a rational-polynomial combination of these alone, and instead requires the return values of **two internal function calls**: `_computeLiquidity(_reserve0, _reserve1)` and `_computeLiquidity(_reserve0 + _amount0, _reserve1 + _amount1)`. Since the intentValue grammar only allows variables and constants, function calls cannot enter the relation.
 
-Case 2와의 구분: Case 2는 scope에 correct 관계를 맺을 변수 자체가 부재 (axis β). 본 case는 Case 1과 같은 축 (axis α) — 재료가 없는 것이 아니라, **재료를 올바르게 조합하려면 함수 경계를 넘는 호출이 필요**.
+Distinction from Case 2: in Case 2, the variable to be related is itself absent from scope (axis β). This case is the same axis as Case 1 (axis α) — not a shortage of materials, but **correctly combining the materials requires a function call across function boundaries**.
 
-Sub-variation (I3 axis α 내부):
-- **Case 1**: external interface view call (`IOracle(source.source).decimals()`) — grammar 확장 시 `@IReturn`-style 바인딩으로 접근 가능할 수 있는 대상.
-- **Case 3 (본 case)**: **internal view function** (`_computeLiquidity`) — 현재 `@IReturn`은 interface 전용이라 grammar 확장에도 별도 채널 설계 필요.
+Sub-variation (within I3 axis α):
+- **Case 1**: external interface view call (`IOracle(source.source).decimals()`) — potentially accessible via `@IReturn`-style binding under a grammar extension.
+- **Case 3 (this case)**: **internal view function** (`_computeLiquidity`) — the current `@IReturn` is interface-only, so even with grammar extension, a separate channel must be designed.
 
-G-표면:
-- **G1** — `_computeLiquidity(...)`를 intentValue에 쓸 수 없음 (internal function call).
-- **G3** — D₀, D₁ 값을 담는 local이 `_nonOptimalMintFee` scope에 부재. (주입 경로는 I4 참조 — L5 영역으로 이동.)
-- **G2 해당 없음** — 사용자 관찰대로 D를 얻은 뒤에는 `D*D*D` 같은 반복 곱셈이면 충분. `**` 부재는 이 case의 primary blocker 아님.
+G-surface:
+- **G1** — `_computeLiquidity(...)` cannot be written in intentValue (internal function call).
+- **G3** — locals holding D₀, D₁ values are absent from `_nonOptimalMintFee`'s scope. (Injection path → see I4 — moves to the L5 region.)
+- **G2 not applicable** — per the user's observation, once D is obtained, repeated multiplication like `D*D*D` suffices. The absence of `**` is not the primary blocker of this case.
 
-**부차 관찰 — "silent sanction" 위험 (I5 유래)**: Grammar가 허용하는 rational-polynomial specification 중 "가장 경제적으로 그럴듯한" 선택(`_amount_j × _reserveᵢ / _reserveⱼ`)이 하필 buggy 공식 자체. 개발자가 선의로 작성한 annotation이 buggy 코드를 tautologically validation할 수 있음 → **L4a 내에서도 fail-by-confirmation mode가 가능한 위험 사례**. I3 axis α의 일반 패턴에 얹힌 부가 위험이며, α 분류 자체와는 독립.
+**Side observation — the "silent sanction" risk (from I5)**: among the rational-polynomial specifications allowed by the grammar, the "most economically plausible" choice (`_amount_j × _reserveᵢ / _reserveⱼ`) happens to be the buggy formula itself. An annotation written in good faith by the developer can tautologically validate the buggy code → **a risk case where fail-by-confirmation mode is possible even within L4a**. An additional risk layered on the general I3 axis α pattern, independent of the α classification itself.
 
-**[Category (I8)]**: **Algorithm error / Type B** — 잘못된 공식 가족(CP)이 선택됨. 올바른 stableswap 공식은 `D` 값을 요구하는데 `D`·`D₀`·`D₁` 어느 것도 `_nonOptimalMintFee` scope에 없음. 단일 단계 algorithm error.
+**[Category (I8)]**: **Algorithm error / Type B** — the wrong formula family (CP) is selected. The correct stableswap formula requires the value `D`, but none of `D`/`D₀`/`D₁` is in the scope of `_nonOptimalMintFee`. A single-step algorithm error.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested rewrite of paper sentence
 
-현재 L4a 문장 (line 1307) 유지 가능하되, 이 case의 insight는 **별도 insight 문단**으로 Discussion에 배치 가치 (C5 항목 참조):
+The current L4a sentence (line 1307) can be kept, but this case's insight is worth placing in a **separate insight paragraph** in the Discussion (see item C5):
 > *When the annotation grammar's algebraic range coincides with the buggy code's formula, even a well-intentioned developer producing the most specific annotation confirms the buggy behavior. This is a failure mode of simple grammars that goes beyond "inexpressibility" — the specification language silently sanctions the wrong answer.*
 
 ---
 
-### Case 4 — `web3bugs_39_H_02` (현재 분류: **L4a** → 재분류 제안: **L5b**)
+### Case 4 — `web3bugs_39_H_02` (current classification: **L4a** → reclassification proposal: **L5b**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/39.md` → `[H-02] Swivel: Taker is charged fees twice in exitVaultFillingVaultInitiate`
+- **Source**: `reports/39.md` → `[H-02] Swivel: Taker is charged fees twice in exitVaultFillingVaultInitiate`
 - **Severity**: High (judge upgrade). **Warden**: itsmeSTYJ, also gpersoon (C4 2021-09-swivel).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (original excerpt)**:
   > Taker is charged fees twice in `exitVaultFillingVaultInitiate()`. Maker is transferring less than premiumFilled to taker and then taker is expected to pay fees i.e. taker's net balance is `premiumFilled - 2*fee`.
-- **Judge 승격 이유**: "fees are being incorrectly taken from the taker and not the maker, the maker ends up with a higher balance than expected and the taker has no way to recoup these fees (assets are now lost)".
-- **권고 fix** (audit 제공 코드):
+- **Reason for judge promotion**: "fees are being incorrectly taken from the taker and not the maker, the maker ends up with a higher balance than expected and the taker has no way to recoup these fees (assets are now lost)".
+- **Recommended fix** (audit-provided code):
   ```solidity
   uToken.transferFrom(o.maker, msg.sender, premiumFilled);        // full premium
-  uToken.transferFrom(msg.sender, address(this), fee);             // fee 한 번
+  uToken.transferFrom(msg.sender, address(this), fee);             // fee once
   ```
-  즉 L280의 `premiumFilled - fee`를 `premiumFilled`로 변경.
+  That is, change `premiumFilled - fee` at L280 to `premiumFilled`.
 - **Sponsor**: confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the Code
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & position in system
 
-`Swivel` — fixed/floating yield splitting 프로토콜의 on-chain order matching engine. 오프체인 서명된 주문(`Hash.Order`)을 taker가 체결. 주문 유형: zcToken(고정 수익) / Vault(변동 수익) × initiate / exit의 4조합. Swivel은 각 매칭 시 fee를 `fenominator` 배열(`[200, 600, 400, 200]`)의 역수 비율로 수취. Swivel 자체는 ERC20 escrow와 MarketPlace 계약 호출 코디네이터 역할.
+`Swivel` — the on-chain order matching engine of a fixed/floating yield splitting protocol. The taker fills off-chain signed orders (`Hash.Order`). Order types: 4 combinations of zcToken (fixed yield) / Vault (floating yield) × initiate / exit. On each match, Swivel collects a fee at the reciprocal ratio of the `fenominator` array (`[200, 600, 400, 200]`). Swivel itself acts as the coordinator that handles ERC20 escrow and MarketPlace contract calls.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `exitVaultFillingVaultInitiate(o, a, c)` (L268–289, internal):
-- Caller: public `exit(...)` (L209–234)이 `o[i].exit == true`이고 `o[i].vault == true`일 때 dispatch.
-- 시나리오: maker가 오프체인으로 "vault(nToken) initiate" 주문을 올려둔 상황에서, msg.sender가 자기 nToken을 **매각(exit)**. Sender = vault holder 매도자, maker = vault 매수자. Maker가 premium 지불, sender가 nToken transfer.
-- 잘못된 금액 계산 시 sender가 premium을 못 받거나 중복 지불 → 직접적 자산 손실.
+- Caller: dispatched by public `exit(...)` (L209–234) when `o[i].exit == true` and `o[i].vault == true`.
+- Scenario: when a maker has placed an off-chain "vault(nToken) initiate" order, msg.sender **sells (exits)** their own nToken. Sender = vault holder seller, maker = vault buyer. Maker pays the premium, sender transfers nToken.
+- An incorrect amount calculation causes the sender to either not receive the premium or to pay double → direct asset loss.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formulas)
 
 Intended token flows:
-- `premiumFilled = a * o.premium / o.principal` — maker가 sender에게 지불할 premium (principal 매각 비율만큼).
-- `fee = premiumFilled / fenominator[3]` — 프로토콜 수수료 (vaultExit fee 비율).
+- `premiumFilled = a * o.premium / o.principal` — premium that maker pays to sender (proportional to the principal sold).
+- `fee = premiumFilled / fenominator[3]` — protocol fee (vaultExit fee ratio).
 - **Maker → Sender**: `premiumFilled` (full premium).
 - **Sender → Swivel**: `fee`.
 - **Sender → Maker**: `a` nToken (notional, `p2pVaultExchange`).
 
 Sender net cash flow: `+premiumFilled - fee`.
 
-##### (2d) Line-by-line 분석 (L268–289)
+##### (2d) Line-by-line analysis (L268–289)
 
 ```solidity
 269  bytes32 hash = validOrderHash(o, c);
@@ -749,40 +750,40 @@ Sender net cash flow: `+premiumFilled - fee`.
 288  emit Exit(...);
 ```
 
-- **L269–273**: 서명·취소·만료 검증 후 `filled[hash] += a` — order 누적 체결량 갱신 (state write).
-- **L275**: `premiumFilled` 계산 (overflow-safe 1e18 scaling 순서).
-- **L276**: `fee` 계산 (`fenominator[3] = 200` 기본값 → premium의 0.5%).
-- **L278**: ERC20 핸들.
-- **L280 (BUG)**: "maker가 sender에게 premium에서 fee를 **미리 뺀 금액** 송금". 개발자의 잘못된 가정: "sender가 어차피 fee 부담할 거니 maker 쪽에서 미리 빼면 한 번의 transfer로 처리 가능" — L283을 간과.
-- **L283**: sender가 swivel에 fee 지불. L280에서 이미 fee만큼 덜 받은 sender가 여기서 또 fee를 뱉음 → **이중 부담**.
-- **L286**: MarketPlace에 nToken 이전 위임 (sender → maker).
+- **L269–273**: After signature/cancellation/expiry validation, `filled[hash] += a` updates the cumulative fill amount of the order (state write).
+- **L275**: Computes `premiumFilled` (overflow-safe 1e18 scaling order).
+- **L276**: Computes `fee` (`fenominator[3] = 200` default → 0.5% of premium).
+- **L278**: ERC20 handle.
+- **L280 (BUG)**: "Maker sends sender the premium **with fee already deducted**". The developer's incorrect assumption: "Since the sender will pay the fee anyway, deducting it on the maker side allows handling in a single transfer" — overlooking L283.
+- **L283**: Sender pays the fee to Swivel. The sender, who already received less by the fee amount in L280, pays the fee again here → **double burden**.
+- **L286**: Delegates nToken transfer (sender → maker) to MarketPlace.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Fundamental meaning of the bug
 
-**두 transfer의 조합적 오류**. 각 transfer의 금액 계산은 개별적으로 문법·산술상 문제 없음 (`premiumFilled - fee`, `fee` 모두 유효한 uint256). 그러나 **두 transfer의 net effect가 의도를 벗어남**:
-- 의도: sender 순수익 = `+premiumFilled - fee`
-- 실제: sender 순수익 = `+(premiumFilled - fee) - fee = +premiumFilled - 2·fee`
+**A combinational error of two transfers**. The amount calculation of each transfer is individually free of syntactic/arithmetic problems (`premiumFilled - fee`, `fee` are both valid uint256). However, **the net effect of the two transfers deviates from the intent**:
+- Intent: sender net income = `+premiumFilled - fee`
+- Actual: sender net income = `+(premiumFilled - fee) - fee = +premiumFilled - 2·fee`
 
-Protocol-level: sender는 주문마다 **명시된 fee의 2배**를 잃음. Maker는 반대로 fee만큼 덜 지불하여 이익. Judge 지적대로 taker는 자산 회수 수단 없음.
+Protocol-level: the sender loses **twice the stated fee** per order. The maker conversely pays less by the fee and gains. As the judge points out, the taker has no means to recover assets.
 
-이 case의 특징: 버그가 **단일 라인의 수식 오류가 아니라 두 external call 간의 "의도 분할" 실패**. "Maker가 깎고 보낸다" + "Sender가 또 fee 낸다" 중 정확히 하나는 없어야 함.
+Characteristic of this case: the bug is **not a single-line formula error but a "intent split" failure between two external calls**. Of "the maker sends after deduction" + "the sender also pays the fee", exactly one must be removed.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 제안 그대로. L280의 `premiumFilled - fee` → `premiumFilled`. L283은 유지. 한 줄 수정.
+As proposed by the audit. Change `premiumFilled - fee` at L280 to `premiumFilled`. Keep L283. A one-line fix.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (development-time perspective)
 
-**(a) state variable 변화?** `filled[hash] += a`는 state write이나 buggy·correct 모두 동일 → `changed`로 구분 불가.
+**(a) State variable change?** `filled[hash] += a` is a state write but identical in both buggy and correct → cannot be distinguished by `changed`.
 
-**(b) "net flow"를 `@Post`로?** Sender 순수익 = external ERC20 `uToken.balanceOf(msg.sender)`의 entry-exit 차이. 그러나:
-- Swivel contract의 state variable이 아님 → Swivel scope에서 reference 불가.
-- `@IReturn`은 debug annotation(분석 엔진용)이지 intent 입력 아님 (I1).
-- 따라서 `@Post` 경로는 봉쇄.
+**(b) Express "net flow" via `@Post`?** Sender net income = entry-exit difference of external ERC20 `uToken.balanceOf(msg.sender)`. However:
+- Not a state variable of the Swivel contract → cannot be referenced in Swivel scope.
+- `@IReturn` is a debug annotation (for the analysis engine), not an intent input (I1).
+- The `@Post` path is therefore blocked.
 
-**(c) `@During` + `.arg[n]` 경로** (annotation_plans가 누락한 채널):
+**(c) `@During` + `.arg[n]` path** (a channel missed by annotation_plans):
 
-Grammar의 duringClause에 `identifier.arg[n] relOp intentValue` 형태 존재 (limitation_types.md L5b 예: `pool0.swap.arg[0] == 0`). L280 call 위에:
+The grammar's duringClause allows `identifier.arg[n] relOp intentValue` (limitation_types.md L5b example: `pool0.swap.arg[0] == 0`). Above the L280 call:
 
 ```solidity
 // @During uToken.transferFrom.arg[2] == premiumFilled
@@ -790,78 +791,78 @@ uToken.transferFrom(o.maker, msg.sender, premiumFilled - fee);   // buggy
 ```
 
 - Buggy: arg[2] = `premiumFilled - fee` ≠ `premiumFilled` → **VIOLATED**.
-- Correct (fix 후): arg[2] = `premiumFilled` → **SATISFIED**.
-- 피연산자 `premiumFilled`은 L275에서 선언된 local, scope 안. Grammar 전부 허용.
+- Correct (after fix): arg[2] = `premiumFilled` → **SATISFIED**.
+- The operand `premiumFilled` is a local declared in L275, in scope. Fully grammar-permitted.
 
-→ **grammar-expressible distinguishing annotation 존재**.
+→ **A grammar-expressible distinguishing annotation exists**.
 
-**개발 시점 관점의 함정 (silent sanction 재등장)**: 개발자가 L280 buggy 코드를 그대로 반영하여 "maker가 premium-fee 송금"이라는 자연스러운 intent를 쓰면:
+**Pitfall from a development-time perspective (silent sanction reappears)**: if the developer reflects the L280 buggy code as-is and writes the natural intent "maker sends premium-fee":
 ```
 // @During uToken.transferFrom.arg[2] == premiumFilled - fee
 ```
-→ buggy tautologically satisfied, correct violated (false positive). **I5 silent sanction** 패턴이 L4a 뿐 아니라 L5b 범주에서도 나타남.
+→ buggy is tautologically satisfied, correct is violated (false positive). The **I5 silent sanction** pattern appears not only in L4a but also in the L5b category.
 
-올바른 annotation `arg[2] == premiumFilled`를 쓰려면 "maker는 full premium을 송금해야 한다, fee는 별도 징수"라는 기제 이해 = fix 지식 = **버그 인지 전제**.
+To write the correct annotation `arg[2] == premiumFilled`, one must understand the mechanism "the maker must send the full premium, the fee is collected separately" = fix knowledge = **bug awareness as a precondition**.
 
-#### 4. 분류 타당성 — **L4a 유지 (L5b 재분류 시도 후 철회)**
+#### 4. Classification validity — **L4a retained (after attempting and withdrawing L5b reclassification)**
 
-**검토 과정**: 초기 분석에서 `@During uToken.transferFrom.arg[2] == premiumFilled` at L280이 grammar-expressible하고 buggy/correct를 구분한다는 이유로 L5b 재분류를 제안. 그러나 아래 사유로 **철회하고 L4a 유지**:
+**Review process**: The initial analysis proposed reclassification to L5b on the grounds that `@During uToken.transferFrom.arg[2] == premiumFilled` at L280 is grammar-expressible and distinguishes buggy/correct. However, **L4a is retained** for the following reasons:
 
-**(1) 진짜 intent는 외부 ERC20 state 의존** — L4a 정의 정확 부합:
-- 버그의 본질은 "sender의 **순수익(net token flow)**이 의도 대비 fee만큼 부족"이라는 외부 ERC20 balance 변화.
-- `limitation_types.md` L4a 정의: "올바른 값이 외부 contract state, 함수 호출, 또는 새로운 중간 계산에 의존" — **정확히 이 case**.
-- Sender 순수익 = `uToken.balanceOf(msg.sender)` entry-exit 차이 → Swivel scope 밖 → `@Post` 경로 봉쇄.
+**(1) The true intent depends on external ERC20 state** — exactly matches the L4a definition:
+- The essence of the bug is "the sender's **net income (net token flow)** falls short of the intent by the fee amount", an external ERC20 balance change.
+- `limitation_types.md` L4a definition: "the correct value depends on external contract state, function calls, or new intermediate computation" — **exactly this case**.
+- Sender net income = entry-exit difference of `uToken.balanceOf(msg.sender)` → outside Swivel scope → `@Post` path blocked.
 
-**(2) `.arg[2] == premiumFilled`는 intent가 아니라 proxy**:
-- L280 위 natspec은 `// transfer premium minus fee from maker to sender` — **buggy 의도를 그대로 서술**. 개발자가 natspec 따라 annotation을 쓰면 `arg[2] == premiumFilled - fee` (buggy와 일치).
-- Correct `arg[2] == premiumFilled` 도출 경로:
-  1. ERC20 `transferFrom` semantics (외부 표준 지식).
-  2. L280 + L283 **cross-line accounting**: sender 순수익 = `+arg[2]_L280 - arg[2]_L283`.
-  3. 의도된 net flow = `premiumFilled - fee` (프로토콜 설계 지식).
-  4. 연립 → arg[2]_L280 = `premiumFilled`.
-- 즉 local proxy를 도출하려면 **cross-line 역산 + natspec override + 외부 표준 지식**. 전형적 L5b ("단일 location의 wrong arg/operator/field를 알아차림" — e.g., 52_H_15, 113_H_05)의 bug-awareness 수준을 질적으로 벗어남.
+**(2) `.arg[2] == premiumFilled` is not the intent but a proxy**:
+- The natspec above L280 is `// transfer premium minus fee from maker to sender` — **describes the buggy intent verbatim**. If the developer follows the natspec when writing the annotation, they get `arg[2] == premiumFilled - fee` (matching the buggy).
+- Path to derive the correct `arg[2] == premiumFilled`:
+  1. ERC20 `transferFrom` semantics (external standard knowledge).
+  2. **Cross-line accounting** of L280 + L283: sender net income = `+arg[2]_L280 - arg[2]_L283`.
+  3. Intended net flow = `premiumFilled - fee` (protocol design knowledge).
+  4. Solving the system → arg[2]_L280 = `premiumFilled`.
+- That is, deriving the local proxy requires **cross-line back-solving + natspec override + external standard knowledge**. This qualitatively exceeds the bug-awareness level of typical L5b ("noticing a wrong arg/operator/field at a single location" — e.g., 52_H_15, 113_H_05).
 
-**(3) I2 "전지적 개발자 테스트"의 정제 필요 (→ I7)**:
-- 공식적 criterion: "grammar-expressible annotation이 buggy/correct 구분하는가".
-- 그러나 **local proxy annotation**이 우연히 distinguishing power를 갖는 경우까지 포함하면 L4a/L5 구분이 무의미해짐.
-- 정제된 criterion: "**정답 intent를 직접 표현**하는 grammar-expressible annotation이 존재하는가". Case 4의 intent(net flow)는 외부 state 의존으로 직접 표현 불가 → **L4a**.
+**(3) Refining I2 "omniscient developer test" (→ I7)**:
+- Formal criterion: "does a grammar-expressible annotation distinguish buggy/correct".
+- However, including cases where a **local proxy annotation** incidentally has distinguishing power makes the L4a/L5 distinction meaningless.
+- Refined criterion: "does a grammar-expressible annotation that **directly expresses the correct intent** exist". Case 4's intent (net flow) cannot be directly expressed due to dependence on external state → **L4a**.
 
-**결론**: **L4a 유지**. `.arg[n]` proxy는 formal 표현 가능성을 가지나 intent-level expressibility 기준에서 L4a에 해당.
+**Conclusion**: **L4a retained**. The `.arg[n]` proxy has formal expressibility, but on the intent-level expressibility criterion it falls under L4a.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질**: Bug의 correctness 조건은 **external ERC20 contract state (sender balance)** 의존. Swivel scope 밖의 상태를 annotation grammar로 직접 참조할 채널이 없음 (`@Post` external state 표현 불가, `@IReturn`은 debug용으로 intent 진입 불가 — I1).
+**Essence**: The bug's correctness condition depends on **external ERC20 contract state (sender balance)**. There is no channel in the annotation grammar to directly reference state outside the Swivel scope (`@Post` cannot express external state, `@IReturn` is for debugging and cannot enter intent — I1).
 
-**L4a 내 새로운 하위 패턴 — "cross-line accounting" 버그**:
-- 버그가 단일 라인의 수식 오류가 아니라 **여러 external call의 조합**에서 발생.
-- 각 call의 local arg는 문법상 유효하지만 net effect가 의도와 다름.
-- 이런 버그의 intent는 본질적으로 **multi-point accumulation (balance 변화)** — single-point annotation으로 표현 불가.
-- Case 1의 "함수 호출 결과 필요" (axis α), Case 2의 "관계 맺을 변수 부재" (axis β)와 구분되는 **axis γ — multi-point accounting을 single-point annotation으로 표현 불가** 패턴.
+**A new sub-pattern within L4a — "cross-line accounting" bug**:
+- The bug is not a single-line formula error but arises from **the combination of multiple external calls**.
+- Each call's local args are syntactically valid but the net effect differs from intent.
+- The intent of such bugs is essentially **multi-point accumulation (balance changes)** — cannot be expressed by a single-point annotation.
+- Distinguished from Case 1's "function call result needed" (axis α) and Case 2's "no variable to relate" (axis β), this is the **axis γ — multi-point accounting cannot be expressed by single-point annotation** pattern.
 
-G-표면:
-- **G1 (간접)** — sender balance를 reference하려면 `uToken.balanceOf(msg.sender)` 호출 필요. intentValue는 함수 호출 허용 안 함.
-- **G3 (primary)** — net flow 값을 담는 scope 변수 부재. External balance 변화는 Swivel scope 밖.
-- **G8 (해당)** — external contract state (ERC20 balance) 의존.
+G-surface:
+- **G1 (indirect)** — referencing sender balance requires calling `uToken.balanceOf(msg.sender)`. intentValue does not allow function calls.
+- **G3 (primary)** — no scope variable holds the net flow value. External balance changes are outside Swivel scope.
+- **G8 (applicable)** — depends on external contract state (ERC20 balance).
 
-**Natural annotation의 silent sanction**: 개발자가 L280의 natspec("premium minus fee from maker")을 그대로 따라 쓰면 buggy intent를 annotation화 → buggy tautologically satisfied, correct violated. **I5 silent sanction**이 여기서는 natspec이 buggy 구현과 동기화되어 있기 때문에 발생. 이는 L4a의 전형적 failure mode이자, "annotation이 코드/문서의 자연스러운 의도를 따르면 자동으로 buggy를 재확인하는" 가장 위험한 변형.
+**Silent sanction of the natural annotation**: if the developer follows L280's natspec ("premium minus fee from maker") verbatim, the buggy intent is annotated → buggy tautologically satisfied, correct violated. **I5 silent sanction** here arises because the natspec is synchronized with the buggy implementation. This is the typical failure mode of L4a, and the most dangerous variant — "if the annotation follows the natural intent of code/documentation, it automatically reconfirms the buggy".
 
-**[Category (I8)]**: **Algorithm error / Type B** — 두 transfer의 fee 분배 composition이 잘못됨. Correct intent (sender 순수익)는 외부 ERC20 balance 변화로, Swivel scope 밖. Cross-line accounting algorithm error.
+**[Category (I8)]**: **Algorithm error / Type B** — the fee-distribution composition of the two transfers is wrong. The correct intent (sender net income) is an external ERC20 balance change, outside Swivel scope. Cross-line accounting algorithm error.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggestions for paper text improvement
 
-- **L4a 본문 (line 1307)**: 현재 문장의 "external contract's state, function call that does not appear" 나열 유지하되, **"multi-point accounting을 single-point annotation으로 포착 불가"** 하위 패턴 1줄 추가 가치. Case 4가 이 패턴의 대표.
-- **Discussion — intent-level expressibility (I7)**: formal expressibility vs intent-level expressibility를 별개 축으로 구분. L4a/L5 경계의 real criterion은 후자임을 명시.
-- **Silent sanction 확장 (I5)**: natspec-code consistency가 silent sanction을 유발할 수 있음. Annotation-driven 개발 workflow가 natspec review와 함께 되어야 함을 Discussion에 제안.
+- **L4a body (line 1307)**: Keep the current sentence's enumeration of "external contract's state, function call that does not appear", but it would add value to add one line on the **"cannot capture multi-point accounting with single-point annotation"** sub-pattern. Case 4 is the representative of this pattern.
+- **Discussion — intent-level expressibility (I7)**: Distinguish formal expressibility vs intent-level expressibility as separate axes. State that the real criterion of the L4a/L5 boundary is the latter.
+- **Silent sanction extension (I5)**: natspec-code consistency can induce silent sanction. Suggest in the Discussion that an annotation-driven development workflow must accompany natspec review.
 
 ---
 
-### Case 5 — `web3bugs_51_H_04` (현재 분류: **L4a**)
+### Case 5 — `web3bugs_51_H_04` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/51.md` → `[H-04] Swaps are not split when trade crosses target price`
+- **Source**: `reports/51.md` → `[H-04] Swaps are not split when trade crosses target price`
 - **Severity**: High. **Warden**: cmichel, gzeon (C4 2021-11-bootfinance).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (original excerpt)**:
   > The protocol uses two amplifier values A1 and A2 for the swap, depending on the target price. The swap curve is therefore **a join of two different curves at the target price**. When doing a trade that crosses the target price, it should first perform the trade partially with A1 up to the target price, and then the rest of the trade with A2.
   >
   > However, `SwapUtils.swap / _calculateSwap` does not do this, it only uses the "new A", see `getYC` step 5:
@@ -869,217 +870,217 @@ G-표면:
   > if (aNew == a) { return y; }
   > else { return getY(self, ..., x, xp, aNew, d); }   // BUG
   > ```
-- **Impact**: "Worse (better) average execution price. In the worst case, it could even be possible to make the entire trade with one amplifier and then sell the swap result again using the other amplifier making a profit" — **자유 arbitrage 공격 경로**.
-- **권고**: trade를 두 구간으로 split하여 각각 A1, A2 적용.
+- **Impact**: "Worse (better) average execution price. In the worst case, it could even be possible to make the entire trade with one amplifier and then sell the swap result again using the other amplifier making a profit" — **a free arbitrage attack path**.
+- **Recommendation**: split the trade into two segments and apply A1, A2 respectively.
 - **Sponsor**: confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the Code
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & position in system
 
-`SwapUtils` — Boot Finance의 dual-amplifier StableSwap library. Curve-style invariant를 기본 사용하되, **가격 영역에 따라 amplifier를 전환**하는 piecewise curve 구조:
-- `xp[0] < xp[1]` → amplifier **A1** 사용
-- `xp[0] >= xp[1]` → amplifier **A2** 사용
-- 경계 (`xp[0] == xp[1]`)가 "target price". 이 지점에서 curve가 꺾임.
+`SwapUtils` — Boot Finance's dual-amplifier StableSwap library. It uses Curve-style invariant by default but has a piecewise curve structure that **switches the amplifier depending on the price region**:
+- `xp[0] < xp[1]` → uses amplifier **A1**
+- `xp[0] >= xp[1]` → uses amplifier **A2**
+- The boundary (`xp[0] == xp[1]`) is the "target price". The curve bends at this point.
 
-이 구조는 Boot Finance가 개별 asset-pair에 맞춘 custom pricing behavior를 구현하려는 design. Swap이 **경계를 가로지를 때** 단일 A로 전체를 계산하면 가격 왜곡 발생 → LP 가치 훼손 + taker arbitrage.
+This structure is a design of Boot Finance to implement custom pricing behavior tailored to individual asset-pairs. When a swap **crosses the boundary** and the entire amount is computed with a single A, price distortion occurs → LP value damage + taker arbitrage.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `getYC(self, tokenIndexFrom, tokenIndexTo, x, xp) → uint256 y` (L735–771, internal view):
-- Caller: `_calculateSwap` (L914–933) → 최종적으로 external `swap()` (L1098–1152)이 호출.
-- 역할: "FROM 토큰을 `x` (new total amount)까지 늘릴 때, TO 토큰이 pool에 얼마나 남아야 invariant가 유지되는가".
-- 반환 `y` → `dy = xp[tokenIndexTo] - y - 1`로 swap 결과 계산. 이 `dy`가 msg.sender에게 transfer, state `balances[tokenIndexTo]`가 감소.
+- Caller: `_calculateSwap` (L914–933) → ultimately invoked by external `swap()` (L1098–1152).
+- Role: "When the FROM token is increased to `x` (new total amount), how much TO token must remain in the pool for the invariant to hold".
+- The returned `y` → swap result is computed as `dy = xp[tokenIndexTo] - y - 1`. This `dy` is transferred to msg.sender, and state `balances[tokenIndexTo]` decreases.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formulas)
 
-단일-A 가정 하 정상 의도 (StableSwap 표준):
+Normal intent under single-A assumption (StableSwap standard):
 ```
 given A, d, x → solve for y such that invariant(xp with tokenFrom=x, tokenTo=y, A) = d
 ```
-`getY`가 Newton iteration으로 해결.
+`getY` solves it via Newton iteration.
 
-**dual-A 경우 correct intent** (audit 제안):
-1. Swap이 경계를 가로지르는가? (`aNew != a`일 때).
-2. 경계점 (`xp[0] == xp[1]`)까지의 amount `dx₁` 계산.
-3. Partial swap 1: (x 중 `dx₁`만큼, A, d) → intermediate `y₁`, 중간 state.
-4. 중간 state에서 새 invariant `d₂ = getD(중간 xp, aNew)`.
-5. Partial swap 2: (나머지 `x - dx₁`, aNew, d₂) → 최종 `y₂`.
-6. 반환 `y₂`.
+**Correct intent in the dual-A case** (audit proposal):
+1. Does the swap cross the boundary? (when `aNew != a`).
+2. Compute the amount `dx₁` up to the boundary point (`xp[0] == xp[1]`).
+3. Partial swap 1: (`dx₁` portion of x, A, d) → intermediate `y₁`, intermediate state.
+4. New invariant in the intermediate state `d₂ = getD(intermediate xp, aNew)`.
+5. Partial swap 2: (remaining `x - dx₁`, aNew, d₂) → final `y₂`.
+6. Return `y₂`.
 
-##### (2d) Line-by-line 분석 (L735–771)
+##### (2d) Line-by-line analysis (L735–771)
 
 ```solidity
 742  uint256 numTokens = self.pooledTokens.length;
-753  uint256 a = determineA(self, xp);        // (1) 현재 상태의 A
-756  uint256 d = getD(xp, a);                 // (2) 현재 A 기준 invariant
-759  uint256 y = getY(self, ..., x, xp, a, d);// (3) 단일-A로 계산한 새 y
-762  uint256 aNew = _xpCalc(self, ..., x, y); // (4) 계산된 y 기준으로 새 영역의 A
+753  uint256 a = determineA(self, xp);        // (1) A of current state
+756  uint256 d = getD(xp, a);                 // (2) invariant under current A
+759  uint256 y = getY(self, ..., x, xp, a, d);// (3) new y computed under single A
+762  uint256 aNew = _xpCalc(self, ..., x, y); // (4) A of the new region based on the computed y
 765  if (aNew == a) {
-766      return y;                            // 경계 안 넘음 → 정상
+766      return y;                            // boundary not crossed → normal
 767  } else {
-768      return getY(self, ..., x, xp, aNew, d);  // BUG: aNew + old d로 전체 재계산
+768      return getY(self, ..., x, xp, aNew, d);  // BUG: full recomputation with aNew + old d
 769  }
 ```
 
-- **L753**: `determineA` — `xp[0]` vs `xp[1]` 비교로 현재 A 결정.
-- **L756**: 현재 xp와 A로 invariant `d` 계산 (Newton loop).
-- **L759**: `getY`로 x에 대한 y 계산 (Newton loop). **A가 바뀌지 않는다고 가정** — 단일-A swap.
-- **L762**: 계산된 y로 post-state의 A가 무엇일지 확인 (`_xpCalc`).
-- **L765–766**: A가 그대로 → 단일-A 가정이 유효했음 → return y.
-- **L767–768 (BUG)**: A가 바뀜 → 단일-A 가정 무효. 하지만 코드는 **새 A(aNew)와 옛 d로 전체 swap을 재계산**. 이는:
-  - `d`는 구 영역의 curve invariant 값. 새 영역 curve(A=aNew)에서 이 invariant는 의미가 없음.
-  - 전체 swap을 새 A만 적용 → 경계 이전 구간의 가격 왜곡.
-  - Audit 지적대로 arbitrage 가능: 한 A로 사서 다른 A로 파는 사이클에서 prof.
+- **L753**: `determineA` — determines the current A by comparing `xp[0]` vs `xp[1]`.
+- **L756**: Compute invariant `d` from current xp and A (Newton loop).
+- **L759**: Compute y for x via `getY` (Newton loop). **Assumes A does not change** — a single-A swap.
+- **L762**: With the computed y, check what the post-state A would be (`_xpCalc`).
+- **L765–766**: A is unchanged → the single-A assumption was valid → return y.
+- **L767–768 (BUG)**: A changed → single-A assumption invalid. But the code **recomputes the entire swap with the new A (aNew) and the old d**. This:
+  - `d` is the curve invariant value of the old region. In the new-region curve (A=aNew) this invariant is meaningless.
+  - Applies only the new A to the entire swap → price distortion in the segment before the boundary.
+  - As the audit notes, arbitrage is possible: profit in the cycle of buying with one A and selling with the other A.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Fundamental meaning of the bug
 
-Pool의 가격 곡선은 target price에서 **꺾인 piecewise curve**. Curve1과 curve2가 그 지점에서 연속적으로 이어지나 기울기가 다름. Correct swap은 **각 구간에서 해당 A로 이동량을 계산하고 합산**해야 함.
+The pool's price curve is a **bent piecewise curve at the target price**. Curve1 and curve2 connect continuously at that point but have different slopes. A correct swap must **compute the movement amount in each segment with the corresponding A and sum**.
 
-Buggy는 "A가 바뀌면 전체를 aNew로 재계산" — 마치 curve가 전체 구간에서 A=aNew인 것처럼 가정. 경계를 가로지르는 trade에서:
-- Trade 초기(구 영역)의 가격 impact이 aNew curve로 계산되어 실제 curve1보다 **과대/과소 평가**.
-- 누적 결과 `y`가 실제 curve-following 결과와 다름.
-- Arbitrage 경로: 경계 바로 앞까지 curve1로 사고, 경계 직후에 curve2로 팔면 차익. Pool이 체계적으로 손실.
+The buggy version "recomputes everything with aNew when A changes" — as if assuming the curve has A=aNew over the entire range. For a trade crossing the boundary:
+- The price impact of the early trade (old region) is computed by the aNew curve and is **over/underestimated** compared to the actual curve1.
+- The cumulative result `y` differs from the actual curve-following result.
+- Arbitrage path: buy with curve1 just before the boundary and sell with curve2 just after to make profit. The pool systematically loses.
 
-Protocol-level: LP 자금 서서히 유실, MEV bot이 자동 수확 대상.
+Protocol-level: LP funds gradually drain, becoming an automatic harvest target for MEV bots.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고 그대로 split. Pseudocode:
+Split as recommended by audit. Pseudocode:
 ```solidity
 if (aNew != a) {
-    uint256 dx1 = computeBoundaryX(self, tokenIndexFrom, xp, a, d);  // 경계 도달 amount
+    uint256 dx1 = computeBoundaryX(self, tokenIndexFrom, xp, a, d);  // amount to reach boundary
     uint256 y1 = getY(self, tokenIndexFrom, tokenIndexTo, dx1, xp, a, d);
-    // 중간 state로 xp' 구성
+    // construct xp' as intermediate state
     uint256[] memory xpMid = ...;
     uint256 d2 = getD(xpMid, aNew);
     return getY(self, tokenIndexFrom, tokenIndexTo, x, xpMid, aNew, d2);  // remaining
 }
 ```
-핵심 미발현 요소: `computeBoundaryX` (경계점 찾기 — 비선형 방정식), `xpMid` (중간 state), `d2` (새 invariant).
+Key unmaterialized elements: `computeBoundaryX` (finding the boundary point — a nonlinear equation), `xpMid` (intermediate state), `d2` (new invariant).
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (development-time perspective)
 
-**함수 scope 변수**: parameters(`tokenIndexFrom`, `tokenIndexTo`, `x`, `xp[]`), locals(`numTokens`, `a`, `d`, `y`, `aNew`), contract state(`initialA`, `futureA`, `initialA2`, `futureA2`, …).
+**Function-scope variables**: parameters (`tokenIndexFrom`, `tokenIndexTo`, `x`, `xp[]`), locals (`numTokens`, `a`, `d`, `y`, `aNew`), contract state (`initialA`, `futureA`, `initialA2`, `futureA2`, …).
 
-**(a) state variable 변화?** `getYC`는 internal view, storage write 없음. `changed`/entry-exit 채널 없음. (Caller `swap`에는 있으나 buggy/correct 모두 `balances` 감소 동일 방향 — I3 β style로도 구분 불가.)
+**(a) State variable change?** `getYC` is internal view, no storage write. No `changed`/entry-exit channel. (The caller `swap` has them, but both buggy and correct decrease `balances` in the same direction — also indistinguishable as I3 β style.)
 
-**(b) `@Post return == expr` 경로**:
+**(b) `@Post return == expr` path**:
 
 Correct return value:
 ```
-return == getY(...rest..., aNew, getD(xpMid, aNew))   // 두 번째 partial swap 결과
+return == getY(...rest..., aNew, getD(xpMid, aNew))   // result of the second partial swap
 ```
-- `getY(...)`, `getD(...)` 모두 **internal function call** → intentValue 허용 안 함 (G1).
-- `xpMid`, `d2`, `y1`, `dx1` — scope 부재 (G3).
-- `dx1`은 방정식 `xp[0] + dx1 == xp[1] - getY(...)`의 해 → 자체가 비선형 방정식의 해, rational-polynomial 밖.
+- Both `getY(...)` and `getD(...)` are **internal function calls** → not allowed in intentValue (G1).
+- `xpMid`, `d2`, `y1`, `dx1` — absent from scope (G3).
+- `dx1` is the solution of the equation `xp[0] + dx1 == xp[1] - getY(...)` → itself the solution of a nonlinear equation, outside rational-polynomial.
 
-**(c) 다른 형태의 annotation**:
+**(c) Other annotation forms**:
 
-| 시도 | Grammar | Buggy 판정 | Correct 판정 | 평가 |
+| Attempt | Grammar | Buggy verdict | Correct verdict | Evaluation |
 |---|---|---|---|---|
-| `@Post return == y` (L759 결과) | OK | VIOLATED (다른 값 반환) | VIOLATED (split 결과 ≠ y) | 둘 다 violated, 구분 불가 |
-| `@Post getY.arg[5] == a` (즉 둘째 호출의 `a` 인자가 원래 `a`여야 함) | OK (.arg[n]) | VIOLATED (`aNew` 전달) | — (correct는 split 방식이라 이 제약 자체 무의미) | 의미 있는 correctness 표현 아님 |
-| `@Post return >= xp[tokenIndexTo] - x` 같은 bound | OK | 둘 다 satisfied | 둘 다 satisfied | 구분 불가 |
+| `@Post return == y` (L759 result) | OK | VIOLATED (different value returned) | VIOLATED (split result ≠ y) | both violated, indistinguishable |
+| `@Post getY.arg[5] == a` (i.e., the `a` arg of the second call must be the original `a`) | OK (.arg[n]) | VIOLATED (`aNew` passed) | — (correct uses the split approach so this constraint itself is meaningless) | not a meaningful correctness expression |
+| Bound such as `@Post return >= xp[tokenIndexTo] - x` | OK | both satisfied | both satisfied | indistinguishable |
 
-**전지적 개발자가 intent를 직접 표현하려면 두 `getY` 호출과 한 `getD` 호출의 연쇄를 annotation에 담아야 함** — grammar 범위 밖.
+**For an omniscient developer to directly express the intent, the chain of two `getY` calls and one `getD` call must be embedded in the annotation** — outside the grammar's scope.
 
-**I4 auxiliary local 주입 경로**: `uint256 dx1 = ...; uint256 y1 = getY(...); uint256 d2 = getD(...); uint256 y2 = getY(...);`를 함수 상단에 삽입 후 `@Post return == y2`. 그러나:
-- 삽입 자체가 fix 구조(split)를 구현하는 것과 같음 — **버그 인지 전제**.
-- 경계점 `dx1` 계산이 비선형 방정식 해이므로, 주입 가능한 closed-form이 없음. Binary search 같은 iteration 루틴을 만들어야 함 — production 수정의 깊이가 큼.
+**I4 auxiliary local injection path**: insert `uint256 dx1 = ...; uint256 y1 = getY(...); uint256 d2 = getD(...); uint256 y2 = getY(...);` at the top of the function, then `@Post return == y2`. However:
+- The insertion itself is equivalent to implementing the fix structure (split) — **bug awareness as a precondition**.
+- Since the boundary-point `dx1` computation is the solution of a nonlinear equation, no closed form is injectable. An iteration routine such as binary search must be created — the depth of the production fix is large.
 
-#### 4. 분류 타당성
+#### 4. Classification validity
 
-- 현재: **L4a**. ✅ 유지.
-- I2 전지적 개발자 테스트: grammar로 correct intent(piecewise split) 직접 표현 불가 → L4a 확정.
-- I7 intent-level expressibility: 형식적으로도 proxy annotation이 buggy/correct 구분에 실패 → formal 수준에서도 표현 불가.
-- `annotation_plans.md` L862–893의 분석은 정확. 특히 "시도한 annotation 접근과 실패 사유" 표가 이 case의 철저성을 잘 보여줌.
+- Current: **L4a**. ✅ Retain.
+- I2 omniscient developer test: the correct intent (piecewise split) cannot be directly expressed by the grammar → L4a confirmed.
+- I7 intent-level expressibility: even at the formal level, proxy annotations fail to distinguish buggy/correct → expression impossible at the formal level too.
+- The analysis at `annotation_plans.md` L862–893 is accurate. In particular, the table "annotation approaches attempted and reasons for failure" well demonstrates the thoroughness of this case.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Type B — scope에 proxy 부재)**:
+**Essence (Type B — proxy absent in scope)**:
 
-`getYC` scope에 존재하는 local은 `a`, `d`, `y`, `aNew`. 이들은 모두 **single-A 가정 하에 계산된 값들** — 즉 "curve 1 전체에서 x만큼 swap했다고 가정한 결과". Correct 의도는 piecewise split 결과인 `y₂`인데, 이는:
-- **경계점 `M`** (`getD([M,M], a) == d`를 만족하는 값)
-- **중간 state `xpMid`** (`[M, M]`)
-- **새 invariant `d₂ = getD([M,M], aNew)`**
-- **partial 1 결과 `y₁`**, **partial 2 결과 `y₂`**
+Locals existing in `getYC` scope are `a`, `d`, `y`, `aNew`. These are all **values computed under the single-A assumption** — i.e., "the result of assuming x is swapped over curve 1 in its entirety". The correct intent is `y₂`, the piecewise split result, which involves:
+- **Boundary point `M`** (the value satisfying `getD([M,M], a) == d`)
+- **Intermediate state `xpMid`** (`[M, M]`)
+- **New invariant `d₂ = getD([M,M], aNew)`**
+- **Partial 1 result `y₁`**, **partial 2 result `y₂`**
 
-이 값들 중 어느 하나도 `getYC` scope 혹은 `Swap` struct state 어디에도 **존재하지 않음**. State variables(`initialA, futureA, balances, tokenPrecisionMultipliers, …`)도 현재 pool 상태일 뿐 "가상의 경계점"이나 "중간 state"를 담지 않음.
+None of these values **exist anywhere** in `getYC` scope or in `Swap` struct state. State variables (`initialA, futureA, balances, tokenPrecisionMultipliers, …`) only describe the current pool state and do not carry "hypothetical boundary points" or "intermediate state".
 
-기존 `d`, `y`는 scope에 있으나 correct 관계식과 무관. 즉 **proxy 자체가 없음** (Type B — 사용자 제안 framing).
+The existing `d`, `y` are in scope but unrelated to the correct relational expression. That is, **the proxy itself is absent** (Type B — user-suggested framing).
 
-G-표면:
-- **G3 (primary)** — 필요 intermediate(M, xpMid, d₂, y₁, y₂) 전부 scope·state 부재.
-- **비선형성** (보조) — `M`은 `getD([M,M], a) == d` 비선형 방정식의 해. 설령 grammar가 rational-polynomial 확장을 받아도 closed-form 구성 불가 (Case 3의 D와 같은 transcendental 장벽).
-- **Multi-step sequential dependency** (구조) — M → y₁ → xpMid → d₂ → y₂ 연쇄. 각 단계가 이전 단계 결과에 의존. Grammar가 "단일 relation"을 기술하는 언어이므로 연쇄 자체의 표현 구조 없음.
+G-surface:
+- **G3 (primary)** — necessary intermediates (M, xpMid, d₂, y₁, y₂) are all absent from scope/state.
+- **Nonlinearity** (auxiliary) — `M` is the solution of the nonlinear equation `getD([M,M], a) == d`. Even if the grammar received a rational-polynomial extension, no closed form is constructible (the same transcendental barrier as Case 3's D).
+- **Multi-step sequential dependency** (structure) — chain M → y₁ → xpMid → d₂ → y₂. Each step depends on the previous step's result. Since the grammar is a language describing "single relations", it has no expression structure for the chain itself.
 
-**Case 1·2·3과의 관계 (Type A/B 기준)**:
-- Case 2, 3, 5: Type B (proxy 없음) — scope에 correct 값과 연결될 변수 자체 부재.
-- Case 1: Type A 가능성 (struct field `source.decimals`가 snapshot proxy) — 별도 L4a/L5b 경계 재검토 필요 (향후).
-- 따라서 Case 5는 표면적 복잡성(multi-step, 비선형)에도 불구하고 **본질적 blocker는 Case 2·3과 동일한 "proxy 부재"**. 복잡성은 이 부재가 해소되기 어려운 정도를 설명할 뿐.
+**Relation to Cases 1, 2, 3 (Type A/B basis)**:
+- Cases 2, 3, 5: Type B (no proxy) — no variable in scope is connected to the correct value.
+- Case 1: Type A possibility (struct field `source.decimals` is a snapshot proxy) — separate L4a/L5b boundary re-examination needed (in the future).
+- Therefore, despite Case 5's surface complexity (multi-step, nonlinear), the **essential blocker is the same "absence of proxy" as Cases 2 and 3**. The complexity merely explains the degree to which this absence is hard to resolve.
 
-**[Category (I8)]**: **Algorithm error / Type B** — missing split decomposition. Correct 는 경계점(M), 중간 state, d₂, y₁, y₂ 모두 요구. 이 중 어느 하나도 scope·state에 없음. Multi-step sequential algorithm error — I8 matrix Type B 중 가장 복잡한 축.
+**[Category (I8)]**: **Algorithm error / Type B** — missing split decomposition. Correct requires all of the boundary point (M), intermediate state, d₂, y₁, y₂. None are in scope/state. Multi-step sequential algorithm error — the most complex axis among I8 matrix Type B.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggestions for paper text improvement
 
-- **L4a 본문 (line 1307)**: Case 5는 "multi-step algorithmic intent" 하위 패턴의 극단적 예. `paper_corrections.md` I3 axis γ 설명에 "경계점 + partial swap 연쇄" 예시로 인용.
-- **Discussion future work**: Annotation grammar에 "sequential computation"을 도입하는 제안의 한계 — Case 5처럼 step 수가 input-dependent인 경우 효과적이려면 grammar가 사실상 imperative 언어에 가까워져야 함. 단순성 tradeoff.
-- **Arbitrage 경로 설명**: 이 case는 audit report가 명시적으로 "one amplifier로 사서 other amplifier로 파는" 공격 경로를 제시 — L4a case 중 **economically exploitable severity**가 가장 명확한 예. Introduction motivation에서 "미탐지 버그가 경제적 손실로 직결"되는 실증으로 인용 가치.
+- **L4a body (line 1307)**: Case 5 is an extreme example of the "multi-step algorithmic intent" sub-pattern. Cite as the "boundary point + partial swap chain" example in the I3 axis γ explanation of `paper_corrections.md`.
+- **Discussion future work**: Limitations of the proposal to introduce "sequential computation" into the annotation grammar — cases like Case 5 where the number of steps is input-dependent require the grammar to effectively approach an imperative language to be effective. Simplicity tradeoff.
+- **Arbitrage path explanation**: This case is one where the audit report explicitly presents the attack path of "buying with one amplifier and selling with the other amplifier" — the **most clear example of economically exploitable severity** among L4a cases. Worth citing in the Introduction motivation as evidence that "undetected bugs lead directly to economic loss".
 
 ---
 
-### Case 6 — `web3bugs_51_H_06` (현재 분류: **L4a**)
+### Case 6 — `web3bugs_51_H_06` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/51.md` → `[H-06] Ideal balance is not calculated correctly when providing imbalanced liquidity`
+- **Source**: `reports/51.md` → `[H-06] Ideal balance is not calculated correctly when providing imbalanced liquidity`
 - **Severity**: High. **Warden**: jonah1005 (C4 2021-11-bootfinance).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (original excerpt)**:
   > In Saddle Finance, the optimal balance should be the same ratio as in the Pool. For example, if there's 10000 USD and 10000 DAI, the user should get the optimal LP if they provide liquidity with ratio = 1.
   >
   > However, if the `customSwap` pool is created with a target price = 2, **the user would get 2 times more LP if they deposit DAI**. The current implementation does not calculate ideal balance correctly. If the target price is set to be 10, the ideal balance deviates by 10. The fee deviates a lot.
-- **POC (audit 제공)**: `target_price = 4`인 DAI/LINK pool에서 imbalanced deposit 시 LP 토큰이 **약 4배 과다 발행**. 즉 동일 deposit에 4배 수익 — 펌프 공격 경로.
-- **권고 fix (audit)**: `self.balances` 사용 로직 재검토; `d0`·`d1`을 일관된 A로 계산.
+- **POC (audit-provided)**: In a DAI/LINK pool with `target_price = 4`, an imbalanced deposit causes LP tokens to be **issued about 4× in excess**. That is, 4× profit on the same deposit — a pump attack path.
+- **Recommended fix (audit)**: re-examine `self.balances` usage logic; compute `d0`/`d1` with consistent A.
 - **Sponsor**: confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the Code
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & position in system
 
-동일 `SwapUtils` (Case 5와 같은 contract). Dual-A custom StableSwap. `addLiquidity`는 LP provider가 token deposit 시 호출하는 공개 경로. 부정확한 fee 계산은 **LP 토큰 발행량 왜곡 → LP 가치 이전 공격**으로 직결.
+Same `SwapUtils` (the same contract as Case 5). Dual-A custom StableSwap. `addLiquidity` is the public path called when the LP provider deposits tokens. Inaccurate fee computation directly leads to **distortion of LP token issuance → LP value transfer attacks**.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `addLiquidity(self, amounts[], minToMint) → toMint` (L1163–1270, external):
-- LP가 pool에 token 입금 → LP 토큰 발행.
-- Imbalanced deposit (pool 비율과 다르게 입금)은 **암묵적 swap**을 포함 → swap fee를 imbalance 비례로 부과 후 순 입금분에 해당하는 LP 토큰 발행.
-- Fee의 정확성이 **모든 LP 간 가치 공정성**의 기반.
+- LP deposits tokens into the pool → LP tokens are issued.
+- An imbalanced deposit (depositing in a ratio different from the pool's) includes an **implicit swap** → swap fees are charged in proportion to imbalance, then LP tokens corresponding to the net deposit are issued.
+- The accuracy of the fee is the foundation of **value fairness across all LPs**.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formulas)
 
-표준 StableSwap addLiquidity 수식:
-1. `d0 = getD(oldBalances, A)` — 입금 전 invariant.
+Standard StableSwap addLiquidity formulas:
+1. `d0 = getD(oldBalances, A)` — pre-deposit invariant.
 2. `newBalances[i] = oldBalances[i] + amounts[i]`.
-3. `d1 = getD(newBalances, A)` — 입금 후 invariant.
+3. `d1 = getD(newBalances, A)` — post-deposit invariant.
 4. For each i:
-   - `idealBalance[i] = d1 × oldBalances[i] / d0` — "공정하게 균형 유지됐을 때 newBalance여야 할 값".
-   - `fee[i] = feePerToken × |idealBalance[i] − newBalances[i]|` — imbalance에 비례한 fee.
-5. Fee 반영한 `d2 = getD(feeAdjustedBalances, A)`.
+   - `idealBalance[i] = d1 × oldBalances[i] / d0` — "what newBalance should be if balance was fairly maintained".
+   - `fee[i] = feePerToken × |idealBalance[i] − newBalances[i]|` — fee proportional to imbalance.
+5. `d2 = getD(feeAdjustedBalances, A)` reflecting the fee.
 6. `toMint = (d2 − d0) × totalSupply / d0`.
 
-**핵심 가정**: `d0`, `d1`, `d2` 모두 **같은 curve (같은 A)** 에서 계산되어야 ratio가 의미 있음. 다른 curve의 D는 scale·단위가 다름.
+**Key assumption**: `d0`, `d1`, `d2` must all be computed on **the same curve (same A)** for the ratio to be meaningful. The D of a different curve has different scale/units.
 
-##### (2d) Line-by-line 분석 (addLiquidity 일부, L1178–1241)
+##### (2d) Line-by-line analysis (part of addLiquidity, L1178–1241)
 
 ```solidity
 1178  if (self.lpToken.totalSupply() != 0) {
-1179      v.d0 = getD(self);                                    // (1) 현재 balances 기반, 내부 determineA가 A 선택
+1179      v.d0 = getD(self);                                    // (1) based on current balances; internal determineA picks A
 1180  }
 1188  uint256[] memory newBalances = self.balances;
 1190  for (...) { newBalances[i] = self.balances[i].add(amounts[i]); }    // (2) new balances
-1216  v.preciseA = determineA(self, _xp(self, newBalances));    // (3) new balances 기반 A (A 전환 가능)
-1222  v.d1 = getD(_xp(self, newBalances), v.preciseA);          // (4) NEW A로 d1 계산
+1216  v.preciseA = determineA(self, _xp(self, newBalances));    // (3) A based on new balances (A switching possible)
+1222  v.d1 = getD(_xp(self, newBalances), v.preciseA);          // (4) compute d1 with NEW A
 1223  require(v.d1 > v.d0, "D should increase");
 1227  if (self.lpToken.totalSupply() != 0) {
 1230      for (uint256 i = 0; i < self.pooledTokens.length; i++) {
@@ -1096,119 +1097,119 @@ G-표면:
 1241  }
 ```
 
-- **L1178–1179**: 초기 LP가 아닌 경우 d0 계산. `getD(self)` 내부는 `determineA(self, _xp(self))` → **old balances로 A 결정** (A_old라 부름). 그리고 `getD(xp_old, A_old)` 호출.
-- **L1188–1190**: newBalances 구성.
-- **L1216 (Important)**: `v.preciseA = determineA(self, _xp(self, newBalances))` — **new balances로 A 결정** (A_new라 부름). Deposit이 pool 비율을 역전시킬 정도면 `A_old ≠ A_new`.
-- **L1222**: `v.d1 = getD(xp_new, A_new)` — **A_new curve로 d1 계산**.
-- **L1231 (BUG)**: `idealBalance = d1 × balances[i] / d0`. 여기서 `d0`은 A_old curve, `d1`은 A_new curve. 두 curve의 D는 단위·scale 다름 → **비율이 의미 없음**. 결과 `idealBalance` 왜곡.
-- **L1232–1234**: 왜곡된 `idealBalance` 기반 fee 계산 → fee 왜곡.
-- **L1235–1238**: 왜곡된 fee로 `self.balances[i]` 갱신 → state 왜곡.
-- **L1240**: `d2`는 또 새로운 `determineA` 호출 — 혼재 가능.
-- 결국 `toMint = (d2 - d0) × totalSupply / d0` (L1251)도 세 개 다른 A의 D 혼용 → LP 발행량 왜곡.
+- **L1178–1179**: For non-initial LP cases, compute d0. Inside `getD(self)` is `determineA(self, _xp(self))` → **determines A from old balances** (call it A_old). Then calls `getD(xp_old, A_old)`.
+- **L1188–1190**: Construct newBalances.
+- **L1216 (Important)**: `v.preciseA = determineA(self, _xp(self, newBalances))` — **determines A from new balances** (call it A_new). If the deposit is large enough to invert the pool ratio, `A_old ≠ A_new`.
+- **L1222**: `v.d1 = getD(xp_new, A_new)` — **computes d1 on the A_new curve**.
+- **L1231 (BUG)**: `idealBalance = d1 × balances[i] / d0`. Here `d0` is on the A_old curve and `d1` is on the A_new curve. The two curves' D values have different units/scales → **the ratio is meaningless**. The result `idealBalance` is distorted.
+- **L1232–1234**: Fee computation based on the distorted `idealBalance` → fee distortion.
+- **L1235–1238**: Update `self.balances[i]` with the distorted fee → state distortion.
+- **L1240**: `d2` again calls `determineA` anew — possible mixing.
+- Eventually `toMint = (d2 - d0) × totalSupply / d0` (L1251) also mixes the D of three different A's → LP issuance distortion.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Fundamental meaning of the bug
 
-Dual-A 설계에서 invariant `D`의 **scale·값이 A에 따라 다름**. `idealBalance` 공식의 "balance_i × d1 / d0" 비율은 **같은 curve 위의 두 상태** 간 비례 스케일링을 의미 — 서로 다른 curve에서는 "kg/lb 비율을 계산하는" 것과 같이 물리적 의미 없음.
+In a dual-A design, the **scale/value of invariant `D` differs by A**. The "balance_i × d1 / d0" ratio in the `idealBalance` formula means proportional scaling **between two states on the same curve** — across different curves it has no physical meaning, like "computing the kg/lb ratio".
 
-Audit이 보여준 POC: target_price=4에서 imbalanced deposit은 A 전환을 유발 → 공식 계산 왜곡 → LP 토큰 **4배 과다 발행**. 공격자는:
-1. Target price 근처로 pool을 push.
-2. A 전환 유발하는 imbalanced deposit.
-3. 과다 발행된 LP 토큰을 획득.
-4. Pool 정상화 후 withdraw — LP 가치 전이 획득.
+The audit's POC: at `target_price=4`, an imbalanced deposit triggers A switching → distorts the formula → LP tokens are **issued 4× in excess**. The attacker:
+1. Pushes the pool near the target price.
+2. Performs an imbalanced deposit that triggers A switching.
+3. Acquires the over-issued LP tokens.
+4. After the pool normalizes, withdraws — captures LP value transfer.
 
-**Protocol-level**: 기존 LP holders의 지분 희석 (value drain). Target price가 높을수록(공격자 악성 pool 배포 시) 피해 비례 증대.
+**Protocol-level**: dilution of existing LP holders' shares (value drain). The higher the target price (when the attacker deploys a malicious pool), the proportionally greater the damage.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고를 따라: `d0`·`d1`을 **consistent A**로 계산. 예:
+Per audit recommendation: compute `d0`/`d1` with **consistent A**. Example:
 ```solidity
-v.preciseA = determineA(self, _xp(self, newBalances));    // A_new 선택
-v.d0 = getD(_xp(self), v.preciseA);                        // A_new로 d0 재계산 (consistent)
+v.preciseA = determineA(self, _xp(self, newBalances));    // pick A_new
+v.d0 = getD(_xp(self), v.preciseA);                        // recompute d0 with A_new (consistent)
 v.d1 = getD(_xp(self, newBalances), v.preciseA);
 ```
-혹은 둘 다 A_old 사용. 핵심은 **동일 A로 통일**.
+Or use A_old for both. The key is **unification with the same A**.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (development-time perspective)
 
-**함수 scope 변수** (addLiquidity 시점):
+**Function-scope variables** (at addLiquidity time):
 - `amounts[]`, `fees[]`, `newBalances[]` (local arrays).
 - `v.d0`, `v.d1`, `v.d2`, `v.preciseA` (AddLiquidityInfo struct locals).
-- `feePerToken`, `idealBalance`, `toMint` (locals, 부분 scope).
+- `feePerToken`, `idealBalance`, `toMint` (locals, partial scope).
 - State via `self`: `balances[]`, `pooledTokens[]`, `lpToken`, `initialA`, `futureA`, `initialA2`, `futureA2`, ... .
 
-**(a) state variable 변화?** `self.balances[]` 변화 있음. 그러나 buggy·correct 모두 증가 방향 동일 → `changed`/entry-exit 구분 불가 (I3 γ 성격: 방향은 같고 magnitude만 다름 — L4c 직전이나 더 깊음).
+**(a) State variable change?** There is a change to `self.balances[]`. However, both buggy and correct increase in the same direction → cannot be distinguished by `changed`/entry-exit (I3 γ flavor: same direction, only magnitude differs — bordering on L4c but deeper).
 
-**(b) 기존 scope로 `@Post ... == correct_expr` 시도**:
+**(b) Attempt `@Post ... == correct_expr` with existing scope**:
 
-Correct `idealBalance`는:
+The correct `idealBalance` is:
 ```
 idealBalance_correct = d1_consistent × balances[i] / d0_consistent
 ```
-where `d0_consistent = getD(oldBalances, A_consistent)`. 
+where `d0_consistent = getD(oldBalances, A_consistent)`.
 
-여기서:
-- `v.d0` (L1179)은 `A_old`로 계산됨 → inconsistent.
-- `v.d1` (L1222)은 `v.preciseA` (`A_new`)로 계산됨.
-- **A_new로 재계산한 d0** (=correct d0) 은 scope에 없음.
-- **A_old로 재계산한 d1** (대안 fix) 도 scope에 없음.
+Here:
+- `v.d0` (L1179) is computed with `A_old` → inconsistent.
+- `v.d1` (L1222) is computed with `v.preciseA` (`A_new`).
+- **d0 recomputed with A_new** (= correct d0) is not in scope.
+- **d1 recomputed with A_old** (alternative fix) is also not in scope.
 
-결국 correct idealBalance 표현에 `getD(...)` 호출 결과가 새 인자로 필요 → Case 5와 동일 구조. 추가로 이 호출 결과를 담는 변수가 scope 부재.
+Ultimately, expressing the correct idealBalance requires the result of a `getD(...)` call as a new argument → same structure as Case 5. Additionally, no variable carries the result of this call (absent in scope).
 
-**(c) `.arg[n]` 채널 시도**: L1222의 `getD` 호출에 `@During getD.arg[1] == some_A` 형태? `v.preciseA`가 인자로 쓰이는데, "correct A"가 무엇인지 표현하려 해도 그 자체가 이미 `v.preciseA` (new A). Correct fix는 `v.d0` 재계산을 요구하는 것이지 `v.d1`의 인자 교정이 아님. 따라서 `.arg[n]`로 해결 안 됨.
+**(c) `.arg[n]` channel attempt**: form `@During getD.arg[1] == some_A` at the L1222 `getD` call? `v.preciseA` is the argument used; even when trying to express what the "correct A" is, that itself is `v.preciseA` (new A). The correct fix requires recomputing `v.d0`, not correcting the argument of `v.d1`. So `.arg[n]` does not solve it.
 
-**(d) 상태변수 간접 제약**:
-- `@Post v.d0 computed_with_A == v.preciseA` 같은 meta-제약은 grammar에 없음.
-- `@Post self.balances[i] (entry relOp exit)` 방향만 체크 — 앞서 본 대로 구분 불가.
+**(d) Indirect state-variable constraint**:
+- A meta-constraint like `@Post v.d0 computed_with_A == v.preciseA` is not in the grammar.
+- `@Post self.balances[i] (entry relOp exit)` checks only direction — as seen above, indistinguishable.
 
-모든 경로 grammar 내 표현 실패. **Type B 확정**.
+All paths fail to express within the grammar. **Type B confirmed**.
 
-#### 4. 분류 타당성
+#### 4. Classification validity
 
-- 현재: **L4a**. ✅ 유지.
-- I2 전지적 개발자 테스트: correct idealBalance 식이 `getD(...)` 재호출 결과에 의존. grammar 불허.
-- I7 intent-level: formal proxy annotation도 buggy/correct 구분 실패 — `.arg[n]`로도 우회 못 함.
-- `annotation_plans.md` L904–962 기존 설명은 정확. "annotation 내 함수 호출 불가 + Newton loop 반복 함수" 설명이 핵심 포착.
+- Current: **L4a**. ✅ Retain.
+- I2 omniscient developer test: the correct idealBalance formula depends on the result of recalling `getD(...)`. Grammar disallows.
+- I7 intent-level: even formal proxy annotations fail to distinguish buggy/correct — cannot be circumvented even with `.arg[n]`.
+- The existing explanation at `annotation_plans.md` L904–962 is accurate. The "no function calls in annotations + Newton-loop iteration function" explanation captures the core.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Type B — scope에 consistent-A D 부재)**:
+**Essence (Type B — consistent-A D absent in scope)**:
 
-`addLiquidity` scope에는 D 관련 값들이 있으나 모두 **혼재된 A 기준**:
+In `addLiquidity` scope, D-related values exist but all are based on **mixed A**:
 - `v.d0` — old balances + A_old (buggy)
 - `v.d1` — new balances + A_new
-- `v.d2` — fee-adjusted balances + 또 다른 A (determineA 재호출)
+- `v.d2` — fee-adjusted balances + yet another A (re-call of determineA)
 
-Correct idealBalance가 요구하는 **consistent-A 기준 d0** (즉 `getD(oldBalances, A_new)` 혹은 그 대칭)는 scope 어디에도 없음. State variables (initialA, futureA, …)은 raw A 파라미터일 뿐 D 값을 담지 않음.
+The **consistent-A-based d0** that correct idealBalance requires (i.e., `getD(oldBalances, A_new)` or its symmetric counterpart) is absent anywhere in scope. State variables (initialA, futureA, …) are only raw A parameters and do not carry D values.
 
-Case 5와 쌍둥이 구조:
-- Case 5 (`getYC`): split 결과 `y₂`가 scope에 없음.
-- Case 6 (`addLiquidity`): consistent-A `d0_correct`가 scope에 없음.
-- 둘 다 **같은 dual-A library**의 다른 함수에서 같은 원인(A 일관성 유지 실패)으로 발생한 쌍둥이 버그.
+Twin structure with Case 5:
+- Case 5 (`getYC`): the split result `y₂` is absent from scope.
+- Case 6 (`addLiquidity`): the consistent-A `d0_correct` is absent from scope.
+- Both are twin bugs in different functions of the **same dual-A library**, arising from the same cause (failure to maintain A consistency).
 
-G-표면:
-- **G3 (primary)** — consistent-A D 값이 scope·state 부재.
-- **G1 (secondary)** — 설령 D 값 proxy가 있어도 `getD(...)`를 intentValue에서 호출할 수 없어 대안 경로 봉쇄.
-- **Multi-A dependency** — dual-A 시스템 특유의 "같은 A로 D를 두 번 계산" 요구는 grammar로 기술하기 어려운 constraint (meta-level: "계산 동질성" 같은 개념이 grammar에 없음).
+G-surface:
+- **G3 (primary)** — consistent-A D values are absent from scope/state.
+- **G1 (secondary)** — even if a D value proxy existed, `getD(...)` cannot be called from intentValue, blocking the alternative path.
+- **Multi-A dependency** — the requirement of "computing D twice with the same A", peculiar to dual-A systems, is a constraint hard to describe in the grammar (meta-level: concepts like "computational homogeneity" do not exist in the grammar).
 
-**Case 5와의 미세한 차이**:
-- Case 5: 결과 값 자체 (`y₂`)가 multi-step 연쇄의 최종 산물.
-- Case 6: 연쇄는 단일 단계이나 **동일 call의 인자 일관성**이 문제. "A_consistent로 d0을 다시 호출" — 단 한 번의 추가 호출이면 fix 되나, 그 호출의 결과가 scope에 없음.
-- 따라서 Case 6이 **algorithm error 중 상대적으로 경미**. Grammar가 "기존 호출을 새 인자로 재호출한 결과" reference를 허용하면 해소 가능 — Case 5보다 grammar 확장 효과 크게 받을 case.
+**Subtle difference from Case 5**:
+- Case 5: the result value itself (`y₂`) is the final product of a multi-step chain.
+- Case 6: the chain is a single step, but the **argument consistency of the same call** is the issue. "Re-call d0 with A_consistent" — fixed with just one additional call, but the result of that call is not in scope.
+- Therefore Case 6 is **relatively mild among algorithm errors**. If the grammar allowed referencing "the result of recalling an existing call with new arguments", it could be resolved — a case that benefits more from grammar extension than Case 5.
 
-**Silent sanction 관찰**:
-- 개발자가 L1231 공식을 그대로 annotation으로 옮기면: `@Post idealBalance == v.d1 * self.balances[i] / v.d0` — buggy tautologically satisfied, correct는 다른 d0 쓰므로 violated. 전형적 **fail-by-confirmation** (I5 Mode-2). Case 3과 같은 패턴 재등장.
+**Silent sanction observation**:
+- If the developer transcribes the L1231 formula as-is into an annotation: `@Post idealBalance == v.d1 * self.balances[i] / v.d0` — buggy is tautologically satisfied, correct is violated since it uses a different d0. Typical **fail-by-confirmation** (I5 Mode-2). Same pattern as Case 3 reappearing.
 
-**[Category (I8)]**: **Algorithm error / Type B** — consistent-A 기준 `d0` 재계산 필요. Single-step algorithm error (Case 5처럼 multi-step은 아님). Grammar에 "호출의 인자 일관성" 제약 도입하거나 re-invocation 결과 reference 허용 시 해소 여지.
+**[Category (I8)]**: **Algorithm error / Type B** — `d0` recomputation under consistent-A required. Single-step algorithm error (not multi-step like Case 5). Resolvable if the grammar introduces "argument consistency of calls" constraints or allows re-invocation result references.
 
 ---
 
-### Case 7 — `web3bugs_59_H_05` (현재 분류 불일치: limitation_types.md = **L4a**, annotation_plans.md = L5b → 객관 판정: **L4a**)
+### Case 7 — `web3bugs_59_H_05` (current classification mismatch: limitation_types.md = **L4a**, annotation_plans.md = L5b → objective verdict: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/59.md` → `[H-05] AuctionEschapeHatch.sol#exitEarly updates state of the auction wrongly`
+- **Source**: `reports/59.md` → `[H-05] AuctionEschapeHatch.sol#exitEarly updates state of the auction wrongly`
 - **Severity**: High. **Warden**: 0x0x0x (C4 2021-11-malt).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (original excerpt)**:
   > When the user exits an auction with profit, to apply the profit penalty **less maltQuantity is liquidated** compared to how much malt token the liquidated amount corresponds to. The problem is `auction.amendAccountParticipation()` simply subtracts the malt quantity **with penalty** and full `amount` from users auction stats. This causes a major problem:
   >
   > `uint256 maltQuantity = userMaltPurchased.mul(amount).div(userCommitment);`
@@ -1216,181 +1217,181 @@ G-표면:
   > The ratio of `userMaltPurchased / userCommitment` gets higher after each profit taking (since penalty is applied to subtracted maltQuantity from userMaltPurchased), by doing so **a user can earn more than it should**.
 - **Judge**: "warden has identified an exploit that allows early withdrawers to gain more rewards than expected... flow in the accounting logic". High severity confirmed.
 - **Sponsor**: 0xScotch confirmed.
-- **권고 fix**: 미구체. "Make sure which values are used for what and update values which doesn't create problems like this."
+- **Recommended fix**: not concrete. "Make sure which values are used for what and update values which doesn't create problems like this."
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the Code
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & position in system
 
-`AuctionEscapeHatch` — Malt (algorithmic stablecoin)의 auction-based stabilization 메커니즘에서, **이미 참여한 auction position을 조기 청산**할 수 있게 하는 escape hatch. 청산 시 **profit penalty**를 적용하여 완전 이익 실현을 억제 (sticky 참여 유도).
+`AuctionEscapeHatch` — an escape hatch in Malt's (algorithmic stablecoin) auction-based stabilization mechanism that enables **early liquidation of auction positions already participated in**. On liquidation, a **profit penalty** is applied to suppress full profit realization (encouraging sticky participation).
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `exitEarly(auctionId, amount, minOut)` (L65–92, external):
-- User가 `amount` 만큼의 auction commitment를 조기 청산.
-- Internal: penalty-adjusted maltQuantity 계산 → mint → DEX에서 collateral로 매각 → user에게 전송.
-- **핵심 의존**: auction contract의 `amendAccountParticipation` 호출로 **auction의 user 참여 state를 차감** (subtract amount from userCommitment, maltQuantity from userMaltPurchased 추정).
-- 반복 호출 가능 — state가 정확히 proportional하게 줄어야 누적 arbitrage 없음.
+- User liquidates `amount` of auction commitment early.
+- Internal: compute penalty-adjusted maltQuantity → mint → sell as collateral on DEX → transfer to user.
+- **Key dependency**: calls the auction contract's `amendAccountParticipation` to **subtract the user's participation state in the auction** (presumably subtracts amount from userCommitment and maltQuantity from userMaltPurchased).
+- Repeatedly callable — state must shrink exactly proportionally to avoid cumulative arbitrage.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formulas)
 
-의도된 invariant:
+Intended invariant:
 - Pre-exit: `userMaltPurchased / userCommitment = ratio_initial`.
-- Exit `amount`: proportional하게 malt/commitment 모두 차감 → **비율 불변**.
+- Exit `amount`: subtract malt/commitment proportionally → **ratio invariant**.
 - Pro-rata pre-penalty `maltQuantity`: `userMaltPurchased × amount / userCommitment`.
-- Liquidated (post-penalty): `desiredReturn × pegPrice / currentPrice` — 이익 실현 일부만.
-- **State 차감에는 pre-penalty 값 써야**. Liquidation(mint)에는 post-penalty 값 써야.
+- Liquidated (post-penalty): `desiredReturn × pegPrice / currentPrice` — only partial profit realization.
+- **State subtraction must use the pre-penalty value**. Liquidation (mint) must use the post-penalty value.
 
-##### (2d) Line-by-line 분석 (exitEarly L65–92)
+##### (2d) Line-by-line analysis (exitEarly L65–92)
 
 ```solidity
 66   uint256 maltQuantity = _calculateMaltRequiredForExit(_auctionId, amount);
-     // → post-penalty 값 반환 (내부 L209에서 overwrite)
-69   malt.mint(address(dexHandler), maltQuantity);     // (A) mint용 — post-penalty 맞음
+     // → returns post-penalty value (overwritten internally at L209)
+69   malt.mint(address(dexHandler), maltQuantity);     // (A) for mint — post-penalty correct
 70   uint256 amountOut = dexHandler.sellMalt();
 72   require(amountOut > minOut, "EarlyExit: Insufficient output");
 74   AuctionExits storage auctionExits = auctionEarlyExits[_auctionId];
 76   auctionExits.exitedEarly = auctionExits.exitedEarly + amount;
 77   auctionExits.earlyExitReturn = auctionExits.earlyExitReturn + amountOut;
-78   auctionExits.maltUsed = auctionExits.maltUsed + maltQuantity;   // 자체 accounting
+78   auctionExits.maltUsed = auctionExits.maltUsed + maltQuantity;   // own accounting
 ...
-83   auction.amendAccountParticipation(                // (B) state 차감용 — BUG
+83   auction.amendAccountParticipation(                // (B) for state subtraction — BUG
 84     msg.sender,
 85     _auctionId,
-86     amount,            // commitment 차감량
-87     maltQuantity       // BUG: post-penalty 값이 들어감. pre-penalty여야 함.
+86     amount,            // commitment subtraction amount
+87     maltQuantity       // BUG: post-penalty value passed. Should be pre-penalty.
 88   );
 90   collateralToken.safeTransfer(msg.sender, amountOut);
 91   emit EarlyExit(msg.sender, amount, amountOut);
 ```
 
-- **L66**: `_calculateMaltRequiredForExit` 호출. 내부에서 pre-penalty (L195) 계산 후 profit 있으면 post-penalty로 overwrite (L209). 최종 반환은 post-penalty.
-- **L69 (OK)**: liquidation — post-penalty 양만큼 malt를 mint. 정확한 사용.
-- **L83–88 (BUG)**: 같은 `maltQuantity` (post-penalty)가 auction state 차감에도 전달됨. 그 결과 amendAccountParticipation 내부에서 `userMaltPurchased -= post-penalty_maltQuantity` (펜티만큼 덜 차감) + `userCommitment -= amount` (그대로).
-- **결과**: user 남은 비율 `userMaltPurchased/userCommitment` 증가. 다음 exitEarly에서 더 많은 malt/commitment 비율로 계산 → 과다 지급. 반복 가능 → 공격 경로.
+- **L66**: Calls `_calculateMaltRequiredForExit`. Internally computes pre-penalty (L195), then if profitable overwrites to post-penalty (L209). Final return is post-penalty.
+- **L69 (OK)**: liquidation — mints malt at the post-penalty amount. Correct usage.
+- **L83–88 (BUG)**: the same `maltQuantity` (post-penalty) is passed for auction state subtraction. As a result, inside amendAccountParticipation, `userMaltPurchased -= post-penalty_maltQuantity` (subtracted less by the penalty amount) + `userCommitment -= amount` (as-is).
+- **Result**: the user's remaining `userMaltPurchased/userCommitment` ratio increases. The next exitEarly is computed at a higher malt/commitment ratio → over-payment. Repeatable → attack path.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Fundamental meaning of the bug
 
-`_calculateMaltRequiredForExit`의 반환값이 **이중 용도**로 사용되지만 두 용도가 요구하는 값이 서로 다름:
-- **Mint (liquidation)**: penalty로 실제 mint량을 줄여야 함 → post-penalty.
-- **State accounting**: user의 남은 참여 비율을 보존해야 함 → pre-penalty.
+The return value of `_calculateMaltRequiredForExit` is used in **dual purposes**, but the two purposes require different values:
+- **Mint (liquidation)**: the actual mint amount must be reduced by the penalty → post-penalty.
+- **State accounting**: must preserve the user's remaining participation ratio → pre-penalty.
 
-이 분리를 코드가 하지 않음 (단일 변수로 collapse). State는 pre-penalty로 차감되어야 비율 invariant가 유지되는데, post-penalty로 차감하여 매번 비율이 불어남.
+The code does not separate them (collapsed into a single variable). State must be subtracted with pre-penalty for the ratio invariant to hold; using post-penalty causes the ratio to inflate each time.
 
-Protocol-level: 반복 exitEarly 호출로 점점 많은 malt per commitment 추출 → 완전히 소진하기 전에 **과다 이익 실현** + 잔여 commitment로 `claimArbitrage` 추가 이익. 시스템 자금 유출.
+Protocol-level: Repeated exitEarly calls extract increasingly more malt per commitment → **excess profit realization** before the position is fully exhausted + additional profit on the residual commitment via `claimArbitrage`. System fund drain.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-가능한 두 가지:
-1. `_calculateMaltRequiredForExit`가 **두 값 모두 반환**:
+Two possibilities:
+1. Have `_calculateMaltRequiredForExit` **return both values**:
    ```solidity
    (uint256 postPenalty, uint256 prePenalty) = _calculateMaltRequiredForExit(...);
    malt.mint(address(dexHandler), postPenalty);
    ...
    auction.amendAccountParticipation(msg.sender, _auctionId, amount, prePenalty);
    ```
-2. `exitEarly`에서 pre-penalty 직접 계산 (중복이나 명확):
+2. Compute pre-penalty directly in `exitEarly` (redundant but explicit):
    ```solidity
-   // user state를 별도로 query해서 pre-penalty 계산
+   // separately query user state to compute pre-penalty
    (,, uint256 userMaltPurchased) = auction.getAuctionParticipationForAccount(msg.sender, _auctionId);
    (uint256 userCommitment,,) = auction.getAuctionParticipationForAccount(msg.sender, _auctionId);
    uint256 prePenalty = userMaltPurchased * amount / userCommitment;
    ```
 
-둘 다 **새 local 변수 도입 + 기존 반환값 구조 변경** 수반.
+Both entail **introducing new local variables + changing the existing return-value structure**.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (development-time perspective)
 
-**함수 scope 변수** (exitEarly):
+**Function-scope variables** (exitEarly):
 - Params: `_auctionId`, `amount`, `minOut`.
 - Locals: `maltQuantity` (post-penalty), `amountOut`, `auctionExits` pointer.
-- State: `auction`, `dexHandler`, `malt`, `maxEarlyExitBps`, `cooloffPeriod`, `auctionEarlyExits` (자체 tracking).
+- State: `auction`, `dexHandler`, `malt`, `maxEarlyExitBps`, `cooloffPeriod`, `auctionEarlyExits` (own tracking).
 
-**(a) state variable 변화?** `auctionExits.*` 업데이트 있음 — 그러나 이는 AuctionEscapeHatch 자체의 tracking이지 bug의 대상(auction state)이 아님. bug는 external auction의 state에서 발생 (cross-contract). `changed` 채널 buggy/correct 둘 다 동일.
+**(a) State variable change?** There is an update to `auctionExits.*` — but this is AuctionEscapeHatch's own tracking, not the bug's target (auction state). The bug occurs in the external auction's state (cross-contract). The `changed` channel is identical for both buggy and correct.
 
-**(b) `@During amendAccountParticipation.arg[3] == 기대값` 시도**:
-- Correct 기대값 = pre-penalty maltQuantity = `userMaltPurchased × amount / userCommitment`.
-- `userMaltPurchased`, `userCommitment`는 **auction contract의 external state** — exitEarly scope에 없음.
-- 이들을 얻으려면 `auction.getAuctionParticipationForAccount(...)` 호출 결과 필요. 이 호출은 `_calculateMaltRequiredForExit` 안에서만 일어남 — exitEarly 본문에는 없음.
-- intentValue에 함수 호출 불가 (G1). @IReturn도 호출 사이트가 `_calculateMaltRequiredForExit` 내부라 exitEarly annotation에 binding 어려움.
-- **표현 실패**.
+**(b) Attempt `@During amendAccountParticipation.arg[3] == expected`**:
+- Correct expected value = pre-penalty maltQuantity = `userMaltPurchased × amount / userCommitment`.
+- `userMaltPurchased`, `userCommitment` are **external state of the auction contract** — not in exitEarly scope.
+- To obtain them, the result of `auction.getAuctionParticipationForAccount(...)` is required. This call only happens inside `_calculateMaltRequiredForExit` — not in the exitEarly body.
+- Function calls are not allowed in intentValue (G1). Even with @IReturn, since the call site is inside `_calculateMaltRequiredForExit`, binding it to an exitEarly annotation is hard.
+- **Expression fails**.
 
 **(c) `@During amendAccountParticipation.arg[3] == maltQuantity` (naive)**:
-- Scope의 `maltQuantity` local 사용 → buggy에서 tautologically satisfied. Correct에서는 다른 값이라 violated.
-- **Silent sanction** (I5 Mode-2) — 개발자가 "그냥 maltQuantity 넘기면 됨"이라 쓰면 buggy 재확인.
+- Uses the in-scope `maltQuantity` local → tautologically satisfied in buggy. Violated in correct since the value is different.
+- **Silent sanction** (I5 Mode-2) — if the developer writes "just pass maltQuantity", the buggy is reconfirmed.
 
-**(d) Auxiliary injection 경로 (I4)**:
-- exitEarly 상단에 `(uint256 _userCommitment, , uint256 _userMaltPurchased) = auction.getAuctionParticipationForAccount(msg.sender, _auctionId);` 삽입.
-- 그러면 `@During ... arg[3] == _userMaltPurchased * amount / _userCommitment` 작성 가능.
-- 버그 인지 전제 — "pre-penalty / post-penalty 분리 필요" 판단이 fix 자체 수준.
+**(d) Auxiliary injection path (I4)**:
+- Insert `(uint256 _userCommitment, , uint256 _userMaltPurchased) = auction.getAuctionParticipationForAccount(msg.sender, _auctionId);` at the top of exitEarly.
+- Then `@During ... arg[3] == _userMaltPurchased * amount / _userCommitment` becomes writable.
+- Bug awareness as a precondition — judging "pre-penalty / post-penalty separation needed" is at the level of the fix itself.
 
-#### 4. 분류 타당성 — **L4a 확정**
+#### 4. Classification validity — **L4a confirmed**
 
-**문서 간 불일치 해결**: `limitation_types.md` (L4a) 가 맞고 `annotation_plans.md` (L5b) 가 틀림. 근거:
+**Resolving the cross-document inconsistency**: `limitation_types.md` (L4a) is correct and `annotation_plans.md` (L5b) is wrong. Reasoning:
 
-- I2 전지적 개발자 테스트: exitEarly scope 내 기존 변수만으로 grammar-expressible distinguishing annotation **존재하지 않음**.
-- `userMaltPurchased`·`userCommitment`는 외부 auction contract state이자 exitEarly 함수 내부에 전혀 binding 없음.
-- `annotation_plans.md`의 L5b 근거 ("wrong argument 전달 → bug awareness 필요")는 *arg가 틀렸음을 아는 것*에만 해당하고, *올바른 값을 grammar로 표현할 수 있는가*는 별개 — 표현 불가이므로 L4a.
+- I2 omniscient developer test: with only existing variables in exitEarly scope, **no grammar-expressible distinguishing annotation exists**.
+- `userMaltPurchased`/`userCommitment` are external auction-contract state, with no binding inside exitEarly whatsoever.
+- The L5b basis in `annotation_plans.md` ("wrong argument passed → bug awareness needed") corresponds only to *knowing the arg is wrong*, while *whether the correct value can be expressed in the grammar* is a separate matter — expression is impossible, hence L4a.
 
-**문서 업데이트 필요**: `annotation_plans.md` L2398–2402를 L4a 설명으로 수정. (확정 후 반영.)
+**Document update needed**: Modify `annotation_plans.md` L2398–2402 to an L4a explanation. (To be reflected after confirmation.)
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Type B — scope에 pre-penalty maltQuantity 부재)**:
+**Essence (Type B — pre-penalty maltQuantity absent in scope)**:
 
-exitEarly 함수는 `_calculateMaltRequiredForExit`의 반환 `maltQuantity` (post-penalty)와 `amount` (param), 자체 state만 가짐. 버그 수정에 필요한 pre-penalty maltQuantity, 그 구성 재료인 `userMaltPurchased`·`userCommitment`는 **다른 contract의 state**이며 exitEarly 본문에 어떤 형태로도 binding되지 않음. 기존 scope 변수의 산술 조합으로 correct 값 표현 불가.
+The exitEarly function has only the return `maltQuantity` (post-penalty) of `_calculateMaltRequiredForExit`, `amount` (param), and its own state. The pre-penalty maltQuantity needed for the bug fix, and its constituent materials `userMaltPurchased`/`userCommitment`, are **state of another contract** with no binding of any form into the exitEarly body. The correct value cannot be expressed by an arithmetic combination of existing scope variables.
 
-더불어 버그의 원인적 구조는 **반환값의 이중 용도 collapse** — `_calculateMaltRequiredForExit`이 하나의 `maltQuantity`를 돌려주되 이것이 mint 용도(post-penalty)와 state 차감 용도(pre-penalty) 양쪽에 쓰임. 이 두 용도가 penalty 유무에서 갈리는데, **함수는 penalty 적용 후 버전만 반환**. Pre-penalty가 중간 단계(L195)에서 존재했다가 L209 overwrite로 사라짐 — local scope의 transient 값.
+Furthermore, the causal structure of the bug is **dual-use collapse of the return value** — `_calculateMaltRequiredForExit` returns a single `maltQuantity`, which is used for both the mint purpose (post-penalty) and the state-subtraction purpose (pre-penalty). These two purposes split on whether the penalty is applied, but **the function returns only the penalty-applied version**. Pre-penalty exists at the intermediate stage (L195) and disappears with the L209 overwrite — a transient value in local scope.
 
-**Case 4 (39_H_02)와의 유사성**:
-- 둘 다 external state-modifying call에 **잘못된 인자 전달**.
-- 둘 다 correct 값이 external contract state(ERC20 balance / auction participation)에 의존.
-- 둘 다 "한 변수를 이중 용도로 쓴 결과"라는 조합적 오류 (Case 4: sender 순수익 collapse, Case 7: maltQuantity collapse).
-- **쌍둥이 패턴** — "dual-use value without decomposition".
+**Similarity to Case 4 (39_H_02)**:
+- Both pass **wrong arguments** to external state-modifying calls.
+- Both have correct values that depend on external contract state (ERC20 balance / auction participation).
+- Both are combinational errors that arise from "using a single variable for dual purposes" (Case 4: sender net-income collapse, Case 7: maltQuantity collapse).
+- **Twin pattern** — "dual-use value without decomposition".
 
-G-표면:
-- **G3 (primary)** — pre-penalty maltQuantity 값이 exitEarly scope 부재.
-- **G1** — 필요 값 얻으려면 `auction.getAuctionParticipationForAccount(...)` 호출이 exitEarly에 없음 + intent grammar에 함수 호출 불허.
-- **G8** — external contract state 의존.
+G-surface:
+- **G3 (primary)** — pre-penalty maltQuantity value absent from exitEarly scope.
+- **G1** — to obtain the necessary value, `auction.getAuctionParticipationForAccount(...)` is not in exitEarly + intent grammar disallows function calls.
+- **G8** — depends on external contract state.
 
 **Silent sanction (I5)**:
-- 개발자가 L83–88의 코드를 그대로 annotation으로 옮기면 (`@During ... arg[3] == maltQuantity`) buggy tautologically 통과.
-- Case 3·4·6과 동일 pattern: 자연스러운 local reference 기반 annotation이 buggy를 재확인.
+- If the developer transcribes the L83–88 code as-is into an annotation (`@During ... arg[3] == maltQuantity`), buggy passes tautologically.
+- Same pattern as Cases 3, 4, 6: a natural local-reference-based annotation reconfirms the buggy.
 
-**Aux injection 가능성 (I4)**:
-- 가능하나 pre-penalty 분리 판단 자체가 fix의 핵심 — 버그 인지 전제.
+**Aux injection possibility (I4)**:
+- Possible, but the judgment of pre-penalty separation itself is the core of the fix — bug awareness as a precondition.
 
-**[Category (I8)]**: **Algorithm error / Type B** — 단일 값의 dual-use collapse가 algorithmic 오류. Fix는 값 분리 (decomposition) 요구. Case 4와 쌍둥이 구조. L4a 정통, axis α (external view call 결과 필요 + scope 밖 변수 참조).
+**[Category (I8)]**: **Algorithm error / Type B** — dual-use collapse of a single value as algorithmic error. The fix requires value separation (decomposition). Twin structure with Case 4. L4a orthodox, axis α (need for external view-call results + reference to variables outside scope).
 
 ---
 
-### Case 8 — `web3bugs_61_H_01` (현재 분류: **L4a** → 재분류 제안: **L5b**)
+### Case 8 — `web3bugs_61_H_01` (current classification: **L4a** → reclassification proposal: **L5b**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/61.md` → `[H-01] In CreditLine#_borrowTokensToLiquidate, oracle is used wrong way`
+- **Source**: `reports/61.md` → `[H-01] In CreditLine#_borrowTokensToLiquidate, oracle is used wrong way`
 - **Severity**: High. **Warden**: 0x0x0x (C4 2021-12-sublime).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (original excerpt)**:
   > Current implementation:
   > `(uint256 _ratioOfPrices, uint256 _decimals) = IPriceOracle(priceOracle).getLatestPrice(_borrowAsset, _collateralAsset);`
   >
   > But it should not consult `borrowToken / collateralToken`, rather it should consult the **inverse**. As a consequence, in `liquidate` the liquidator/lender can lose/gain funds as a result of this miscalculation.
-- **권고 fix**: `getLatestPrice(_collateralAsset, _borrowAsset)` — 두 인자 위치 swap.
+- **Recommended fix**: `getLatestPrice(_collateralAsset, _borrowAsset)` — swap the two argument positions.
 - **Sponsor**: ritik99 confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the Code
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & position in system
 
-`CreditLine` — Sublime의 **P2P 대출 프로토콜** 핵심 컨트랙트. Lender가 대출 한도를 제공하고 borrower가 담보를 예치하여 차용. Liquidation 시 담보를 borrow token으로 환산해 청산 처리.
+`CreditLine` — Sublime's **P2P lending protocol** core contract. The lender provides a credit limit and the borrower deposits collateral to borrow. On liquidation, collateral is converted into borrow token for liquidation processing.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `_borrowTokensToLiquidate(_borrowAsset, _collateralAsset, _totalCollateralTokens) → uint256` (L1045–1056, internal view):
-- Caller: `liquidate` (L996, autoLiquidation 분기), public `borrowTokensToLiquidate` (view wrapper).
-- 역할: "이만큼의 collateral을 청산하려면 liquidator가 몇 개의 borrow token을 필요하는가" 계산. Reward fraction 차감 후 oracle 비율로 환산.
+- Caller: `liquidate` (L996, autoLiquidation branch), public `borrowTokensToLiquidate` (view wrapper).
+- Role: computes "how many borrow tokens the liquidator needs to liquidate this much collateral". After deducting the reward fraction, converts using the oracle ratio.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formulas)
 
 Intended:
 ```
@@ -1398,9 +1399,9 @@ _borrowTokens = _totalCollateralTokens
               × (1 - liquidatorRewardFraction)
               × (collateral/borrow price ratio)
 ```
-즉 "n개 collateral × (collateral 단가 / borrow 단가) = n개 collateral의 borrow-equivalent 수량". Oracle의 `getLatestPrice(A, B)` 규약 = `A_price / B_price` (대개).
+i.e., "n collateral × (collateral unit price / borrow unit price) = borrow-equivalent quantity for n collateral". Oracle's `getLatestPrice(A, B)` convention = `A_price / B_price` (in most cases).
 
-##### (2d) Line-by-line 분석 (L1045–1056)
+##### (2d) Line-by-line analysis (L1045–1056)
 
 ```solidity
 1045  function _borrowTokensToLiquidate(
@@ -1421,44 +1422,44 @@ _borrowTokens = _totalCollateralTokens
 1060  }
 ```
 
-- **L1050–1051 (BUG)**: `getLatestPrice(_borrowAsset, _collateralAsset)` — borrow/collateral 비율을 받음. Correct는 collateral/borrow 필요.
-- **L1052–1058**: `_borrowTokens = collateral_amount × (1 - reward) × _ratioOfPrices / 10^decimals`. 수식 구조는 OK, 단 `_ratioOfPrices`가 뒤집힘.
+- **L1050–1051 (BUG)**: `getLatestPrice(_borrowAsset, _collateralAsset)` — receives the borrow/collateral ratio. Correct call requires collateral/borrow.
+- **L1052–1058**: `_borrowTokens = collateral_amount × (1 - reward) × _ratioOfPrices / 10^decimals`. The formula structure is OK, but `_ratioOfPrices` is inverted.
 
-**결과**:
-- 가령 collateral 가격 $100, borrow 가격 $1 → correct ratio = 100, buggy ratio = 0.01.
-- collateral 10개의 correct borrow-eq = 10 × 100 = 1000.
+**Result**:
+- For example, if collateral price is $100 and borrow price is $1 → correct ratio = 100, buggy ratio = 0.01.
+- For 10 collateral, the correct borrow-eq = 10 × 100 = 1000.
 - Buggy = 10 × 0.01 = 0.1.
-- 10^4 배 차이. Liquidator는 거의 무료로 담보 탈취 가능 (borrow token만 0.1개로 1000개 가치 collateral 획득).
+- A 10^4 difference. The liquidator can seize collateral nearly for free (acquiring 1000 worth of collateral for just 0.1 borrow tokens).
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-Oracle 호출 convention 위반. 같은 contract의 다른 호출 사이트들과의 **pattern inconsistency**:
-- L442 (`calculateBorrowableAmount`): `getLatestPrice(_collateralAsset, _borrowAsset)` — **correct order** 사용.
+Violation of the oracle call convention. **Pattern inconsistency** with other call sites in the same contract:
+- L442 (`calculateBorrowableAmount`): `getLatestPrice(_collateralAsset, _borrowAsset)` — uses **correct order**.
 - L869 (`calculateCurrentCollateralRatio`): `getLatestPrice(_collateralAsset, _borrowAsset)` — **correct**.
 - L931 (`withdrawableCollateral`): `getLatestPrice(_collateralAsset, _borrowAsset)` — **correct**.
-- L1050 (`_borrowTokensToLiquidate`): **BUGGY 혼자 swap**.
+- L1050 (`_borrowTokensToLiquidate`): **BUGGY — only this one is swapped**.
 
-즉 **같은 컨트랙트 4개 호출 사이트 중 하나만 틀림**. 단순 오타/copy-paste 오류 수준. Protocol 설계 지식보다는 **call convention 일관성** 검사로 잡히는 버그.
+That is, **only one of four call sites in the same contract is wrong**. Simple typo / copy-paste error level. A bug caught by **call convention consistency** checking rather than protocol design knowledge.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-한 줄 수정: `_borrowAsset, _collateralAsset` → `_collateralAsset, _borrowAsset` swap.
+Single-line modification: swap `_borrowAsset, _collateralAsset` → `_collateralAsset, _borrowAsset`.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (developer-time perspective)
 
-**함수 scope 변수**: `_borrowAsset`, `_collateralAsset` (params), `_ratioOfPrices`, `_decimals`, `_borrowTokens` (locals), contract state (`priceOracle`, `liquidatorRewardFraction`).
+**Function scope variables**: `_borrowAsset`, `_collateralAsset` (params), `_ratioOfPrices`, `_decimals`, `_borrowTokens` (locals), contract state (`priceOracle`, `liquidatorRewardFraction`).
 
-**(a) state 변화?** `_borrowTokensToLiquidate`는 internal view — storage write 없음.
+**(a) State change?** `_borrowTokensToLiquidate` is internal view — no storage write.
 
-**(b) `@Post returnExpression == correct_formula` 시도**:
+**(b) Attempt at `@Post returnExpression == correct_formula`**:
 - Correct formula requires `_ratioOfPrices_correct = getLatestPrice(_collateralAsset, _borrowAsset).ratio`.
-- `_ratioOfPrices` local은 **buggy 값** — correct 값은 scope에 없음.
-- `@Post return == ... * correct_ratio / ...` 표현에 correct_ratio 표현 불가 (G1: 함수 호출 불허, Type B for ratio).
-- 이 경로만으로는 L4a처럼 보임.
+- The `_ratioOfPrices` local is the **buggy value** — the correct value is not in scope.
+- `@Post return == ... * correct_ratio / ...` cannot express correct_ratio (G1: function calls disallowed, Type B for ratio).
+- Through this path alone, it looks like L4a.
 
-**(c) `@During .arg[n]` 채널** (결정적 관찰):
+**(c) `@During .arg[n]` channel** (decisive observation):
 
-`getLatestPrice.arg[0] == _collateralAsset` 형태 annotation 시도:
+Attempt at annotation of the form `getLatestPrice.arg[0] == _collateralAsset`:
 
 ```solidity
 // @During IPriceOracle(priceOracle).getLatestPrice.arg[0] == _collateralAsset
@@ -1467,127 +1468,127 @@ Oracle 호출 convention 위반. 같은 contract의 다른 호출 사이트들�
 ```
 
 - **Buggy**: arg[0] = `_borrowAsset` ≠ `_collateralAsset` → **VIOLATED**.
-- **Correct (fix 후)**: arg[0] = `_collateralAsset` → **SATISFIED**.
-- `_collateralAsset`은 함수 parameter로 scope 안. Grammar 전부 허용.
+- **Correct (after fix)**: arg[0] = `_collateralAsset` → **SATISFIED**.
+- `_collateralAsset` is in scope as a function parameter. Grammar fully allows it.
 
-→ **distinguishing annotation이 grammar-expressible로 존재**. `limitation_types.md` L5b 예 `pool0.swap.arg[0] == 0` (52_H_15)과 **정확히 같은 패턴**: 인자 순서 오류를 `.arg[n]`으로 포착.
+→ **A distinguishing annotation exists in grammar-expressible form**. **Exactly the same pattern** as the L5b example `pool0.swap.arg[0] == 0` (52_H_15) in `limitation_types.md`: catching argument order errors via `.arg[n]`.
 
-**개발자의 annotation 작성 노동**:
-- 같은 contract 다른 3곳(L442, L869, L931)에서 `_collateralAsset` 먼저 쓰는 패턴 관찰 → convention 추론.
-- L1050에도 동일 convention을 annotation으로 assert.
-- 이 annotation 작성은 **deep domain knowledge 불필요**, 단지 contract 내 pattern 일관성만 보면 됨.
-- 그러나 "assert해야 한다"는 결정 자체는 버그 인지 전제 — convention이 자동 강제되지 않으므로.
+**Developer's annotation-writing labor**:
+- Observing the pattern of `_collateralAsset` first at three other sites (L442, L869, L931) in the same contract → infer convention.
+- Assert the same convention at L1050 via annotation.
+- Writing this annotation requires **no deep domain knowledge**, only observing pattern consistency within the contract.
+- However, the decision itself "that this should be asserted" presupposes bug awareness — since the convention is not auto-enforced.
 
-#### 4. 분류 타당성 — **L4a 유지** (L5b 제안 철회)
+#### 4. Classification validity — **L4a retained** (L5b proposal withdrawn)
 
-**L5b 제안 검토 및 철회**:
+**Review and withdrawal of the L5b proposal**:
 
-초기 분석에서 `@During IPriceOracle.getLatestPrice.arg[0] == _collateralAsset` annotation이 grammar-expressible하고 buggy/correct를 구분하므로 L5b로 제안. 그러나 **I9 원칙 (L5b 판정은 semantic intent 채널 기준)** 적용 시 철회:
+In the initial analysis, the `@During IPriceOracle.getLatestPrice.arg[0] == _collateralAsset` annotation is grammar-expressible and distinguishes buggy/correct, so L5b was proposed. However, applying **principle I9 (L5b judgment is based on the semantic intent channel)** leads to withdrawal:
 
-- `.arg[n]` 채널은 **lint-style pattern check** (argument identifier 선택을 source code 수준에서 검사). IntentChecker 고유 기여 영역이 아니며 paper의 L5b 근거로 쓰기 약함.
-- Semantic intent 채널 = `_ratioOfPrices` 반환값의 의미 (`collateral_price / borrow_price` 비율) 검증. 여기서는:
-  - `@IReturn`이 `IPriceOracle.getLatestPrice`에 **arg-indifferent concrete 반환값 하나만 공급**.
-  - Buggy 코드 `getLatestPrice(_borrow, _collateral)` 와 correct 코드 `getLatestPrice(_collateral, _borrow)` 모두 엔진 관점에서 **같은 `_ratioOfPrices` 값 수신**.
-  - 하류 `_borrowTokens` 계산도 동일 → `@Post returnExpression == ...` 어떤 expression도 buggy/correct 구분 불가.
-- → **Semantic intent 채널에서 표현 불가** → **L4a 확정**.
+- The `.arg[n]` channel is a **lint-style pattern check** (checking argument identifier choice at the source code level). It is not in IntentChecker's distinctive contribution area, and is weak as a basis for L5b in the paper.
+- Semantic intent channel = verifying the meaning of the `_ratioOfPrices` return value (the `collateral_price / borrow_price` ratio). Here:
+  - `@IReturn` supplies **a single arg-indifferent concrete return value** to `IPriceOracle.getLatestPrice`.
+  - From the engine's perspective, both buggy `getLatestPrice(_borrow, _collateral)` and correct `getLatestPrice(_collateral, _borrow)` **receive the same `_ratioOfPrices` value**.
+  - Downstream `_borrowTokens` computation is identical → no `@Post returnExpression == ...` expression can distinguish buggy/correct.
+- → **Inexpressible in the semantic intent channel** → **L4a confirmed**.
 
-**L4a (`inexpressible-expected-value`) 근거**:
-- Correct `_ratioOfPrices` 값 = `collateral_price / borrow_price` (oracle 의미).
-- 이 값은 oracle 반환의 수치 의미이며 scope 내 변수의 산술 조합으로 표현 불가.
-- `@IReturn` 공급값은 구성적으로 buggy 코드가 받는 값과 구분되지 않음 (arg-indifference).
-- 따라서 intent annotation이 어떤 proxy를 쓰든 진짜 correct 의미를 표현할 수 없음.
+**Basis for L4a (`inexpressible-expected-value`)**:
+- The correct `_ratioOfPrices` value = `collateral_price / borrow_price` (oracle semantics).
+- This value is the numeric meaning of the oracle return and cannot be expressed as an arithmetic combination of in-scope variables.
+- The `@IReturn`-supplied value is constructively indistinguishable from the value received by buggy code (arg-indifference).
+- Therefore, no proxy used by an intent annotation can express the true correct meaning.
 
-**L4a vs L4b 선택**:
-- L4b는 "no-target-storage — attach point 부재"의 구조적 한계 (view 함수 전형).
-- 본 case는 return-based `@Post returnExpression == expr` 채널 자체는 열려 있음. 문제는 `expr` 자리에 correct 값을 쓸 수 없음 — **표현 불가** 문제.
-- → L4a가 맞음. View 함수 성격은 부차적.
+**L4a vs L4b choice**:
+- L4b is the structural limitation "no-target-storage — no attach point" (typical of view functions).
+- In this case, the return-based `@Post returnExpression == expr` channel itself is open. The problem is that the correct value cannot be written in the `expr` slot — an **inexpressibility** problem.
+- → L4a is correct. The view-function nature is secondary.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Type B — `_ratioOfPrices` semantic 의미 표현 불가)**:
+**Essence (Type B — `_ratioOfPrices` semantic meaning is inexpressible)**:
 
-`_borrowTokensToLiquidate` scope에는 `_ratioOfPrices` (oracle 반환 local)가 있으나 이는 **@IReturn으로 공급된 concrete 값**. 그 **수치 의미 (collateral/borrow vs borrow/collateral)** 는 scope 어디에도 저장되지 않음. Correct 의미를 assert하려면 "oracle이 돌려준 값의 convention이 올바른가"를 검사해야 하는데, 이 convention은 **external oracle API 명세**로 scope 밖.
+The `_borrowTokensToLiquidate` scope contains `_ratioOfPrices` (the oracle-returned local), but this is **a concrete value supplied via @IReturn**. Its **numeric meaning (collateral/borrow vs borrow/collateral)** is not stored anywhere in scope. Asserting the correct meaning would require checking "whether the convention of the value returned by the oracle is correct," but this convention is in **the external oracle API specification**, outside scope.
 
-분석 엔진 관점에서 buggy와 correct는 **구분 불능**:
-- @IReturn이 arg-indifferent로 동일 값 공급 → 엔진 계산 동일.
-- Semantic intent annotation으로 어떤 expression을 써도 buggy/correct 모두 같은 판정.
+From the analysis engine's perspective, buggy and correct are **indistinguishable**:
+- @IReturn supplies the same value arg-indifferently → engine computation is identical.
+- No matter what expression is written in a semantic intent annotation, buggy/correct receive the same verdict.
 
-G-표면:
-- **G1** — `IPriceOracle.getLatestPrice(...)`의 **의미적 반환값**을 intent에서 참조할 방법 없음.
-- **G3** — `collateral_price`, `borrow_price` 같은 소스 값이 scope에 없음 (`@IReturn`은 비율만 반환).
-- **G8** — external oracle state 의존.
-- **@IReturn arg-indifference** (분석 엔진 특유 한계): 같은 함수의 서로 다른 arg 순서 호출을 구분하지 않음. I1의 "debug annotation vs intent annotation 분리" 원칙의 구체 발현.
+G-surface:
+- **G1** — no way to reference the **semantic return value** of `IPriceOracle.getLatestPrice(...)` in intent.
+- **G3** — source values such as `collateral_price`, `borrow_price` are not in scope (`@IReturn` returns only the ratio).
+- **G8** — depends on external oracle state.
+- **@IReturn arg-indifference** (engine-specific limitation): does not distinguish between calls to the same function with different argument orders. A concrete manifestation of I1's "separation of debug annotation vs intent annotation" principle.
 
-**Case 2·7과의 유사성 (Value/Type B 축)**:
-- Case 2 (25_H_05): hardcoded `18` 대신 필요한 `10 + uD` — external underlying decimals 의존.
-- Case 7 (59_H_05): post-penalty `maltQuantity` 대신 필요한 pre-penalty — external auction state + scope 내 transient 값 소실.
-- **Case 8 (본 case)**: `_ratioOfPrices`의 buggy 의미 대신 필요한 correct 의미 — external oracle API convention 의존.
+**Similarity to Cases 2 and 7 (Value/Type B axis)**:
+- Case 2 (25_H_05): hardcoded `18` instead of the required `10 + uD` — depends on external underlying decimals.
+- Case 7 (59_H_05): post-penalty `maltQuantity` instead of the required pre-penalty — depends on external auction state + loss of transient value in scope.
+- **Case 8 (this case)**: buggy meaning of `_ratioOfPrices` instead of the required correct meaning — depends on external oracle API convention.
 
-세 case 모두 **"value error / Type B"** 공통 cell. 모두 외부 state/convention 의존.
+All three cases share the **"value error / Type B"** cell. All depend on external state/convention.
 
-**`.arg[n]`으로 잡히긴 하나 lint-level (I9)**:
-- `.arg[n]` 채널은 syntactic lint tool (Slither 등)도 pattern-matching으로 포착 가능한 영역.
-- IntentChecker novelty 주장에 포함하지 않음.
-- 단순 arg 순서 오류는 현대 정적분석 도구가 covers하는 영역으로 인정.
+**Caught by `.arg[n]` but lint-level (I9)**:
+- The `.arg[n]` channel is an area where syntactic lint tools (Slither, etc.) can also catch via pattern matching.
+- Not included in IntentChecker novelty claims.
+- A simple arg-order error is acknowledged as an area covered by modern static analysis tools.
 
-**[Category (I8)]**: **Value error / Type B** — correct oracle ratio의 semantic 의미가 scope 변수·상수의 산술 조합으로 표현 불가. `@IReturn` arg-indifference가 debug annotation 채널로의 우회도 봉쇄. Case 2·7과 같은 cell.
+**[Category (I8)]**: **Value error / Type B** — the semantic meaning of the correct oracle ratio is not expressible as an arithmetic combination of scope variables/constants. `@IReturn` arg-indifference also blocks the workaround through the debug annotation channel. Same cell as Cases 2 and 7.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested paper wording improvements
 
-- **`.arg[n]` 채널 언급 자제**: Paper에서 Case 8을 L5b로 프레이밍하면 L5b-syntactic으로 하락 — 기존 lint 도구 영역. L4a (semantic intent 표현 불가) 프레이밍이 paper 기여도 강화.
-- **@IReturn arg-indifference 관찰**: Debug annotation의 구조적 한계 — 같은 함수의 argument 변이를 구분하지 않음. 이는 I1 (annotation vs engine 분리)의 구체 발현이자 **별도 제한 축**으로 언급 가치.
-- **기존 L5b 분류 재검토 암시**: I9 원칙으로 52_H_15, 113_H_05, 35_H_11도 semantic 채널에서 catch 가능한지 검토 필요. L5b 섹션 진입 시 체계적 재평가.
-- **`annotation_plans.md` 수정 필요**: L1830–1836의 L4a 근거는 기본적으로 맞으나 `@IReturn` arg-indifference를 primary로 강조. `.arg[n]` 우회는 lint로 간주해 배제.
+- **Refrain from mentioning the `.arg[n]` channel**: Framing Case 8 as L5b in the paper would downgrade it to L5b-syntactic — the territory of existing lint tools. The L4a (semantic intent inexpressibility) framing strengthens the paper's contribution.
+- **Observation of @IReturn arg-indifference**: A structural limitation of debug annotation — does not distinguish between argument variations of the same function. This is a concrete manifestation of I1 (annotation vs engine separation) and worth mentioning as **a separate limitation axis**.
+- **Implicit re-examination of existing L5b classifications**: Under principle I9, it is necessary to examine whether 52_H_15, 113_H_05, 35_H_11 can also be caught in the semantic channel. Systematic re-evaluation when entering the L5b section.
+- **`annotation_plans.md` revision needed**: The L4a basis at L1830–1836 is fundamentally correct, but emphasize `@IReturn` arg-indifference as primary. Exclude the `.arg[n]` workaround as lint.
 
 ---
 
-### Case 9 — `web3bugs_61_H_02` (분류 불일치: limitation_types.md = **L4a**, annotation_plans.md = L5a → 객관 판정: **L4a**)
+### Case 9 — `web3bugs_61_H_02` (classification mismatch: limitation_types.md = **L4a**, annotation_plans.md = L5a → objective verdict: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/61.md` → `[H-02] Wrong returns of SavingsAccountUtil.depositFromSavingsAccount() can cause fund loss`
+- **Source**: `reports/61.md` → `[H-02] Wrong returns of SavingsAccountUtil.depositFromSavingsAccount() can cause fund loss`
 - **Severity**: High. **Warden**: WatchPug (C4 2021-12-sublime).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (excerpt)**:
   > `savingsAccountTransfer()` does not return the result of `_savingsAccount.transfer()`, but returned `_amount` instead, which means that `SavingsAccountUtil.depositFromSavingsAccount()` may not return the actual shares (when pps is not 1).
 - **POC**:
   > Given the price per share of yearn USDC vault is `1.2`:
   > 1. Alice deposited 12,000 USDC to yearn strategy, received 10,000 share tokens.
   > 2. Alice created a pool, added all 12,000 USDC from savings account as collateral. The recorded `CollateralAdded` got the wrong number: **12000** (should be **10000**).
   > 3. `cancelPool()` fails (recorded shares > actual). **Alice loses all 12,000 USDC**. Liquidation also fails → lender fund loss.
-- **권고 fix**:
+- **Recommended fix**:
   ```solidity
   function savingsAccountTransfer(...) internal returns (uint256) {
       if (_from == address(this)) return _savingsAccount.transfer(...);
       else return _savingsAccount.transferFrom(...);
   }
   ```
-  즉 L79의 `return _amount;` 제거하고 interface call 결과를 직접 return.
+  i.e., remove `return _amount;` at L79 and directly return the interface call result.
 
-#### 2. 코드 의미 이해
+#### 2. Code semantics understanding
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & system position
 
-`SavingsAccountUtil` — Sublime의 **savings account (yield-bearing 지급 계좌)**와 pool/credit line 사이의 wrapper library. Token transfer에 해당하는 **shares** 단위 처리를 매개.
+`SavingsAccountUtil` — Sublime's wrapper library between the **savings account (yield-bearing settlement account)** and pools/credit lines. Mediates handling in **shares** units corresponding to token transfers.
 
-Savings account: Yearn 같은 yield strategy에 예치되어 price-per-share (pps)가 1이 아닐 수 있음. 사용자가 12,000 USDC를 예치해도 shares 단위로는 10,000 (pps=1.2일 때). 하류 회계는 **shares 기준**으로 해야 정확.
+Savings account: deposited into a yield strategy such as Yearn, where price-per-share (pps) may not be 1. Even if a user deposits 12,000 USDC, in shares it becomes 10,000 (when pps=1.2). Downstream accounting must be done **in shares** to be accurate.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `savingsAccountTransfer(_savingsAccount, _from, _to, _amount, _token, _strategy) → uint256` (L66–80, internal library):
-- Caller: `depositFromSavingsAccount` (L11–26) → Pool·CreditLine의 deposit/withdraw 흐름.
-- 역할: savings account 간 shares 이동 실행 + **이동된 실제 shares 반환**.
-- 반환값은 upstream의 `_sharesReceived`로 저장되어 `poolVariables.baseLiquidityShares` 등 critical accounting에 사용.
+- Caller: `depositFromSavingsAccount` (L11–26) → deposit/withdraw flows of Pool and CreditLine.
+- Role: execute shares transfer between savings accounts + **return the actual shares transferred**.
+- The return value is stored as upstream's `_sharesReceived` and used in critical accounting such as `poolVariables.baseLiquidityShares`.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formula)
 
 Intended:
 - Call `_savingsAccount.transfer(...)` which moves shares and returns actual share count.
 - Return that share count to caller.
 - Caller records shares for future withdraw/liquidation.
 
-Intent 핵심: "**shares 단위 정확성 유지**". Token amount ≠ shares when pps ≠ 1.
+Intent essence: "**maintain accuracy in shares units**". Token amount ≠ shares when pps ≠ 1.
 
-##### (2d) Line-by-line 분석 (L66–80)
+##### (2d) Line-by-line analysis (L66–80)
 
 ```solidity
 66  function savingsAccountTransfer(
@@ -1599,155 +1600,155 @@ Intent 핵심: "**shares 단위 정확성 유지**". Token amount ≠ shares whe
 72      address _strategy
 73  ) internal returns (uint256) {
 74      if (_from == address(this)) {
-75          _savingsAccount.transfer(_amount, _token, _strategy, _to);   // BUG — return 무시
+75          _savingsAccount.transfer(_amount, _token, _strategy, _to);   // BUG — return ignored
 76      } else {
-77          _savingsAccount.transferFrom(_amount, _token, _strategy, _from, _to);   // BUG — return 무시
+77          _savingsAccount.transferFrom(_amount, _token, _strategy, _from, _to);   // BUG — return ignored
 78      }
-79      return _amount;   // BUG — shares 대신 token amount 반환
+79      return _amount;   // BUG — returns token amount instead of shares
 80  }
 ```
 
-- **L74–75**: `_from == address(this)`일 때 `_savingsAccount.transfer(...)` 호출. 이 함수는 **state-modifying** (balances 변경) 이며 shares를 반환. 그러나 여기서는 **반환값 무시**.
-- **L76–77**: 다른 분기, `transferFrom` 호출. 역시 반환값 무시.
-- **L79 (BUG)**: `_amount` 그대로 반환. `_amount`는 token 단위 (USDC 등). pps ≠ 1이면 실제 shares와 mismatch.
+- **L74–75**: when `_from == address(this)`, calls `_savingsAccount.transfer(...)`. This function is **state-modifying** (changes balances) and returns shares. However, **the return value is ignored** here.
+- **L76–77**: the other branch calls `transferFrom`. Return value is also ignored.
+- **L79 (BUG)**: returns `_amount` as-is. `_amount` is in token units (USDC, etc.). When pps ≠ 1, it mismatches actual shares.
 
-결과: caller가 `_sharesReceived = 12,000` (실제 shares는 10,000)으로 기록. 이후 `cancelPool()`/`liquidate()` 시 12,000 shares 인출 시도 → 실제로는 10,000 shares만 있으므로 실패 → 자금 영구 락.
+Result: caller records `_sharesReceived = 12,000` (when actual shares are 10,000). Subsequent `cancelPool()`/`liquidate()` attempts to withdraw 12,000 shares → only 10,000 shares actually exist, so it fails → permanent fund lock.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-**Return value scope mismatch**. Interface call (`transfer`/`transferFrom`)이 state-modifying이면서 유용한 return value (shares)를 제공. 그러나 buggy 코드는 이 반환을 **capture하지 않고** (local에 저장 안 함) 대신 무관한 parameter (`_amount`)를 반환.
+**Return value scope mismatch**. The interface call (`transfer`/`transferFrom`) is state-modifying and provides a useful return value (shares). However, the buggy code **does not capture** this return (does not store it in a local) and instead returns an unrelated parameter (`_amount`).
 
-본질적으로 "**반환값 연결 실패**" — external call의 결과가 caller에게 전달되어야 하는데 중간 wrapper에서 소실. 한 단계 indirection이 accounting unit (token amount vs shares) 변환 기회를 놓침.
+Essentially "**failure to wire return value**" — the result of the external call should be conveyed to the caller, but is lost in the intermediate wrapper. One level of indirection misses the opportunity for accounting unit (token amount vs shares) conversion.
 
-Protocol-level: token amount와 shares를 혼동한 회계 → pool liquidity tracking 파손. Alice POC처럼 full 자금 락 가능. lender 자금 손실.
+Protocol level: accounting that confuses token amount and shares → pool liquidity tracking is broken. As in Alice's POC, full fund lock is possible. Lender fund loss.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고 그대로. `return _savingsAccount.transfer(...)` — interface call의 return을 **직접 return으로 연결**. 혹은:
+Exactly as the audit recommends. `return _savingsAccount.transfer(...)` — **directly wire the interface call's return into the return**. Or:
 ```solidity
 uint256 _sharesReceived = _savingsAccount.transfer(_amount, _token, _strategy, _to);
 return _sharesReceived;
 ```
-두 경우 모두 **새 local 도입 혹은 return 식에 interface call 직접 사용**.
+Either way, **introduce a new local or use the interface call directly in the return expression**.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (developer-time perspective)
 
-**함수 scope 변수**: parameters만 (`_savingsAccount`, `_from`, `_to`, `_amount`, `_token`, `_strategy`). **Local 변수 없음**. Library 함수라 state 없음.
+**Function scope variables**: parameters only (`_savingsAccount`, `_from`, `_to`, `_amount`, `_token`, `_strategy`). **No local variables**. Library function with no state.
 
-**(a) state 변화?** Library 본문 state write 없음. Storage 채널 닫힘.
+**(a) State change?** No state writes in the library body. Storage channel closed.
 
-**(b) `@Post returnExpression == correct_shares` 시도**:
-- Correct value = `_savingsAccount.transfer(...)`의 반환. 
-- 이 값이 scope에 없음 (local에 저장 안 함 — 바로 그게 버그).
-- `@IReturn`으로 공급 가능? → **`transfer`는 state-modifying interface call**. `@IReturn`은 **view/pure 전용** → 적용 불가.
-- Grammar에 함수 호출 불허. `@Post returnExpression == _savingsAccount.transfer(...)` 표현 불가 (G1).
-- 결과: correct 값을 reference할 어떤 경로도 없음.
+**(b) Attempt at `@Post returnExpression == correct_shares`**:
+- Correct value = the return of `_savingsAccount.transfer(...)`.
+- This value is not in scope (not stored in a local — that is precisely the bug).
+- Suppliable via `@IReturn`? → **`transfer` is a state-modifying interface call**. `@IReturn` is **view/pure only** → not applicable.
+- Function calls disallowed in the grammar. `@Post returnExpression == _savingsAccount.transfer(...)` is inexpressible (G1).
+- Result: no path to reference the correct value.
 
 **(c) `@Post returnExpression == _amount` (naive)**:
 - Grammar OK. Buggy: `_amount == _amount` tautology. Satisfied.
-- Correct: shares 반환 → `shares == _amount` → pps ≠ 1이면 VIOLATED.
-- 이는 **false positive on correct**. 즉 개발자가 자연스럽게 "return == _amount"라고 annotation 쓰면 buggy 보증, correct 위반. **I5 silent sanction 재등장**.
+- Correct: returns shares → `shares == _amount` → if pps ≠ 1, VIOLATED.
+- This is **a false positive on correct**. That is, if a developer naturally writes the annotation "return == _amount", it certifies buggy and violates correct. **I5 silent sanction reappears**.
 
-**(d) `.arg[n]` 채널**: transfer/transferFrom의 arg 검사로 bug 포착 불가 — arg는 buggy/correct 동일.
+**(d) `.arg[n]` channel**: bug not catchable by checking transfer/transferFrom args — args are identical between buggy/correct.
 
-**(e) Auxiliary local 주입 (I4)**:
-- `uint256 _sharesReceived = _savingsAccount.transfer(...);` 삽입.
-- 그러면 `@Post returnExpression == _sharesReceived` 작성 가능.
-- 그러나 **이 주입 자체가 fix**. Audit 권고 fix 구조와 동일 → 버그 인지 전제.
+**(e) Auxiliary local injection (I4)**:
+- Insert `uint256 _sharesReceived = _savingsAccount.transfer(...);`.
+- Then `@Post returnExpression == _sharesReceived` becomes writable.
+- However, **this injection itself is the fix**. Same structure as the audit-recommended fix → presupposes bug awareness.
 
-#### 4. 분류 타당성 — **L4a 확정** (annotation_plans.md의 L5a 철회)
+#### 4. Classification validity — **L4a confirmed** (annotation_plans.md L5a withdrawn)
 
-**annotation_plans.md L5a 주장의 자기모순**:
-- "올바른 fix: return capture assignment 누락 (L5a)"
-- "annotation grammar에서 함수 호출 불가 → `returnExpression == _savingsAccount.transfer(...)` 표현 불가"
+**Self-contradiction in annotation_plans.md L5a claim**:
+- "Correct fix: missing return capture assignment (L5a)"
+- "Function calls not allowed in annotation grammar → `returnExpression == _savingsAccount.transfer(...)` is inexpressible"
 
-두 문장이 양립 불가. L5a는 "post-condition **표현 가능**, 버그 인지만 부족"이어야 하는데, 위 두 번째 문장은 표현 불가를 인정. → **L5a 조건 불충족**.
+The two sentences are incompatible. L5a should be "post-condition **expressible**, only bug awareness lacking", but the second sentence above admits inexpressibility. → **L5a conditions not met**.
 
-**L4a (inexpressible-expected-value) 확정 근거**:
-- Correct shares 값이 scope에 부재 (local 미저장 = 버그 자체).
-- `@IReturn` 경로 봉쇄 (state-modifying interface).
-- Grammar 함수 호출 불허.
-- 결론: **전지적 개발자조차 기존 scope로 correct annotation 작성 불가** → L4a 확정.
+**Basis for L4a (inexpressible-expected-value) confirmed**:
+- Correct shares value absent in scope (local not stored = the bug itself).
+- `@IReturn` path blocked (state-modifying interface).
+- Function calls disallowed in grammar.
+- Conclusion: **even an omniscient developer cannot write a correct annotation with the existing scope** → L4a confirmed.
 
 **L4a vs L4b**:
-- Library 함수 (no storage) → L4b 후보.
-- 그러나 return-based `@Post`는 원칙적으로 열려 있음. 문제는 **correct 표현 불가** (value).
-- **L4a primary** (표현 불가), L4b는 부차 (구조적 no-state는 sub-factor).
+- Library function (no storage) → L4b candidate.
+- However, return-based `@Post` is in principle open. The problem is **correct inexpressibility** (value).
+- **L4a primary** (inexpressibility), L4b secondary (structural no-state is a sub-factor).
 
-**limitation_types.md (L4a) 확정**, annotation_plans.md 수정 필요.
+**limitation_types.md (L4a) confirmed**, annotation_plans.md needs revision.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Type B — state-modifying interface call의 semantic 반환값이 scope에 미저장)**:
+**Essence (Type B — semantic return value of state-modifying interface call not stored in scope)**:
 
-`savingsAccountTransfer` scope는 parameters만. Interface call (`transfer`/`transferFrom`)의 **shares 반환이 scope에 binding 없음** — 버그가 곧 이 binding 누락. 이 값의 의미(shares)는 oracle/external spec에 정의되며 scope 내 어떤 산술 조합으로도 구할 수 없음.
+`savingsAccountTransfer` scope is parameters only. The **shares return of the interface call (`transfer`/`transferFrom`) has no binding in scope** — the bug is precisely this missing binding. The meaning of this value (shares) is defined in the oracle/external spec and cannot be obtained by any arithmetic combination within scope.
 
-Debug annotation 경로도 봉쇄:
-- **`@IReturn`이 view/pure 전용**이라 state-modifying `transfer()`에 적용 불가.
-- 이는 I1 (annotation layer vs engine layer 분리)의 **구체적 제약 발현**: debug annotation이 engine에게 공급할 수 있는 값의 범위가 state-modifying interface에서 끊김.
+The debug annotation path is also blocked:
+- **`@IReturn` is view/pure only**, not applicable to state-modifying `transfer()`.
+- This is a **concrete constraint manifestation** of I1 (separation of annotation layer vs engine layer): the range of values the debug annotation can supply to the engine is cut off at state-modifying interfaces.
 
-G-표면:
-- **G1** — `transfer(...)`를 intent에서 참조 불가 (함수 호출 grammar 부재).
-- **G3** — shares 값이 local로 저장 안 되어 scope 부재.
-- **G8** — external contract state 의존 (pps, shares balance).
-- **@IReturn 제한** (보조) — state-modifying interface에 debug 값 공급 불가.
+G-surface:
+- **G1** — `transfer(...)` cannot be referenced in intent (no function-call grammar).
+- **G3** — shares value not stored as a local, hence absent from scope.
+- **G8** — depends on external contract state (pps, shares balance).
+- **@IReturn limitation** (auxiliary) — cannot supply debug values to state-modifying interfaces.
 
-**Case 7 (59_H_05)과의 쌍둥이 성격**:
-- Case 7: dual-use value collapse — `_calculateMaltRequiredForExit` 반환이 두 용도에 쓰이는데 둘 중 하나만 맞음.
-- Case 9 (본 case): interface call 반환을 무시하고 parameter를 대신 return — **반환값 교체 오류**.
-- 둘 다 **"반환값 연결" 관련 버그**. Case 7은 collapse, Case 9는 drop.
-- 둘 다 "wrapper/helper function"이 하류로 잘못된 value를 전달하는 구조.
+**Twin nature with Case 7 (59_H_05)**:
+- Case 7: dual-use value collapse — the return of `_calculateMaltRequiredForExit` is used for two purposes, but only one of them is correct.
+- Case 9 (this case): ignores the interface call return and returns a parameter instead — **return value substitution error**.
+- Both are **bugs related to "return value wiring"**. Case 7 is collapse, Case 9 is drop.
+- Both have a structure where a "wrapper/helper function" passes a wrong value downstream.
 
-**Silent sanction (I5) 강함**: 자연스러운 annotation `returnExpression == _amount`가 buggy tautologically 통과, correct에서 violated. **fail-by-confirmation** — 개발자가 코드 텍스트 그대로 intent를 옮기면 bug 인증.
+**Strong silent sanction (I5)**: the natural annotation `returnExpression == _amount` tautologically passes for buggy and is violated for correct. **fail-by-confirmation** — if the developer transcribes the code text as intent, the bug is certified.
 
-**Aux injection (I4)**: 주입 = fix 자체. Case 5처럼 "injection이 곧 수정".
+**Aux injection (I4)**: injection = fix itself. Like Case 5, "injection is the fix".
 
-**[Category (I8)]**: **Value error / Type B** — 반환 값이 wrong (parameter 대신 interface call 결과). Fix는 한 줄 (`return _savingsAccount.transfer(...)`). Correct 값이 scope 부재 + `@IReturn` 봉쇄. Cases 2, 7, 8과 같은 cell.
+**[Category (I8)]**: **Value error / Type B** — return value is wrong (interface call result substituted by parameter). Fix is one line (`return _savingsAccount.transfer(...)`). Correct value absent in scope + `@IReturn` blocked. Same cell as Cases 2, 7, 8.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested paper wording improvements
 
-- **`@IReturn`의 view/pure 제한이 별도 G-category 필요**: Debug annotation system의 구조적 제약으로, state-modifying interface call의 return을 공급할 수 없다는 점이 L4a 발생의 **독립 원인**. Case 9, 그리고 앞으로의 case에서 반복될 가능성.
-- **`annotation_plans.md` L2336–2341 수정 필요**: L5a→L4a로 정정. L5a의 전제인 "post-condition 표현 가능"이 거짓이라 L5a는 논리적으로 성립 안 됨.
-- **Silent sanction 강조**: 자연스러운 `return == _amount` annotation이 buggy 인증하는 fail-by-confirmation — paper에서 **"developer writes intent matching code text, not protocol spec"**의 대표 예시로 인용 가치.
-- **Case 7 + Case 9 쌍둥이**: wrapper function의 반환값 처리 오류 (collapse vs drop) — L4a 내 **"wrapper layer return misrouting" sub-pattern** 으로 묶을 수 있음. 34 case 완주 후 sub-pattern 통계 제시.
+- **`@IReturn`'s view/pure restriction needs a separate G-category**: As a structural constraint of the debug annotation system, the inability to supply returns of state-modifying interface calls is an **independent cause** of L4a occurrence. Likely to recur in Case 9 and future cases.
+- **`annotation_plans.md` L2336–2341 revision needed**: correct L5a→L4a. The premise of L5a "post-condition expressible" is false, so L5a does not logically hold.
+- **Emphasize silent sanction**: the natural `return == _amount` annotation that certifies buggy — fail-by-confirmation — is worth citing in the paper as a representative example of **"developer writes intent matching code text, not protocol spec"**.
+- **Case 7 + Case 9 twins**: return-value-handling errors of wrapper functions (collapse vs drop) — can be grouped as the **"wrapper layer return misrouting" sub-pattern** within L4a. Present sub-pattern statistics after completing all 34 cases.
 
 ---
 
-### Case 10 — `web3bugs_61_H_04` (현재 분류: **L4a**)
+### Case 10 — `web3bugs_61_H_04` (current classification: **L4a**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/61.md` → `[H-04] Yearn token <> shares conversion decimal issue`
+- **Source**: `reports/61.md` → `[H-04] Yearn token <> shares conversion decimal issue`
 - **Severity**: High. **Warden**: cmichel (C4 2021-12-sublime).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (excerpt)**:
   > The yearn strategy `YearnYield` converts shares to tokens by `pricePerFullShare * shares / 1e18`. But Yearn's `getPricePerFullShare` seems to be in `vault.decimals()` precision, i.e., it should convert as `pricePerFullShare * shares / (10 ** vault.decimals())`. The vault decimals are the same as the underlying token decimals.
 - **Impact**: "The token and shares conversions do not work correctly for underlying tokens that do not have 18 decimals. Too much or too little might be paid out leading to a loss for either the protocol or user."
-- **권고 fix**: "Divide by `10**vault.decimals()` instead of `1e18`."
+- **Recommended fix**: "Divide by `10**vault.decimals()` instead of `1e18`."
 - **Sponsor**: ritik99 confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Code semantics understanding
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & system position
 
-`YearnYield` — Sublime의 Yearn V2 vault 어댑터 strategy. `SavingsAccount`가 예치된 자산을 Yearn vault에 locking. `lockTokens` / `unlockTokens` / `getTokensForShares` / `getSharesForTokens` API 제공.
+`YearnYield` — Sublime's Yearn V2 vault adapter strategy. `SavingsAccount` locks deposited assets into the Yearn vault. Provides `lockTokens` / `unlockTokens` / `getTokensForShares` / `getSharesForTokens` API.
 
-Yearn vault의 `getPricePerFullShare()` = "1 share가 몇 units의 underlying token에 해당하는가"를 **vault의 decimals precision**으로 반환. Yearn spec: `vault.decimals == underlying_token.decimals` (USDC vault → 6, DAI vault → 18).
+The Yearn vault's `getPricePerFullShare()` = "how many units of underlying token does 1 share correspond to" returned in **the vault's decimals precision**. Yearn spec: `vault.decimals == underlying_token.decimals` (USDC vault → 6, DAI vault → 18).
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `getTokensForShares(shares, asset) → amount` (L178–181, public view):
-- Caller: SavingsAccount, CreditLine 등 여러 곳에서 shares ↔ token amount 변환에 사용.
-- 역할: "이만큼의 shares는 몇 units의 underlying token과 같은가" 계산.
-- 잘못된 변환은 withdraw/liquidation 등 자산 이동 정확성 훼손.
+- Caller: used in many places such as SavingsAccount, CreditLine for shares ↔ token amount conversion.
+- Role: compute "how many units of underlying token are equivalent to this many shares".
+- An incorrect conversion impairs the accuracy of asset movements such as withdraw/liquidation.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formula)
 
 ```
 amount = pricePerFullShare × shares / 10^(vault.decimals)
 ```
-여기서 `pricePerFullShare`는 vault의 decimals 배율로 표현된 pps.
+Here `pricePerFullShare` is the pps expressed in the vault's decimals scale.
 
-USDC vault (decimals=6) 예시:
+USDC vault (decimals=6) example:
 - pps = `1.05 * 1e6` = `1050000` (1 share = 1.05 USDC).
 - shares = `1000`.
 - correct amount = `1050000 * 1000 / 1e6 = 1050`. (1000 shares = 1050 USDC units = 0.00105 USDC in human, but uint representation is 1050 * 1e6-scaled... wait I need to recheck scales).
@@ -1757,11 +1758,11 @@ Actually Yearn's convention: shares are in vault's own decimals (same as underly
 - pps = 1.05 (in decimals, represented as `1050000` = 1.05 * 1e6).
 - correct amount = `1050000 * 1000 / 1e6 = 1050` → 0.00105 USDC (uint 1050).
 
-Buggy divides by 1e18: `1050000 * 1000 / 1e18 ≈ 0` (underflow). 거의 0 반환 → 시스템 중대 오류.
+Buggy divides by 1e18: `1050000 * 1000 / 1e18 ≈ 0` (underflow). Returns nearly 0 → critical system error.
 
-18-dec 토큰 (DAI)에서는 우연히 맞음 (buggy·correct 동일 결과). 6-dec·8-dec 토큰에서 심각 오류.
+For 18-dec tokens (DAI), it happens to be correct (buggy and correct yield identical results). Severe error for 6-dec/8-dec tokens.
 
-##### (2d) Line-by-line 분석 (L178–181)
+##### (2d) Line-by-line analysis (L178–181)
 
 ```solidity
 178  function getTokensForShares(uint256 shares, address asset) public view override returns (uint256 amount) {
@@ -1770,170 +1771,170 @@ Buggy divides by 1e18: `1050000 * 1000 / 1e18 ≈ 0` (underflow). 거의 0 반�
 181  }
 ```
 
-- **L179**: 빠른 반환.
+- **L179**: fast return.
 - **L180 (BUG)**: 
-  - `IyVault(liquidityToken[asset])`: vault 주소 획득.
-  - `.getPricePerFullShare()`: vault의 pps, **vault.decimals precision**.
-  - `.mul(shares).div(1e18)`: 1e18로 나눔 (잘못됨).
-  - Correct는 `.div(10 ** vaultDecimals)` — vault decimals로 나눠야 pps의 scaling 제거 → rate가 "1.0 기반 실수"로 복원.
+  - `IyVault(liquidityToken[asset])`: obtain vault address.
+  - `.getPricePerFullShare()`: vault's pps, in **vault.decimals precision**.
+  - `.mul(shares).div(1e18)`: divides by 1e18 (incorrect).
+  - Correct should be `.div(10 ** vaultDecimals)` — dividing by vault decimals removes pps's scaling → rate is restored to a "1.0-based real number".
 
-**Systematic scaling error**: 모든 non-18-dec underlying 자산에 대해 `10^(18-vaultDecimals)` 배 오차. USDC (6-dec) = 10^12 배 왜곡. WBTC (8-dec) = 10^10 배.
+**Systematic scaling error**: a `10^(18-vaultDecimals)`-fold error for all non-18-dec underlying assets. USDC (6-dec) = 10^12-fold distortion. WBTC (8-dec) = 10^10-fold.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-Cross-protocol convention 가정 오류. Yearn V1은 18-dec precision을 썼으나 V2는 **vault.decimals precision**으로 변경. 개발자가 V1 convention (`1e18` 분모) 가정으로 코드 작성. non-18-dec 토큰에서 shares↔token 변환이 protocol 전반에 걸쳐 체계적으로 왜곡.
+Cross-protocol convention assumption error. Yearn V1 used 18-dec precision, but V2 changed to **vault.decimals precision**. The developer wrote code assuming the V1 convention (`1e18` denominator). For non-18-dec tokens, shares↔token conversions are systematically distorted across the protocol.
 
-Protocol-level: 
-- Withdraw 시 실제 상환 금액이 0에 가깝거나 무한대 → user/lender 자금 영구 손실.
-- Liquidation 시 담보 평가 왜곡 → 부당 liquidation 혹은 방어 불가.
+Protocol level: 
+- During withdraw, actual repayment amount is near 0 or infinite → permanent loss of user/lender funds.
+- During liquidation, collateral valuation is distorted → unfair liquidation or inability to defend.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고:
+Audit recommendation:
 ```solidity
 amount = IyVault(liquidityToken[asset]).getPricePerFullShare()
     .mul(shares)
     .div(10 ** IyVault(liquidityToken[asset]).decimals());   // vault.decimals()
 ```
-혹은 동등하게 underlying token의 decimals 사용.
+Or equivalently, use the underlying token's decimals.
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (developer-time perspective)
 
-**함수 scope 변수**: `shares`, `asset` (params). `amount` (return). State: `liquidityToken` mapping.
+**Function scope variables**: `shares`, `asset` (params). `amount` (return). State: `liquidityToken` mapping.
 
-**(a) `@Post amount == pps_value * shares / (10 ** vaultDecimals)` 시도**:
+**(a) Attempt at `@Post amount == pps_value * shares / (10 ** vaultDecimals)`**:
 
-Correct annotation의 구성 요소:
-- `pps_value`: `IyVault(liquidityToken[asset]).getPricePerFullShare()` 반환. Scope에 local 없음.
-- `vaultDecimals`: `IyVault(liquidityToken[asset]).decimals()` 반환. **Buggy 코드에 해당 호출 자체가 없음**.
-- `10 ** vaultDecimals`: `**` 연산자 **annotation grammar 부재** (G2 annotation-only — 엔진은 지원).
+Components of the correct annotation:
+- `pps_value`: return of `IyVault(liquidityToken[asset]).getPricePerFullShare()`. No local in scope.
+- `vaultDecimals`: return of `IyVault(liquidityToken[asset]).decimals()`. **The buggy code itself does not contain this call**.
+- `10 ** vaultDecimals`: the `**` operator is **absent from annotation grammar** (G2 annotation-only — engine supports it).
 
-세 가지 blocker 겹침:
-- `pps_value` 접근: `@IReturn`으로 getPricePerFullShare 반환 공급 가능 (view). 그러나 intent expression에 함수 호출 불허이므로 `@Post amount == <IyVault(..).getPricePerFullShare()> * shares / ...` 자체가 표현 불가. `@IReturn`은 debug 공급이지 intent 표현 수단 아님 (I1).
-- `vaultDecimals` 접근: 해당 호출이 buggy 코드에 부재 → `@IReturn` 붙일 call site 없음. 호출을 intent에 직접 쓸 수도 없음.
-- `10 ** x`: grammar에 `**` 부재.
+Three blockers overlap:
+- Access to `pps_value`: the getPricePerFullShare return can be supplied via `@IReturn` (view). However, since function calls are disallowed in intent expressions, `@Post amount == <IyVault(..).getPricePerFullShare()> * shares / ...` itself is inexpressible. `@IReturn` is a debug supply, not a means of intent expression (I1).
+- Access to `vaultDecimals`: the corresponding call is absent in the buggy code → no call site to attach `@IReturn`. Cannot write the call directly in intent either.
+- `10 ** x`: `**` absent from grammar.
 
-**(b) 자연 annotation `@Post amount == pps * shares / 1e18` 시도**:
+**(b) Attempt at natural annotation `@Post amount == pps * shares / 1e18`**:
 
-Grammar 허용하나 buggy 코드 공식 그대로 → **tautologically satisfied** in buggy, violated in correct (non-18-dec 토큰). **I5 silent sanction 전형**. Developer가 `1e18`을 자연스럽게 쓰면 buggy 인증.
+Grammar allows it, but it is the buggy code formula as-is → **tautologically satisfied** in buggy, violated in correct (non-18-dec tokens). **Quintessential I5 silent sanction**. If the developer naturally writes `1e18`, the bug is certified.
 
-**(c) Aux injection (I4) — `**` grammar 포함 시**:
-- 개발자가 두 local 주입:
+**(c) Aux injection (I4) — when `**` is in grammar**:
+- Developer injects two locals:
   ```solidity
   uint256 pps = IyVault(liquidityToken[asset]).getPricePerFullShare();
   uint8 vaultDecimals = IyVault(liquidityToken[asset]).decimals();
   amount = pps.mul(shares).div(10 ** vaultDecimals);   // fix
   ```
-- Annotation: `@Post amount == pps * shares / (10 ** vaultDecimals)` — grammar OK (`**` 지원 가정).
-- **Detectable**. 단 주입 결정 = fix 자체 = 버그 인지 전제 → **L5 영역으로 transit (I4)**.
+- Annotation: `@Post amount == pps * shares / (10 ** vaultDecimals)` — grammar OK (assuming `**` support).
+- **Detectable**. However, the injection decision = the fix itself = presupposes bug awareness → **transit into L5 territory (I4)**.
 
-**즉 현재 grammar(`**` 포함) 하에서 L4a → L5 transit path는 viable**. Pure annotation-only workflow에서는 여전히 L4a (함수 호출 intent 불허 + 반환값 local 미저장).
+**That is, under current grammar (with `**`), the L4a → L5 transit path is viable**. In a pure annotation-only workflow, it remains L4a (function calls disallowed in intent + return value not stored in local).
 
-**(d) Concrete value 접근**:
-- 특정 vault instance로 고정: USDC vault → vaultDecimals = 6 → divisor = `1000000` literal.
-- Annotation: `@Post amount == pps * shares / 1000000` — USDC scenario에만 유효.
-- 모든 vault에 일반화 불가 → I6 general vs specific 경계.
+**(d) Concrete value access**:
+- Pinned to a specific vault instance: USDC vault → vaultDecimals = 6 → divisor = `1000000` literal.
+- Annotation: `@Post amount == pps * shares / 1000000` — valid only in USDC scenario.
+- Cannot generalize across all vaults → I6 general vs specific boundary.
 
-#### 4. 분류 타당성 — **L4a 확정** (Case 1과 쌍둥이)
+#### 4. Classification validity — **L4a confirmed** (twin of Case 1)
 
-- I2 전지적 개발자 테스트: general form correct annotation 표현 불가 (G1+G2+G3 3중 봉쇄).
-- `annotation_plans.md` L2026–2032의 분석 정확. "25_H_01과 동일 패턴"이라 명시된 대로.
+- I2 omniscient developer test: cannot express the general-form correct annotation (G1+G2+G3 triple block).
+- The analysis at `annotation_plans.md` L2026–2032 is accurate. As stated, "same pattern as 25_H_01".
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (Value / Type B — Case 1과 구조적 쌍둥이)**:
+**Essence (Value / Type B — structural twin of Case 1)**:
 
-Correct 나눗셈 분모 `10 ** vault.decimals()`가:
-- **Scope 부재**: `vaultDecimals` 값을 담는 변수 없음 (`.decimals()` 호출 자체가 buggy 코드에 없음).
-- **Call site 부재**: `@IReturn` 붙일 위치도 없음 → G3의 가장 엄격한 형태 (Case 25_H_05와 유사).
-- **Grammar 봉쇄**: 설령 vaultDecimals 값을 주입해도 `10 ** x` 표현 불가 (G2 annotation-only).
+The correct division denominator `10 ** vault.decimals()`:
+- **Absent from scope**: no variable holds the `vaultDecimals` value (the `.decimals()` call itself is absent in the buggy code).
+- **No call site**: no place to attach `@IReturn` either → the strictest form of G3 (similar to Case 25_H_05).
+- **Grammar block**: even if the vaultDecimals value is injected, `10 ** x` is inexpressible (G2 annotation-only).
 
-**Case 1 (25_H_01)과의 미묘한 차이**:
-- Case 1: `source.decimals` struct field가 snapshot proxy로 존재 (Type A_candidate).
-- Case 10: vault.decimals 해당 proxy 전혀 없음 (**Type B 순수형**).
-- Case 10이 Case 1의 **Type A 가능성을 완전히 제거한 청정 버전**.
+**Subtle difference from Case 1 (25_H_01)**:
+- Case 1: `source.decimals` struct field exists as snapshot proxy (Type A_candidate).
+- Case 10: no such proxy at all for vault.decimals (**pure Type B form**).
+- Case 10 is **a clean version of Case 1 that completely removes the Type A possibility**.
 
-**Case 2 (25_H_05)와의 유사성**:
-- Case 2: `uD` (underlying decimals) 부재, `CTokenInterface(source).underlying()` + `IERC20(...).decimals()` chain 필요.
-- Case 10: `vaultDecimals` 부재, `IyVault(liquidityToken[asset]).decimals()` 단일 호출 필요.
-- 둘 다 **external view call 결과를 `10 + x` 혹은 `10 ** x` 연산에 넣어야 함**.
-- 차이: Case 2는 `+`만 필요 (grammar OK), Case 10은 `**` 필요 (grammar 봉쇄).
+**Similarity to Case 2 (25_H_05)**:
+- Case 2: `uD` (underlying decimals) absent, requires `CTokenInterface(source).underlying()` + `IERC20(...).decimals()` chain.
+- Case 10: `vaultDecimals` absent, requires single call `IyVault(liquidityToken[asset]).decimals()`.
+- Both must place **external view call results into `10 + x` or `10 ** x` operations**.
+- Difference: Case 2 only needs `+` (grammar OK), Case 10 needs `**` (grammar block).
 
-G-표면 (grammar에 `**` 포함 가정):
-- **G1** — `IyVault(...).decimals()`, `getPricePerFullShare()` intent 내 참조 불가.
-- **G3** — `vaultDecimals` 값이 scope 부재 + `.decimals()` call site 부재. `getPricePerFullShare()`도 반환이 local에 저장 안 됨.
+G-surface (assuming `**` in grammar):
+- **G1** — cannot reference `IyVault(...).decimals()`, `getPricePerFullShare()` in intent.
+- **G3** — `vaultDecimals` value absent in scope + `.decimals()` call site absent. `getPricePerFullShare()` return also not stored in local.
 
-**Silent sanction (I5) 강함**: `amount == pps * shares / 1e18` 자연스런 annotation이 buggy 전형. Developer가 code text 그대로 intent로 옮기는 workflow에서 fail-by-confirmation.
+**Strong silent sanction (I5)**: the natural annotation `amount == pps * shares / 1e18` is the buggy archetype. Fail-by-confirmation in a workflow where the developer transcribes code text as intent.
 
-**Aux injection 경유 L5 transit viable (I4)**: `**` grammar 지원 가정 하에서 `pps`, `vaultDecimals` 주입 후 annotation 가능. Pure annotation-only에서는 L4a 유지.
+**Aux injection-routed L5 transit viable (I4)**: assuming `**` grammar support, after injecting `pps`, `vaultDecimals`, annotation becomes possible. Pure annotation-only stays at L4a.
 
-**I6 general vs specific**: USDC 같은 특정 vault instance로 고정 시 상수 `1000000` annotation은 grammar-expressible하나 모든 vault에 일반화 불가 → L5b-flavored. General annotation은 L4a.
+**I6 general vs specific**: when pinned to a specific vault instance such as USDC, the constant `1000000` annotation is grammar-expressible but does not generalize across all vaults → L5b-flavored. General annotation is L4a.
 
-**[Category (I8)]**: **Value error / Type B** — scaling divisor가 Case 2·61_H_01·61_H_02와 같은 cell. 특히 Case 2, 25_H_01과 **decimals-based scaling** sub-family.
+**[Category (I8)]**: **Value error / Type B** — scaling divisor is in the same cell as Cases 2, 61_H_01, 61_H_02. In particular, **decimals-based scaling** sub-family with Cases 2, 25_H_01.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested paper wording improvements
 
-- **"Decimals-based scaling L4a family"**: Case 1 (25_H_01), Case 2 (25_H_05), Case 10 (61_H_04) 공통 — **`10^x` 형태의 scaling 오류가 L4a에서 반복**. Paper에서 sub-pattern으로 제시 가능. 해결하려면 grammar에 `**` 혹은 `pow(10, x)`를 허용하거나, convention-based scaling을 annotation으로 표현하는 별도 문법 도입.
-- **`@IReturn` 활용 불가 명시**: L4a 다수가 `@IReturn`의 설계 경계(view/pure 전용 + arg-indifferent + intent 내 미사용) 때문에 우회 불가. 이는 **debug annotation system의 설계 trade-off**로 Discussion에 명시 가치.
-- **Cases 1, 2, 10 "scaling trio"**: paper의 L4a 대표 예시로 이 3개를 묶어 제시 — decimals 처리의 정적 분석 한계를 구체화.
+- **"Decimals-based scaling L4a family"**: Cases 1 (25_H_01), 2 (25_H_05), 10 (61_H_04) share — **scaling errors of the form `10^x` recur in L4a**. Can be presented as a sub-pattern in the paper. Resolving it requires either allowing `**` or `pow(10, x)` in the grammar, or introducing separate syntax to express convention-based scaling as an annotation.
+- **Explicitly note inability to use `@IReturn`**: many L4a cases cannot be circumvented because of the design boundary of `@IReturn` (view/pure only + arg-indifferent + unused in intent). This is worth mentioning in the Discussion as **a design trade-off of the debug annotation system**.
+- **Cases 1, 2, 10 "scaling trio"**: present as the L4a representative example of the paper, grouping these three — concretizing the static analysis limits of decimals handling.
 
 ---
 
 ### L4a Subsection Summary (10 cases reviewed)
 
-34 case 중 **10개 L4a case 전체 리뷰 완료**. 통계는 `l4_l5_classification.csv` 및 `l4_l5_classification.py stats()` 참조. Cross-cutting observations는 상단 I1–I9 insights 및 `paper_corrections.md` C1–C6에 누적. 다음 단계: **L4b section (8 cases)** 진입.
+**All 10 L4a cases reviewed** out of 34 cases. See `l4_l5_classification.csv` and `l4_l5_classification.py stats()` for statistics. Cross-cutting observations are accumulated in I1–I9 insights above and `paper_corrections.md` C1–C6. Next step: enter the **L4b section (8 cases)**.
 
 ---
 
 ## L4b — No Target Storage (8 cases)
 
-L4b 정의: 버기 함수가 target contract의 storage variable을 변경하지 않아 state-based intent annotation 부착 대상 부재. 주 유형: view/pure 함수, state-modifying이 없는 wrapper, library helper.
+L4b definition: the buggy function does not modify any storage variable of the target contract, hence no attach point for state-based intent annotations. Main types: view/pure functions, wrappers without state-modification, library helpers.
 
 ---
 
-### Case 11 — `web3bugs_17_H_02` (분류 불일치: limitation_types.md = **L4b**, annotation_plans.md = L5a → 객관 판정: **L4b**)
+### Case 11 — `web3bugs_17_H_02` (classification mismatch: limitation_types.md = **L4b**, annotation_plans.md = L5a → objective verdict: **L4b**)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/17.md` → `[H-02] Buoy3Pool.safetyCheck is not precise and has some assumptions`
+- **Source**: `reports/17.md` → `[H-02] Buoy3Pool.safetyCheck is not precise and has some assumptions`
 - **Severity**: High (judge upgrade). **Wardens**: cmichel, shw (C4 2021-06-gro).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (excerpt)**:
   > 1. Only checks if the `a/b` and `a/c` ratios are within `BASIS_POINTS`. By transitivity, `b/c` is only within `2 * BASIS_POINTS` if `a/b` and `a/c` are in range. For a more precise check whether both USDC and USDT are within range, `b/c` must be checked as well.
   > 2. If `a/b` is within range, this does not imply that `b/a` is within range.
   > 3. The NatSpec for the function states that it checks Curve and an external oracle, but no external oracle calls are checked.
-- **Judge 승격 이유**: "A possibility of stopping deposits or withdrawals deserves high risk."
-- **Sponsor**: kristian-gro confirmed, release version에 b/c check 추가.
-- **권고 fix**: `b/c` ratio 체크 추가.
+- **Reason for judge upgrade**: "A possibility of stopping deposits or withdrawals deserves high risk."
+- **Sponsor**: kristian-gro confirmed, b/c check added in release version.
+- **Recommended fix**: add `b/c` ratio check.
 
-#### 2. 코드 의미 이해
+#### 2. Code semantics understanding
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & system position
 
-`Buoy3Pool` — Gro protocol의 **price sanity checker**. Curve 3Pool (DAI, USDC, USDT) 위에서 pricing 관련 연산 제공. 핵심 역할: Curve pool에 flash loan 공격 등으로 가격이 depeg 됐는지 감지 → 감지 시 deposit/withdraw 차단.
+`Buoy3Pool` — Gro protocol's **price sanity checker**. Provides pricing-related computations on top of Curve 3Pool (DAI, USDC, USDT). Core role: detect whether the price has depegged in the Curve pool due to flash loan attacks etc. → block deposit/withdraw upon detection.
 
-`safetyCheck`는 **모든 상호작용 함수의 첫 gate** — 통과 못 하면 transaction revert.
+`safetyCheck` is the **first gate of every interaction function** — if not passed, the transaction reverts.
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `safetyCheck() external view returns (bool)` (L87–96):
-- Caller: Gro의 vault·controller가 deposit·withdraw·rebalance 전에 호출.
-- 역할: Curve pool의 내부 (a, b, c) 가격 비율이 **직전에 캐시된 lastRatio와 BASIS_POINTS(20bp) 이내로 편차가 있는지** 검사. 통과시 true, 초과시 false.
-- 잘못된 통과 → stablecoin depeg 상태에서 deposit/withdraw 허용 → 사용자 자금 탈취 가능.
+- Caller: Gro's vault/controller calls before deposit/withdraw/rebalance.
+- Role: check whether the Curve pool's internal (a, b, c) price ratios **deviate from the recently cached lastRatio within BASIS_POINTS (20bp)**. Returns true if passed, false if exceeded.
+- Wrongful pass → allows deposit/withdraw under stablecoin depeg conditions → user funds may be stolen.
 
-##### (2c) 함수 의도 (NatSpec 기준)
+##### (2c) Function intent (per NatSpec)
 
-NatSpec 발췌:
+NatSpec excerpt:
 > "establishes a set of ratios (a/a, a/b, a/c), (b/b, b/a, b/c), (c/c, c/a, c/b). The following set should provide the necessary coverage checks: (a/b, a/c)"
 
-NatSpec은 "(a/b, a/c)만 체크하면 충분"이라고 argue하지만, 이것이 본 버그의 근본 원인 — **transitivity 논리가 틀림**. `|a/b - last_a/b| ≤ ε` ∧ `|a/c - last_a/c| ≤ ε` 이어도 `|b/c - last_b/c| ≤ 2ε`까지만 보장. 따라서 `ε`(BASIS_POINTS) 내 b/c 변동은 감지 못함.
+NatSpec argues "(a/b, a/c) check alone is sufficient", but this is the root cause of this bug — **the transitivity logic is wrong**. Even if `|a/b - last_a/b| ≤ ε` ∧ `|a/c - last_a/c| ≤ ε`, only `|b/c - last_b/c| ≤ 2ε` is guaranteed. Therefore, b/c variation within `ε` (BASIS_POINTS) is not detected.
 
-또한 NatSpec은 "Curve + external oracle 비교"를 언급하나 **이 함수는 oracle call 없음** (`_updateRatios`에만 있음).
+Also, NatSpec mentions "Curve + external oracle comparison" but **this function has no oracle call** (only `_updateRatios` does).
 
-##### (2d) Line-by-line 분석 (L87–96)
+##### (2d) Line-by-line analysis (L87–96)
 
 ```solidity
 87  function safetyCheck() external view override returns (bool) {
-88      for (uint256 i = 1; i < N_COINS; i++) {       // i = 1, 2만 iterate (N_COINS=3)
+88      for (uint256 i = 1; i < N_COINS; i++) {       // iterates only i = 1, 2 (N_COINS=3)
 89          uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
 90          _ratio = abs(int256(_ratio - lastRatio[i]));
 91          if (_ratio.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > BASIS_POINTS) {
@@ -1944,33 +1945,33 @@ NatSpec은 "(a/b, a/c)만 체크하면 충분"이라고 argue하지만, 이것�
 96  }
 ```
 
-- **L88**: `i = 1..2` — token 0(DAI)에서 token 1(USDC), token 2(USDT)로의 비율만 체크. **token 1 ↔ token 2 (b/c) 는 loop에 없음**.
-- **L89**: Curve `get_dy(from=0, to=i, amount_in=1 unit of 0)` → 1 unit DAI 스왑 시 얼마나 USDC/USDT 나오는지. 즉 a/b, a/c.
-- **L90**: `lastRatio[i]`와 절대값 차이. `lastRatio`는 `_updateRatios`에서 oracle-sanitized된 Curve 값.
-- **L91**: 차이가 BASIS_POINTS(20bp) 초과면 **false** 반환.
-- **L95**: 둘 다 통과하면 true.
+- **L88**: `i = 1..2` — checks only the ratio from token 0 (DAI) to token 1 (USDC) and token 2 (USDT). **Token 1 ↔ token 2 (b/c) is not in the loop**.
+- **L89**: Curve `get_dy(from=0, to=i, amount_in=1 unit of 0)` → how much USDC/USDT comes out from swapping 1 unit of DAI. That is, a/b, a/c.
+- **L90**: absolute difference from `lastRatio[i]`. `lastRatio` is the oracle-sanitized Curve value from `_updateRatios`.
+- **L91**: returns **false** if difference exceeds BASIS_POINTS (20bp).
+- **L95**: returns true if both pass.
 
-**누락**:
-- 핵심 누락: **i 조합에서 `(from=1, to=2)` 즉 b/c** 체크.
-- External oracle 비교 없음 (NatSpec은 언급).
+**Missing**:
+- Core omission: check **`(from=1, to=2)` i.e., b/c** in the i combination.
+- No external oracle comparison (mentioned in NatSpec).
 
-##### (2e) 버그의 근본 의미
+##### (2e) Root meaning of the bug
 
-**Transitivity 오추론**. 개발자가 "a/b OK && a/c OK → b/c도 OK"라고 가정했으나, 수학적으로 2-BP 범위까지만 보장:
+**Erroneous transitivity inference**. The developer assumed "a/b OK && a/c OK → b/c also OK", but mathematically only the 2-BP range is guaranteed:
 - `|a/b - last_a/b| ≤ 20bp`
 - `|a/c - last_a/c| ≤ 20bp`
-- ⇒ `|b/c - last_b/c| ≤ 40bp` (최악). 즉 실제로는 BASIS_POINTS의 2배까지 b/c가 depeg 가능.
+- ⇒ `|b/c - last_b/c| ≤ 40bp` (worst case). That is, in reality b/c can depeg up to twice BASIS_POINTS.
 
-Attack 시나리오:
-- Flash loan으로 Curve 3Pool의 USDC/USDT 비율만 30bp 왜곡 (a/b, a/c는 각 15bp씩 변동 → 둘 다 20bp 이하 통과).
-- safetyCheck true 반환 → 공격자 deposit/withdraw 실행.
-- Curve가 왜곡된 가격으로 LP 토큰 산정 → 공격자 이익, 나머지 LP 손실.
+Attack scenario:
+- Use flash loan to distort only the USDC/USDT ratio of the Curve 3Pool by 30bp (a/b, a/c each move by 15bp → both pass under 20bp).
+- safetyCheck returns true → attacker executes deposit/withdraw.
+- Curve calculates LP token at distorted prices → attacker profits, remaining LPs lose.
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
 ```solidity
 function safetyCheck() external view override returns (bool) {
-    // a/b, a/c (기존)
+    // a/b, a/c (existing)
     for (uint256 i = 1; i < N_COINS; i++) {
         uint256 _ratio = curvePool.get_dy(int128(0), int128(i), getDecimal(0));
         _ratio = abs(int256(_ratio - lastRatio[i]));
@@ -1978,9 +1979,9 @@ function safetyCheck() external view override returns (bool) {
             return false;
         }
     }
-    // b/c 추가
+    // add b/c
     uint256 bc_ratio = curvePool.get_dy(int128(1), int128(2), getDecimal(1));
-    uint256 bc_diff = abs(int256(bc_ratio - lastRatio_bc));   // lastRatio_bc 도 cache 필요
+    uint256 bc_diff = abs(int256(bc_ratio - lastRatio_bc));   // lastRatio_bc also needs caching
     if (bc_diff.mul(PERCENTAGE_DECIMAL_FACTOR).div(CURVE_RATIO_DECIMALS_FACTOR) > BASIS_POINTS) {
         return false;
     }
@@ -1988,91 +1989,91 @@ function safetyCheck() external view override returns (bool) {
 }
 ```
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (developer-time perspective)
 
-**함수 scope 변수**: parameter 없음. State: `lastRatio[1]`, `lastRatio[2]`, `BASIS_POINTS`.
+**Function scope variables**: no parameters. State: `lastRatio[1]`, `lastRatio[2]`, `BASIS_POINTS`.
 
-**(a) 상태 변화?** `view` 함수 → state write 없음 → post-state 채널 봉쇄.
+**(a) State change?** `view` function → no state writes → post-state channel closed.
 
 **(b) Return-based @Post**:
 - `@Post returnExpression == false` when "b/c out of range"?
-- "b/c out of range"를 표현하려면 `curvePool.get_dy(1, 2, ...)` 호출 결과 + `lastRatio_bc` (state에 없음) 필요.
-- 두 값 모두 scope·state 부재. G3.
-- `curvePool.get_dy()` 자체를 intent에 쓸 수도 없음 (G1, 함수 호출 불허).
+- Expressing "b/c out of range" requires the result of `curvePool.get_dy(1, 2, ...)` + `lastRatio_bc` (not in state).
+- Both values absent in scope/state. G3.
+- Cannot write `curvePool.get_dy()` itself in intent (G1, function calls disallowed).
 
 **(c) Natural annotation (silent sanction)**:
-- 개발자가 코드 로직 그대로 옮기면: `@Post returnExpression == !(any i=1,2 has _ratio[i] > BASIS_POINTS)`.
-- Buggy에서 tautology, correct (b/c 포함)에서는 다른 조건 → 개발자 natural intent가 buggy 그대로. **I5 silent sanction 전형**.
-- 추가: **NatSpec이 잘못된 transitivity 설명을 제공** → annotation 작성자를 추가로 오도 (natspec-driven silent sanction 이중).
+- If the developer transcribes the code logic as-is: `@Post returnExpression == !(any i=1,2 has _ratio[i] > BASIS_POINTS)`.
+- Tautology in buggy, different condition in correct (with b/c) → developer's natural intent is buggy as-is. **Quintessential I5 silent sanction**.
+- Additionally: **NatSpec provides the wrong transitivity explanation** → further misleads the annotation author (double natspec-driven silent sanction).
 
 **(d) Aux injection (I4)**:
-- `uint256 bc_ratio = curvePool.get_dy(int128(1), int128(2), getDecimal(1));` 삽입 가능.
-- 그러나 `lastRatio[b/c]` 같은 캐시가 **state에 없음**. `mapping(uint256 => uint256) lastRatio`는 index 1, 2만 저장 — b/c 비교용 state 자체가 data model에 부재.
-- 이 부재는 contract state 확장 필요 (add `uint256 lastRatioBc` state var). Production code 대규모 수정 + 초기화 로직 + `_updateRatios` 수정 동시 필요.
-- **Injection이 data model 확장까지 요구** → L5 transit도 어려움 (**Y_hard**).
+- Can insert `uint256 bc_ratio = curvePool.get_dy(int128(1), int128(2), getDecimal(1));`.
+- However, the cache for `lastRatio[b/c]` is **not in state**. The `mapping(uint256 => uint256) lastRatio` only stores indices 1, 2 — the state itself for b/c comparison is absent in the data model.
+- This absence requires contract state extension (add `uint256 lastRatioBc` state var). Production code requires large modifications + initialization logic + simultaneous `_updateRatios` revision.
+- **Injection requires data-model extension as well** → L5 transit also difficult (**Y_hard**).
 
-#### 4. 분류 타당성 — **L4b 확정**
+#### 4. Classification validity — **L4b confirmed**
 
-**기존 분류 검토**:
-- `limitation_types.md` (L4b): view 함수라 state attach 불가.
+**Review of existing classification**:
+- `limitation_types.md` (L4b): view function so state attach impossible.
 - `annotation_plans.md` (L5a): missing-code.
 
-**객관 판정**:
-- L4b 기준: view 함수로 state modifier 없음 → state-based @Post 부착 대상 부재. 맞음.
-- L5a 기준: post-condition 표현 가능해야 하는데, return-based 표현도 scope 부재로 불가. **L5a 조건 미충족**.
-- → **L4b 확정**, annotation_plans.md의 L5a는 틀림.
+**Objective verdict**:
+- L4b criterion: view function with no state modifier → no attach point for state-based @Post. Holds.
+- L5a criterion: post-condition must be expressible, but return-based expression is also impossible due to scope absence. **L5a conditions not met**.
+- → **L4b confirmed**, L5a in annotation_plans.md is wrong.
 
-**L4a vs L4b overlap 해소**:
-- L4b (no-target-storage)와 L4a (inexpressible-expected-value) 둘 다 적용 가능한 case.
-- 본 case는 **function type이 view → state 채널 부재** (L4b) + **return-based 표현도 scope 부재로 불가** (L4a).
-- 기존 taxonomy convention: view 함수면 L4b 우선 (`limitation_types.md` L161 명시적). 유지.
+**Resolving L4a vs L4b overlap**:
+- A case where both L4b (no-target-storage) and L4a (inexpressible-expected-value) apply.
+- This case has **function type view → state channel absent** (L4b) + **return-based expression also impossible due to scope absence** (L4a).
+- Existing taxonomy convention: prefer L4b for view functions (`limitation_types.md` L161, explicit). Retained.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (L4b — view 함수 + return 표현 불가)**:
+**Essence (L4b — view function + return inexpressibility)**:
 
-`safetyCheck`는 state를 수정하지 않는 view. Intent annotation의 두 주요 채널:
-- State-based `@Post changed(...)`: view라 대상 없음.
-- Return-based `@Post returnExpression == ...`: correct expression에 scope 밖 값 (b/c ratio from Curve + lastRatio_bc from state-that-doesn't-exist) 필요.
+`safetyCheck` is a view that does not modify state. Two main channels of intent annotation:
+- State-based `@Post changed(...)`: no target since view.
+- Return-based `@Post returnExpression == ...`: correct expression requires out-of-scope values (b/c ratio from Curve + lastRatio_bc from state-that-doesn't-exist).
 
-두 채널 모두 막힘. **"annotation을 attach할 곳 자체가 없거나, attach해도 값을 못 씀"** — L4b 정의의 spiritual 의미.
+Both channels blocked. **"There is no place to attach the annotation, or even if attached, the value cannot be written"** — the spiritual meaning of the L4b definition.
 
-**I8 축 재분류 (새 축)**:
-- **Bug category**: **Algorithm error** — missing check (b/c ratio 검증 알고리즘 누락). 단일 값 오류 아닌 **검증 로직 구조 누락**.
-- **Proxy type**: **Type B** — b/c ratio와 그 cached value 둘 다 scope·state 부재.
-- **Annotation channel**: state 채널 닫힘 (view) + return 채널 봉쇄 (scope 부재).
+**I8 axis re-classification (new axis)**:
+- **Bug category**: **Algorithm error** — missing check (b/c ratio verification algorithm omission). Not a single-value error but **omission of verification logic structure**.
+- **Proxy type**: **Type B** — both b/c ratio and its cached value absent in scope/state.
+- **Annotation channel**: state channel closed (view) + return channel blocked (scope absent).
 
-G-표면:
-- **G1** — `curvePool.get_dy(1, 2, ...)` intent 내 참조 불가.
-- **G3** — `lastRatio_bc` 같은 state 자체가 data model 부재 (해당 cache 슬롯 설계 시 누락).
-- **G4** — view 함수라 state write 채널 닫힘.
+G-surface:
+- **G1** — `curvePool.get_dy(1, 2, ...)` cannot be referenced in intent.
+- **G3** — state itself for `lastRatio_bc` absent in data model (omitted in cache slot design).
+- **G4** — view function so state write channel closed.
 
-**Silent sanction 이중**: (a) developer natural annotation이 buggy 로직 그대로 → fail-by-confirmation, (b) **NatSpec이 "(a/b, a/c)만 체크하면 충분"** 이라는 잘못된 설명을 제공해 annotation 작성자를 오도. **Natspec-driven silent sanction** 이 I5의 강력한 예.
+**Double silent sanction**: (a) developer's natural annotation transcribes buggy logic as-is → fail-by-confirmation, (b) **NatSpec provides the wrong explanation "(a/b, a/c) check alone is sufficient"** misleading the annotation author. **Natspec-driven silent sanction** is a strong example of I5.
 
-**Aux injection (I4) 어려움 (Y_hard)**: b/c 값 주입은 가능하나 lastRatio_bc state 추가 + 초기화 + _updateRatios 수정까지 동시 필요. 단순 local injection 수준 넘어 **data model 확장** 수준 → L5 transit도 대공사.
+**Aux injection (I4) difficulty (Y_hard)**: injection of b/c value is possible, but lastRatio_bc state addition + initialization + _updateRatios revision are simultaneously needed. Beyond simple local injection, **data model extension** is required → L5 transit is also a major operation.
 
-**Case 10·Case 5과의 비교**:
-- Case 10: `**` grammar만 추가하면 injection 가능.
-- Case 5: multi-step algorithmic injection 필요하나 data model 변경 없음.
-- Case 11 (본): **data model 자체 확장 필요** — 가장 깊은 수준 fix.
+**Comparison with Cases 10 and 5**:
+- Case 10: injection possible if just `**` grammar is added.
+- Case 5: requires multi-step algorithmic injection but no data model change.
+- Case 11 (this case): **requires data model extension itself** — the deepest level of fix.
 
-**[Category (I8)]**: **Algorithm error / Type B** — missing verification logic + 관련 state data model 부재. View 함수라 state-based 우회도 불가. Cases 3·5와 함께 Algorithm/B cell.
+**[Category (I8)]**: **Algorithm error / Type B** — missing verification logic + related state data model absence. View function so state-based workaround also impossible. Algorithm/B cell with Cases 3 and 5.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested paper wording improvements
 
-- **L4b 본문 (line 1315)**: 현재 "view 함수 → @Post attach 대상 부재" 중심. Case 11은 **view + return expression 둘 다 막힘 패턴**. L4b 정의에 "return-based expression도 inexpressible인 view 함수" 포함 명시.
-- **Silent sanction + NatSpec**: 이미 Case 4에서 제기한 natspec-driven silent sanction 패턴이 Case 11에서도 재등장. NatSpec이 잘못된 설명을 포함하면 annotation 작성자를 오도. Discussion에서 **"NatSpec audit이 annotation workflow의 필수 전제"** 로 강조.
-- **Data model 확장 요구 case**: Case 11의 I4 difficulty ("Y_hard")는 aux injection의 한계를 보이는 예 — 단순 변수 주입 넘어 storage 슬롯 추가 필요. Paper future work에서 "annotation-driven contract refactoring의 범위"를 논할 때 인용.
+- **L4b body (line 1315)**: currently centered on "view function → no @Post attach target". Case 11 is **a pattern where view + return expression are both blocked**. Explicitly include "view functions where return-based expression is also inexpressible" in the L4b definition.
+- **Silent sanction + NatSpec**: the natspec-driven silent sanction pattern raised in Case 4 reappears in Case 11. If the NatSpec contains a wrong explanation, it misleads the annotation author. Emphasize in Discussion as **"NatSpec audit is a necessary prerequisite for the annotation workflow"**.
+- **Cases requiring data model extension**: the I4 difficulty of Case 11 ("Y_hard") shows the limit of aux injection — beyond simple variable injection, requires storage slot addition. Cite in paper future work when discussing "the scope of annotation-driven contract refactoring".
 
 ---
 
-### Case 12 — `web3bugs_52_H_15` (현재 분류: **L4b**, 단 limitation_types.md 내 self-inconsistent)
+### Case 12 — `web3bugs_52_H_15` (current classification: **L4b**, but limitation_types.md is internally self-inconsistent)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/52.md` → `[H-15] VaderRouter._swap performs wrong swap`
+- **Source**: `reports/52.md` → `[H-15] VaderRouter._swap performs wrong swap`
 - **Severity**: High. **Warden**: cmichel (C4 2021-11-vader).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (excerpt)**:
   > The 3-path hop in `VaderRouter._swap` is supposed to first swap **foreign** assets to native assets, and then the received native assets to different foreign assets again. `pool.swap(nativeAmountIn, foreignAmountIn)` accepts the foreign amount as the **second** argument. The code however mixes these positional arguments up:
   > ```solidity
   > return pool1.swap(0, pool0.swap(amountIn, 0, address(pool1)), to);   // BUG
@@ -2080,31 +2081,31 @@ G-표면:
   > return pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);
   > ```
 - **Impact**: "All 3-path swaps through the VaderRouter fail in the pool check when `require(nativeAmountIn = amountIn <= nativeBalance - nativeReserve = 0)` is checked."
-- **권고 fix**: `pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);` 인자 순서 swap.
+- **Recommended fix**: `pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);` swap argument order.
 - **Sponsor**: SamSteinGG confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Code semantics understanding
 
-##### (2a) Contract 목적 & 시스템 위치
+##### (2a) Contract purpose & system position
 
-`VaderRouter` — Vader Protocol의 DEX 라우터. Uniswap V2 API와 호환되게 설계된 router로, Vader pool들(native ↔ foreign asset 교환)에 대한 swap/liquidity 관리 래퍼. `factory`, `reserve` 주소만 state로 보유, 자체 회계 state 없음 (순수 router).
+`VaderRouter` — Vader Protocol's DEX router. A router designed to be Uniswap V2 API-compatible, a wrapper for swap/liquidity management of Vader pools (native ↔ foreign asset exchange). Holds only `factory`, `reserve` addresses as state, no own accounting state (pure router).
 
-##### (2b) 함수의 컨트랙트 내 역할
+##### (2b) Function's role within the contract
 
 `_swap(amountIn, path, to) → amountOut` (L302-351, private):
 - Caller: `swapExactTokensForTokens`, `swapTokensForExactTokens` (public entry).
-- 역할: path 길이 2 (single-hop) or 3 (multi-hop)에 따라 pool.swap을 호출.
-- 3-path의 경우 **foreign A → native → foreign B** — pool0에서 foreign→native, 받은 native로 pool1에서 native→foreign.
-- VaderRouter 자체의 state write 없음 — 모든 자산 이동은 pool 및 ERC20 external call로 위임.
+- Role: depending on path length 2 (single-hop) or 3 (multi-hop), call pool.swap.
+- For 3-path, **foreign A → native → foreign B** — foreign→native at pool0, then native→foreign at pool1 with the received native.
+- VaderRouter itself has no state writes — all asset movement is delegated to pool and ERC20 external calls.
 
-##### (2c) 함수 의도 (수식)
+##### (2c) Function intent (formula)
 
 3-path swap logic:
 - pool0: `foreign A` in → `native` out. `pool0.swap(nativeAmountIn=0, foreignAmountIn=amountIn, to=pool1)` → returns nativeAmountOut.
 - pool1: `native` in → `foreign B` out. `pool1.swap(nativeAmountIn=nativeAmountOut, foreignAmountIn=0, to=recipient)` → returns foreignAmountOut.
-- 핵심 convention: `pool.swap(nativeAmountIn, foreignAmountIn, to)` — **첫째 인자 native, 둘째 인자 foreign**.
+- Key convention: `pool.swap(nativeAmountIn, foreignAmountIn, to)` — **first arg native, second arg foreign**.
 
-##### (2d) Line-by-line 분석 (L302-351, 3-path 분기)
+##### (2d) Line-by-line analysis (L302-351, 3-path branch)
 
 ```solidity
 309      if (path.length == 3) {
@@ -2120,140 +2121,140 @@ G-표면:
 326          return pool1.swap(0, pool0.swap(amountIn, 0, address(pool1)), to);   // BUG
 ```
 
-- **L317-318**: 두 pool 획득. pool0 = (foreign A, native), pool1 = (native, foreign B).
-- **L320-324**: sender → pool0으로 foreign A amountIn 전송 (swap을 위한 사전 입금).
+- **L317-318**: Acquire two pools. pool0 = (foreign A, native), pool1 = (native, foreign B).
+- **L320-324**: Transfer foreign A amountIn from sender → pool0 (pre-deposit for the swap).
 - **L326 (BUG)**:
-  - **내측 `pool0.swap(amountIn, 0, address(pool1))`**: arg[0] = amountIn (native 자리), arg[1] = 0 (foreign 자리). 즉 **native→foreign swap** 시도 — 반대 방향.
-  - pool0은 foreign A만 입금받았으므로 native reserve 증가 없음. `require(nativeAmountIn = amountIn <= nativeBalance - nativeReserve = 0)` 체크에서 revert.
-  - **올바른**: `pool0.swap(0, amountIn, address(pool1))` — foreign A를 native로 swap.
-  - 외측 `pool1.swap(0, ..., to)`: arg[0] = 0, arg[1] = 중첩 호출 결과 (만약 안 revert됐으면 native값인데 foreign 자리). 역시 방향 오류.
-  - **올바른**: `pool1.swap(pool0_native_out, 0, to)` — pool0에서 받은 native를 pool1에서 foreign B로 swap.
+  - **Inner `pool0.swap(amountIn, 0, address(pool1))`**: arg[0] = amountIn (native slot), arg[1] = 0 (foreign slot). I.e., it attempts a **native→foreign swap** — the wrong direction.
+  - pool0 only received foreign A as deposit, so the native reserve did not increase. The check `require(nativeAmountIn = amountIn <= nativeBalance - nativeReserve = 0)` reverts.
+  - **Correct**: `pool0.swap(0, amountIn, address(pool1))` — swap foreign A for native.
+  - Outer `pool1.swap(0, ..., to)`: arg[0] = 0, arg[1] = the nested call result (assuming it had not reverted, this would be a native value placed in the foreign slot). The direction is also wrong.
+  - **Correct**: `pool1.swap(pool0_native_out, 0, to)` — swap the native received from pool0 into foreign B at pool1.
 
-**실행 결과**: 모든 3-path swap이 **pool0에서 revert**. 해당 기능 완전히 사용 불가.
+**Execution outcome**: Every 3-path swap **reverts at pool0**. The feature is completely unusable.
 
-##### (2e) 버그의 근본 의미
+##### (2e) Underlying meaning of the bug
 
-**Uniswap V2 API convention과 Vader pool API convention 혼동**. Uniswap V2의 `swap(amount0Out, amount1Out, to, data)`는 **output** amount를 인자로 받음. Vader `pool.swap(nativeAmountIn, foreignAmountIn, to)`는 **input** amount를 받으며, 각 자산별로 별도 위치.
+**Confusion between the Uniswap V2 API convention and the Vader pool API convention**. Uniswap V2's `swap(amount0Out, amount1Out, to, data)` takes **output** amounts as arguments. Vader's `pool.swap(nativeAmountIn, foreignAmountIn, to)` takes **input** amounts, with separate slots per asset.
 
-개발자가 Uniswap V2 스타일로 생각하면서 "input 방향을 0으로 설정" 착각했을 가능성 (실제로는 pool.swap이 input을 받는데 output처럼 처리).
+Most likely the developer thought in Uniswap V2 style and mistakenly "set the input direction to 0" (in reality `pool.swap` takes input but they treated it as if it were output).
 
-Protocol-level: 3-path swap 기능 완전 불능 → DEX의 cross-pool swap 경로 봉쇄. 직접적 자금 손실은 revert로 방지되나 **기능 마비 + UX 파손**. (실제 severity는 "functional loss"로 High로 처리됨.)
+Protocol-level: the 3-path swap feature is fully broken → the cross-pool swap path of the DEX is blocked. Direct loss of funds is prevented by the revert, but **functionality is paralyzed and UX is broken**. (The actual severity is treated as "functional loss" → High.)
 
-##### (2f) 올바른 fix
+##### (2f) Correct fix
 
-Audit 권고 그대로 L326 한 줄 swap:
+The audit recommendation is exactly the one-line swap at L326:
 ```solidity
 return pool1.swap(pool0.swap(0, amountIn, address(pool1)), 0, to);
 ```
 
-#### 3. IntentChecker annotation 시도 (개발 시점 관점)
+#### 3. IntentChecker annotation attempt (development-time perspective)
 
-**함수 scope 변수**: `amountIn`, `path` (params), `pool0`, `pool1` (local). `to` (param). State: `factory` (immutable), `reserve`.
+**Function-scope variables**: `amountIn`, `path` (params), `pool0`, `pool1` (local). `to` (param). State: `factory` (immutable), `reserve`.
 
-**(a) 상태 변화?** VaderRouter._swap는 state write 없음 (전부 external call). `_swap`의 직접적 state 채널 **봉쇄**.
+**(a) State change?** VaderRouter._swap performs no state writes (everything is an external call). The direct state channel of `_swap` is **blocked**.
 
 **(b) Return-based @Post**:
-- `@Post returnExpression == correct_amountOut_formula`: amountOut은 pool의 swap formula (constant product 기반) 결과. 외부 pool의 state(reserves)에 의존. 표현 불가.
+- `@Post returnExpression == correct_amountOut_formula`: amountOut is the result of the pool's swap formula (constant-product based). It depends on the external pool's state (reserves). Inexpressible.
 
-**(c) `.arg[n]` 채널 (lint-level, I9 원칙상 배제)**:
-- `@During pool0.swap.arg[0] == 0` — arg[0]이 nativeAmountIn이어야 함을 assert. Buggy: `amountIn ≠ 0` → VIOLATED. Correct: `0 == 0` → SATISFIED.
-- `.arg[1] == amountIn` 도 추가 가능.
-- 기존 `limitation_types.md`가 L5b 예시로 든 annotation.
-- **I9 원칙**: 이건 lint-style. L5b 판정 근거로 사용 안 함.
+**(c) `.arg[n]` channel (lint-level, excluded by principle I9)**:
+- `@During pool0.swap.arg[0] == 0` — asserts that arg[0] (the nativeAmountIn) must be 0. Buggy: `amountIn ≠ 0` → VIOLATED. Correct: `0 == 0` → SATISFIED.
+- `.arg[1] == amountIn` can additionally be added.
+- This is the annotation that the existing `limitation_types.md` cited as an L5b example.
+- **Principle I9**: this is lint-style. Not used as a basis for L5b classification.
 
 **(d) Semantic intent via require feasibility**:
-- Grammar의 `require feasible` / `assert feasible` 절 활용.
-- `@During pool0.swap의 내부 require` — 그러나 pool0은 external contract. 내부 require에 접근 불가.
-- Only VaderRouter._swap 내부 require (L310-315)만 annotate 가능하나 이건 path 형식 체크지 swap 방향 체크 아님.
+- Use the grammar's `require feasible` / `assert feasible` clauses.
+- `@During` on the internal `require` of `pool0.swap` — but pool0 is an external contract. Internal requires are not accessible.
+- Only the requires inside VaderRouter._swap (L310-315) can be annotated, but those check the path shape, not the swap direction.
 
 **(e) Revert detection**:
-- Buggy는 항상 revert → 이게 bug sign. Correct는 return.
-- `@Post returnExpression` 자체가 (buggy에서) 도달 불가능한 state. 엔진이 "이 path는 infeasible"로 표현할 수 있음.
-- 그러나 이건 IntentChecker의 intent annotation 기능이 아닌 분석 엔진의 부수 효과. **Intent annotation 관점에서 명시적 표현 수단 없음**.
+- Buggy always reverts → that itself is a bug sign. Correct returns.
+- `@Post returnExpression` is itself an unreachable state (in the buggy version). The engine could express this as "this path is infeasible".
+- However, this is a side effect of the analysis engine, not the IntentChecker intent annotation feature. **From the perspective of intent annotation, there is no explicit means of expression**.
 
 **(f) Aux injection (I4)**:
-- 새 state 추가나 외부 값 injection은 이 case에 별 의미 없음 — 버그가 arg 순서지 값 자체가 아님.
+- Adding new state or injecting external values has no real meaning in this case — the bug is in argument order, not in the values themselves.
 - N/A.
 
-#### 4. 분류 타당성 — **L4b 확정** (Case 8·Case 4와 구분)
+#### 4. Classification rationale — **L4b confirmed** (distinguished from Case 8 and Case 4)
 
-**기존 분류 검토 (limitation_types.md 내 self-inconsistency)**:
-- L4b list (L33): 52_H_15 포함.
-- L5b examples section (L229-237): 52_H_15을 대표 L5b 예시로 제시.
-- → 문서 내 모순.
+**Review of the existing classification (self-inconsistency in limitation_types.md)**:
+- L4b list (L33): includes 52_H_15.
+- L5b examples section (L229-237): presents 52_H_15 as a representative L5b example.
+- → Internal contradiction in the document.
 
-**객관 판정**:
-- VaderRouter._swap은 **router/wrapper 함수, state write 없음**.
-- Semantic intent (correct amountOut) 표현 불가 (external pool state 의존).
-- `.arg[n]` 채널은 I9에 의해 L5b 판정에서 배제.
-- → **L4b** (no-target-storage: router/wrapper 분류).
+**Objective verdict**:
+- VaderRouter._swap is a **router/wrapper function with no state writes**.
+- Semantic intent (correct amountOut) is inexpressible (depends on external pool state).
+- The `.arg[n]` channel is excluded from L5b classification by I9.
+- → **L4b** (no-target-storage: router/wrapper category).
 
-**Case 8·Case 4와의 비교**:
-| | Case 4 (39_H_02) | Case 8 (61_H_01) | Case 12 (본 case) |
+**Comparison with Case 8 and Case 4**:
+| | Case 4 (39_H_02) | Case 8 (61_H_01) | Case 12 (this case) |
 |---|---|---|---|
-| Function type | non-view (state write 있음) | internal view | private wrapper (state write 없음) |
-| Bug 형태 | arg[2] 값 오류 (cross-line fee flow) | arg order swap (oracle) | arg order swap (pool) |
-| 실제 `.arg[n]` 표현 가능? | 예 (proxy) | 예 (intent 자체) | 예 (arg 순서) |
-| I9 하에서 L5b 인정? | 아니오 (proxy) | 아니오 (lint) | 아니오 (lint) |
-| Semantic 채널 가능? | 아니오 (외부 ERC20 balance) | 아니오 (@IReturn arg-indifference) | 아니오 (외부 pool state) |
-| 분류 | L4a (cross-line intent) | L4a (inexpressible) | **L4b (wrapper, no state)** |
+| Function type | non-view (has state writes) | internal view | private wrapper (no state writes) |
+| Bug form | arg[2] value error (cross-line fee flow) | arg order swap (oracle) | arg order swap (pool) |
+| Can `.arg[n]` actually express it? | Yes (proxy) | Yes (intent itself) | Yes (arg order) |
+| Acceptable as L5b under I9? | No (proxy) | No (lint) | No (lint) |
+| Semantic channel feasible? | No (external ERC20 balance) | No (@IReturn arg-indifference) | No (external pool state) |
+| Classification | L4a (cross-line intent) | L4a (inexpressible) | **L4b (wrapper, no state)** |
 
-세 case 모두 "arg 관련 버그지만 semantic intent 표현 불가"의 공통 패턴. 분류가 L4a/L4b로 갈리는 기준은 **함수 타입** (state write 여부).
+All three cases share the common pattern of "an arg-related bug whose semantic intent is inexpressible". The criterion that splits classification between L4a and L4b is the **function type** (presence/absence of state writes).
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (L4b — router/wrapper 함수 + arg 방향 오류)**:
+**Essence (L4b — router/wrapper function + arg direction error)**:
 
-VaderRouter._swap는 순수 router — 자체 state 없음. Correct intent는 **외부 pool의 state 변화 방향**에 대한 것: pool0의 foreign reserve 증가·native reserve 감소, pool1의 native reserve 증가·foreign reserve 감소. 이 방향성은 외부 pool contract의 state → VaderRouter scope 밖.
+VaderRouter._swap is a pure router — it has no state of its own. The correct intent concerns the **direction of state change of external pools**: pool0's foreign reserve increases and native reserve decreases; pool1's native reserve increases and foreign reserve decreases. This directionality lives in the state of external pool contracts → outside VaderRouter's scope.
 
-Intent annotation의 두 채널:
-- State-based @Post: VaderRouter 자체 state 없음. 채널 봉쇄.
-- Return-based @Post: amountOut의 correct 값 계산에 외부 pool의 reserves + swap formula 필요. 표현 불가.
-- Arg-based @During: `.arg[n]`으로 인자 순서 제약 가능. 그러나 I9 원칙상 lint-level이라 L5b 판정 배제.
+The two channels of intent annotation:
+- State-based @Post: VaderRouter has no state of its own. Channel blocked.
+- Return-based @Post: computing the correct value of amountOut requires the external pools' reserves plus the swap formula. Inexpressible.
+- Arg-based @During: argument-order constraints can be expressed via `.arg[n]`. However, by principle I9 this is lint-level and excluded from L5b classification.
 
-**I8 축 재분류 (새 축)**:
-- **Bug category**: **Value error** — 인자 identifier 선택 오류 (order swap). 한 줄 fix.
-- **Proxy type**: **Type B** — correct amountOut이나 pool state 변화가 scope 부재.
-- **Annotation channel**: state 채널 봉쇄 (router 특성) + return 채널 봉쇄 (외부 state 의존) + arg 채널 (lint).
+**I8 axis re-classification (new axis)**:
+- **Bug category**: **Value error** — wrong choice of argument identifier (order swap). One-line fix.
+- **Proxy type**: **Type B** — the correct amountOut or pool state changes are out of scope.
+- **Annotation channel**: state channel blocked (router nature) + return channel blocked (depends on external state) + arg channel (lint).
 
-G-표면:
-- **G1** — `pool0.swap(...)`, `pool1.swap(...)` 반환값 intent 내 참조 불가.
-- **G3** — correct amountOut이나 pool reserves가 VaderRouter scope 부재.
-- **G4** — router/wrapper라 state write 채널 닫힘.
-- **G8** — external pool state 의존.
+G-surfaces:
+- **G1** — return values of `pool0.swap(...)`, `pool1.swap(...)` cannot be referenced inside the intent.
+- **G3** — the correct amountOut and pool reserves are out of VaderRouter's scope.
+- **G4** — being a router/wrapper, the state-write channel is closed.
+- **G8** — depends on external pool state.
 
-**Silent sanction (I5)**: Code 그대로 annotation으로 옮기면 (`arg[0] == amountIn, arg[1] == 0`) buggy tautology → fail-by-confirmation. `.arg[n]` 형식으로도, 일반 natural intent로도 둘 다 silent sanction 위험.
+**Silent sanction (I5)**: Translating the code straight into an annotation (`arg[0] == amountIn, arg[1] == 0`) yields a buggy tautology → fail-by-confirmation. Both the `.arg[n]` form and a generic natural intent run into silent-sanction risk.
 
-**Aux injection (I4) N/A**: 값 문제가 아닌 인자 순서 문제라 injection으로 해소되는 성격이 아님.
+**Aux injection (I4) N/A**: Since the issue is argument order and not value, it is not the kind of problem that injection resolves.
 
-**[Category (I8)]**: **Value error / Type B** — router/wrapper 함수에서 인자 순서 오류. Case 8과 같은 cell (value/B)이나 **함수 타입 차이로 L4b**. Cross-cutting pattern: "arg-level value error with semantic intent 외부 state 의존".
+**[Category (I8)]**: **Value error / Type B** — argument-order error in a router/wrapper function. Same cell as Case 8 (value/B), but **L4b due to the function-type difference**. Cross-cutting pattern: "arg-level value error whose semantic intent depends on external state".
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested improvements to the paper text
 
-- **L4b list 정정**: `limitation_types.md` 내 52_H_15이 L4b list와 L5b examples 모두에 등장하는 self-inconsistency 해결 — **L4b로 통일**하고 L5b examples section에서 52_H_15 제거 (혹은 "originally listed as L5b, reclassified to L4b under I9 principle"로 명시).
-- **L4a vs L4b 기준 명시**: Case 4·8·12 비교표를 paper에 포함. "semantic intent 표현 불가 공통, 구분은 함수 타입 (state write 여부)".
-- **Router/wrapper L4b의 전형**: 자체 state 없는 함수는 모든 semantic intent가 외부 state에 의존 → L4b가 기본값. Vader 관련 여러 case(52_H_15, 52_H_16, 70_H_08)가 이 cell.
+- **Correct the L4b list**: resolve the self-inconsistency in `limitation_types.md` where 52_H_15 appears in both the L4b list and the L5b examples — **standardize on L4b** and remove 52_H_15 from the L5b examples section (or annotate it as "originally listed as L5b, reclassified to L4b under the I9 principle").
+- **Make the L4a vs L4b criterion explicit**: include the comparison table for Cases 4, 8, and 12 in the paper. "Common: semantic intent inexpressible; what splits them is the function type (presence/absence of state writes)".
+- **The router/wrapper L4b archetype**: in functions with no state of their own, every semantic intent depends on external state → L4b is the default. Several Vader-related cases (52_H_15, 52_H_16, 70_H_08) fall in this cell.
 
 ---
 
 ## L4c — Magnitude-only Difference (1 case)
 
-L4c 정의: State variable이 buggy/correct 모두에서 동일 방향으로 변경되며, 차이는 변경 크기(magnitude)뿐. `changed()` / `Entry op Exit` annotation은 buggy/correct 모두에서 동일하게 satisfied. PostEntryExit에서 산술 표현(`Entry - Exit == expected_magnitude`) 미지원이 primary blocker.
+L4c definition: A state variable changes in the same direction in both buggy and correct versions, with the only difference being the magnitude of the change. `changed()` / `Entry op Exit` annotations are equally satisfied in both versions. The primary blocker is that PostEntryExit does not support arithmetic expressions (`Entry - Exit == expected_magnitude`).
 
 ---
 
-### Case 13 — `web3bugs_35_H_10` (현재 분류: **L4c**, 유일 case)
+### Case 13 — `web3bugs_35_H_10` (current classification: **L4c**, sole case)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/35.md` → `[H-10] ConcentratedLiquidityPool.burn() Wrong implementation`
+- **Source**: `reports/35.md` → `[H-10] ConcentratedLiquidityPool.burn() Wrong implementation`
 - **Severity**: High. **Warden**: WatchPug (C4 2021-09-sushitrident-2).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (verbatim excerpt)**:
   > The reserves should be updated once LP tokens are burned to match the actual total bento shares hold by the pool. However, the current implementation only updated reserves with the fees subtracted. Makes the `reserve0` and `reserve1` smaller than the current `balance0` and `balance1`.
-- **Impact**: "many essential features of the contract will malfunction, includes `swap()` and `mint()`" (reserve > balance 조건으로 후속 require 실패).
-- **권고 fix**:
+- **Impact**: "many essential features of the contract will malfunction, includes `swap()` and `mint()`" (subsequent requires fail under the reserve > balance condition).
+- **Recommended fix**:
   ```solidity
-  // L263-266 변경
+  // Change L263-266
   unchecked {
       reserve0 -= uint128(amount0);   // was amount0fees
       reserve1 -= uint128(amount1);   // was amount1fees
@@ -2261,126 +2262,126 @@ L4c 정의: State variable이 buggy/correct 모두에서 동일 방향으로 변
   ```
 - **Sponsor**: sarangparikh22 confirmed.
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the code semantics
 
-##### (2a) Contract 목적
+##### (2a) Contract purpose
 
-`ConcentratedLiquidityPool` — Sushi Trident의 **Uniswap V3-style 집중 유동성 pool**. Tick 기반 범위 유동성 + fee accounting. `reserve0`/`reserve1`은 pool이 보유한 bento shares의 내부 추적값.
+`ConcentratedLiquidityPool` — Sushi Trident's **Uniswap V3-style concentrated liquidity pool**. Tick-based range liquidity + fee accounting. `reserve0`/`reserve1` are internal trackers of the bento shares the pool holds.
 
-##### (2b) 함수의 역할
+##### (2b) Function role
 
 `burn(bytes data)` (L231–272, public):
-- LP provider가 position을 burn하여 유동성 회수.
-- 회수 금액 = **principal (liquidity 비례) + fee** 두 부분.
-- Reserve 감소는 **두 부분 모두 반영**해야 balance와 동기화.
+- The LP provider burns a position to withdraw liquidity.
+- The withdrawn amount = **principal (proportional to liquidity) + fee**, two parts.
+- The reserve decrease must **reflect both parts** to stay in sync with the balance.
 
-##### (2d) Line-by-line 핵심 (L245–266)
+##### (2d) Line-by-line core (L245–266)
 
 ```solidity
-245  (uint256 amount0, uint256 amount1) = _getAmountsForLiquidity(...);   // principal 부분
-252  (uint256 amount0fees, uint256 amount1fees) = _updatePosition(...);    // fee 부분
+245  (uint256 amount0, uint256 amount1) = _getAmountsForLiquidity(...);   // principal portion
+252  (uint256 amount0fees, uint256 amount1fees) = _updatePosition(...);    // fee portion
 254  unchecked {
-255      amount0 += amount0fees;                                            // 총 회수 = principal + fees
+255      amount0 += amount0fees;                                            // total = principal + fees
 256      amount1 += amount1fees;
 257  }
 ...
 263  unchecked {
-264      reserve0 -= uint128(amount0fees);    // BUG: principal 부분 누락
+264      reserve0 -= uint128(amount0fees);    // BUG: missing principal portion
 265      reserve1 -= uint128(amount1fees);    // BUG
 266  }
-268  _transferBothTokens(recipient, amount0, amount1, unwrapBento);       // 실제 송금은 amount0 (total)
+268  _transferBothTokens(recipient, amount0, amount1, unwrapBento);       // actual transfer uses amount0 (total)
 ```
 
-- L255–256: `amount0`가 **principal + fees 합**으로 업데이트.
-- L268: **`amount0` 전체 송금**.
-- L264 (BUG): `reserve0`는 **`amount0fees`만큼만** 감소.
-- 결과: `balance0`는 `amount0` 만큼 줄었는데 `reserve0`는 `amount0fees`만 줄어 → **reserve0 > balance0** 상태 지속.
-- 후속 `mint()`의 `require(reserve0 <= balance0)` 체크에서 transaction revert → pool 기능 마비.
+- L255–256: `amount0` is updated to **principal + fees combined**.
+- L268: **the entire `amount0` is transferred**.
+- L264 (BUG): `reserve0` decreases **only by `amount0fees`**.
+- Result: `balance0` decreased by `amount0` while `reserve0` only decreased by `amount0fees` → the **reserve0 > balance0** state persists.
+- Subsequent `mint()` checks `require(reserve0 <= balance0)` and reverts → pool functionality is paralyzed.
 
-##### (2e) 버그 근본 의미
+##### (2e) Underlying meaning of the bug
 
-Reserve tracking의 내부 invariant (`reserve ≤ balance`) 유지가 목표. `burn`이 tokens를 sender에게 transfer 했으면 reserve도 같은 양으로 감소해야 함. Fee-only 차감은 **principal 이동을 무시**하는 accounting 오류.
+The goal is to maintain the internal invariant of reserve tracking (`reserve ≤ balance`). When `burn` transfers tokens to the sender, the reserve must decrease by the same amount. Subtracting only the fee portion is an accounting error that **ignores the principal movement**.
 
-#### 3. IntentChecker annotation 시도
+#### 3. IntentChecker annotation attempt
 
-**함수 scope**: `amount0`, `amount1`, `amount0fees`, `amount1fees` — **모두 local variable로 존재**.
+**Function scope**: `amount0`, `amount1`, `amount0fees`, `amount1fees` — **all exist as local variables**.
 
-**(a) `@Post reserve0 (entry relOp exit)` 채널**:
-- `entry > exit` (감소 방향): buggy·correct 모두 satisfied — 둘 다 reserve0 감소.
-- `entry == exit`: 둘 다 violated.
-- 방향성만으로는 **구분 불가**. Grammar의 entry/exit 비교는 **qualitative (relOp: =, ≠, <, >)만 허용**, **magnitude 비교 불가**.
+**(a) `@Post reserve0 (entry relOp exit)` channel**:
+- `entry > exit` (decreasing direction): satisfied by both buggy and correct — both decrease reserve0.
+- `entry == exit`: violated by both.
+- Direction alone **cannot distinguish** the two. The grammar's entry/exit comparison **only allows qualitative form (relOp: =, ≠, <, >)**, not magnitude comparison.
 
-**(b) `@Post changed(reserve0, true)` 채널**:
-- Buggy·correct 모두 satisfied — 둘 다 변경.
+**(b) `@Post changed(reserve0, true)` channel**:
+- Both buggy and correct are satisfied — both change.
 
-**(c) Magnitude 표현 시도**:
-- `@Post reserve0_entry - reserve0_exit == amount0` 형태 필요.
-- `reserve0_entry`를 arithExpr 안에 쓸 문법 없음. `reserve0 (entry relOp exit)`는 특수 form.
-- `commonClause`의 `intentValue relOp intentValue`에서 `reserve0`는 exit 값만 참조.
-- Entry 값 참조할 경로 없음 → **표현 불가**.
+**(c) Magnitude expression attempt**:
+- A form like `@Post reserve0_entry - reserve0_exit == amount0` is required.
+- There is no syntax for placing `reserve0_entry` inside an arithExpr. `reserve0 (entry relOp exit)` is a special form.
+- In `commonClause`'s `intentValue relOp intentValue`, `reserve0` only refers to its exit value.
+- No path to reference the entry value → **inexpressible**.
 
 **(d) Aux injection (I4)**:
-- 함수 상단에 `uint128 reserve0_before = reserve0;` 삽입.
+- Insert `uint128 reserve0_before = reserve0;` at the top of the function.
 - Annotation: `@Post reserve0_before == reserve0 + amount0` — grammar OK.
 - Buggy: `reserve0_before == reserve0 + amount0fees ≠ reserve0 + amount0` → VIOLATED.
 - Correct: `reserve0_before == reserve0 + amount0` → SATISFIED.
-- **Injection 하면 detectable**. 단 snapshot 주입 결정 자체가 "reserve 차감량이 amount0이어야 한다"는 버그 인지 → L5 transit.
+- **Detectable with injection**. However, the very decision to inject the snapshot already implies awareness that "the reserve decrement should equal amount0" → transit toward L5.
 
-#### 4. 분류 타당성 — **L4c 확정**
+#### 4. Classification rationale — **L4c confirmed**
 
-**L4c 본질**: Grammar의 postClause `intentValue (entry relOp exit)`가 **qualitative 비교만 허용** (direction/equality). Magnitude (exact 차이)를 표현할 문법 수단 없음. Case 13의 buggy/correct가 같은 방향·같은 state var 변경, magnitude만 다른 전형.
+**Essence of L4c**: The grammar's postClause `intentValue (entry relOp exit)` **only permits qualitative comparison** (direction/equality). There is no syntactic means to express magnitude (the exact difference). Case 13 is the archetype where buggy/correct change the same state variable in the same direction and differ only in magnitude.
 
-`limitation_types.md` L4c 설명 정확. **유일 L4c case라 일반화 판단 아직 불가**.
+The `limitation_types.md` description of L4c is accurate. As **the sole L4c case, generalization is not yet possible**.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (L4c — postClause 문법의 qualitative 제약)**:
+**Essence (L4c — qualitative restriction of postClause grammar)**:
 
-PostEntryExit 형식 `intentValue (entry relOp exit)`이 arithmetic을 포함하지 않음. 즉 "reserve0가 amount0만큼 감소했다" (`before - after == amount0`) 표현 불가. **Grammar-level 한계**.
+The PostEntryExit form `intentValue (entry relOp exit)` does not include arithmetic. That is, "reserve0 decreased by amount0" (`before - after == amount0`) is inexpressible. **A grammar-level limitation**.
 
-**I8 새 축 재분류**:
-- **Bug category**: **Value error** — 잘못된 identifier 선택 (`amount0fees` 대신 `amount0`이어야). 한 줄 fix.
-- **Proxy type**: **Type A** — 올바른 identifier `amount0`이 **scope에 존재함**.
-- 즉 Case 13은 **Value / Type A**. Case 1(A_candidate)에 이어 **두 번째 Type A 확정 사례**.
+**I8 new-axis re-classification**:
+- **Bug category**: **Value error** — wrong identifier choice (should have been `amount0` instead of `amount0fees`). One-line fix.
+- **Proxy type**: **Type A** — the correct identifier `amount0` **exists in scope**.
+- I.e., Case 13 is **Value / Type A**. Following Case 1 (A_candidate), this is the **second confirmed Type A case**.
 
-**Case 8 (61_H_01)과의 유사성**: 둘 다 identifier 선택 오류 (wrong identifier in scope).
-- Case 8: `.arg[n]` 채널 가능, semantic 채널 막힘 (@IReturn arg-indifference) → **L4a**.
-- Case 13: `.arg[n]` 채널 없음 (state 차감은 `x -= y` 형식이지 call 아님), `changed`/`entry-exit` 채널은 qualitative만 → **L4c**.
-- 둘 다 I9 원칙상 lint-level L5b 배제 → L4로 고정.
+**Resemblance to Case 8 (61_H_01)**: both are wrong-identifier-choice errors (wrong identifier in scope).
+- Case 8: `.arg[n]` channel possible, semantic channel blocked (@IReturn arg-indifference) → **L4a**.
+- Case 13: no `.arg[n]` channel (state subtraction takes the form `x -= y`, not a call); the `changed`/`entry-exit` channels are qualitative only → **L4c**.
+- Both are excluded from lint-level L5b under I9 → fixed at L4.
 
-**중요 관찰 — L4c의 성격**:
-- L4c는 **scope는 Type A (proxy 존재)인데 grammar postClause가 magnitude 표현 못해서 L4로 떨어지는 cell**.
-- L4a (Type B: proxy 부재) 와 **성격이 완전히 다름**.
-- 새 I8 axis matrix에서 L4c는 **Value / Type A / grammar-limit** 으로 단일 cell 차지. L4a의 Value/B cell과 구분.
+**Important observation — character of L4c**:
+- L4c is **the cell that drops to L4 because, although the scope is Type A (proxy exists), the grammar postClause cannot express magnitude**.
+- It is **completely different in character** from L4a (Type B: proxy absent).
+- In the new I8 axis matrix, L4c occupies a single cell as **Value / Type A / grammar-limit**. Distinct from L4a's Value/B cell.
 
-**Aux injection (I4) 경로**: 단순 snapshot local `reserve0_before` 주입. 가장 쉬운 I4 injection (state 단일 복사). Y (easy).
+**Aux injection (I4) path**: A simple snapshot of the local `reserve0_before`. The easiest I4 injection (a single state copy). Y (easy).
 
-**[Category (I8)]**: **Value error / Type A (grammar-limit)** — L4c의 유일 case. PostClause 문법의 qualitative 제약이 primary blocker. Proxy (`amount0`)는 scope 안에 있으나 grammar가 state transition magnitude를 표현 못 함.
+**[Category (I8)]**: **Value error / Type A (grammar-limit)** — the sole L4c case. The qualitative restriction of postClause grammar is the primary blocker. The proxy (`amount0`) is in scope, but the grammar cannot express the state-transition magnitude.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested improvements to the paper text
 
-- **L4c 본문 (line 1319)** 유지 가능. 단 **L4c의 본질이 "grammar-level 제약"이지 scope 부재 아님**을 명시. Aux injection 경유 L5 transit 가능성 언급.
-- **Grammar 확장 후보**: `intentValue (entry - exit == expr)` 같은 arithmetic 허용 시 L4c가 해소됨 (snapshot injection 없이도). **간단한 grammar 확장으로 해소 가능한 유일한 L4 category**라는 paper insight.
-- **I8 matrix 배치**: 34 case 완주 후 matrix에서 L4c는 **Value/A / grammar-limit** 셀로 분리. L4a(Value/B)와 구조 다름을 강조.
+- **L4c body (line 1319)** can be retained. However, **make explicit that the essence of L4c is a "grammar-level restriction", not absence of scope**. Mention the possibility of L5 transit via aux injection.
+- **Grammar-extension candidate**: allowing arithmetic such as `intentValue (entry - exit == expr)` would dissolve L4c (without snapshot injection). Paper insight: this is **the only L4 category that can be dissolved by a simple grammar extension**.
+- **Placement in I8 matrix**: after completing all 34 cases, separate L4c in the matrix into the **Value/A / grammar-limit** cell. Emphasize the structural difference from L4a (Value/B).
 
 ---
 
 ## L4d — Invariant Masked (1 case)
 
-L4d 정의: 동일 함수 내 다른 코드가 이미 target 변수를 변경하여 `changed()`/PostEntryExit가 buggy/correct 모두에서 satisfied. Product invariant 등 **multi-variable arithmetic 관계**가 필요하나 PostEntryExit에서 산술 표현 미지원.
+L4d definition: Other code in the same function already changes the target variable, so `changed()`/PostEntryExit are satisfied in both buggy and correct versions. A **multi-variable arithmetic relationship** such as a product invariant is required, but PostEntryExit does not support arithmetic expressions.
 
 ---
 
-### Case 14 — `web3bugs_36_H_02` (현재 분류: **L4d**, 유일 case)
+### Case 14 — `web3bugs_36_H_02` (current classification: **L4d**, sole case)
 
-#### 1. Audit report 인용
+#### 1. Audit report citation
 
-- **출처**: `reports/36.md` → `[H-02] Basket.sol#auctionBurn() A failed auction will freeze part of the funds`
+- **Source**: `reports/36.md` → `[H-02] Basket.sol#auctionBurn() A failed auction will freeze part of the funds`
 - **Severity**: High (judge confirmed). **Warden**: WatchPug (C4 2021-09-defiprotocol).
-- **핵심 주장 (원문 발췌)**:
+- **Core claim (verbatim excerpt)**:
   > Given the `auctionBurn()` function will `_burn()` the auction bond without updating the `ibRatio`. Once the bond of a failed auction is burned, the proportional underlying tokens won't be able to be withdrawn, in other words, being frozen in the contract.
-- **POC**: ibRatio=1e18, totalSupply=400, burn 1 token → buggy ibRatio remains 1e18, totalSupply=399. 사용자가 1 token burn 시 1 BTC + 1 ETH 회수 가능하나 원래 자산 대비 **1 BTC + 1 ETH 영구 락**.
-- **권고 fix**:
+- **POC**: ibRatio=1e18, totalSupply=400, burn 1 token → buggy ibRatio remains 1e18, totalSupply=399. When a user burns 1 token, they can withdraw 1 BTC + 1 ETH, but relative to the original assets **1 BTC + 1 ETH is permanently locked**.
+- **Recommended fix**:
   ```solidity
   function auctionBurn(uint256 amount) onlyAuction external override {
       handleFees();
@@ -2394,261 +2395,261 @@ L4d 정의: 동일 함수 내 다른 코드가 이미 target 변수를 변경하
   ```
 - **Judge**: "funds can be irrevocably lost, this is a high severity finding".
 
-#### 2. 코드 의미 이해
+#### 2. Understanding the code semantics
 
-##### (2a) Contract 목적
+##### (2a) Contract purpose
 
-`Basket` — DefiProtocol의 **index basket token** (ETF-style). 사용자가 basket 토큰을 mint/burn하면 underlying tokens(BTC, ETH 등)를 proportional하게 입출금. `ibRatio`는 basket token ↔ underlying 비율을 유지하는 **accounting multiplier**. Invariant: `ibRatio × totalSupply`가 pool의 underlying total value에 비례.
+`Basket` — DefiProtocol's **index basket token** (ETF-style). Users mint/burn the basket token while underlying tokens (BTC, ETH, etc.) are deposited/withdrawn proportionally. `ibRatio` is an **accounting multiplier** that maintains the basket-token ↔ underlying ratio. Invariant: `ibRatio × totalSupply` is proportional to the pool's total underlying value.
 
-##### (2b) 함수의 역할
+##### (2b) Function role
 
 `auctionBurn(amount) onlyAuction external` (L102–108):
-- Auction 컨트랙트가 **실패한 auction bond**를 burn 처리할 때 호출.
-- `_burn`으로 totalSupply 감소.
-- 남은 사용자들이 동일한 underlying 비례 회수를 받으려면 **ibRatio가 totalSupply 감소에 반비례하여 증가**해야 함 (invariant 유지).
-- Audit fix: `newIbRatio = ibRatio * startSupply / (startSupply - amount)` — 정확한 invariant 유지 공식.
+- Called by the auction contract to burn a **failed auction bond**.
+- Decreases totalSupply via `_burn`.
+- For the remaining users to receive the same proportional underlying withdrawal, **ibRatio must increase inversely with the totalSupply decrease** (preserving the invariant).
+- The audit fix: `newIbRatio = ibRatio * startSupply / (startSupply - amount)` — the exact invariant-preserving formula.
 
 ##### (2d) Line-by-line (L102–108)
 
 ```solidity
 102  function auctionBurn(uint256 amount) onlyAuction external override {
-103      handleFees();         // (A) 특정 분기에서 ibRatio 업데이트
-105      _burn(msg.sender, amount);   // totalSupply 감소
+103      handleFees();         // (A) updates ibRatio in a particular branch
+105      _burn(msg.sender, amount);   // decreases totalSupply
 107      emit Burned(msg.sender, amount);
 108  }
 ```
 
-- **L103 (`handleFees`)**: `lastFee != 0 && time passed`일 때만 ibRatio 업데이트 (`ibRatio = ibRatio * startSupply / totalSupply()`). Fee 징수 목적. `lastFee == 0`이면 no-op (setter만).
-- **L105 (`_burn`)**: totalSupply 감소.
-- **BUG 누락**: totalSupply 감소 후 **invariant 유지용 ibRatio 업데이트** 없음.
+- **L103 (`handleFees`)**: only updates ibRatio when `lastFee != 0 && time passed` (`ibRatio = ibRatio * startSupply / totalSupply()`). Its purpose is to charge fees. If `lastFee == 0`, it is a no-op (setter only).
+- **L105 (`_burn`)**: decreases totalSupply.
+- **MISSING BUG**: after totalSupply decreases, **there is no ibRatio update to preserve the invariant**.
 
-##### (2e) 버그 근본 의미
+##### (2e) Underlying meaning of the bug
 
-**Multi-variable product invariant violation**. `auctionBurn` 전: `ibRatio_entry × totalSupply_entry = K`. `auctionBurn` 후 (fix 하에): `ibRatio_exit × totalSupply_exit = K` 유지. Buggy에서 totalSupply만 감소하고 ibRatio 불변 → 곱 감소 → underlying token 중 비례분이 "회수 불가" (freeze).
+**Multi-variable product invariant violation**. Before `auctionBurn`: `ibRatio_entry × totalSupply_entry = K`. After `auctionBurn` (under the fix): `ibRatio_exit × totalSupply_exit = K` is preserved. In the buggy version only totalSupply decreases while ibRatio is unchanged → the product decreases → the proportional share of the underlying tokens becomes "non-recoverable" (frozen).
 
-POC의 경우: 1 BTC + 1 ETH가 영구 락. 자금의 proportional freeze는 High severity.
+In the POC: 1 BTC + 1 ETH is permanently locked. Proportional freeze of funds is a High severity issue.
 
-#### 3. IntentChecker annotation 시도
+#### 3. IntentChecker annotation attempt
 
-**함수 scope**:
+**Function scope**:
 - Param: `amount`.
 - State: `ibRatio`, `totalSupply` (ERC20 inherited), `lastFee`, etc.
 
-**(a) `@Post changed(ibRatio, true)` 채널** — L4d의 핵심 이슈:
-- `handleFees`가 **특정 분기에서 이미 ibRatio 업데이트**. 따라서:
-  - Scenario-A (`lastFee != 0` + time passed): handleFees가 ibRatio 변경 → buggy·correct 모두 `changed` satisfied. **구분 불가**.
-  - Scenario-B (`lastFee == 0`): handleFees가 ibRatio 변경 안 함 → buggy unchanged, correct changed. 구분 가능.
-- 즉 **debug annotation 시나리오 따라 detectability 갈림** (I6 general vs specific 경계).
+**(a) `@Post changed(ibRatio, true)` channel** — the core L4d issue:
+- `handleFees` **already updates ibRatio in some branches**. Therefore:
+  - Scenario-A (`lastFee != 0` + time passed): handleFees changes ibRatio → both buggy and correct satisfy `changed`. **Indistinguishable**.
+  - Scenario-B (`lastFee == 0`): handleFees does not change ibRatio → buggy unchanged, correct changed. Distinguishable.
+- I.e., **detectability splits according to debug annotation scenario** (the I6 boundary between general vs specific).
 
-**(b) `@Post ibRatio (entry == exit)` (불변성 주장)**:
-- Buggy Scenario-A: ibRatio가 handleFees로 이미 바뀜 → VIOLATED.
-- Buggy Scenario-B: ibRatio 불변 → SATISFIED.
-- Correct: 항상 변경 (manual update) → VIOLATED.
-- Scenario-B에서 역방향 구분. Scenario-A에선 둘 다 VIOLATED → 구분 불가.
+**(b) `@Post ibRatio (entry == exit)` (asserting invariance)**:
+- Buggy Scenario-A: ibRatio is already changed by handleFees → VIOLATED.
+- Buggy Scenario-B: ibRatio unchanged → SATISFIED.
+- Correct: always changes (manual update) → VIOLATED.
+- Distinguishable (in reverse direction) in Scenario-B. In Scenario-A both are VIOLATED → indistinguishable.
 
-**(c) Product invariant (진짜 intent)**:
-- Correct: `@Post ibRatio * totalSupply (entry == exit)` — **곱 보존**.
-- Grammar의 `intentValue (entry relOp exit)`는 **qualitative only**. 산술 표현 (곱) 허용 안 함.
-- `commonClause`의 `intentValue relOp intentValue`로 `ibRatio * totalSupply == <entry value>` 시도: entry value 표현 경로 없음 (Case 13과 동일).
-- **표현 불가** (L4d primary 본질).
+**(c) Product invariant (the real intent)**:
+- Correct: `@Post ibRatio * totalSupply (entry == exit)` — **product preservation**.
+- The grammar's `intentValue (entry relOp exit)` is **qualitative only**. It does not allow arithmetic expressions (product).
+- Trying `commonClause`'s `intentValue relOp intentValue` to assert `ibRatio * totalSupply == <entry value>`: there is no way to express the entry value (same as Case 13).
+- **Inexpressible** (the primary essence of L4d).
 
 **(d) Aux injection (I4)**:
-- `uint256 K_before = ibRatio * totalSupply();` 주입 → product invariant 체크 가능. 단 `totalSupply()` 함수 호출 문제 (ERC20 inherited `_totalSupply` state 접근 가능하면 해결 — Issue 8 영역).
-- **Y_medium** 수준.
+- Inject `uint256 K_before = ibRatio * totalSupply();` → product-invariant check becomes feasible. There is the `totalSupply()` function-call issue (resolvable if the inherited ERC20 `_totalSupply` state is accessible — Issue 8 territory).
+- **Y_medium** level.
 
-#### 4. 분류 타당성 — **L4d 확정**
+#### 4. Classification rationale — **L4d confirmed**
 
-`limitation_types.md` L4d 설명 정확. Handle Fees가 이미 ibRatio를 변경할 수 있어 `changed` 마스킹, 진짜 invariant (곱 보존)는 PostEntryExit 산술 부재로 표현 불가.
+The `limitation_types.md` description of L4d is accurate. handleFees may already change ibRatio, masking `changed`, while the real invariant (product preservation) is inexpressible due to the absence of PostEntryExit arithmetic.
 
-#### 5. 근본 원인
+#### 5. Root cause
 
-**본질 (L4d — multi-variable arithmetic invariant 표현 불가)**:
+**Essence (L4d — multi-variable arithmetic invariant inexpressible)**:
 
-Correct intent = `ibRatio × totalSupply == ibRatio_entry × totalSupply_entry` (product preservation). PostClause grammar에 이 형식 없음.
+Correct intent = `ibRatio × totalSupply == ibRatio_entry × totalSupply_entry` (product preservation). This form does not exist in the postClause grammar.
 
-**Case 13 (L4c)과 비교**:
-- L4c: single var magnitude (`reserve0 entry - exit == amount0`).
-- L4d: multi-var product (`ibRatio × totalSupply` invariant).
-- 둘 다 **PostEntryExit grammar 산술 표현력 한계**로 귀결.
+**Comparison with Case 13 (L4c)**:
+- L4c: single-variable magnitude (`reserve0 entry - exit == amount0`).
+- L4d: multi-variable product (`ibRatio × totalSupply` invariant).
+- Both reduce to **the limited arithmetic expressivity of PostEntryExit grammar**.
 
-즉 **L4c와 L4d는 사실상 동일 grammar-limit의 서로 다른 발현**:
+I.e., **L4c and L4d are essentially two manifestations of the same grammar-limit**:
 - L4c: `diff == const`.
 - L4d: `product == const`.
-- 본질적 blocker 동일 (arithmetic PostEntryExit 부재).
+- The essential blocker is the same (absence of arithmetic PostEntryExit).
 
-**I8 새 축 재분류**:
-- **Bug category**: **Algorithm error** — invariant 유지 로직(= missing state update) 누락. Fix는 여러 줄 (startSupply + newIbRatio 계산 + ibRatio 업데이트 + emit).
-- **Proxy type**: **Type A** — 모든 관련 변수(`ibRatio`, `totalSupply`, `amount`)가 scope·state에 존재.
-- **Algorithm / Type A (grammar-limit)** — Case 13 (Value/A)과 **같은 "Type A / grammar-limit" 축**, bug category 다름.
+**I8 new-axis re-classification**:
+- **Bug category**: **Algorithm error** — missing invariant-preservation logic (= missing state update). Multi-line fix (startSupply + newIbRatio computation + ibRatio update + emit).
+- **Proxy type**: **Type A** — all relevant variables (`ibRatio`, `totalSupply`, `amount`) exist in scope/state.
+- **Algorithm / Type A (grammar-limit)** — same "Type A / grammar-limit" axis as Case 13 (Value/A), differing in bug category.
 
-G-표면:
-- **G6 (L4d 전용)** — multi-variable PostEntryExit 산술 표현 불가.
-- **Type A 측면**: G1/G3 없음 (변수 모두 scope에 있음).
+G-surfaces:
+- **G6 (specific to L4d)** — multi-variable PostEntryExit arithmetic is inexpressible.
+- **Type A side**: no G1/G3 (variables are all in scope).
 
 **Silent sanction (I5)**:
-- `@Post changed(ibRatio, true)` Scenario-A에서 buggy satisfied → silent sanction.
-- Scenario-B에서만 구분 → 운 좋은 시나리오 (I6 specific form).
+- `@Post changed(ibRatio, true)` is satisfied by buggy in Scenario-A → silent sanction.
+- Distinguishable only in Scenario-B → fortunate scenario (the I6 specific form).
 
-**Case 13 + 14 공통 — "L4c/L4d merger 제안"**:
-둘 다 PostEntryExit grammar-limit이 primary. Bug category만 다름:
+**Common to Cases 13 + 14 — "Proposal to merge L4c/L4d"**:
+For both, the PostEntryExit grammar-limit is the primary issue. Only the bug category differs:
 - L4c (Case 13): Value / Type A / magnitude-grammar-limit.
 - L4d (Case 14): Algorithm / Type A / product-grammar-limit.
-- 새 axis matrix에서 이 두 case는 **동일 grammar-limit cell의 두 sub-pattern**. Paper에서 L4c와 L4d를 **"PostEntryExit arithmetic gap"**으로 merger 제안.
+- In the new axis matrix these two cases are **two sub-patterns of the same grammar-limit cell**. Proposal for the paper: merge L4c and L4d into a **"PostEntryExit arithmetic gap"**.
 
-**[Category (I8)]**: **Algorithm error / Type A (grammar-limit)** — multi-variable invariant preservation. L4c와 구조 공유.
+**[Category (I8)]**: **Algorithm error / Type A (grammar-limit)** — multi-variable invariant preservation. Shares structure with L4c.
 
-#### 6. paper 문장 개선 제안
+#### 6. Suggested improvements to the paper text
 
-- **L4c + L4d merger**: 새 axis 기준 두 case가 **같은 grammar-limit cell**. Paper에서 "PostEntryExit arithmetic absence" 단일 항목으로 통합 서술 검토.
-- **Grammar 확장 후보**: Case 13·14 둘 다 `intentValue (entry arithOp exit)` 허용으로 해소. 구체적 제안: `reserve0 (entry - exit == amount0)` (L4c), `ibRatio * totalSupply (entry == exit)` (L4d).
-- **Invariant DSL future direction**: Multi-variable protocol invariant는 DeFi cornerstone이나 현재 grammar 미지원. Paper future work에서 **invariant annotation DSL** 제안 근거.
-
----
-
-## L4b 배치 (Cases 15–20) — 6 cases compact batch
-
-**배치 방식**: Case별 핵심 정보 + 새 4축 태깅. 공통 패턴은 L4b subsection summary에 통합. 파일 부피 제어.
+- **L4c + L4d merger**: under the new axis these two cases occupy **the same grammar-limit cell**. Consider unifying them in the paper as a single "PostEntryExit arithmetic absence" item.
+- **Grammar-extension candidate**: both Case 13 and Case 14 are dissolved by allowing `intentValue (entry arithOp exit)`. Concrete proposals: `reserve0 (entry - exit == amount0)` (L4c), `ibRatio * totalSupply (entry == exit)` (L4d).
+- **Invariant DSL future direction**: Multi-variable protocol invariants are a DeFi cornerstone, yet the current grammar does not support them. This serves as the basis for proposing an **invariant annotation DSL** in future work.
 
 ---
 
-### Case 15 — `web3bugs_52_H_16` (L4b, Case 12 쌍둥이)
+## L4b batch (Cases 15–20) — 6-case compact batch
+
+**Batch approach**: per-case key information + new 4-axis tagging. Common patterns are consolidated in the L4b subsection summary. File size is controlled.
+
+---
+
+### Case 15 — `web3bugs_52_H_16` (L4b, twin of Case 12)
 
 - **Audit**: `[H-16] VaderRouter.calculateOutGivenIn calculates wrong swap` (cmichel, confirmed).
-- **버그** (L488–495): 3-path swap에서 pool 순서 뒤바뀜. Inner `calculateSwap`이 `pool1` reserves, outer가 `pool0` reserves를 사용 — 올바른 순서는 **inner=pool0 (foreign→native), outer=pool1 (native→foreign)**.
-- **Fix**: reserve 인자를 pool0/pool1 위치 swap.
-- **함수 타입**: `calculateOutGivenIn` external view — no state write.
-- **Annotation 시도**: (a) `@Post returnExpression == correct_amountOut` 필요 — VaderMath.calculateSwap chain + pool0·pool1 reserves의 결합. Grammar에서 함수 호출 불허 → 표현 불가. (b) `.arg[n]` 순서 체크 가능하나 **I9에 의해 lint-level, L5b 배제**.
-- **분류**: annotation_plans.md = L5b → I9 원칙 적용 후 **L4b** (view + external reserves/formula 의존).
-- **[Category (I8)]**: **Value error / Type B** — Case 12 (52_H_15)의 view version 쌍둥이. Pool routing semantic이 VaderRouter scope 밖.
+- **Bug** (L488–495): in the 3-path swap, the pool order is reversed. Inner `calculateSwap` uses `pool1` reserves and outer uses `pool0` reserves — the correct order is **inner=pool0 (foreign→native), outer=pool1 (native→foreign)**.
+- **Fix**: swap the reserve arguments at the pool0/pool1 positions.
+- **Function type**: `calculateOutGivenIn` external view — no state writes.
+- **Annotation attempt**: (a) `@Post returnExpression == correct_amountOut` is needed — a combination of the VaderMath.calculateSwap chain + pool0/pool1 reserves. The grammar disallows function calls → inexpressible. (b) The `.arg[n]` order check is feasible but **excluded from L5b by I9 (lint-level)**.
+- **Classification**: annotation_plans.md = L5b → after applying I9 principle, **L4b** (view + dependence on external reserves/formula).
+- **[Category (I8)]**: **Value error / Type B** — the view-version twin of Case 12 (52_H_15). Pool routing semantics is outside VaderRouter scope.
 
 ---
 
 ### Case 16 — `web3bugs_58_H_04` (L4b)
 
-- **Audit**: `[H-04] AaveVault stale tvl` (Aave의 rebasing aToken). annotation_plans.md L5a.
-- **버그** (L47, _push/_pull 관련): `tvl()`이 cached `_tvls` 반환. `_push()`에서 `updateTvls()`가 **deposit 이후** 호출 → LPIssuer가 **old tvl 기준으로 shares 계산** → Aave 이자가 반영되기 전 과다 shares 발행.
-- **Fix**: `_push()` 시작에 `updateTvls()` 추가 (operation ordering 교정).
-- **함수 타입**: `tvl` view, `_push`/`_pull` state-modifying wrapper.
-- **Annotation 시도**:
-  - `@Post` on `_tvls` 변화: buggy·correct 모두 satisfied (둘 다 updateTvls는 부름).
-  - "deposit 전에 tvl 갱신" ordering invariant: grammar 지원 없음.
-  - `@During bal_before == bal_after_before_deposit` 같은 snapshot — aux injection 필요.
-- **분류**: L4b (view tvl; _push wrapper → state attach 있지만 ordering 문제라 구분 불가).
-- **[Category (I8)]**: **Algorithm error / Type B** — ordering 문제가 단일 annotation 범위 넘음. Case 11 (17_H_02)와 유사 (view + missing check/call).
+- **Audit**: `[H-04] AaveVault stale tvl` (Aave's rebasing aToken). annotation_plans.md L5a.
+- **Bug** (L47, related to _push/_pull): `tvl()` returns the cached `_tvls`. In `_push()`, `updateTvls()` is called **after** the deposit → LPIssuer **computes shares based on the old tvl** → excessive shares are issued before Aave interest is reflected.
+- **Fix**: add `updateTvls()` at the start of `_push()` (correct the operation ordering).
+- **Function type**: `tvl` view, `_push`/`_pull` state-modifying wrappers.
+- **Annotation attempt**:
+  - `@Post` on `_tvls` change: both buggy and correct are satisfied (both invoke updateTvls).
+  - The "update tvl before deposit" ordering invariant: not supported by the grammar.
+  - A snapshot like `@During bal_before == bal_after_before_deposit` — requires aux injection.
+- **Classification**: L4b (view tvl; _push wrapper → has state attachment but cannot distinguish since the issue is ordering).
+- **[Category (I8)]**: **Algorithm error / Type B** — the ordering issue exceeds the scope of a single annotation. Similar to Case 11 (17_H_02) (view + missing check/call).
 
 ---
 
 ### Case 17 — `web3bugs_62_H_01` (L4b)
 
 - **Audit**: `[H-01] Stream.recoverTokens leaks flashloan fee`. Sponsor (brockelmore) confirmed.
-- **버그** (L654): `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)` — `depositTokenFlashloanFeeAmount` 누락.
-- **Fix**: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount` (한 term 추가).
-- **함수 타입**: external, safeTransfer만 — Stream contract 자체 state write 없음 (wrapper에 가까움).
-- **Annotation 시도**:
-  - Correct formula의 피연산자 `depositTokenFlashloanFeeAmount`는 **state var in scope**.
-  - `balanceOf(this)`는 external interface view — call site 존재하나 **local 미저장** (inline chain).
-  - `@During excess (assign == balanceOf_result - (...) - depositTokenFlashloanFeeAmount)` — `balanceOf_result`가 local 없음.
-  - Aux injection: `uint256 bal = balanceOf(...);` 삽입 후 annotation 가능.
-- **annotation_plans.md L5a** → I9 원칙 + wrapper 성격으로 **L4b** 재분류 제안 (no state write + balanceOf inline chain).
-- **[Category (I8)]**: **Algorithm error / Type B** — missing formula term + balanceOf 결과 local 미저장. Case 9 (61_H_02)와 유사 (wrapper return handling).
+- **Bug** (L654): `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens)` — `depositTokenFlashloanFeeAmount` is missing.
+- **Fix**: `excess = balanceOf(this) - (depositTokenAmount - redeemedDepositTokens) - depositTokenFlashloanFeeAmount` (one term added).
+- **Function type**: external, only safeTransfer — the Stream contract itself has no state writes (close to a wrapper).
+- **Annotation attempt**:
+  - The operand `depositTokenFlashloanFeeAmount` of the correct formula is a **state var in scope**.
+  - `balanceOf(this)` is an external interface view — the call site exists but **is not stored locally** (inline chain).
+  - `@During excess (assign == balanceOf_result - (...) - depositTokenFlashloanFeeAmount)` — `balanceOf_result` has no local.
+  - Aux injection: insertion of `uint256 bal = balanceOf(...);` makes annotation possible.
+- **annotation_plans.md L5a** → proposed re-classification to **L4b** under I9 + the wrapper nature (no state writes + balanceOf inline chain).
+- **[Category (I8)]**: **Algorithm error / Type B** — missing formula term + balanceOf result not stored locally. Similar to Case 9 (61_H_02) (wrapper return handling).
 
 ---
 
 ### Case 18 — `web3bugs_70_H_08` (L4b)
 
 - **Audit**: `[H-08] USDV/VADER rate conversion missing 1e18 scaling`. Judge resolved.
-- **버그** (L98, L102):
-  - Line 98: `amount = amount / usdvPrice` — usdvPrice 1e18 스케일, 결과 1e18배 과소.
-  - Line 102: `amount = amount * vaderPrice` — 1e18배 과대.
+- **Bug** (L98, L102):
+  - Line 98: `amount = amount / usdvPrice` — usdvPrice is at 1e18 scale, so the result is undersized by 1e18.
+  - Line 102: `amount = amount * vaderPrice` — oversized by 1e18.
   - Correct: `amount * 1e18 / usdvPrice`, `amount * vaderPrice / 1e18`.
-- **함수 타입**: external, vader.safeTransfer 후 emit. VaderReserve state 불변 (transfer만). Wrapper.
-- **Annotation 시도**:
-  - `usdvPrice`, `vaderPrice` — interface view call 반환, **local로 저장됨** (L96, L100).
+- **Function type**: external, vader.safeTransfer then emit. VaderReserve state is unchanged (transfer only). Wrapper.
+- **Annotation attempt**:
+  - `usdvPrice`, `vaderPrice` — return values from interface view calls, **stored locally** (L96, L100).
   - Correct annotation: `@During amount (assign == original_amount * 1e18 / usdvPrice)` in branch 1.
-  - 문제: `amount`가 **parameter 자체 overwrite** → original 값 소실.
-  - Aux injection: `uint256 original = amount;` 상단에 삽입 필요.
-- **annotation_plans.md L5a** → wrapper + parameter overwrite로 **L4b** 재분류 제안.
-- **[Category (I8)]**: **Value error / Type B** — scaling factor missing, parameter overwrite로 original 값 scope 부재. Case 1·2·10 "scaling trio"의 wrapper 버전.
+  - Issue: `amount` is **the parameter overwritten in place** → the original value is lost.
+  - Aux injection: `uint256 original = amount;` must be inserted at the top.
+- **annotation_plans.md L5a** → proposed re-classification to **L4b** due to wrapper + parameter overwrite.
+- **[Category (I8)]**: **Value error / Type B** — missing scaling factor; with the parameter overwritten the original value is out of scope. Wrapper-version of the "scaling trio" of Cases 1, 2, 10.
 
 ---
 
 ### Case 19 — `web3bugs_83_H_02` (L4b)
 
-- **Audit**: `[H-02] MasterChef deposit fee permanently locked`. 
-- **버그** (L170–172, deposit 내 분기): `depositFee` 계산되어 user.amount에서 차감되나 **feeRecipient.amount 증가 코드 없음** → fee만큼 tokens 영구 lock.
-- **Fix**: feeRecipient 대응 state update 추가.
-- **함수 타입**: external, user state 변경 있음 (user.amount, user.rewardDebt).
-- **Annotation 시도**:
-  - User 측 state (user.amount)는 buggy/correct 모두 `_amount - depositFee`로 정확 → `changed(user.amount, true)` 양쪽 다 satisfied.
-  - Fee recipient 측 state가 **코드에 아예 없음** — data model에 fee recipient account 슬롯 없음.
-  - Case 11 (Buoy3Pool.safetyCheck)의 "missing state variable" 패턴.
-- **annotation_plans.md L4b 기존** — 변경 없음. "target storage variable"의 "target"이 fee recipient이고 그게 scope에 없음.
-- **[Category (I8)]**: **Algorithm error / Type B** — missing state update + target state variable 자체 부재. Case 11과 유사 (data model 부재).
+- **Audit**: `[H-02] MasterChef deposit fee permanently locked`.
+- **Bug** (L170–172, inside the deposit branch): `depositFee` is computed and subtracted from user.amount, but **there is no code increasing feeRecipient.amount** → tokens equivalent to the fee are permanently locked.
+- **Fix**: add the corresponding feeRecipient state update.
+- **Function type**: external, has user state changes (user.amount, user.rewardDebt).
+- **Annotation attempt**:
+  - The user-side state (user.amount) is correctly `_amount - depositFee` in both buggy/correct → `changed(user.amount, true)` is satisfied by both.
+  - The fee-recipient-side state is **entirely missing from the code** — there is no fee-recipient account slot in the data model.
+  - The "missing state variable" pattern of Case 11 (Buoy3Pool.safetyCheck).
+- **annotation_plans.md L4b unchanged** — within the "target storage variable" idea, the "target" is the fee recipient, which is not in scope.
+- **[Category (I8)]**: **Algorithm error / Type B** — missing state update + the target state variable itself is absent. Similar to Case 11 (data model absence).
 
 ---
 
-### Case 20 — `web3bugs_110_H_01` (L4b, 쌍둥이 패턴 반복)
+### Case 20 — `web3bugs_110_H_01` (L4b, recurring twin pattern)
 
 - **Audit**: `[H-01] StakedCitadel.balance missing strategy portion`. Sponsor confirmed.
-- **버그** (L293–294): `balance()`가 `token.balanceOf(address(this))`만 반환, `IStrategy(strategy).balanceOf()` 누락. 주석에 "vault + strategy balance"라 명시됨에도 구현은 vault만.
+- **Bug** (L293–294): `balance()` returns only `token.balanceOf(address(this))`, missing `IStrategy(strategy).balanceOf()`. Although the comment specifies "vault + strategy balance", the implementation covers only the vault.
 - **Fix**: `return token.balanceOf(address(this)) + IStrategy(strategy).balanceOf();`
-- **함수 타입**: public view.
-- **Annotation 시도**:
-  - Correct return에 `IStrategy(strategy).balanceOf()` 호출 필요.
-  - `strategy`는 state var (in scope), 그러나 `.balanceOf()` 호출 자체가 **코드에 없음** → `@IReturn` 부착점 부재 (Case 2 25_H_05와 동일 구조).
-  - `@Post returnExpression == token.balanceOf(this) + strategy.balanceOf()` — 두 호출 모두 intent에서 표현 불가 (G1).
-- **분류**: annotation_plans.md L5a → I9 + view + function call absent로 **L4b** 재분류 제안.
-- **[Category (I8)]**: **Algorithm error / Type B** — missing interface call + 호출 사이트 부재. Case 11·16과 동일 family (view + missing call).
+- **Function type**: public view.
+- **Annotation attempt**:
+  - The correct return requires a call to `IStrategy(strategy).balanceOf()`.
+  - `strategy` is a state var (in scope), but the `.balanceOf()` call itself is **not in the code** → no `@IReturn` attachment point (same structure as Case 2, 25_H_05).
+  - `@Post returnExpression == token.balanceOf(this) + strategy.balanceOf()` — both calls are inexpressible inside the intent (G1).
+- **Classification**: annotation_plans.md L5a → proposed re-classification to **L4b** due to I9 + view + absent function call.
+- **[Category (I8)]**: **Algorithm error / Type B** — missing interface call + absent call site. Same family as Cases 11 and 16 (view + missing call).
 
 ---
 
-### L4b Subsection Summary (Cases 11-12, 15-20 — 총 8 cases)
+### L4b Subsection Summary (Cases 11-12, 15-20 — 8 cases total)
 
-**공통 패턴**:
-1. **함수 타입**: view (11, 15, 16 tvl, 20) / wrapper without state (12, 17, 18) / state-modifying but target-state-absent (19).
-2. **Intent channel 봉쇄**:
-   - State-based @Post 불가 (view) 또는 구분력 없음 (wrapper/missing-target).
-   - Return-based @Post도 semantic expression 불가 (G1, G3).
-3. **Proxy type**: 모두 **Type B**. L4b 정의 ("no-target-storage")가 사실상 Type B의 함수-type 기반 특수 케이스.
-4. **Bug category**: Value 2건 (15, 18), Algorithm 6건 (11, 12, 16, 17, 19, 20). 다수 Algorithm — missing call/update/term 패턴 많음.
-5. **Silent sanction 빈도**: 대부분 해당 — 코드 그대로 annotation 옮기면 buggy 그대로.
-6. **Aux injection**: 가능한 경우 (17, 18) vs 불가능한 경우 (data model 확장 필요: 11, 19). **난이도 스펙트럼**.
+**Common patterns**:
+1. **Function type**: view (11, 15, 16 tvl, 20) / wrapper without state (12, 17, 18) / state-modifying but with target state absent (19).
+2. **Intent channel blocked**:
+   - State-based @Post infeasible (view), or lacks distinguishing power (wrapper/missing-target).
+   - Return-based @Post also cannot express the semantics (G1, G3).
+3. **Proxy type**: all **Type B**. The L4b definition ("no-target-storage") is essentially a function-type-based special case of Type B.
+4. **Bug category**: 2 Value (15, 18), 6 Algorithm (11, 12, 16, 17, 19, 20). Algorithm dominates — many missing-call/update/term patterns.
+5. **Silent sanction frequency**: applies in most cases — translating the code straight into an annotation reproduces the buggy behavior.
+6. **Aux injection**: feasible (17, 18) vs infeasible (data-model extension required: 11, 19). **A spectrum of difficulty**.
 
-**Twin 관찰**:
+**Twin observations**:
 - (11, 16, 20): view function + missing call/update/check.
-- (12, 15): VaderRouter _swap vs calculateOutGivenIn — 같은 contract 쌍둥이 (state-modifying vs view).
-- (17, 18, 1, 2, 10): scaling/formula-term missing 계열.
+- (12, 15): VaderRouter _swap vs calculateOutGivenIn — same-contract twins (state-modifying vs view).
+- (17, 18, 1, 2, 10): scaling/missing-formula-term family.
 
-**분류 재검토 결과**:
-- annotation_plans.md가 많은 L4b case를 L5a/L5b로 잘못 라벨. I9 원칙 + function type 고려 시 **L4b가 옳음**.
-- 재분류: 15 (L5b→L4b), 17 (L5a→L4b 제안), 18 (L5a→L4b 제안), 20 (L5a→L4b 제안).
+**Re-classification review results**:
+- annotation_plans.md mislabels many L4b cases as L5a/L5b. Considering principle I9 + function type, **L4b is correct**.
+- Re-classification: 15 (L5b→L4b), 17 (L5a→L4b proposed), 18 (L5a→L4b proposed), 20 (L5a→L4b proposed).
 
-**I8 matrix 분포 (L4b 8 cases)**:
+**I8 matrix distribution (L4b 8 cases)**:
 - Algorithm/B: 6 (11, 12, 16, 17, 19, 20).
 - Value/B: 2 (15, 18).
-- Type A·A_candidate·non-B: 0.
+- Type A · A_candidate · non-B: 0.
 
-→ **L4b는 Type B 전용 cell**임이 confirmed.
+→ **L4b is confirmed as a Type-B-only cell**.
 
 ---
 
 ## L5a — Missing Code (7 cases, compact batch: Cases 21–27)
 
-**L5a 정의**: 있어야 할 코드(state update, function call 등) 누락. 기존 state 변수로 post-condition 표현 가능 (Type A 기본). 버그 인지 전제.
+**L5a definition**: Code that should exist (state update, function call, etc.) is missing. The post-condition can be expressed using existing state variables (basic Type A). Bug awareness is presupposed.
 
-**L5 전용 축 제안**: **Bug awareness source**:
-- **(consistency)**: sibling function/branch와의 비교로 도출 가능 (pattern-level).
-- **(domain)**: 프로토콜 도메인 지식 필요 (semantic-level).
+**Proposed L5-only axis**: **Bug awareness source**:
+- **(consistency)**: derivable through comparison with sibling functions/branches (pattern-level).
+- **(domain)**: requires protocol domain knowledge (semantic-level).
 
 ---
 
 ### Case 21 — `web3bugs_35_H_12` (L5a)
 
 - **Contract/Function**: ConcentratedLiquidityPool / mint (L176, L184 original).
-- **버그**: `liquidity` 변경 후 `secondsPerLiquidity` 갱신 누락. `swap()`은 동일 변경에서 `secondsPerLiquidity += uint160((diff << 128) / liquidity)` 수행 — 일관성 놓침.
-- **Annotation**: `@Post changed(secondsPerLiquidity, true)` — buggy 미변경, correct 변경 → 구분.
-- **Bug awareness**: **consistency** (swap과의 sibling 비교로 도출 가능).
-- **부가 blocker**: `abi.decode`로 파라미터 전달 (L3 unsupported-construct) — debug annotation 공급 제한.
+- **Bug**: After modifying `liquidity`, the update of `secondsPerLiquidity` is missing. `swap()` performs `secondsPerLiquidity += uint160((diff << 128) / liquidity)` for the same change — the consistency was missed.
+- **Annotation**: `@Post changed(secondsPerLiquidity, true)` — buggy unchanged, correct changed → distinguishable.
+- **Bug awareness**: **consistency** (derivable from sibling comparison with swap).
+- **Additional blocker**: parameters delivered via `abi.decode` (L3 unsupported-construct) — restricts the supply of debug annotations.
 - **[Category]**: **Value / Type A / consistency** (L5a).
 
 ---
@@ -2656,9 +2657,9 @@ G-표면:
 ### Case 22 — `web3bugs_52_H_23` (L5a)
 
 - **Contract/Function**: VaderPoolV2 / mintSynth (L161).
-- **버그**: `_update(foreignAsset, reserveNative + nativeDeposit, reserveForeign, ...)` — `reserveForeign`에서 `amountSynth` 차감 누락. 과다 synth 발행.
-- **Annotation**: `@Post changed(reserveForeign, true)` — buggy 변경 없음 (arg = current value), correct 변경 → 구분. 또는 `@Post reserveForeign (entry > exit)`.
-- **Bug awareness**: **domain** (synth 발행 시 foreign reserve 반영 회계 규칙 필요).
+- **Bug**: `_update(foreignAsset, reserveNative + nativeDeposit, reserveForeign, ...)` — the subtraction of `amountSynth` from `reserveForeign` is missing. Excessive synth issuance.
+- **Annotation**: `@Post changed(reserveForeign, true)` — buggy unchanged (arg = current value), correct changed → distinguishable. Or `@Post reserveForeign (entry > exit)`.
+- **Bug awareness**: **domain** (requires the accounting rule that foreign reserve must reflect synth issuance).
 - **[Category]**: **Value / Type A / domain** (L5a).
 
 ---
@@ -2666,10 +2667,10 @@ G-표면:
 ### Case 23 — `web3bugs_62_H_03` (L5a, symptom in recoverTokens, root in claimReward)
 
 - **Contract/Function**: Stream / claimReward (L575 transfer).
-- **버그**: reward token 전송 시 `rewardTokenAmount -= rewardAmt` 누락. `recoverTokens`에서 stale 값 참조로 excess 계산 오류.
-- **Annotation (root cause 지점)**: `@Post changed(rewardTokenAmount, true)` 혹은 `@Post rewardTokenAmount (entry > exit)` on `claimReward`.
-- **Bug awareness**: **consistency** (token transfer ↔ tracking variable 갱신이라는 일반 회계 패턴).
-- **부가 blocker (symptom 지점)**: `balanceOf()` external — L2a 보조.
+- **Bug**: When transferring reward tokens, the `rewardTokenAmount -= rewardAmt` update is missing. `recoverTokens` then references the stale value, producing wrong excess computation.
+- **Annotation (at the root-cause site)**: `@Post changed(rewardTokenAmount, true)` or `@Post rewardTokenAmount (entry > exit)` on `claimReward`.
+- **Bug awareness**: **consistency** (the general accounting pattern of token transfer ↔ tracking-variable update).
+- **Additional blocker (at the symptom site)**: `balanceOf()` external — auxiliary L2a.
 - **[Category]**: **Value / Type A / consistency** (L5a).
 
 ---
@@ -2677,19 +2678,19 @@ G-표면:
 ### Case 24 — `web3bugs_62_H_10` (L5a, symptom in recoverTokens, root in creatorClaimSoldTokens)
 
 - **Contract/Function**: Stream / creatorClaimSoldTokens (L597 transfer).
-- **버그**: deposit token 전송 시 `redeemedDepositTokens` 갱신 (혹은 `depositTokenAmount = 0`) 누락. 62_H_03 쌍둥이 패턴.
+- **Bug**: When transferring deposit tokens, the `redeemedDepositTokens` update (or `depositTokenAmount = 0`) is missing. Twin pattern of 62_H_03.
 - **Annotation**: `@Post changed(redeemedDepositTokens, true)` on `creatorClaimSoldTokens`.
-- **Bug awareness**: **consistency** (동일 token-transfer-tracking 패턴).
-- **[Category]**: **Value / Type A / consistency** (L5a). Case 23과 쌍둥이.
+- **Bug awareness**: **consistency** (the same token-transfer-tracking pattern).
+- **[Category]**: **Value / Type A / consistency** (L5a). Twin of Case 23.
 
 ---
 
 ### Case 25 — `web3bugs_65_H_01` (L5a)
 
 - **Contract/Function**: Basket / handleFees (L136–137).
-- **버그**: `startSupply == 0` 분기에서 `lastFee = block.timestamp` 갱신 누락. 다른 두 분기(`lastFee == 0`, 정상 `else`)는 갱신. Supply가 0이었던 기간에도 fee 부과되는 결과.
-- **Annotation**: `@Post changed(lastFee, true)` — 모든 분기에서 반드시 변경되어야 함.
-- **Bug awareness**: **consistency** (branch 간 일관성 — 다른 branch가 하는 것 누락 확인).
+- **Bug**: In the `startSupply == 0` branch, the `lastFee = block.timestamp` update is missing. The other two branches (`lastFee == 0`, normal `else`) do update it. Consequently, fees are charged even for periods when supply was zero.
+- **Annotation**: `@Post changed(lastFee, true)` — must change in every branch.
+- **Bug awareness**: **consistency** (cross-branch consistency — verifying that one branch is missing what the others do).
 - **[Category]**: **Value / Type A / consistency** (L5a).
 
 ---
@@ -2697,9 +2698,9 @@ G-표면:
 ### Case 26 — `web3bugs_83_H_01` (L5a)
 
 - **Contract/Function**: MasterChef / add (L89).
-- **버그**: `totalAllocPoint` 증가 전 `massUpdatePools()` 호출 누락. 기존 pool의 `accConcurPerShare`가 새 `totalAllocPoint`로 소급 반영되어 기존 staker reward 희석.
-- **Annotation**: `@Post poolInfo[1].accConcurPerShare (entry != exit)` — 기존 pool에 대해 accConcurPerShare가 반드시 갱신되어야.
-- **Bug awareness**: **consistency** (`set`/`update` 함수 다른 곳에서 massUpdatePools 먼저 호출 — 비교로 도출 가능) + **도메인** (reward accrual 이해).
+- **Bug**: `massUpdatePools()` is not called before incrementing `totalAllocPoint`. The `accConcurPerShare` of existing pools then retroactively reflects the new `totalAllocPoint`, diluting existing stakers' rewards.
+- **Annotation**: `@Post poolInfo[1].accConcurPerShare (entry != exit)` — for existing pools, accConcurPerShare must be updated.
+- **Bug awareness**: **consistency** (`set`/`update` functions elsewhere call massUpdatePools first — derivable by comparison) + **domain** (understanding reward accrual).
 - **[Category]**: **Algorithm / Type A / consistency+domain** (L5a).
 
 ---
@@ -2707,58 +2708,58 @@ G-표면:
 ### Case 27 — `web3bugs_192_H_01` (L5a)
 
 - **Contract/Function**: Lock / extendLock (L90, L91).
-- **버그**: `transferFrom`으로 토큰 받으면서 `totalLocked[_asset] += _amount` 누락. 후속 `release()`의 `totalLocked[asset] -= lockAmount`에서 underflow → 자금 영구 락.
-- **Annotation**: `@Post totalLocked[_asset] (entry < exit)` 또는 `@Post changed(totalLocked[_asset], true)`.
-- **Bug awareness**: **consistency** (`lock()` 함수는 `totalLocked += _amount` 올바르게 수행 — `extendLock`이 놓침. sibling 비교).
+- **Bug**: When receiving tokens via `transferFrom`, the `totalLocked[_asset] += _amount` is missing. The subsequent `release()`'s `totalLocked[asset] -= lockAmount` underflows → funds permanently locked.
+- **Annotation**: `@Post totalLocked[_asset] (entry < exit)` or `@Post changed(totalLocked[_asset], true)`.
+- **Bug awareness**: **consistency** (the `lock()` function correctly performs `totalLocked += _amount` — `extendLock` misses it. Sibling comparison).
 - **[Category]**: **Value / Type A / consistency** (L5a).
 
 ---
 
 ### L5a Subsection Summary (7 cases)
 
-**공통 패턴**:
-1. **모두 Type A** (L5 정의상 당연) — 관련 state var가 scope에 있음.
-2. **Annotation 형식**: 거의 모두 `changed(x, true)` 혹은 `x (entry relOp exit)` — state 변경 방향/여부 체크로 충분.
-3. **Bug awareness source 분포**:
-   - **consistency 6건** (35_H_12, 62_H_03, 62_H_10, 65_H_01, 83_H_01, 192_H_01).
-   - **domain 1건** (52_H_23).
-   - → L5a는 **pattern-check로 대부분 도출 가능**.
-4. **Bug category 분포**:
-   - **Value (missing state update) 6건**: 35_H_12, 52_H_23, 62_H_03, 62_H_10, 65_H_01, 192_H_01.
-   - **Algorithm (missing function call) 1건**: 83_H_01.
+**Common patterns**:
+1. **All Type A** (a natural consequence of the L5 definition) — the relevant state vars are in scope.
+2. **Annotation form**: nearly all use `changed(x, true)` or `x (entry relOp exit)` — checking the direction or occurrence of state change is sufficient.
+3. **Bug awareness source distribution**:
+   - **consistency: 6** (35_H_12, 62_H_03, 62_H_10, 65_H_01, 83_H_01, 192_H_01).
+   - **domain: 1** (52_H_23).
+   - → L5a is **mostly derivable by pattern-check**.
+4. **Bug category distribution**:
+   - **Value (missing state update): 6**: 35_H_12, 52_H_23, 62_H_03, 62_H_10, 65_H_01, 192_H_01.
+   - **Algorithm (missing function call): 1**: 83_H_01.
 
-**Twin 관찰**:
-- (62_H_03, 62_H_10): Stream의 token-transfer-vs-tracking 쌍둥이.
-- (35_H_12, 83_H_01, 192_H_01): sibling function 일관성 누락 family.
-- (65_H_01): branch 일관성 (단일 함수 내).
+**Twin observations**:
+- (62_H_03, 62_H_10): Stream's token-transfer-vs-tracking twins.
+- (35_H_12, 83_H_01, 192_H_01): family of sibling-function consistency omissions.
+- (65_H_01): branch consistency (within a single function).
 
 **Paper insight**:
-- L5a "detectability"는 **annotation 표현이 아닌 "consistency pattern을 개발자가 눈치채는가"**에 달림. 
-- 이는 **IntentChecker의 annotation-writing workflow가 sibling/branch consistency 리뷰 원칙과 결합될 때 강력**함을 시사. Paper Discussion에서 "consistency-driven annotation writing" 워크플로우 제안 근거.
-- **Domain case (52_H_23)는 별도** — 도메인 전문가 리뷰 필수. Annotation만으로 해소 어려움.
+- L5a "detectability" depends on **whether the developer notices the consistency pattern**, not on annotation expressivity.
+- This suggests that **IntentChecker's annotation-writing workflow is powerful when combined with sibling/branch consistency review principles**. Basis for a "consistency-driven annotation writing" workflow proposal in the paper Discussion.
+- **The domain case (52_H_23) is separate** — domain expert review is essential. Hard to resolve through annotation alone.
 
-**I8 + L5축 분포 (7 cases)**:
+**I8 + L5-axis distribution (7 cases)**:
 - Value/A/consistency: 5 (35_H_12, 62_H_03, 62_H_10, 65_H_01, 192_H_01).
 - Value/A/domain: 1 (52_H_23).
 - Algorithm/A/consistency+domain: 1 (83_H_01).
 
-→ **L5a는 Value/A/consistency cell에 집중** — paper에 "가장 쉬운 detection 영역" 으로 제시 가능.
+→ **L5a concentrates in the Value/A/consistency cell** — can be presented in the paper as the "easiest detection region".
 
 ---
 
 ## L5b — Wrong Code (7 cases, compact batch: Cases 28–34)
 
-**L5b 정의**: 코드가 존재하나 잘못된 식별자·연산자·struct field·순서 등 사용. Annotation 표현은 가능 (Type A), 정확한 intent 작성에 버그 인지 전제.
+**L5b definition**: Code exists but uses a wrong identifier, operator, struct field, ordering, etc. Annotation expression is feasible (Type A); writing an accurate intent presupposes bug awareness.
 
 ---
 
 ### Case 28 — `web3bugs_31_H_01` (L5b)
 
 - **Contract/Function**: MyStrategy / manualRebalance (L469, 471, 477).
-- **버그**: Dimensional mismatch. `currentLockRatio = balanceInLock * 1e18 / totalCVXBalance` (비율) vs `newLockRatio = totalCVXBalance * toLock / MAX_BPS` (절대 수량) → 비율과 수량을 `<=`로 비교.
-- **Fix (audit)**: `currentLockRatio = balanceInLock` (amount로 통일).
-- **Annotation**: `@During currentLockRatio (assign == balanceInLock)` — grammar OK, `balanceInLock` in scope.
-- **Bug awareness**: **domain** (하류 `cvxToLock = newLockRatio.sub(currentLockRatio)` 분석으로 역추론).
+- **Bug**: Dimensional mismatch. `currentLockRatio = balanceInLock * 1e18 / totalCVXBalance` (a ratio) vs `newLockRatio = totalCVXBalance * toLock / MAX_BPS` (an absolute amount) → ratio and amount are compared with `<=`.
+- **Fix (audit)**: `currentLockRatio = balanceInLock` (unify as amount).
+- **Annotation**: `@During currentLockRatio (assign == balanceInLock)` — grammar OK; `balanceInLock` in scope.
+- **Bug awareness**: **domain** (back-derived from analysis of the downstream `cvxToLock = newLockRatio.sub(currentLockRatio)`).
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
@@ -2766,9 +2767,9 @@ G-표면:
 ### Case 29 — `web3bugs_35_H_11` (L5b)
 
 - **Contract/Function**: Ticks / cross (L40, L49).
-- **버그**: `zeroForOne` 분기에서 잘못된 struct field 갱신 — `ticks[next].feeGrowthOutside0` 업데이트해야 하는데 1번 사용 (반대 분기도 같은 반대).
-- **Annotation**: `@Post changed(ticks[nextTickToCross].feeGrowthOutside1, true)` (zeroForOne 시) — 올바른 field만 변경 assert.
-- **Bug awareness**: **domain** (`zeroForOne → token1 수수료 → feeGrowthOutside1` 매핑 semantic).
+- **Bug**: In the `zeroForOne` branch the wrong struct field is updated — should update `ticks[next].feeGrowthOutside0` but uses field 1 (the opposite branch is symmetrically reversed).
+- **Annotation**: `@Post changed(ticks[nextTickToCross].feeGrowthOutside1, true)` (when zeroForOne) — assert that only the correct field is modified.
+- **Bug awareness**: **domain** (the semantic mapping `zeroForOne → token1 fee → feeGrowthOutside1`).
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
@@ -2776,10 +2777,10 @@ G-표면:
 ### Case 30 — `web3bugs_70_H_09` (L5b)
 
 - **Contract/Function**: USDV / mint, burn (L76 mint, L109 burn).
-- **버그**: `uAmount = vPrice * vAmount / 1e18` (mint), `vAmount = uPrice * uAmount / 1e18` (burn) — oracle 반환 의미(USD/Vader vs Vader/USD)에 따라 공식 방향 틀림.
-- **Fix**: `uAmount = vAmount * 1e18 / vPrice` (혹은 `vPrice * vAmount / 1e18` — oracle spec에 따라).
+- **Bug**: `uAmount = vPrice * vAmount / 1e18` (mint), `vAmount = uPrice * uAmount / 1e18` (burn) — the formula direction is wrong relative to the oracle return semantics (USD/Vader vs Vader/USD).
+- **Fix**: `uAmount = vAmount * 1e18 / vPrice` (or `vPrice * vAmount / 1e18` — depending on the oracle spec).
 - **Annotation**: `@Post uAmount == vAmount * 1e18 / vPrice` — grammar OK.
-- **Bug awareness**: **domain** (oracle API spec 이해 필요).
+- **Bug awareness**: **domain** (requires understanding of the oracle API spec).
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
@@ -2787,9 +2788,9 @@ G-표면:
 ### Case 31 — `web3bugs_79_H_02` (L5b)
 
 - **Contract/Function**: LaunchEvent / createPair (L398).
-- **버그**: `tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice` — `floorPrice`는 1e18 스케일이므로 올바른 계산은 `wavaxReserve * 1e18 / floorPrice`. 18 decimals 아닌 토큰(WBTC=8)에서 심각 오류.
+- **Bug**: `tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice` — `floorPrice` is at 1e18 scale, so the correct computation is `wavaxReserve * 1e18 / floorPrice`. Severe error for non-18-decimals tokens (WBTC=8).
 - **Annotation**: `@Post tokenAllocated == wavaxReserve * 1e18 / floorPrice`.
-- **Bug awareness**: **domain** (natspec "scaled to 1e18"가 partial 힌트 제공 — 완전 domain은 아니나 scaling semantic 이해 필요).
+- **Bug awareness**: **domain** (the natspec "scaled to 1e18" provides a partial hint — not pure domain, but understanding scaling semantics is required).
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
@@ -2797,10 +2798,10 @@ G-표면:
 ### Case 32 — `web3bugs_101_H_02` (L5b)
 
 - **Contract/Function**: LenderPool / terminate (L389, L400).
-- **버그**: `_actualNotBorrowedInShares`를 token/share 혼합 계산으로 구해 `withdrawShares`에 전달. Terminate = 전체 shares 출금이므로 `_sharesHeld` 직접 사용이 올바름.
-- **Fix**: `_sharesHeld`로 단순화.
+- **Bug**: `_actualNotBorrowedInShares` is computed via a token/share mixed calculation and then passed to `withdrawShares`. Since terminate = full-shares withdrawal, using `_sharesHeld` directly is correct.
+- **Fix**: simplify to `_sharesHeld`.
 - **Annotation**: `@Post withdrawShares == _sharesHeld` — `_sharesHeld` in scope.
-- **Bug awareness**: **domain** (terminate semantic = "전체 shares 출금" 이해).
+- **Bug awareness**: **domain** (understanding the terminate semantics = "withdraw all shares").
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
@@ -2808,72 +2809,72 @@ G-표면:
 ### Case 33 — `web3bugs_112_H_01` (L5b, **operation ordering**)
 
 - **Contract/Function**: StakerVault / transfer (L112, 113, 117, 118).
-- **버그**: `balances[sender] -= amount` / `balances[receiver] += amount` (L31–32) 이 `userCheckpoint()` (L37, L39) **전에** 실행. Checkpoint가 이미 변경된 balance로 보상 계산 → 과다 reward 청구 경로.
-- **Fix**: checkpoint → balance 순서로 교체 (`transferFrom` 함수는 올바른 순서).
-- **Annotation**: `@During changed(balances[msg.sender], false)` at checkpoint call 직전 — buggy에서 balance 이미 변경 → VIOLATED. Correct에서 unchanged → SATISFIED.
-- **Bug awareness**: **consistency** (`transferFrom`이 올바른 순서 — sibling 비교).
-- **[Category]**: **Algorithm / Type A / consistency** (L5b — ordering은 algorithm 성격).
+- **Bug**: `balances[sender] -= amount` / `balances[receiver] += amount` (L31–32) execute **before** `userCheckpoint()` (L37, L39). The checkpoint computes rewards based on the already-modified balance → over-claim path.
+- **Fix**: reorder to checkpoint → balance (the `transferFrom` function has the correct order).
+- **Annotation**: `@During changed(balances[msg.sender], false)` immediately before the checkpoint call — buggy already mutated the balance → VIOLATED. Correct unchanged → SATISFIED.
+- **Bug awareness**: **consistency** (`transferFrom` has the correct order — sibling comparison).
+- **[Category]**: **Algorithm / Type A / consistency** (L5b — ordering is algorithmic in nature).
 
 ---
 
 ### Case 34 — `web3bugs_113_H_05` (L5b)
 
 - **Contract/Function**: NFTPairWithOracle / _lend (L316).
-- **버그**: `require(params.ltvBPS >= accepted.ltvBPS, ...)` — lender 입장에서 낮은 LTV 선호이므로 `<=`가 올바름.
-- **Annotation**: `@During params.ltvBPS <= accepted.ltvBPS` — require와 complementary.
-- **Bug awareness**: **domain** (lender가 어떤 방향이 유리한가 이해).
-- **부가 blocker**: `ltvBPS`가 후속 금액 계산에 미사용 (require check만) → state 채널 영향 없음 (L2a 부가적).
+- **Bug**: `require(params.ltvBPS >= accepted.ltvBPS, ...)` — from the lender's perspective lower LTV is preferred, so `<=` is correct.
+- **Annotation**: `@During params.ltvBPS <= accepted.ltvBPS` — complementary to the require.
+- **Bug awareness**: **domain** (understanding which direction benefits the lender).
+- **Additional blocker**: `ltvBPS` is not used in subsequent amount computation (only the require check) → no impact on the state channel (auxiliary L2a).
 - **[Category]**: **Value / Type A / domain** (L5b).
 
 ---
 
 ### L5b Subsection Summary (7 cases)
 
-**공통 패턴**:
-1. **모두 Type A** (L5 정의상).
-2. **Annotation 형식 다양**: `@During x (assign == y)` (value 교정), `@Post changed(struct.field, true)` (field 교정), `@Post expr == formula` (공식 교정), `@During changed(x, false)` (ordering 교정).
-3. **Bug awareness source 분포**:
-   - **domain 6건** (31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05).
-   - **consistency 1건** (112_H_01).
-   - → L5b는 **domain-knowledge dominant**. L5a와 대비 (consistency-dominant).
-4. **Bug category 분포**:
-   - **Value 6건**: 31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05.
-   - **Algorithm 1건**: 112_H_01 (ordering).
+**Common patterns**:
+1. **All Type A** (per the L5 definition).
+2. **Diverse annotation forms**: `@During x (assign == y)` (value correction), `@Post changed(struct.field, true)` (field correction), `@Post expr == formula` (formula correction), `@During changed(x, false)` (ordering correction).
+3. **Bug awareness source distribution**:
+   - **domain: 6** (31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05).
+   - **consistency: 1** (112_H_01).
+   - → L5b is **domain-knowledge dominant**. In contrast to L5a (consistency-dominant).
+4. **Bug category distribution**:
+   - **Value: 6**: 31, 35_H_11, 70_H_09, 79_H_02, 101_H_02, 113_H_05.
+   - **Algorithm: 1**: 112_H_01 (ordering).
 
-**L5a vs L5b 대조** (Paper insight candidate):
+**L5a vs L5b contrast** (paper insight candidate):
 | | L5a (missing-code) | L5b (wrong-code) |
 |---|---|---|
 | Bug awareness | **consistency dominant** (6/7) | **domain dominant** (6/7) |
-| Detection 난이도 | sibling/branch 비교 리뷰로 가능 | 프로토콜 semantic 지식 필요 |
-| IntentChecker 기여 | **높음** (pattern discovery 보조) | **제한적** (domain 전문가 몫) |
+| Detection difficulty | possible via sibling/branch comparison review | requires protocol semantic knowledge |
+| IntentChecker contribution | **high** (assists pattern discovery) | **limited** (in the hands of domain experts) |
 
-**I8 + L5축 분포 (L5b 7 cases)**:
+**I8 + L5-axis distribution (L5b 7 cases)**:
 - Value/A/domain: 5 (31, 35_H_11, 70_H_09, 79_H_02, 113_H_05).
-- Value/A/domain (101_H_02와 같이 파라미터 단순화 case): 1.
+- Value/A/domain (101_H_02, a parameter-simplification case in the same vein): 1.
 - Algorithm/A/consistency: 1 (112_H_01 ordering).
 
-→ **L5b는 Value/A/domain cell에 집중** — "annotation-writing 경험 있는 도메인 전문가" 필요 영역.
+→ **L5b concentrates in the Value/A/domain cell** — the area requiring "annotation-writing-experienced domain experts".
 
 ---
 
-### 🎉 L5 완료 — Cross-L5 Synthesis (14 cases)
+### L5 complete — Cross-L5 Synthesis (14 cases)
 
-**L5a + L5b 대조 insight**:
+**L5a + L5b contrast insight**:
 
 ```
-L5a (missing-code)  → consistency-dominant → IntentChecker의 강점 영역
-  (sibling/branch 비교로 annotation writer가 "뭔가 없다"를 catch)
+L5a (missing-code)  → consistency-dominant → IntentChecker's strength area
+  (sibling/branch comparison lets the annotation writer catch "something is missing")
 
-L5b (wrong-code)    → domain-dominant     → IntentChecker의 제한 영역
-  (잘못된 identifier/operator/ordering을 semantic 지식 없이 catch 불가)
+L5b (wrong-code)    → domain-dominant     → IntentChecker's limited area
+  (a wrong identifier/operator/ordering cannot be caught without semantic knowledge)
 ```
 
-**I8 matrix 전체 (L4+L5 14 cases, L5 7+7=14 합류):**
+**Full I8 matrix (L4+L5 14 cases, L5 7+7=14 added):**
 - Value/A/consistency: 5 (all L5a).
 - Value/A/domain: 6 (1 L5a + 5 L5b).
 - Value/A/mixed: 0.
 - Value/A/grammar-limit: 1 (Case 13, L4c).
-- Value/A_candidate: 1 (Case 1, L4a 재검토 대기).
+- Value/A_candidate: 1 (Case 1, L4a re-examination pending).
 - Value/B: 7 (all L4).
 - Algorithm/A/consistency: 2 (112_H_01 L5b, 83_H_01 L5a-mixed).
 - Algorithm/A/domain: 0.
@@ -2881,9 +2882,9 @@ L5b (wrong-code)    → domain-dominant     → IntentChecker의 제한 영역
 - Algorithm/B: 10 (all L4).
 
 **Paper-ready dichotomy**:
-- Type A / Value / consistency → **easiest detection**, pattern-check workflow 유효.
-- Type A / Value / domain → **domain expert 필요**, annotation이 보조 도구.
-- Type A / grammar-limit (L4c, L4d) → **grammar 확장으로 해소 가능** (arithmetic PostEntryExit).
-- Type B → **현재 grammar + workflow로는 근본적 한계**. Grammar 확장 + auxiliary injection workflow 필요.
+- Type A / Value / consistency → **easiest detection**, pattern-check workflow effective.
+- Type A / Value / domain → **domain expert required**, annotation as a supporting tool.
+- Type A / grammar-limit (L4c, L4d) → **resolvable via grammar extension** (arithmetic PostEntryExit).
+- Type B → **fundamental limitation under the current grammar + workflow**. Requires grammar extension + auxiliary injection workflow.
 
 ---
