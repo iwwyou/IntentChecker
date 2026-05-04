@@ -142,19 +142,6 @@ python evaluation/RQ3/rq3_comparison.py
 This regenerates `evaluation/RQ3/figures/{detection_heatmap,time_comparison,detection_rate}.pdf`
 and copies `time_comparison.pdf` into `paper/figure/rq3_time_comparison.pdf`.
 
-## VSCode extension (`intent-checker/`)
-
-The repo also ships a small VSCode extension that talks to a local
-IntentChecker instance over WebSockets (`WebSocketServer.py`). It is
-**optional** for reproducibility — every experiment in the paper runs
-through `python main.py` directly. To build the extension:
-
-```bash
-cd intent-checker
-npm install
-# launch a VSCode "Run Extension" debug session
-```
-
 ## Citing
 
 If you use IntentChecker in academic work, please cite the companion
