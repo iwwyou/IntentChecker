@@ -67,6 +67,18 @@ source .venv/bin/activate          # macOS / Linux
 .venv\Scripts\activate             # Windows (cmd or PowerShell)
 ```
 
+> **Always run with the `./.venv` interpreter.** IntentChecker requires
+> `networkx>=3.4` (pinned in `requirements.txt`). An older `networkx`
+> (e.g. `2.5.x`, common in a system/global Python) **silently** breaks
+> dependency and library loading: the interface/type-alias registry comes
+> up empty and analysis aborts with errors like `member 'sub' is not a
+> recognised global-member`, `Modifier 'nonReentrant' is not defined`, or
+> `Type 'X' is not defined ...`. Evaluation drivers spawn `main.py` via
+> `sys.executable`, so they inherit whatever interpreter launched them —
+> launching `run_all.py` / `collect_metrics.py` with the wrong Python makes
+> previously-passing cases turn into spurious `ERROR`s. Check with
+> `python -c "import networkx; print(networkx.__version__)"`.
+
 ### 2. Run a single case
 
 ```bash
