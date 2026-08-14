@@ -1,0 +1,1736 @@
+% Pass options to packages before documentclass to avoid option clash
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=black}{hyperref}
+\PassOptionsToPackage{authoryear,round}{natbib}
+
+\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic style with author-year citations
+
+% Math packages first
+\usepackage{amsmath}%
+\usepackage{amssymb}%
+\usepackage{amsfonts}%
+\usepackage{amsthm}%
+\usepackage{amsopn}%
+\usepackage{amstext}%
+\usepackage{mathrsfs}%
+\usepackage{stmaryrd}% For llbracket, rrbracket
+\usepackage{mathpartir}%
+
+% Graphics and tables
+\usepackage{graphicx}%
+\DeclareGraphicsExtensions{.png,.pdf,.jpg}% PNG first, then PDF
+\usepackage{subcaption}% For subfigure environment
+\usepackage{caption}% For caption customization
+\captionsetup{justification=raggedright, singlelinecheck=false}% Left-align all captions by default
+\captionsetup[figure]{justification=centering, singlelinecheck=false}% Center-align figure captions
+\usepackage{tikz}%
+\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta,decorations.pathreplacing}%
+\usepackage{multirow}%
+\usepackage{booktabs}%
+\usepackage{pifont}% For \ding{51} (checkmark) and \ding{55} (cross)
+\usepackage{tabularx}
+\usepackage{array}
+
+% Algorithm packages
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+
+% Other packages
+\usepackage{float}% For [H] option to force exact placement
+\usepackage{xcolor}%
+\usepackage{listings}%
+\usepackage{comment}
+\usepackage{natbib}% Options passed via \PassOptionsToPackage to avoid clash with sn-jnl
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% Define Solidity language for listings
+\lstdefinelanguage{Solidity}{
+  keywords={contract, function, modifier, public, private, external, internal, view, pure, payable, returns, return, if, else, for, while, require, assert, mapping, address, uint256, uint, bool, string, memory, storage, calldata, event, emit, struct, enum, constructor, msg, this, new, delete, break, continue, throw, revert},
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={true, false, null, this, new},
+  ndkeywordstyle=\color{darkgray}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+% Listings default settings
+\lstset{
+  language=Solidity,
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color[RGB]{248,248,248},
+  numbers=left,
+  numbersep=6pt
+}
+
+% Define postbreak symbol for listings
+\newcommand{\lstcontinuemark}{\mbox{\textcolor{gray}{\(\hookrightarrow\)}}\space}
+
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%  meant for continuous numbers
+\newtheorem{proposition}[theorem]{Proposition}%
+\newtheorem{lemma}[theorem]{Lemma}%
+\newtheorem{corollary}[theorem]{Corollary}%
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+
+% Using author-year style to match submission guidelines
+\bibpunct{(}{)}{;}{a}{,}{ } % a = author-year citations
+
+% URL breaking settings (hyperref and url already loaded by sn-jnl.cls)
+\Urlmuskip=0mu plus 1mu
+\def\UrlBreaks{\do\/\do-\do\_\do\.\do\?\do\&}
+
+\makeatletter
+\renewcommand\@biblabel[1]{} % Remove numeric labels like [1]
+\makeatother
+\setlength{\bibsep}{0.2em}   % Space between bibliography items
+\setlength{\bibhang}{2em}
+
+% Custom math commands
+\newcommand{\Abort}{\mathsf{Abort}}
+\newcommand{\Norm}{\mathsf{Norm}}
+\newcommand{\Ret}{\mathsf{Ret}}
+\newcommand{\Env}{\mathit{Env}}
+
+
+\begin{document}
+
+\title[Solidity Intent Checker]{IntentChecker: An Intent-Model-Based Debugging Assistant for Mitigating Numeric Logic Errors in Solidity}
+
+\author[1]{\fnm{Inseong} \sur{Jeon}}\email{iwwyou@korea.ac.kr}
+
+\author[1]{\fnm{Sundeuk} \sur{Kim}}\email{sd\_kim@korea.ac.kr}
+
+\author[1]{\fnm{Hyunwoo} \sur{Kim}}\email{khw0809@korea.ac.kr}
+
+\author*[1]{\fnm{Hoh Peter} \sur{In}}\email{hoh\_in@korea.ac.kr}
+
+\affil*[1]{\orgdiv{Department of Computer Science}, \orgname{Korea University},
+\orgaddress{\street{145, Anam-ro}, \city{Seonbuk-gu}, \postcode{02841}, \state{Seoul},
+\country{Republic of Korea}}}
+
+
+\abstract{
+Smart contract development lacks the mature debugging infrastructure available in traditional software engineering.
+In particular, developer intent has no direct role in the analysis available at development time.
+For this reason, numeric logic errors---where program behavior diverges from developer intent---are particularly difficult to address.
+Existing detection tools instead match completed source code against pre-defined vulnerability patterns in a testing or auditing context.
+As a result, errors outside these patterns have no practical path to early prevention.
+This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
+At its core is an intent model comprising annotations and a validation engine.
+Two annotation types let developers declare intent: @During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution.
+The validation engine classifies each annotation as Satisfied, Warning, or Violated against the intervals computed by abstract interpretation, and reports each result with a risk score.
+IntentChecker is evaluated on real-world numeric logic errors, where it surfaces a subset of them as Violated judgments at a mean 3.69\,s per case, providing feedback complementary to existing auditing-time detectors.
+}
+
+\keywords{Solidity, Numeric Logic Error, Debugging Assistant, Value-level Intent Validation, Intent Model}
+
+\maketitle
+
+\section{Introduction}
+
+The debugging toolchain available to smart contract developers remains far less mature than what traditional software engineering provides.
+Our prior work, SolQDebug~\citep{solqdebug}, addressed this immaturity by performing statement-level interval-domain abstract interpretation at development time.
+SolQDebug, however, goes no further than reporting raw intervals---leaving correctness judgment entirely to the developer---and its analysis remains confined to a single contract and a single transaction.
+This burden is compounded by the widespread use of large language models (LLMs) such as Claude~\citep{claude}, ChatGPT~\citep{chatgpt}, and Gemini~\citep{gemini} for code generation, where the generated code is not verified against its intended behavior.
+
+With correctness judgment left to the developer, logic errors---bugs where program behavior diverges from developer intent---are particularly hard to catch, since neither the compiler nor the runtime raises any signal.
+A recent empirical study~\citep{defisecurity} confirms this difficulty: practitioners identified logic errors as the most difficult vulnerability type to detect.
+In response, several tools~\citep{numscout, gptscan, sctype} explicitly target this class of bugs.
+Yet they all take the source code alone as their input, operating in an auditing or testing context.
+Moreover, what counts as correct in any given function is set by the developer who wrote it, so by the very definition of a logic error, detecting one requires knowing the developer's intent.
+However, current tools take a different approach: they rely on a fixed set of known vulnerabilities chosen by their designers, checking code against a pre-specified set of patterns.
+This mismatch is most consequential for numeric computation, which sits at the core of most smart contract code: our analysis~\citep{dappscananalysis} of 101 smart contracts from DAppSCAN-source~\citep{dappscan}, covering 1,023 non-trivial functions, finds numeric types in 82\% of them.
+Logic errors are therefore most likely to arise in this space, and addressing such numeric logic errors calls for a fundamentally different kind of analysis: one that takes developer intent as direct input rather than attempting to recover it from code.
+
+Meanwhile, developer preferences favor tools that run at development time. The same empirical study~\citep{defisecurity} reports a clear preference for IDE-integrated tools such as extensions and linters over standalone analyzers, favoring development-time tooling. It also reports a strong prioritization of low false negatives (92.3\%) over low false positives (50\%), matching the profile of sound over-approximating analyses such as abstract interpretation.
+These observations together motivate a development-time tool that runs while the function is being written and lets the developer directly declare the numeric intent their contract encodes, rather than relying on pre-authored pattern catalogs to infer it.
+
+To that end, this paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
+The intent model comprises two annotation types and a validation engine. The two annotation types cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. The validation engine, grounded in a formal denotational semantics, classifies each annotation as Satisfied, Warning, or Violated against the intervals produced by abstract interpretation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur.
+
+IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) drawn from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}.
+The evaluation is organized around three research questions: whether IntentChecker can surface real-world numeric logic errors as Violated judgments at development-time latency (RQ1), what structural limitations of the analysis engine and the intent model account for the cases it cannot surface (RQ2), and how IntentChecker compares with existing detection tools along the criteria and position axes that define the design space (RQ3).
+IntentChecker is positioned as a development-time complement to existing auditing-time detectors: it enables intent-driven validation during editing rather than competing with bug-pattern detectors on detection accuracy, and the RQ3 comparison is designed around this complementarity.
+
+\smallskip
+\noindent\textbf{Contributions.}
+\begin{itemize}
+    \item This paper defines numeric logic errors, classifies their representative patterns by abstraction level (value-level vs algorithm-level), and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
+    \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region.
+    \item IntentChecker is evaluated on 75 effective benchmark instances, on which it surfaces 20 numeric logic errors as Violated judgments at a mean 3.69\,s per case, and is compared with ScType, GPTScan, and NumScout along the criteria and position axes to substantiate its complementary role as a development-time debugging assistant.
+    \item Building on the evaluation results, this paper turns recurring patterns across the mitigated and L5 cases into three practical guidelines for authoring intent annotations: enumerating expected state effects, anchoring outputs to in-scope quantities, and expressing arithmetic intent at the mathematically ideal level.
+\end{itemize}
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:background} motivates the development-time intent validation problem and surveys the structural limitations of existing detection tools.
+Section~\ref{sec:design} presents the design of IntentChecker, including the deployment-unit scope, the @During/@Post intent annotations, the @IReturn debug annotation for interface return values, and the validation engine.
+Section~\ref{sec:evaluation} presents evaluation results across the three research questions.
+Section~\ref{sec:discussion} discusses the intent authoring effort, annotation guidelines, and remaining limitations.
+Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes.
+
+\section{Background}\label{sec:background}
+\subsection{Numeric Logic Errors in Solidity}
+
+Recent research has identified various numeric-related weaknesses in smart contracts~\citep{numscout,gptscan,flyinointment,exploitablebugs,defiattacks}.
+Building on these findings, numeric logic errors can be defined as follows:
+
+\begin{definition}[Numeric Logic Error]
+Bugs that allow transactions to complete successfully without compile-time or runtime exceptions,
+but violate the developer's intended relationships among numerical values during function execution.
+\end{definition}
+
+\begin{table}[t]
+\centering
+\caption{Representative single-transaction numeric logic error patterns from prior work, classified by bug abstraction level.}
+\label{tab:nle-patterns}
+\footnotesize
+\begin{tabular}{@{}p{4.2cm}p{8.5cm}@{}}
+\toprule
+Pattern & Description \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{\textbf{Value-level: the wrong number flows through a computation.}}} \\
+\midrule
+Div In Path~\citep{numscout}
+  & Division results used in conditions can lead to unexpected control flow due to integer truncation. \\
+Exchange Problem~\citep{numscout}
+  & Rounding errors in exchange calculations may result in zero output despite valid input, or receiving tokens without payment. \\
+Precision Loss Trend~\citep{numscout}
+  & Integer division's inherent truncation tends to favor one side, potentially misaligning with protocol intent. \\
+Minor Amount Retention~\citep{numscout}
+  & Integer division in distributions leaves remainders unallocated to any recipient, causing permanent lock. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{\textbf{Algorithm-level: operations are structurally arranged in a wrong way.}}} \\
+\midrule
+Operator Order Issue~\citep{numscout}
+  & Arithmetic order matters: $a/b*c \neq a*c/b$ due to intermediate truncation. \\
+Erroneous Accounting / Wrong Interest Rate Order~\citep{gptscan, exploitablebugs}
+  & Balance calculations using outdated or prematurely updated interest rates yield incorrect results. \\
+Erroneous Accounting / Wrong Checkpoint Order~\citep{gptscan, exploitablebugs}
+  & Incorrect ordering between state updates and checkpoints leads to reward miscalculation. \\
+Inconsistent State Updates~\citep{exploitablebugs}
+  & A required state variable update is omitted, causing subsequent calculations to use stale values (e.g., failing to accrue interest before a balance query). \\
+Greedy Contract~\citep{flyinointment}
+  & Contract can receive funds but lacks proper logic to withdraw them, causing permanent lock. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These errors come in two forms.
+Single-transaction errors occur within the execution of a single function call---where computation, function calls, and output generation happen in one atomic sequence.
+In contrast, multiple-transaction errors only emerge through sequences of function calls, requiring analysis of inter-function dependencies and contract-level invariants.
+Examples of multiple-transaction errors include Risky First Deposit and Price Oracle Manipulation~\citep{gptscan, exploitablebugs}, which manifest only through state changes accumulated across multiple function invocations.
+
+This paper focuses on single-transaction errors---those confined to one atomic execution, though possibly spanning multiple contracts through external calls. The choice aligns with our broader goal of a development-phase debugging assistant: a single-transaction error's intended behavior is determined within the function the developer is currently writing, so the developer can declare it as input at the moment of writing. Multiple-transaction errors, whose intent spans sequences of calls authored at different times, are left to future work. Within this focus, this paper introduces a single organizing axis for the representative patterns from prior work: the bug's abstraction level (Table~\ref{tab:nle-patterns}). The axis recurs throughout the paper, later delineating IntentChecker's design target (its intent model is deliberately confined to value-level relations; §\ref{sec:design}) and characterizing where the model reaches and where it does not (§\ref{sec:rq1}).
+\begin{itemize}
+    \item \textbf{Value-level errors}---logic errors at the value level: a wrong operator, a swapped identifier, or truncation that produces a numerically incorrect result.
+    \item \textbf{Algorithm-level errors}---logic errors in the structural arrangement of operations: operation ordering, an absent state update, or a missing procedure call.
+\end{itemize}
+
+The next subsection examines existing tools for numeric logic errors.
+
+\subsection{Structural Constraints of Existing Tools}
+
+Several tools target numeric logic errors.
+NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
+GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
+ScType~\citep{sctype} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
+These tools represent the current state of the art and have meaningfully advanced the field for auditing and testing workflows.
+However, on numeric logic errors specifically, these tools share two structural constraints, both rooted in the absence of any channel for per-case intent: who authors the detection criteria, and what input the analysis takes.
+
+\smallskip
+\noindent\textbf{(1) Detection criteria: authored by the tool designer, not by the developer.}
+Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{sctype}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
+These criteria encode shapes of code that have been buggy in prior contracts, not what counts as a violation of the developer's intent for this specific function. A bug is caught only when its surface form matches one of those prior shapes.
+
+\smallskip
+\noindent\textbf{(2) Analysis phase: audit time, with the developer no longer in the loop.}
+Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
+They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
+Because these tools run downstream of authoring, the developer of the code under analysis is no longer available to be queried for clarification or to supply per-case input. The tool must therefore work entirely with the source code as written, and per-case intent has no channel into the analysis.
+
+\smallskip
+\noindent\textbf{These two constraints are structural, not tool-specific.}
+The above constraints are not characterized as failures of any specific tool, since the tools cited above are well-engineered within the design space they chose.
+The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---requires intent to be inferred from code shape rather than supplied by the developer, which is a constraint on what can be expressed as input, not on how well the inference is implemented.
+This inference is reliable for vulnerability classes whose buggy form is invariant across contracts: a reentrancy pattern or an unchecked overflow is buggy regardless of what the developer intended, so the catalog's implicit intent assumption holds.
+Numeric logic errors, by contrast, are intent-dependent by definition---the same arithmetic can be the correct formula in one contract (e.g., intentional floor division for fair-share rounding) and a silent bug in another (e.g., precision loss in token minting), distinguishable only by reference to what the developer intended this specific function to compute.
+A design space that excludes per-case intent has no signal on which to base that distinction.
+To step outside this constraint, the input must be enlarged (the developer must supply their intent) and the tool must be moved earlier in time (run during editing, when the developer is still available to supply that intent). These two moves are jointly necessary.
+
+\subsection{Proposed Overview}\label{sec:proposed-overview}
+
+IntentChecker addresses each of these constraints with a dedicated component.
+
+\smallskip
+\noindent\textbf{(1) Detection criteria: authored by the developer, via intent annotations.}
+IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a validation engine grounded in a denotational semantics that classifies each annotation as Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
+The engine reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
+Because the developer authors these annotations per case, the criteria are specific to the function being written rather than fixed to designer-anticipated shapes from prior contracts.
+
+\smallskip
+\noindent\textbf{(2) Analysis phase: development time, with the developer in the loop.}
+For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written. SolQDebug operates on a ``range in, range out'' principle: the developer supplies bounded ranges for entry-point values the function reads (transaction context, storage state, parameters) through debug annotations, and the analyzer reports the intervals each variable reaches at every program point, without itself judging whether those intervals correspond to correct or buggy behavior. To remain responsive as code is being written, it accepts partial code fragments through specialized grammar entry rules and maintains an incremental control-flow graph that resumes analysis from the edit point rather than restarting on every change.
+This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, opening the channel that (1) requires: per-case intent declared in the editor reaches the analysis directly, rather than being guessed from the source code after the fact.
+
+\smallskip
+Together, these two components position IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
+
+\section{The Design of IntentChecker}\label{sec:design}
+\subsection{System Architecture}
+
+Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
+
+\smallskip
+\noindent\textbf{Input.}
+IntentChecker receives three types of input:
+\begin{itemize}
+    \item \textbf{Source Fragment}---Solidity source fragments (block or statement) provided incrementally as the developer writes code, supported through SolQDebug's partial-fragment grammar (§\ref{sec:proposed-overview}).
+    \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
+    \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in this paper for interface call return values.
+\end{itemize}
+In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file.
+
+\smallskip
+\noindent\textbf{Output.}
+For each intent annotation, IntentChecker produces:
+\begin{itemize}
+    \item \textbf{Result}---a validation state of Satisfied, Violated, or Warning.
+    \item \textbf{Risk Score}---a 0--10 scale score: $0.0$ for Satisfied, $10.0$ for Violated, and $0.1$--$9.9$ for Warning reflecting the severity of the potential violation.
+    \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
+\end{itemize}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{Fig1.pdf}
+    \caption{System architecture of IntentChecker.}
+    \label{fig:architecture}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Internal Modules.}
+Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new @IReturn annotation and the multi-contract deployment-unit scope, while Phase~3 is IntentChecker's core contribution.
+\begin{itemize}
+    \item \textbf{Phase~1 --- Parsing Module.} Uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and additionally delegates the Solidity source fragments to the official Solidity compiler for semantic validation.
+    \item \textbf{Phase~2 --- Analysis Module.} Performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed. When a debug annotation is received, the Snapshot Manager (reused unchanged from SolQDebug) preserves the current analysis state, allowing the analyzer to overwrite the targeted variable's interval with the developer-supplied range, re-analyze affected code paths, and restore the pre-annotation state afterwards; the same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration. The module additionally supports inline assembly written in Yul for arithmetic computation, leaving non-arithmetic constructs at $\top$.
+    \item \textbf{Phase~3 --- Validation Engine.} Draws on two signals from the earlier phases---parsed intent annotations from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point. For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
+\end{itemize}
+
+\smallskip
+\noindent\textbf{Analysis scope.}
+IntentChecker analyzes one function at a time within a multi-contract scope, extending SolQDebug's~\citep{solqdebug} original single-contract analysis to cover libraries and inherited parents that share storage with the target contract. External contracts---separately deployed and reached through an address or interface-typed variable---sit outside this scope, because their storage resides at a different address that the target's annotations cannot reach.
+This exclusion creates a problem for analysis: any value derived from an interface call resolves to $\top$ and propagates into every downstream computation, defeating intent validation for functions that read oracles or external token state. To address this, @IReturn extends the same range-injection mechanism the three existing annotations rely on: the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view, and the analyzer proceeds under it. Interface functions split into two cases: those declared view or pure, where Solidity guarantees no state-modifying side effects, and those that may modify state---potentially even re-entering the target function. Injection is restricted to the former, allowing intent validation to proceed under the developer-supplied range rather than being defeated by $\top$ propagation.
+
+\subsection{Examples of Intent Annotation Usage}
+
+This section walks through two examples to illustrate how an annotated function produces a validation judgment.
+The first case demonstrates a mid-execution check via a @During annotation; the second demonstrates a post-execution check via @Post together with an @IReturn annotation for external contract state.
+
+\smallskip
+\noindent\textbf{Case 1: @During --- Operator Order Issue.}
+Fig.~\ref{fig:operator-order-example} shows a token purchase function where operator precedence causes the buyer to receive fewer tokens than the exchange rate warrants.
+
+\begin{figure}[t]
+\begin{lstlisting}
+// contract state: bool presell; uint256 ethRateFix;
+// helper: function calculateRate() public view returns (uint256);
+function buy() public payable {
+    // @GlobalVar msg.value = [50000000000500000, ...]
+    // @StateVar presell = true
+    require(presell, "presell is closed");
+    uint256 amountToBuy = msg.value / ethRateFix * calculateRate();
+    // @During amountToBuy * ethRateFix >= msg.value * 250000
+    balances[msg.sender] += amountToBuy;
+}
+\end{lstlisting}
+\caption{Operator order issue in exchange rate calculation (simplified).}
+\label{fig:operator-order-example}
+\end{figure}
+
+The developer's intent is that amountToBuy should satisfy the exchange-rate relation---the tokens received, times the rate denominator, should be at least the ETH paid times the rate numerator.
+Because msg.value / ethRateFix truncates before multiplication, this intent is violated for non-round input amounts.
+The @During annotation (line~8) captures this intent directly, and IntentChecker reports Violated.
+
+\smallskip
+\noindent\textbf{Case 2: @Post --- Erroneous Accounting.}
+Fig.~\ref{fig:erroneous-accounting-example} shows a rebasing vault's mint function.
+The bug is that minted proxy tokens are computed from the total vault balance (including the just-deposited amount), which inflates the shares beyond the deposited amount when the redeem rate deviates from~1.
+
+\begin{figure}[t]
+\begin{lstlisting}
+// contract state: uint256 _totalSupply; mapping(address => uint256) _balances;
+// address baseToken; uint256 ONE; function redeemRate() public view returns (uint256);
+function mint(address to, uint256 amount)
+    public override returns (uint256) {
+    // @LocalVar amount = [500e18, 500e18]
+    // @StateVar _totalSupply = [1000e18, 1000e18]
+    // @StateVar _balances[to] = [0, 0]
+    // @IReturn IERC20(baseToken).balanceOf()
+    //   = [1500e18, 1500e18]
+    uint256 _redeemRate = redeemRate();
+    require(IERC20(baseToken).transferFrom(
+        msg.sender, address(this), amount));
+    uint256 baseBalance =
+        IERC20(baseToken).balanceOf(address(this));
+    uint256 proxy = (baseBalance * ONE) / _redeemRate;
+    // @Post _balances[to] <= amount
+    _mint(to, proxy);
+}
+\end{lstlisting}
+\caption{Erroneous accounting in vault mint with inflated proxy amount (simplified).}
+\label{fig:erroneous-accounting-example}
+\end{figure}
+
+The @Post \_balances[to] $\leq$ amount annotation (line~16) expresses the intent that no user should receive more shares than the tokens they deposited.
+The @IReturn debug annotation (lines~8--9) injects the range $[1500\,\text{e}18, 1500\,\text{e}18]$ for the external balanceOf call (line~14), which the analyzer would otherwise evaluate as $\top$.
+The transferFrom (line~11) is state-modifying and therefore cannot carry an @IReturn annotation, per the view/pure restriction described in §\ref{sec:design}.
+With these annotations, IntentChecker computes the proxy amount and finds that it exceeds amount, reporting Violated.
+This example demonstrates how @IReturn enables intent validation for functions that depend on external contract state.
+
+\smallskip
+These two examples illustrate the two temporal scopes of intent validation---mid-execution checks via @During and post-execution checks via @Post.
+The complete intent model supporting these annotations is defined in the following section.
+
+\subsection{Intent Model}\label{sec:intent-model}
+
+The denotational semantics of the intent model is built around a meaning function
+\[
+\mathcal{V}\llbracket \cdot \rrbracket \;\colon\; \mathbb{A} \;\to\; \bigl(\mathbb{C} \rightharpoonup \mathbb{J}\bigr)
+\]
+that assigns to each intent annotation $a \in \mathbb{A}$ a partial function from validation contexts to tri-valued judgments. The semantics has three components --- the syntactic domain $\mathbb{A}$, the semantic domain $\mathbb{C}$, and the judgment set $\mathbb{J}$ --- defined as follows.
+
+\smallskip
+\noindent\textbf{Syntactic domain.}
+$\mathbb{A}$ is the set of intent annotations generated by the grammar of §\ref{sec:intent-semantics}, with a typical element denoted $a$.
+Each annotation begins with a marker (@During or @Post) followed by a single body drawn from the corresponding grammatical category.
+The grammar partitions bodies into three kinds:
+\begin{itemize}
+    \item \textbf{@During forms}, attached to an individual statement within the function body, inspect properties at that program point.
+    \item \textbf{@Post forms}, evaluated at function exit, inspect function-level properties.
+    \item \textbf{Common forms} are shared between the two annotation kinds, applicable in both @During and @Post contexts.
+\end{itemize}
+There are no compound connectives at the annotation level, so every annotation is atomic.
+
+\smallskip
+\noindent\textbf{Semantic domain.}
+We use two semantic domains:
+\begin{itemize}
+    \item $\Sigma$ --- the space of abstract variable environments produced by the interval-domain interpreter. Each $\sigma \in \Sigma$ maps every program variable to an integer interval, or to a compound value (arrays, mappings, or structs) whose leaf components are intervals.
+    \item $\mathbb{C}$ --- the set of validation contexts. Each $\Gamma \in \mathbb{C}$ is a record whose fields are listed in Table~\ref{tab:validation-context}; these fields hold the program-state snapshots and auxiliary data the interpreter makes available at an annotated program point, and each annotation form reads only the subset relevant to its form.
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\caption{Fields of the validation context $\Gamma \in \mathbb{C}$. Each atomic annotation form reads only a subset of these fields.}
+\label{tab:validation-context}
+\small
+\begin{tabularx}{\linewidth}{@{} l L @{}}
+\toprule
+Field & Meaning \\
+\midrule
+$\sigma_{\text{pt}} \in \Sigma$ & abstract state at the annotated program point \\
+$\sigma_{\text{before}} \in \Sigma$ & state immediately before the statement at the annotated line \\
+$\sigma_{\text{assign}} \in \Sigma$ & state at a variable's first-assignment site within the enclosing function \\
+$\sigma_{\text{entry}} \in \Sigma$ & state at function entry (after parameter binding and debug annotations) \\
+$\sigma_{\text{exit}} \in \Sigma$ & joined state at normal function exit \\
+$R : \text{Line} \rightharpoonup \text{Val}^*$ & partial map from return-statement lines to captured return values \\
+$\mathcal{K}$ & the set of statements at the annotated line (for call-expression and require/assert lookup) \\
+$\Pi \subseteq \Sigma$ & the set of abstract states at reachable program points within the enclosing function body, up to the evaluation point \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\smallskip
+\noindent\textbf{Field supply.}
+$\Gamma$ supplies a different subset of fields depending on the annotation kind:
+\begin{itemize}
+    \item \textbf{@During}: $\sigma_{\text{pt}}$, $\sigma_{\text{before}}$, $\sigma_{\text{assign}}$, $\sigma_{\text{entry}}$, $R$, $\mathcal{K}$, and $\Pi$ (containing every state produced between entry and $\sigma_{\text{pt}}$ along reachable paths);
+    \item \textbf{@Post}: $\sigma_{\text{entry}}$, $\sigma_{\text{exit}}$, $R$, and $\Pi$ (containing every state produced along any reachable path from entry to exit).
+\end{itemize}
+
+\smallskip
+\noindent\textbf{Judgment set.}
+$\mathbb{J} = \{S, V, W\}$ is the set of tri-valued judgments assigned to each annotation:
+\begin{itemize}
+    \item \textbf{Satisfied} ($S$) --- the abstract state guarantees the annotation holds;
+    \item \textbf{Violated} ($V$) --- the abstract state guarantees it fails;
+    \item \textbf{Warning} ($W$) --- the abstract state admits both satisfying and violating concrete cases.
+\end{itemize}
+Given an annotation $a \in \mathbb{A}$ whose validation context is $\Gamma \in \mathbb{C}$, IntentChecker reports $\mathcal{V}\llbracket a \rrbracket(\Gamma) \in \mathbb{J}$ as its judgment for that annotation; the partiality of the inner arrow captures the fact that $\mathcal{V}\llbracket a \rrbracket$ is defined only on contexts $\Gamma$ that provide every field $a$ references (see well-formedness in §\ref{sec:intent-semantics}).
+
+The subsection proceeds as follows.
+Section~\ref{sec:intent-semantics} fixes the grammar of $\mathbb{A}$ and defines $\mathcal{V}\llbracket \cdot \rrbracket$ via three set-theoretic primitives.
+Section~\ref{sec:validation-engine} presents the executable procedures that realise it, with an auxiliary risk score.
+
+\subsubsection{Syntax and Semantics}\label{sec:intent-semantics}
+
+\begin{figure}[t]
+\small
+\begin{tabular}{@{}r@{\quad}c@{\quad}l@{\qquad}l@{}}
+duringIntent & $\rightarrow$ & // @During duringClause & \\[2pt]
+postIntent   & $\rightarrow$ & // @Post postClause & \\[6pt]
+
+duringClause & $\rightarrow$ & intentValue (before relOp after)              & $(D_{\text{ba}})$ \\
+             & $|$           & intentValue (assign relOp current)            & $(D_{\text{ac}})$ \\
+             & $|$           & identifier .arg[ $n$ ] relOp intentValue     & $(D_{\text{arg}})$ \\
+             & $|$           & require feasible                              & $(D_{\text{req}})$ \\
+             & $|$           & assert feasible                               & $(D_{\text{asrt}})$ \\
+             & $|$           & commonClause                                  & $(D_{\text{com}})$ \\[6pt]
+
+postClause & $\rightarrow$ & intentValue (entry relOp exit)                   & $(P_{\text{ee}})$ \\
+           & $|$           & commonClause                                     & $(P_{\text{com}})$ \\[6pt]
+
+commonClause & $\rightarrow$ & returnExpression relOp intentValue             & $(C_{\text{ret}})$ \\
+             & $|$           & return[$n$] relOp intentValue                  & $(C_{\text{ret}_n})$ \\
+             & $|$           & intentValue relOp PercentOf( intentValue , $p$ )  & $(C_{\text{pct}})$ \\
+             & $|$           & intentValue relOp ceil( intentValue , $d$ )    & $(C_{\text{ceil}})$ \\
+             & $|$           & intentValue relOp floor( intentValue , $d$ )   & $(C_{\text{flr}})$ \\
+             & $|$           & intentValue relOp intentValue                   & $(C_{\text{cmp}})$ \\
+             & $|$           & intentValue ${=}{>}$ intentValue                & $(C_{\text{impl}})$ \\
+             & $|$           & changed ( intentValue , true $|$ false )        & $(C_{\text{chg}})$ \\[6pt]
+
+intentValue & $\rightarrow$ & arithExpr & \\[2pt]
+arithExpr   & $\rightarrow$ & arithExpr ($\ll$ $|$ $\gg$ $|$ $\ggg$) arithAdd $|$ arithAdd & \\
+arithAdd    & $\rightarrow$ & arithAdd (+ $|$ -) arithTerm $|$ arithTerm & \\
+arithTerm   & $\rightarrow$ & arithTerm (* $|$ / $|$ \%) arithExp $|$ arithExp & \\
+arithExp    & $\rightarrow$ & arithFactor ** arithExp $|$ arithFactor & \\
+arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ ( arithExpr ) & \\[2pt]
+varRef      & $\rightarrow$ & identifier subAccess* & \\
+subAccess   & $\rightarrow$ & . identifier $|$ [ expr ] & \\[6pt]
+
+relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $|$ not in & \\
+\end{tabular}
+\caption{Grammar of intent annotations. Sub-items of $\mathit{duringClause}$, $\mathit{postClause}$, and $\mathit{commonClause}$ are tagged with rule labels $(D_\bullet)$, $(P_\bullet)$, $(C_\bullet)$ for reference in the text.}
+\label{fig:intent-grammar}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Grammar overview.}
+Fig.~\ref{fig:intent-grammar} gives the BNF of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
+Intent-value expressions support arithmetic over variable references with member and index access, numeric literals, inline intervals $[a, b]$, and the DSL helpers PercentOf, ceil, and floor.
+Relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in; the implication operator ${=}{>}$ is a truthiness-based atomic form whose semantics is defined below.
+
+\smallskip
+\noindent\textbf{Well-formedness.}
+We write $\Gamma \vdash a : \mathbf{wf}$ to mean that annotation $a$ is well-formed under $\Gamma$: $a$ parses against Fig.~\ref{fig:intent-grammar}, every variable reference in $a$ resolves in the relevant field of $\Gamma$, and all form-specific auxiliary data required by $a$ is present in $\Gamma$.
+The equations below define $\mathcal{V}\llbracket a \rrbracket(\Gamma)$ only for well-formed inputs; annotation forms whose auxiliary data is missing correspond to error paths in the implementation and lie outside the semantic claim.
+
+Well-formedness is orthogonal to the informativeness of the input intervals themselves.
+Debug annotations (@StateVar, @LocalVar, @IReturn), inherited from SolQDebug, are the mechanism by which developers supply bounded ranges for otherwise-unknown variables; without them, interval inputs may remain $\top$, and the primitives defined below typically return $W$ even though the semantics is still sound.
+
+\smallskip
+\noindent\textbf{Expression evaluation.}
+Let $\mathcal{I}$ denote the set of integer intervals.
+Intent-value expressions are evaluated against a chosen abstract variable environment $\sigma \in \Sigma$ by a function
+\[
+\text{eval} \;:\; \Sigma \times \mathit{intentValue} \;\to\; \mathcal{I},
+\]
+which delegates to the interpreter's expression evaluator for ordinary arithmetic subexpressions---inheriting soundness of interval arithmetic from the base analyzer---and to annotation-specific rules for the DSL helpers (PercentOf, ceil, floor) and inline interval literals $[a, b]$.
+A numeric literal $n$ evaluates to the singleton interval $[n, n]$, so literals never need to live in $\Gamma$.
+By contrast, three rules in Fig.~\ref{fig:intent-grammar} whose left-hand sides are not themselves intent-value expressions are handled outside this function: rule $(D_{\text{arg}})$ is reduced by an auxiliary operator $\text{arg}_n(f, \mathcal{K})$ to the actual argument expression---an intent-value expression---which is then passed to $\text{eval}$, while rules $(C_{\text{ret}})$ and $(C_{\text{ret}_n})$ are resolved directly against the return-summary field $R$ as $R(\ell_{\text{ret}})$ and $R(\ell_{\text{ret}})[n]$, respectively, bypassing $\text{eval}$ because $R$ already stores per-line return intervals.
+
+To support the feasibility forms introduced below, we also use the space of abstract boolean intervals $\mathcal{B} = \{\{0\}, \{1\}, \{0, 1\}\}$ and a boolean-expression evaluator
+\[
+\text{eval}_{\mathcal{B}} \;:\; \Sigma \times \text{BExpr} \;\to\; \mathcal{B},
+\]
+where $\text{BExpr}$ is not a non-terminal of Fig.~\ref{fig:intent-grammar} but the base language's (Solidity's) boolean-expression category, from which $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$ extract the boolean condition at the annotated line for rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$, respectively; we inherit the soundness of $\text{eval}_{\mathcal{B}}$ from the underlying analyzer.
+
+\smallskip
+\noindent\textbf{Comparison primitive.}
+Relational annotations are grounded in the set-theoretic comparison primitive
+\[
+\text{Cmp}^* \;:\; \mathcal{I} \times \text{Op} \times \mathcal{I} \;\to\; \mathbb{J},
+\]
+defined as
+\[
+\text{Cmp}^*(L, \mathit{op}, R) \;=\;
+\begin{cases}
+S & \text{if } \forall l \in L,\ \forall r \in R :\ l \mathrel{\mathit{op}} r, \\[2pt]
+V & \text{if } \forall l \in L,\ \forall r \in R :\ \neg(l \mathrel{\mathit{op}} r), \\[2pt]
+W & \text{otherwise.}
+\end{cases}
+\]
+For $\mathit{op} \in \{\text{in}, \text{not\,in}\}$, the set-membership interpretation replaces the pointwise comparison: $l \mathrel{\text{in}} R$ holds iff $l \in R$, and not\,in is its complement.
+$\text{Cmp}^*$ gives an algorithm-independent specification of what a relational annotation must evaluate to under a well-formed context.
+
+\smallskip
+\noindent\textbf{Truthiness implication primitive.}
+The implication operator ${=}{>}$ is an atomic form whose two sides are intent-value expressions rather than full annotations; its meaning is grounded in a truthiness-based set-theoretic primitive
+\[
+\text{Impl}^* \;:\; \mathcal{I} \times \mathcal{I} \;\to\; \mathbb{J},
+\]
+defined as
+\[
+\text{Impl}^*(L, R) \;=\;
+\begin{cases}
+S & \text{if } L = \{0\}, \\[2pt]
+S & \text{if } 0 \notin L \text{ and } 0 \notin R, \\[2pt]
+V & \text{if } 0 \notin L \text{ and } R = \{0\}, \\[2pt]
+W & \text{otherwise.}
+\end{cases}
+\]
+Intuitively, an interval $X$ is definitely non-zero when $0 \notin X$ and definitely zero when $X = \{0\}$.
+$\text{Impl}^*(L, R)$ returns $S$ when $L$ is definitely zero (so the implication holds vacuously) or when both sides are definitely non-zero, $V$ when $L$ is definitely non-zero while $R$ is definitely zero, and $W$ when the zero/non-zero status of either side cannot be established.
+
+\smallskip
+\noindent\textbf{Feasibility primitive.}
+The feasibility forms are grounded in a two-valued primitive over abstract boolean intervals:
+\[
+\text{Feasible}^* \;:\; \mathcal{B} \;\to\; \mathbb{J}, \qquad
+\text{Feasible}^*(B) \;=\;
+\begin{cases}
+V & \text{if } B = \{0\}, \\
+S & \text{otherwise.}
+\end{cases}
+\]
+$\text{Feasible}^*$ answers whether a Solidity boolean condition---as evaluated by $\text{eval}_{\mathcal{B}}$---can ever hold.
+When the abstract interval is $\{0\}$, the condition is provably false on every concrete execution, so the underlying statement is unreachable and rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$ yield $V$.
+In every other case the condition admits a true value for at least one input, so the statement is feasible and both rules yield $S$.
+Unlike $\text{Cmp}^*$ and $\text{Impl}^*$, $\text{Feasible}^*$ is total but two-valued.
+Since the question ``is this condition ever true?'' admits no intermediate answer, the warning case of $\mathbb{J}$ is unused.
+
+\smallskip
+\noindent\textbf{Meaning function.}
+The meaning function $\mathcal{V}\llbracket \cdot \rrbracket$, whose signature was fixed in §\ref{sec:intent-model}, is defined by case analysis over the annotation grammar, one equation per syntactic form.
+We use $e$ (possibly subscripted) for an intent-value expression (in the state-comparison and change-detection forms, typically a variable reference, possibly with struct member or mapping index access), $f$ for a function identifier, and $\ell_{\text{ret}}$ for the return-statement line selected by the annotation: in @During, the return statement on the annotated line; in @Post, the join over all return-statement lines recorded in $R$.
+
+\smallskip
+\textbf{@During annotations.}
+In the equations below, $\text{arg}_n(f, \mathcal{K})$---serving rule $(D_{\text{arg}})$---denotes the $n$-th argument expression of the call to $f$ located within the statements $\mathcal{K}$ at the annotated line (both sides of the comparison are evaluated in $\sigma_{\text{before}}$ because argument values are fixed immediately before the call executes), and $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$---serving rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$---denote the boolean condition expression of the statement located within $\mathcal{K}$ at the annotated line.
+\begin{align*}
+\mathcal{V}\llbracket e(\text{before}\ \mathit{op}\ \text{after}) \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{before}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{pt}}, e)\bigr), \\[3pt]
+\mathcal{V}\llbracket e(\text{assign}\ \mathit{op}\ \text{current}) \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{assign}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{pt}}, e)\bigr), \\[3pt]
+\mathcal{V}\llbracket f.\text{arg}[n]\ \mathit{op}\ e \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{before}}, \text{arg}_n(f, \mathcal{K})),\; \mathit{op},\; \text{eval}(\sigma_{\text{before}}, e)\bigr), \\[3pt]
+\mathcal{V}\llbracket \text{require feasible} \rrbracket(\Gamma)
+    &= \text{Feasible}^*\bigl(\text{eval}_{\mathcal{B}}(\sigma_{\text{pt}},\; \text{cond}_{\text{req}}(\mathcal{K}))\bigr), \\[3pt]
+\mathcal{V}\llbracket \text{assert feasible} \rrbracket(\Gamma)
+    &= \text{Feasible}^*\bigl(\text{eval}_{\mathcal{B}}(\sigma_{\text{pt}},\; \text{cond}_{\text{asrt}}(\mathcal{K}))\bigr),
+\end{align*}
+
+\smallskip
+\textbf{@Post annotations.}
+The only @Post-specific rule $(P_{\text{ee}})$ compares the value of $e$ at function entry ($\sigma_{\text{entry}}$) and exit ($\sigma_{\text{exit}}$); the remaining @Post forms are covered by the common-form equations below.
+\begin{align*}
+\mathcal{V}\llbracket e(\text{entry}\ \mathit{op}\ \text{exit}) \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{exit}}, e)\bigr).
+\end{align*}
+
+\smallskip
+\textbf{Common-form annotations.}
+For common-form annotations that may appear in either annotation kind, we let $\text{ref}(\Gamma)$ denote the reference environment: $\text{ref}(\Gamma) = \sigma_{\text{pt}}$ under @During and $\text{ref}(\Gamma) = \sigma_{\text{exit}}$ under @Post, capturing the rule that a common-form annotation is evaluated at the annotated program point inside @During but at the function exit inside @Post.
+The following equations apply uniformly to annotations of either kind; rules $(C_{\text{pct}})$, $(C_{\text{ceil}})$, and $(C_{\text{flr}})$ are subsumed by rule $(C_{\text{cmp}})$'s general $e_l\ \mathit{op}\ e_r$ equation below, since their right-hand sides are intent-value expressions that $\text{eval}$ handles as DSL-only constructs:
+\begin{align*}
+\mathcal{V}\llbracket \text{returnExpression}\ \mathit{op}\ e \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(R(\ell_{\text{ret}}),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e)\bigr), \\[3pt]
+\mathcal{V}\llbracket \text{return}[n]\ \mathit{op}\ e \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(R(\ell_{\text{ret}})[n],\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e)\bigr), \\[3pt]
+\mathcal{V}\llbracket e_l\ \mathit{op}\ e_r \rrbracket(\Gamma)
+    &= \text{Cmp}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr), \\[3pt]
+\mathcal{V}\llbracket e_l \Rightarrow e_r \rrbracket(\Gamma)
+    &= \text{Impl}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr).
+\end{align*}
+
+The change-detection form $\text{changed}(e, b)$ of rule $(C_{\text{chg}})$ asks whether $e$ has been modified at any reachable program point within the function body relative to its entry value.
+Its meaning is therefore not a single $\text{Cmp}^*$ call between two states but a quantification over $\Pi$, lifting $\text{Cmp}^*$ with operator $=$ to the ``exists-a-witness'' reading:
+\begin{align*}
+\mathcal{V}\llbracket \text{changed}(e, \text{true}) \rrbracket(\Gamma) \;=\;
+\begin{cases}
+S & \text{if } \exists \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = V, \\[2pt]
+V & \text{if } \forall \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = S, \\[2pt]
+W & \text{otherwise.}
+\end{cases}
+\end{align*}
+The dual form, asking that $e$ be unchanged throughout the function body, is defined by swapping $S$ and $V$:
+\begin{align*}
+\mathcal{V}\llbracket \text{changed}(e, \text{false}) \rrbracket(\Gamma) \;=\;
+\begin{cases}
+S & \text{if } \forall \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = S, \\[2pt]
+V & \text{if } \exists \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = V, \\[2pt]
+W & \text{otherwise.}
+\end{cases}
+\end{align*}
+Because $\Pi$ is populated differently for @During (states from entry up to the annotated point) and @Post (states from entry up to any exit), these two equations cover both annotation kinds with a single pair of cases; no separate equations per kind are needed.
+
+\subsubsection{Auxiliary Outputs: Violated Region and Risk Score}\label{sec:validation-engine}
+
+\begin{algorithm}[!t]
+\caption{Auxiliary Outputs Computation for $\text{Cmp}^*$-based Annotations}
+\label{alg:risk-score}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Intervals $L$, $R$, operator $op$, state $j \in \mathbb{J}$
+\State \textbf{Output:} $(\mathit{risk\_score},\; \mathit{regions})$ with $\mathit{risk\_score} \in [0.0, 10.0]$ and $\mathit{regions} = (L_{\mathit{lower}}, L_{\mathit{upper}}, L_{\mathit{overlap}})$
+\State $(|T_s|, |T_v|, |T_w|) \gets \mathit{RegionSizes}(L, R, op)$
+\State $\mathit{regions} \gets \mathit{ExtractViolatedRegion}(L, R, op)$
+\If{$j = \mathit{satisfied}$}
+    \State \Return $(0.0,\; \mathit{regions})$
+\ElsIf{$j = \mathit{violated}$}
+    \State \Return $(10.0,\; \mathit{regions})$
+\EndIf
+\State $p \gets p_{\mathit{true}}(L, R, op)$
+\State $\mathit{risk\_type} \gets \mathit{ClassifyRisk}(\mathit{regions},\, op)$
+\State $(\mathit{base},\, \mathit{span}) \gets \mathit{BandOf}(\mathit{risk\_type})$
+\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p) \times \mathit{span}$
+\State \Return $(\mathit{risk\_score},\; \mathit{regions})$
+\end{algorithmic}
+\end{algorithm}
+
+This subsection presents the executable procedures that accompany the semantic realisation of §\ref{sec:intent-semantics}, producing two auxiliary outputs derived from the same interval analysis that drives $\text{Cmp}^*$:
+\begin{itemize}
+    \item \textbf{violated region} --- sub-intervals of the input range $L$ that witness the failure of the comparison;
+    \item \textbf{risk score} --- a value on a 0--10 scale combining the state, the true probability, and the shape of the violated region.
+\end{itemize}
+
+Both outputs are downstream of the semantic claim and do not refine the judgment $j \in \mathbb{J}$; they support warning ranking and developer feedback.
+An internal probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ --- the chance that the comparison holds under a uniform distribution over $L \times R$ --- mediates the risk-score computation but is not surfaced separately.
+$\text{Impl}^*$ and $\text{Feasible}^*$ are directly computable from their definitions and need no dedicated algorithm, and the change-detection form iterates $\Pi$ directly.
+The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed by Algorithm~\ref{alg:risk-score} in four steps, each elaborated in turn below and cited with its line range in the algorithm.
+
+\smallskip
+\noindent\textbf{Step 1: Region partitioning (Algorithm~\ref{alg:risk-score}, line 3).}
+Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the interpreter partitions $L$ into three disjoint regions:
+\begin{itemize}
+    \item $T_s$ (satisfied region): values of $L$ for which $l \mathrel{op} r$ holds for all $r \in R$;
+    \item $T_v$ (violated region): values of $L$ for which $l \mathrel{op} r$ fails for all $r \in R$;
+    \item $T_w$ (warning region): values of $L$ whose truth value depends on the actual value of $R$.
+\end{itemize}
+
+Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
+The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds.
+Fig.~\ref{fig:region-partition} illustrates this partition for $op = \text{``$>$''}$ across the spectrum of $L$ vs $R$ relative positions on the integer line: from $L$ entirely below $R$ (Verdict: Violated) through several warning configurations to $L$ entirely above $R$ (Verdict: Satisfied). The same Table~\ref{tab:op-formulas} formulas apply throughout, with $\max(0, \cdot)$ clamping handling the empty regions in each configuration.
+
+\begin{table}[t]
+\centering
+\caption{Per-operator satisfied/violated conditions and region sizes. All sizes are clamped to $\max(0, \cdot)$.}
+\label{tab:op-formulas}
+\small
+\begin{tabular}{cllcc}
+\toprule
+$op$ & Satisfied condition & Violated condition & $|T_s|$ & $|T_v|$ \\
+\midrule
+$>$    & $l_{\min} > r_{\max}$    & $l_{\max} \leq r_{\min}$  & $l_{\max} - r_{\max}$     & $r_{\min} - l_{\min} + 1$ \\
+$\geq$ & $l_{\min} \geq r_{\max}$ & $l_{\max} < r_{\min}$     & $l_{\max} - r_{\max} + 1$ & $r_{\min} - l_{\min}$     \\
+$<$    & $l_{\max} < r_{\min}$    & $l_{\min} \geq r_{\max}$  & $r_{\min} - l_{\min}$     & $l_{\max} - r_{\max} + 1$ \\
+$\leq$ & $l_{\max} \leq r_{\min}$ & $l_{\min} > r_{\max}$     & $r_{\min} - l_{\min} + 1$ & $l_{\max} - r_{\max}$     \\
+\midrule
+$=$    & $L = R$, both singletons  & $L \cap R = \emptyset$  & $|L \cap R|$ & $n_L - |L \cap R|$ \\
+$\neq$ & $L \cap R = \emptyset$  & $L = R$, both singletons  & $n_L - |L \cap R|$ & $|L \cap R|$ \\
+\midrule
+in     & $L \subseteq R$ & $L \cap R = \emptyset$ & $|L \cap R|$       & $n_L - |L \cap R|$ \\
+not\,in & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \cap R|$       \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+
+% Row 1: (a) L below R, (b) L extends below R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (2, 3.0) rectangle (6, 4.0);
+\node[Tlbl] at (4, 3.5) {$T_v$};
+\node[Tlbl, anchor=east] at (1.8, 3.5) {$L$};
+\draw[tick] (2, 2.8) -- (2, 4.2);
+\draw[tick] (6, 2.8) -- (6, 4.2);
+\node[txt, anchor=north] at (2, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (6, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ below $R$: $T_v = L$ (Violated).}
+\label{fig:region-fullyv}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
+\fill[Twbox] (8, 3.0) rectangle (10, 4.0);
+\node[Tlbl] at (6, 3.5) {$T_v$};
+\node[Tlbl] at (9, 3.5) {$T_w$};
+\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
+\draw[tick] (4, 2.8) -- (4, 4.2);
+\draw[tick] (10, 2.8) -- (10, 4.2);
+\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (10, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ extends below $R$: $T_s = \emptyset$ (Warning).}
+\label{fig:region-lower}
+\end{subfigure}
+
+\vspace{8pt}
+
+% Row 2: (c) L inside R, (d) L surrounds R (canonical)
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Twbox] (9, 3.0) rectangle (11, 4.0);
+\node[Tlbl] at (10, 3.5) {$T_w$};
+\node[Tlbl, anchor=east] at (8.8, 3.5) {$L$};
+\draw[tick] (9, 2.8) -- (9, 4.2);
+\draw[tick] (11, 2.8) -- (11, 4.2);
+\node[txt, anchor=north] at (9, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (11, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ inside $R$: $T_w = L$ (Warning).}
+\label{fig:region-Rcontains}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
+\fill[Twbox] (8, 3.0) rectangle (12, 4.0);
+\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
+\node[Tlbl] at (6, 3.5) {$T_v$};
+\node[Tlbl] at (10, 3.5) {$T_w$};
+\node[Tlbl] at (14, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
+\draw[tick] (4, 2.8) -- (4, 4.2);
+\draw[tick] (16, 2.8) -- (16, 4.2);
+\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ surrounds $R$ (canonical): all three regions non-empty (Warning).}
+\label{fig:region-canonical}
+\end{subfigure}
+
+\vspace{8pt}
+
+% Row 3: (e) L extends above R, (f) L above R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Twbox] (10, 3.0) rectangle (12, 4.0);
+\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
+\node[Tlbl] at (11, 3.5) {$T_w$};
+\node[Tlbl] at (14, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (9.8, 3.5) {$L$};
+\draw[tick] (10, 2.8) -- (10, 4.2);
+\draw[tick] (16, 2.8) -- (16, 4.2);
+\node[txt, anchor=north] at (10, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ extends above $R$: $T_v = \emptyset$ (Warning).}
+\label{fig:region-upper}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.3cm, y=0.4cm,
+    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
+    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
+    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
+    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    tick/.style={line width=0.3pt, black!70},
+    txt/.style={font=\tiny},
+    Tlbl/.style={font=\scriptsize},
+]
+\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
+\node[Tlbl] at (10, 5.5) {$R$};
+\draw[tick] (8, 4.8) -- (8, 6.2);
+\draw[tick] (12, 4.8) -- (12, 6.2);
+\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
+\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
+\fill[Tsbox] (14, 3.0) rectangle (18, 4.0);
+\node[Tlbl] at (16, 3.5) {$T_s$};
+\node[Tlbl, anchor=east] at (13.8, 3.5) {$L$};
+\draw[tick] (14, 2.8) -- (14, 4.2);
+\draw[tick] (18, 2.8) -- (18, 4.2);
+\node[txt, anchor=north] at (14, 2.8) {$l_{\min}$};
+\node[txt, anchor=north] at (18, 2.8) {$l_{\max}$};
+\draw[ax] (0, 2.0) -- (20, 2.0);
+\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
+\end{tikzpicture}
+\caption{$L$ above $R$: $T_s = L$ (Satisfied).}
+\label{fig:region-fullys}
+\end{subfigure}
+
+\caption{Spectrum of $L$ vs $R$ configurations for $op = \text{``$>$''}$.}
+\label{fig:region-partition}
+\end{figure}
+
+\smallskip
+\noindent\textbf{Step 2: Violated-region extraction (Algorithm~\ref{alg:risk-score}, line 4).}
+The interpreter also extracts the violated region of $L$: sub-intervals of $L$ that witness failure.
+Table~\ref{tab:false-regions} decomposes $L$ into three directional components per operator:
+\begin{itemize}
+    \item $L_{\mathit{lower}}$ --- values of $L$ that fall below the acceptable range of $R$;
+    \item $L_{\mathit{upper}}$ --- values of $L$ that exceed the acceptable range of $R$;
+    \item $L_{\mathit{overlap}}$ --- values of $L$ whose outcome depends on the concrete $R$-value (the warning region for ordering operators; the coincidence zone for equality/membership).
+\end{itemize}
+
+Each component is an integer sub-interval or empty; empty components indicate that no witness exists in that direction.
+For the $=$ operator, when $L$ and $R$ are disjoint, the overlap is empty and $L$ falls entirely into exactly one of $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ depending on which side it lies on.
+The risk-classification step below consumes this decomposition, and the same sub-intervals are surfaced to the developer as the concrete ranges where the annotation may fail.
+
+\begin{table}[t]
+\centering
+\caption{Violated-region extraction formulas. Endpoints are clamped so that $\min > \max$ yields empty; ``---'' denotes no witness in that direction.}
+\label{tab:false-regions}
+\footnotesize
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c l l l @{}}
+\toprule
+$op$ & $L_{\mathit{lower}}$ & $L_{\mathit{upper}}$ & $L_{\mathit{overlap}}$ \\
+\midrule
+$>$    & $[l_{\min}, \min(l_{\max}, r_{\min})]$         & ---                                             & $[\max(l_{\min}, r_{\min}{+}1), \min(l_{\max}, r_{\max})]$ \\
+$\geq$ & $[l_{\min}, \min(l_{\max}, r_{\min}{-}1)]$     & ---                                             & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max})]$ \\
+$<$    & ---                                            & $[\max(l_{\min}, r_{\max}), l_{\max}]$          & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max}{-}1)]$ \\
+$\leq$ & ---                                            & $[\max(l_{\min}, r_{\max}{+}1), l_{\max}]$      & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max})]$ \\
+\midrule
+$=$    & $[l_{\min}, (L \cap R)_{\min}{-}1]$            & $[(L \cap R)_{\max}{+}1, l_{\max}]$             & $L \cap R$ \\
+$\neq$ & ---                                            & ---                                             & $L \cap R$ \\
+\midrule
+\text{in}      & $[l_{\min}, \min(l_{\max}, r_{\min}{-}1)]$ & $[\max(l_{\min}, r_{\max}{+}1), l_{\max}]$  & --- \\
+\text{not\,in} & ---                                    & ---                                             & $L \cap R$ \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\smallskip
+\noindent\textbf{Step 3: State-based scoring (Algorithm~\ref{alg:risk-score}, lines 5--9).}
+Lines 5--9 map the state $j$ returned by $\text{Cmp}^*$ directly to extreme scores: $j = \mathit{satisfied}$ returns $0.0$ (fully satisfied condition) and $j = \mathit{violated}$ returns $10.0$ (definite violation).
+The warning case $j = W$ requires further composition and is handled in Step~4.
+
+\smallskip
+\noindent\textbf{Step 4: Warning-case scoring (Algorithm~\ref{alg:risk-score}, lines 10--13).}
+When $j = W$, the risk score is composed from an internal probability $p_{\mathit{true}}$ and a risk-type classification over the violated-region components, then assembled into a value in $(0.0, 10.0)$ by a banded linear formula.
+
+\smallskip
+\textbf{True probability (Algorithm~\ref{alg:risk-score}, line 10).}
+The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes from Step~1:
+\[
+p_{\mathit{true}}(L, R, op) \;=\;
+\begin{cases}
+|T_s| / n_L & \text{if } op \in \{\text{in}, \text{not\,in}\}, \\[3pt]
+|T_s| / (n_L \cdot n_R) & \text{if } op = \text{``=''} \text{ and } n_R > 1, \\[3pt]
+1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \text{``$\neq$''} \text{ and } n_R > 1, \\[3pt]
+\bigl(|T_s| + E_w\bigr) / n_L & \text{otherwise.}
+\end{cases}
+\]
+
+\begin{figure}[t]
+\centering
+
+% Row 1: (a) L extends below R, (b) L inside R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {1/1, 2/2, 3/3, 4/4} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (1, 1.2) to[bend left=30] (4, 4.2);
+\draw[pair, <->] (2, 2.2) to[bend left=20] (3, 3.2);
+\node[txt, blue!60!black] at (2.5, 5.8) {$a+b=5$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (0.6, 1) {$a$};
+\node[txt, anchor=east] at (0.6, 4) {$b$};
+\end{tikzpicture}
+\caption{$L$ extends below $R$: $|T_w|=4$, $a{=}1$, $b{=}4$.}
+\label{fig:arith-lower}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {2/2, 3/3, 4/4, 5/5} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (2, 2.2) to[bend left=30] (5, 5.2);
+\draw[pair, <->] (3, 3.2) to[bend left=20] (4, 4.2);
+\node[txt, blue!60!black] at (3.5, 6.8) {$a+b=7$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (1.6, 2) {$a$};
+\node[txt, anchor=east] at (1.6, 5) {$b$};
+\end{tikzpicture}
+\caption{$L$ inside $R$: $|T_w|=4$, $a{=}2$, $b{=}5$.}
+\label{fig:arith-inside}
+\end{subfigure}
+
+\vspace{8pt}
+
+% Row 2: (c) L surrounds R (canonical), (d) L extends above R
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {1/1, 2/2, 3/3, 4/4, 5/5, 6/6} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (1, 1.2) to[bend left=35] (6, 6.2);
+\draw[pair, <->] (2, 2.2) to[bend left=25] (5, 5.2);
+\draw[pair, <->] (3, 3.2) to[bend left=15] (4, 4.2);
+\node[txt, blue!60!black] at (3.5, 8.5) {$a+b=7$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (0.6, 1) {$a$};
+\node[txt, anchor=east] at (0.6, 6) {$b$};
+\end{tikzpicture}
+\caption{$L$ surrounds $R$ (canonical): $|T_w|=6$, $a{=}1$, $b{=}6$.}
+\label{fig:arith-canonical}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\linewidth}
+\centering
+\begin{tikzpicture}[
+    x=0.4cm, y=0.3cm,
+    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
+    ax/.style={->, line width=0.4pt, black!70},
+    pair/.style={dashed, blue!60!black, line width=0.5pt},
+    rRef/.style={dotted, black!50, line width=0.4pt},
+    txt/.style={font=\tiny},
+]
+\draw[rRef] (0, -0.3) -- (0, 8);
+\draw[rRef] (6, -0.3) -- (6, 8);
+\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
+\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
+\foreach \x/\h in {3/3, 4/4, 5/5, 6/6} {
+  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
+}
+\draw[pair, <->] (3, 3.2) to[bend left=30] (6, 6.2);
+\draw[pair, <->] (4, 4.2) to[bend left=20] (5, 5.2);
+\node[txt, blue!60!black] at (4.5, 8) {$a+b=9$};
+\draw[ax] (-0.5, 0) -- (7.5, 0);
+\node[txt, anchor=west] at (7.5, 0) {$l$};
+\node[txt, anchor=east] at (2.6, 3) {$a$};
+\node[txt, anchor=east] at (2.6, 6) {$b$};
+\end{tikzpicture}
+\caption{$L$ extends above $R$: $|T_w|=4$, $a{=}3$, $b{=}6$.}
+\label{fig:arith-upper}
+\end{subfigure}
+
+\caption{Arithmetic-sequence visualization of $E_w$ across warning configurations for $op = \text{``$>$''}$ with $n_R = 7$.}
+\label{fig:arithmetic-series}
+\end{figure}
+
+\begin{itemize}
+\item For $op \in \{\text{in}, \text{not\,in}\}$, $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
+\item For $op = \text{``=''}$ or $\text{``$\neq$''}$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
+\item Otherwise (when $op \in \{>, \geq, <, \leq\}$, or $=$/$\neq$ with $n_R = 1$), the warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
+Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$. Fig.~\ref{fig:arithmetic-series} visualizes this sequence across the four warning configurations identified in Fig.~\ref{fig:region-partition}; in each panel, pairing symmetric terms (first with last, second with second-to-last, and so on) yields a constant pair-sum equal to $a + b$, so the $|T_w|$ counts sum to $(a+b)|T_w|/2$, and dividing by $n_R$ gives
+\[
+E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
+\]
+where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
+When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to pointwise evaluation.
+\end{itemize}
+
+\smallskip
+\textbf{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
+For warning results, the engine classifies the violation pattern into three risk types based on which components of Table~\ref{tab:false-regions} are non-empty:
+\begin{itemize}
+    \item \textbf{Type 1} --- no directional witness in $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ (only an overlap zone, representing a mild uncertainty);
+    \item \textbf{Type 2} --- exactly one of $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ is non-empty (a single-direction violation);
+    \item \textbf{Type 3} --- both $L_{\mathit{lower}}$ and $L_{\mathit{upper}}$ are non-empty, or the operator is $=$/$\neq$ (whose interval semantics is inherently imprecise and is assigned the highest band by convention).
+\end{itemize}
+
+\smallskip
+\textbf{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
+Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
+
+\smallskip
+This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Developers can therefore prioritize reviews directly by score without inspecting the underlying probability or region structure.
+
+This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
+
+\section{Evaluation}\label{sec:evaluation}
+
+We evaluate IntentChecker as an intent-based approach to supporting developers in addressing numeric logic errors through three research questions that examine its capabilities, associated costs, and position within the broader design space of numeric error analysis:
+
+\begin{itemize}
+    \item \textbf{RQ1 (Expressibility and Validatability)}: Under what conditions can numeric intent be expressed and validated by IntentChecker?
+    \item \textbf{RQ2 (Validation Costs)}: What are the costs associated with numeric intent validation?
+    \item \textbf{RQ3 (Design-Space Positioning)}: Where does IntentChecker fit in the design space of numeric error analysis?
+\end{itemize}
+
+We first describe the implementation environment and benchmark dataset shared across the three research questions.
+
+\subsection{Experimental Setup}\label{sec:setup}
+
+\noindent\textbf{Experimental Setting.}
+The evaluation environment consists of an 11th Gen Intel\textregistered{} Core\texttrademark{}
+i7-11390H CPU at 3.40\,GHz with 16.0\,GB RAM, running Windows 10 (64-bit).
+
+\smallskip
+\noindent\textbf{Implementation and Execution.}
+IntentChecker is implemented in Python~3.10 and operates directly on Solidity source code without requiring compilation or deployment. For the evaluation, IntentChecker is executed in a controlled scripting environment that supplies source-code and annotation events to the interpreter in sequence. Source-code events incrementally construct the program representation, while intent annotations register the properties to be validated at their corresponding source locations. To provide the symbolic inputs required for analysis, IntentChecker uses the batch-annotation mechanism introduced in SolQDebug~\citep{solqdebug}. Once a complete batch annotation is provided, the analyzer evaluates the registered intents under the specified abstract state.
+
+\smallskip
+\noindent\textbf{Dataset Collection.}
+We initially collect 89 real-world numeric logic error instances from three complementary sources covering diverse numeric error patterns. We then apply the exclusion criteria described below to obtain the final benchmark of 75 instances within IntentChecker's analysis scope.
+
+\smallskip\noindent\textbf{NumScout (7 instances).}
+NumScout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
+From the 95-sample subset distributed in NumScout's official repository~\citep{numscout_dataset}, which the authors identify as their main case-level evaluation set, we first restrict our selection to contracts compatible with IntentChecker's front-end, which supports Solidity~$\geq$0.6. Most instances in the subset target earlier Solidity versions and are therefore excluded from consideration. Although one selected contract declares a 0.4.x pragma, we retain it because the constructs exercised by the evaluated case are supported by IntentChecker without modification. Among the compatible cases, we select seven instances covering all five numerical defect patterns enumerated in NumScout: one Div In Path, two Exchange Problem, one Operator Order Issue, two Precision Loss Trend, and one Minor Amount Retention instance. One of the Exchange Problem instances is labeled Profit Opportunity in the repository.
+
+\smallskip\noindent\textbf{Flyinointment (1 instance).}
+\citet{flyinointment} define a Logic Weaknesses category comprising four weakness types. Among them, we include the concrete Greedy Contract example presented in the paper, which falls within the numeric logic error scope of our evaluation.
+
+\smallskip\noindent\textbf{Web3Bugs (81 instances).}
+Web3Bugs~\citep{exploitablebugs} systematically collected and classified vulnerabilities reported in Code4rena audit contests. We select cases that fall within IntentChecker's multi-contract, single-transaction analysis scope from (i) categories S6-1 through S6-4 (Erroneous Accounting) and (ii) category S3-1 (Inconsistent State Updates). For S3-1, we retain only cases whose root cause involves a numeric computation with a missing or stale state-variable update. The resulting Web3Bugs subset contains 81 instances: 72 Erroneous Accounting cases and 9 Inconsistent State Updates cases.
+
+\begin{table}[t]
+\centering
+\caption{Benchmark dataset composition.}
+\label{tab:dataset}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l l r @{}}
+\toprule
+\textbf{Source} & \textbf{Error Pattern} & \textbf{Count} \\
+\midrule
+\multirow{5}{*}{NumScout}
+  & Div In Path              & 1  \\
+  & Exchange Problem         & 2  \\
+  & Operator Order Issue     & 1  \\
+  & Precision Loss Trend     & 2  \\
+  & Minor Amount Retention   & 1  \\
+\midrule
+Flyinointment & Greedy Contract & 1 \\
+\midrule
+\multirow{2}{*}{Web3Bugs}
+  & Erroneous Accounting        & 72 \\
+  & Inconsistent State Updates  & 9  \\
+\midrule
+\textbf{Total (collected)} & & \textbf{89} \\
+Excluded (see below)        & & $-14$ \\
+\textbf{Effective}          & & \textbf{75} \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\smallskip\noindent\textbf{Exclusions.}
+Of the 89 collected instances, 14 are excluded after manual inspection because they either do not constitute evaluable numeric logic errors or fall outside the analysis scope of IntentChecker.
+The exclusion categories are:
+\begin{itemize}
+  \item \textbf{E1 (Source already patched, 2).} The provided source code corresponds to a post-fix version and therefore does not contain the reported bug.
+  \item \textbf{E2 (Integer overflow/underflow, 2).} Under Solidity~$\geq$0.8 checked arithmetic, the reported operation causes the transaction to revert rather than producing an incorrect numeric value; we therefore exclude these cases from the numeric logic errors considered in this study.
+  \item \textbf{E3 (Duplicate, 2).} Multiple audit findings refer to the same buggy code location.
+  \item \textbf{E4 (Disputed finding, 1).} The project sponsor disputed the reported issue as intended behavior.
+  \item \textbf{E5 (Missing dependency, 2).} Required external libraries are unavailable in the audit package, preventing reconstruction of the code required for analysis.
+  \item \textbf{E6 (Multi-transaction, 3).} The reported bug requires state changes across separate transactions and therefore falls outside IntentChecker's single-transaction analysis scope.
+  \item \textbf{E7 (Language semantics, 1).} The reported behavior results from Solidity's truncating integer-division semantics rather than from an erroneous numeric implementation, and is therefore outside our definition of a numeric logic error.
+  \item \textbf{E8 (Bug not in target contract, 1).} The bug actually resides in a different contract than the one documented in the audit report.
+\end{itemize}
+
+The remaining \textbf{75 instances} constitute the effective evaluation set.
+
+\subsection{RQ1: Under What Conditions Can IntentChecker Express and Validate Numeric Intent?}\label{sec:rq1}
+
+% RQ1의 전체 목적은 numeric logic errors에 대한 detection effectiveness를 측정하는 것이 아니라,
+% supplied numeric intent에 대한 IntentChecker의 capability와 boundary를 characterize하는 것.
+% 큰 흐름: Expressibility → Annotation Knowledge → Engine Validatability
+
+\subsubsection{Intent Expressiveness}\label{sec:rq1:expressiveness}
+
+% 핵심 질문: 필요한 numeric relation을 현재 intent language로 표현할 수 있는가?
+%
+% 여기서 다룰 내용:
+% - 75 effective cases를 대상으로 required numeric relation의 expressibility 분석
+% - 기존 8 numeric error patterns
+% - Value-level vs. Algorithm-level
+% - Usable vs. Unusable
+% - Value/Algorithm × Usable/Unusable 2×2 분석
+% - 현재 grammar로 표현할 수 없는 cases (기존 L4가 여기에 해당)
+% - error characteristics와 expressibility 사이의 관계
+%
+% 핵심 목적은 "몇 개를 잡았는가"가 아니라 current intent model의 expressiveness boundary가
+% 어디에 있는가를 보여주는 것.
+
+\subsubsection{Annotation Knowledge Requirements}\label{sec:rq1:knowledge}
+% (working title)
+%
+% 핵심 질문: 표현 가능한 numeric intent를 작성하기 위해 어떤 information/specification knowledge가 필요한가?
+%
+% 여기서 다룰 예정:
+% - 기존 20 confirmed cases와 기존 L5 cases를 새로운 관점에서 재분석
+% - function-local information만으로 specification을 구성할 수 있는 경우
+% - non-local information이 필요한 경우
+%   - cross-function / consistency information
+%   - domain / protocol / business knowledge
+% - retrospective annotation이라는 공통 dependency와 별개로, specification source/knowledge requirement를 characterize
+%
+% 주의: 이 subsection은 현재 추가 분석 중이므로 제목과 세부 taxonomy는 추후 변경 가능.
+% 기존의 단순한 bug-awareness required / not required binary를 그대로 재사용하는 섹션은 아님.
+
+\subsubsection{Engine Validatability}\label{sec:rq1:validatability}
+
+% 핵심 질문: Grammar-legal annotation이 주어졌을 때 현재 analysis engine이 이를 실제로 검증할 수 있는가?
+%
+% 현재 예상되는 outcome 구조:
+% - Violated / conclusively validated
+%   - supplied intent의 violation을 engine이 확인할 수 있는 cases
+% - Warning / inconclusive
+%   - analysis는 수행되지만 abstract interpretation의 precision limitation 때문에 definite verdict를 만들지 못하는 cases
+%   - 기존 L1/L2/L3 중 해당 cases
+%   - loop widening / interface-call ⊤ / external-call unknown state / unsupported construct propagation 등
+% - Unsupported
+%   - 필요한 validation/observation 자체를 현재 engine architecture가 지원하지 않는 경우
+%   - 대표적으로 loop-body granularity와 관련된 cases
+%
+% 기존 20 Violated뿐 아니라 현재 재검토 중인 L1–L3 및 기존 L5 hypothetical annotations의 실제 execution 결과를
+% 반영하여 최종 숫자 결정.
+%
+% 핵심 distinction: language limitation ≠ specification-knowledge limitation ≠ engine limitation
+
+\subsection{RQ2: What Are the Costs of Specifying and Validating Numeric Intent?}\label{sec:rq2}
+
+% RQ1에서 확인한 capability를 실제로 사용하는 과정에서 발생하는 측정 가능한 specification-side 및
+% analysis-side cost를 characterize.
+%
+% practicality 또는 effectiveness 자체를 입증하는 RQ로 framing하지 않음.
+%
+% 큰 흐름: Specify → Validate
+
+\subsubsection{Annotation Overhead}\label{sec:rq2:overhead}
+% (working title)
+%
+% 핵심 질문: Numeric intent를 annotation으로 명시하는 데 어느 정도의 measurable annotation overhead가 필요한가?
+%
+% 예상 metrics:
+% - annotation LOC
+% - annotation count
+% - annotation/code ratio
+% - annotation complexity와 관련해 객관적으로 측정 가능한 기타 지표
+%
+% 중요한 scope distinction:
+% - annotation을 표현하는 데 필요한 syntactic/representational burden을 측정
+% - developer가 올바른 specification을 발견하는 데 필요한 cognitive effort나 prospective authorability를
+%   직접 측정한다고 주장하지 않음
+%
+% 실제 metric이 확정되면 Annotation Overhead, Specification Cost, Annotation Effort 중 최종 subsection title 결정.
+
+\subsubsection{Analysis Cost}\label{sec:rq2:cost}
+
+% 핵심 질문: Supplied numeric intent를 IntentChecker가 분석하고 verdict를 산출하는 데
+% 어느 정도의 computational cost가 발생하는가?
+%
+% 다룰 내용:
+% - analysis latency
+%   - Violated뿐 아니라 실행 가능한 Warning paths도 포함하는 방향
+%   - unsupported cases의 처리/제외 기준
+%   - median / IQR / confidence interval 등 distribution 중심 reporting
+%   - 필요하다면 verdict별 latency
+% - 기존에 사용했던 analysis characteristics 검토:
+%   - number of debug annotations
+%   - function calls
+%   - variables
+%   - 기타 analysis complexity indicators
+%
+% 기존 n=20 Pearson correlation 분석은 Reviewer 3의 지적을 고려해 그대로 유지한다고 전제하지 않고,
+% 확장된 데이터와 실제 결과를 본 뒤 유지 여부 결정.
+
+\subsection{RQ3: Where Does IntentChecker Fit in the Design Space of Numeric Error Analysis?}\label{sec:rq3}
+
+% 핵심 질문: IntentChecker는 기존 numeric error analysis approaches와 비교할 때 어떤 design point를 차지하는가?
+%
+% 기존 RQ3처럼 detection count를 중심으로 한 scoreboard comparison은 하지 않음.
+% 대신 ScType, GPTScan, NumScout 등과 design dimensions를 기준으로 비교.
+%
+% 예상 comparison axes:
+% - source of specification / detection criterion
+%   - developer-supplied
+%   - designer-defined
+%   - inferred
+% - analysis timing
+%   - development-time
+%   - audit/post-hoc
+% - analysis objective
+%   - intent/property validation
+%   - error detection
+% - relationship to predefined error patterns
+% - feedback/result semantics
+% - 필요하면 analysis scope 및 implementation characteristics
+%
+% 핵심 목적:
+% "IntentChecker detects more/fewer errors"가 아니라, intent-based validation이 기존
+% numeric-error detection approaches와 구조적으로 어떤 다른 trade-off/design choice를 갖는지 positioning.
+
+\subsection{Threats to Validity}\label{sec:threats}
+
+\noindent\textbf{Internal validity.}
+The annotations and case classifications in RQ1 are constructed retrospectively based on reported bugs, which introduces a risk of post-hoc bias. To reduce the influence of such prior knowledge on our analysis, we separate the construction of the target specification from the assessment of its evidence provenance. We first use the audit report, and the reported fix when available, to identify the intended numeric relation and determine whether it can be expressed using the intent model. Cases for which the required relation is not expressible are excluded from the subsequent provenance analysis. For each expressible case, we fix the target annotation before assessing where sufficient evidence for deriving it is available. We examine the buggy function first, including its comments, parameters, data and control flow, and sibling branches; if this local evidence is insufficient, we then examine related functions or contracts, followed by external protocol or domain knowledge when necessary. Audit reports and reported fixes are not treated as evidence in this provenance assessment. Nevertheless, because the analysis is retrospective, the procedure cannot fully eliminate post-hoc bias or establish whether independent annotators without prior knowledge of the reported bugs would derive comparable annotations.
+
+\smallskip
+\noindent\textbf{External validity.}
+The final benchmark comprises 75 numeric logic error cases collected from three complementary sources: Web3Bugs, NumScout, and the Greedy Contract example presented in Fly-in-the-Ointment. These sources cover diverse types of numeric errors that arise in real-world Solidity contracts, but they do not exhaustively cover the full space of numeric logic errors. In addition, the benchmark is constrained by IntentChecker's analysis scope: the NumScout cases are affected by the range of Solidity versions supported by IntentChecker's front-end, and the Web3Bugs cases were selected from categories relevant to the multi-contract, single-transaction analysis addressed in this study, so bugs involving state changes across multiple transactions were excluded. As a result, the distributional characteristics observed with respect to expressiveness, evidence provenance, and engine limitations may not generalize to unsupported Solidity versions, multi-transaction behavior, or numeric error types not represented in the benchmark.
+
+\smallskip
+\noindent\textbf{Construct validity.}
+RQ1 distinguishes three properties of intent-based validation: whether a bug-relevant numeric relation can be expressed by the intent model, what information is required to support the corresponding annotation, and whether IntentChecker can validate the annotation against the buggy code. These properties characterize different capabilities and limitations of the proposed approach, but they do not directly measure its effectiveness in actual developer use. In particular, the existence of sufficient evidence within a buggy function does not establish that an independent developer would identify or use that evidence to formulate the same annotation. Likewise, a Violated result demonstrates that IntentChecker can identify an inconsistency once an appropriate intent is supplied; it does not establish that developers would independently formulate that intent or successfully diagnose and repair the reported bug. An independent annotation or developer study would be required to evaluate these aspects directly. In RQ2, we use the number of batch annotations required to instantiate the analysis context as a structural measure of specification cost. This measure captures the amount of analysis context that must be explicitly supplied, but does not directly measure the time or cognitive effort required for a developer to determine and write individual annotations. The RQ2 results should therefore be interpreted as characterizing the structural specification requirements of IntentChecker rather than actual human annotation effort.
+
+% 여기서는 특히 새 Evaluation framing과 직접 연결되는 threat를 정리.
+%
+% - Retrospective annotation
+%   - reported error 및 expected behavior를 알고 annotation을 작성함
+%   - 따라서 prospective developer authorability 또는 unknown-bug detection effectiveness를 입증하지 않음
+% - Dataset representativeness
+%   - Code4rena-derived cases
+%   - 75 effective cases
+% - Annotation/specification classification subjectivity
+%   - 특히 4.2.2의 knowledge-requirement classification
+% - Abstract interpretation limitations
+% - Annotation-overhead measurement가 cognitive authoring effort를 직접 측정하지 않는다는 한계
+% - 비교 대상 및 design-space classification의 범위
+% - 필요하면 implementation/hardware measurement validity
+
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Intent Annotation Guidelines}\label{sec:disc:guidelines}
+
+Within the value-level intent model, the annotation grammar (§\ref{sec:design}) defines what can be written. The question that remains is when a developer should write which annotation.
+The 20 mitigated cases and 14 L5 expressible cases reveal a recurring pattern: the most impactful annotations express what the code does not already make explicit---an omitted state update, an unchecked relation between output and input, or the mathematical intent behind a lossy arithmetic path.
+Three non-obvious guidelines are distilled from this observation.
+
+\smallskip
+\noindent\textbf{Guideline 1: Enumerate state variables a function should affect, not just those it actually affects.}
+Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
+Bugs of omission arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
+After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
+Crucially, this practice depends only on the developer enumerating expected effects, not on any prior knowledge of the specific bug.
+
+\smallskip
+\noindent\textbf{Guideline 2: Anchor output expectations to known quantities.}
+Many functions with numeric outputs have a known relationship---a bound, an equality, or a monotonic relation---with quantities already in scope: input parameters, related state variables, or values derivable from specific input instantiations.
+Encoding this relationship as a @During or @Post annotation catches wrong-implementation bugs where the code runs without error but produces a directionally wrong or out-of-bound result.
+Examples include @Post \texttt{\_balances[to] <= amount} bounding the output against the transferred amount (RebaseProxy.mint), @During \texttt{\_principalWithdrawable <= \_totalLiquidityWithdrawable} comparing two related state variables (LenderPool.\_calcPrincipalWithdrawable), and @Post \texttt{returnExpression == \_balance - mapToken\_tokenAmount[\_token]} asserting the return against a state-derived formula (Pools.getAddedAmount).
+Such an annotation surfaces bugs through a violated relation even when the developer cannot pre-specify the exact output value.
+
+\smallskip
+\noindent\textbf{Guideline 3: For multi-step arithmetic, annotate the result against the mathematically ideal expression, not the code as written.}
+Solidity's integer division truncates at every intermediate step, and the resulting precision loss depends on the order of operations.
+Code that reads amount.div(12).mul(5) may look correct, but the developer's actual intent is the mathematical value $\lfloor\text{amount} \times 5 / 12\rfloor$.
+Writing the intent annotation with the multiplication-before-division ordering---@During result $\geq$ amount * 5 / 12---causes IntentChecker to compare the code's early-truncation path against a form that defers truncation to the final division, surfacing the precision gap automatically.
+
+\subsection{Annotation Authoring Burden and Future Automation}\label{sec:disc:burden}
+
+IntentChecker's mitigation results are conditional on the developer supplying intent and debug annotations.
+This is by design: the entire approach is predicated on the developer making their intent explicit. Accordingly, IntentChecker requires direct authoring effort from the developer.
+
+\smallskip
+\noindent\textbf{Effort 1: writing intent annotations.}
+The intent model requires the developer to articulate, in the grammar of @During/@Post annotations, what the function is supposed to do. This translation from a mental model of intent into grammar-expressible assertions is itself effort: the developer must decide which properties to assert at which program points and must express each assertion within the grammar's syntactic form.
+
+\smallskip
+\noindent\textbf{Effort 2: supplying debug annotations for realistic execution paths.}
+Even for code whose intent is clear, IntentChecker can only analyze the path that the developer's debug annotations actually exercise.
+Debug annotations require the developer to choose representative ranges for each entry-point value the function reads. Choosing ranges that miss the buggy region produces a false negative, while choosing ranges that are too wide invites widening and produces uninformative Warning judgments. Either way, Satisfied judgments hold only within the declared ranges.
+This is the standard cost of any debugging paradigm---traditional debuggers also only execute the inputs the developer provides---and developers mitigate it by iteratively refining ranges when Warning results draw attention to specific sub-intervals.
+
+\smallskip
+\noindent\textbf{Future direction: LLM-assisted annotation suggestion and auto-repair.}
+A natural way to lower both annotation-authoring efforts is to combine IntentChecker with a large language model that observes the same source the developer is editing.
+For intent annotations, the LLM could generate candidate @During/@Post annotations from the partial code the developer is currently writing, conditioned on two paper-internal artifacts---the intent annotation guidelines (§\ref{sec:disc:guidelines}) as structural priors and the per-case annotated benchmark as in-grammar exemplars---and present them as suggestions the developer accepts or edits.
+For debug annotations, the LLM could propose representative ranges from invocation patterns visible in the project under edit and from per-pattern range exemplars in the annotated benchmark.
+Such annotation suggestions can reduce the manual authoring effort for both the 20 mitigated cases and the 14 L5 cases identified in RQ2 (Fig.~\ref{fig:rq1-limitations}).
+A second direction proposes in-editor code repair: when IntentChecker returns a Violated judgment, the LLM suggests edits that bring the program's actual behavior within the developer's declared intent, for them to evaluate before committing.
+Both directions are left as future work, building on this paper's intent model, validation engine, guidelines (§\ref{sec:disc:guidelines}), and per-case annotated benchmark.
+
+\subsection{Current Limitations}\label{sec:disc:tech}
+
+Beyond the annotation authoring burden discussed in §\ref{sec:disc:burden}, two tool-side technical boundaries and one methodological limit of the present evaluation remain.
+
+\smallskip
+\noindent\textbf{Contract-level intent.}
+IntentChecker's intent model operates on individual functions within a single transaction.
+A class of numeric properties, however, constitutes contract-level intent---properties that relate quantities established by different transactions across the contract's lifetime rather than within a single function execution.
+The canonical example is the ERC20 conservation property totalSupply == sum(balances): any single function execution may temporarily increment one side and not the other, but across the entire transaction history the two must agree.
+Another example is the price oracle manipulation pattern, where the buggy behavior only manifests when one transaction sets up state that a later transaction reads.
+Capturing contract-level intent would require tracking state across transactions and aggregating across all balance entries, both of which lie outside the current function-level, single-transaction interval-domain analysis.
+
+\smallskip
+\noindent\textbf{Unsupported Solidity constructs.}
+IntentChecker's Yul support targets arithmetic computation---add, sub, mul, div/sdiv, mod/smod, exp, comparison and bitwise operators, shifts, and the modular forms mulmod/addmod---which covers the cases where inline assembly is used as a faster substitute for high-precision integer arithmetic, by far the most common use case in DeFi libraries.
+However, hand-written Yul that uses memory and storage opcodes (mload/mstore, sload/sstore), control flow (if, for, switch), or function definitions falls outside the supported subset and is conservatively treated as $\top$.
+The same conservative treatment applies to a small number of Solidity constructs that the abstract interpreter does not model: abi.decode from raw bytes, keccak256, and other built-ins whose results depend on opaque cryptographic operations.
+Bugs whose buggy/correct distinction depends on the precise value produced by such constructs are correspondingly out of IntentChecker's reach (these account for the L3 cases in Fig.~\ref{fig:rq1-limitations}).
+
+\smallskip
+\noindent\textbf{Evaluation methodology: developer study.}
+This paper evaluates IntentChecker through structural analysis---what the tool can and cannot detect (RQ1), what the intent model can and cannot express (RQ2), and how the tool compares with existing detectors (RQ3)---rather than through a developer study measuring perceived usability or annotation intuitiveness.
+A controlled study with Solidity-experienced participants would answer a complementary set of questions: whether developers find the annotation syntax natural, how long annotation authoring takes in practice, and whether the tool's feedback leads to faster bug discovery than existing debugging workflows.
+Meaningful results for such a study require realistic development-time conditions~\citep{defisecurity}, which in IntentChecker's current form are dominated by two confounds: the manual annotation-authoring burden described in §\ref{sec:disc:burden}, which is specifically what the envisioned LLM-assisted suggestion layer is designed to reduce, and the analyzer coverage gaps above, which bias task selection toward cases the tool already handles.
+The usability study is therefore deferred to after both the LLM-assisted annotation layer and the analyzer extensions are in place, where the study can assess the intended workflow rather than its current manual-authoring approximation.
+
+\section{Related Works}\label{sec:related}
+\subsection{Numeric Logic Error Detection in Solidity}
+Logic error detection focuses on identifying discrepancies between developer intentions and actual program behavior in smart contracts.
+
+\citep{highguard} addresses business logic violations in smart contracts by using Dynamic Condition Response (DCR) graphs
+to model expected behaviors including temporal constraints, role-based access control, and inter-function dependencies.
+The system monitors runtime transactions against user-provided DCR models and their function mappings,
+generating violation reports when execution activities deviate from the specified business logic patterns.
+
+\citep{smartpulse} verifies temporal properties of smart contracts by accepting user-specified Linear Temporal Logic (LTL) formulas
+and attack models to check both safety and liveness properties.
+The system not only detects violations but also generates concrete attack scenarios that demonstrate how the temporal properties can be violated,
+providing developers with actionable insights into potential logic errors.
+
+\citep{consolidating} enables developers to specify function and address behaviors using the ConSol syntax alongside their Solidity code,
+then verifies whether the implementation adheres to these behavioral specifications and generates behavior-compliant Solidity programs without annotations.
+
+\citep{smartinv} leverages multimodal learning to automatically infer invariants and detect machine unauditable bugs (MUBs)~\citep{exploitablebugs}
+by analyzing both source code and natural language artifacts including comments, function signatures, and documented transaction scenarios.
+The system employs a fine-tuned model with Tier of Thought (ToT) prompting that progressively predicts transaction contexts,
+generates and ranks invariants, and ultimately identifies vulnerabilities through three-tier reasoning.
+
+Furthermore, there are also approaches that address multiple transaction logic errors such as price manipulation~\citep{defiranger,defiguard,pomabuster,secplf,defitainter}
+and flash loan attacks~\citep{defitail,midnight}.
+
+The numeric logic error detectors above and IntentChecker differ along both axes identified in §\ref{sec:background}.2: who authors the detection criteria and when the tool is run.
+Detectors that rely on pattern catalogs, language-model inference, or type rules are all designed to run over completed code, with criteria fixed at design time and applied post-hoc.
+IntentChecker is positioned earlier in time and lets the developer declare intent explicitly through annotations evaluated inside the editor, crossing both axes simultaneously.
+Because the two approaches see different inputs (code only vs.\ code with declared intent) and run in different workflow stages (post-hoc audit vs.\ development-time validation), their coverage is necessarily complementary.
+
+\subsection{Specification-based Smart Contract Verification}
+Specification-based verification approaches focus on verifying general properties and correctness requirements of smart contracts rather than specific developer intentions.
+
+\citep{scribble} provides a framework that transforms developer annotations into Solidity assertion code,
+enabling testing with existing tools like MythX~\citep{mythx} and Mythril~\citep{mythril}.
+The framework supports multiple annotation types including if\_succeed (conditions for successful function returns),
+invariant (contract-level properties that must always hold), if\_updated (conditions checked when state variables change),
+and assert (validations at specific execution points), making formal specifications accessible through familiar testing pipelines.
+
+\citep{smartace} builds upon Scribble~\citep{scribble} to verify whether Solidity code satisfies specifications written in the Scribble language,
+leveraging C-based verification tools like SeaHorn~\citep{seahorn}, libFuzzer~\citep{libfuzzer}, and KLEE~\citep{klee} by transforming smart contracts into LLVM-IR based harnesses.
+The framework abstracts the $2^{160}$ possible user addresses into a small set of representative users (implicit, transient, and explicit),
+enabling verification of properties that must hold for arbitrary numbers of users, such as accounting properties like
+"the contract balance equals the sum of all user deposits."
+
+\citep{idealist} verifies Solidity code using two types of annotations: specification annotations (loop invariants, call invariants, and call modifies) that developers declare as assumptions,
+and verification annotations (ensures, reverts\_if, and contract invariants) that the tool checks against the implementation.
+The system assumes the truth of specification annotations and uses them to verify whether the code satisfies function post-conditions,
+correctly handles revert conditions, and maintains contract invariants throughout execution.
+
+\citep{solvent} focuses on verifying liquidity properties of smart contracts through formal methods
+by converting both the contract code and user-defined liquidity properties into SMT constraints.
+The system then checks whether the contract satisfies these properties using SMT solvers,
+generating counterexamples when violations are detected to help developers understand potential liquidity issues.
+
+While the specification-based approaches above provide dedicated specification languages and discharge verification obligations through SMT solving, symbolic execution, or assertion injection over completed code, IntentChecker's intent model occupies a different point in the design space.
+First, its annotation language targets value-level numeric intent expressed as interval-valued relationships over specific variables and program points, whereas specification-based languages above express properties as Boolean assertions over types or contract state.
+Second, its tri-valued validation engine (§\ref{sec:intent-semantics}) operates over the intervals produced by interval-domain abstract interpretation, which is light enough to run at development time as the developer writes code, whereas SMT-based and symbolic-execution-based checks are discharged as verification tasks after coding is complete.
+Third, each annotation yields a graded outcome (Satisfied, Warning, or Violated) along with a risk score and the sub-intervals where the violation may occur, pointing the developer to the problematic value region rather than returning a binary verification verdict.
+The two approaches are therefore complementary in specification style, verification backend, and workflow stage.
+
+\subsection{Tools for Strengthening Security During Development Phase}
+Development-phase security tools integrate vulnerability detection directly into the coding workflow, enabling developers to identify and address security issues as they write code rather than in post-development analysis.
+\citep{making} presents an integrated development environment for smart contract development that combines natural language model-based code autocompletion with security validation.
+The platform integrates existing static analysis tools including Oyente~\citep{oyente}, Mythril~\citep{mythril}, and Securify~\citep{securify} to provide comprehensive security reports during development workflow.
+
+\citep{solhint} provides a Solidity linter that detects predefined vulnerability patterns including low-level calls, reentrancy, and deprecated function usage during development.
+The tool enforces security best practices by checking for patterns such as proper visibility declarations, send result validation, and secure compiler version usage.
+
+While these development-phase tools rely on design-time detection criteria for known vulnerability patterns,
+IntentChecker enables developers to specify their intended numeric behaviors through annotations and validates whether the actual program execution matches the declared intent.
+
+\section{Conclusion}\label{sec:conclusion}
+
+This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope. The tool classifies developer-supplied @During/@Post intent annotations as Satisfied, Warning, or Violated against the abstract states produced by interval-domain analysis, grounded in a formal denotational semantics, and reports a risk score and the violated region per annotation.
+
+On 75 effective benchmark instances drawn from Web3Bugs, NumScout, and the Greedy Contract dataset of \citet{flyinointment}, IntentChecker mitigated 20 cases by returning Violated judgments at a mean 3.69\,s per case (RQ1). RQ2 traced the remaining 55 cases to two levels of limitation. Of these, 21 are analysis-engine limits where the interval-domain state at the check point is too coarse to distinguish the bug. The other 34 are annotation-grammar limits rooted in two structural properties of the value-level intent model: value-level annotations can express a bug only when the corrective variable is in the function's scope, and algorithm-level bugs lie outside what a value-level grammar is designed to express. RQ3 then compared IntentChecker with existing detectors and empirically confirmed that their coverage and latency envelopes are bounded by both structural axes this paper identifies, namely who authors the detection criteria and when the tool is run.
+
+These results position IntentChecker as complementary to existing detection tools: rather than competing on detection accuracy, it fills the development-time slot that auditing-time tools structurally cannot occupy. Future work targets LLM-assisted annotation suggestion and auto-repair, along with capturing contract-level intent.
+
+\section*{Acknowledgements}
+This work was supported by the Institute of Information \& communications Technology Planning \& Evaluation (IITP) grant funded by the Korean government (MSIT) (RS-2021-II210177, High Assurance of Smart Contract for Secure Software Development Life Cycle), the Technology development Program (RS-2025-25455127) funded by the Ministry of SMEs and Startups (MSS, Korea), and the ``Regional Innovation System \& Education (RISE)'' through the Seoul RISE Center, funded by the Ministry of Education (MOE) and the Seoul Metropolitan Government (2025-RISE-01-003-01).
+
+\section*{Author Contributions}
+Inseong Jeon participated in conceptualization, methodology design, system implementation, data collection, experiments, and manuscript writing. Sundeuk Kim and Hyunwoo Kim assisted in experiments, data collection and analysis, and contributed to manuscript writing. Hoh Peter In provided resources, assisted in editing the manuscript, and supervised the entire project. All authors reviewed and approved the final version of the manuscript.
+
+\section*{Data Availability}
+The benchmark of 89 real-world numeric logic error instances curated from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}, along with the IntentChecker implementation~\citep{intentchecker}, evaluation scripts, and experimental results, are available at \url{https://github.com/iwwyou/IntentChecker.git}.
+
+\section*{Declarations}
+
+\noindent\textbf{Competing interests} The authors declare no competing interests.
+
+\noindent\textbf{Ethical approval} Not applicable since there are no human and/or animal studies included in this paper.
+
+
+\begin{thebibliography}{99}
+
+\bibitem[Arora et~al.(2024)]{secplf}
+Arora, S., et al.: SecPLF: Secure protocols for loanable funds against oracle manipulation attacks. In: Proceedings of the 19th ACM Asia Conference on Computer and Communications Security (ASIACCS), pp. 1394--1405 (2024). https://doi.org/10.1145/3634737.3637681
+
+\bibitem[Anthropic(2026)]{claude}
+Anthropic: Claude. \url{https://www.anthropic.com/} (2026). Accessed April 2026
+
+\bibitem[Bartoletti et~al.(2024)]{solvent}
+Bartoletti, M., et al.: Solvent: liquidity verification of smart contracts. In: International Conference on Integrated Formal Methods (iFM), pp. 256--266 (2024). \url{https://doi.org/10.1007/978-3-031-76554-4_14}
+
+\bibitem[Cadar et~al.(2008)]{klee}
+Cadar, C., et al.: KLEE: unassisted and automatic generation of high-coverage tests for complex systems programs. In: OSDI, pp. 209--224 (2008). https://doi.org/10.5555/1855741.1855756
+
+\bibitem[Chaliasos et~al.(2024)]{defisecurity}
+Chaliasos, S., et al.: Smart contract and defi security tools: Do they meet the needs of practitioners?. In: Proceedings of the 46th IEEE/ACM International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3623302
+
+\bibitem[Chen et~al.(2025)]{numscout}
+Chen, J., et al.: NumScout: Unveiling Numerical Defects in Smart Contracts using LLM-Pruning Symbolic Execution. IEEE Transactions on Software Engineering (2025). https://doi.org/10.1109/TSE.2025.3555622
+
+\bibitem[NumScout(2026a)]{numscout_dataset}
+NumScout: 95 Samples Experiment Dataset. \url{https://github.com/NumScout/NumScout/tree/main/Experiment/95_Samples_Run} (2026). Accessed April 2026
+
+\bibitem[NumScout(2026b)]{numscout_semantic}
+NumScout: feature detector source code (\texttt{semantic\_analysis.py}). \url{https://github.com/NumScout/NumScout/blob/main/feature_detector/semantic_analysis.py} (2026). Accessed April 2026
+
+\bibitem[Consensys Diligence(2026a)]{mythril}
+Consensys Diligence: Mythril. \url{https://github.com/ConsenSysDiligence/mythril} (2026). Accessed April 2026
+
+\bibitem[Consensys Diligence(2026b)]{mythx}
+Consensys Diligence: MythX. \url{https://mythx.io/} (2026). Accessed April 2026
+
+\bibitem[Consensys Diligence(2026c)]{scribble}
+Consensys Diligence: Scribble. \url{https://diligence.security/scribble/} (2026). Accessed April 2026
+
+\bibitem[Eshghie et~al.(2024)]{highguard}
+Eshghie, M., et al.: Highguard: Cross-chain business logic monitoring of smart contracts. In: Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE), pp. 2378--2381 (2024). https://doi.org/10.1145/3691620.3695356
+
+\bibitem[Feist et~al.(2019)]{slither}
+Feist, J., Grieco, G., Groce, A.: Slither: A static analysis framework for smart contracts. In: 2019 IEEE/ACM 2nd International Workshop on Emerging Trends in Software Engineering for Blockchain (WETSEB), pp. 8--15 (2019). https://doi.org/10.1109/WETSEB.2019.00008
+
+\bibitem[Gurfinkel et~al.(2015)]{seahorn}
+Gurfinkel, A., et al.: The SeaHorn verification framework. In: International Conference on Computer Aided Verification, pp. 343--361 (2015). \url{https://doi.org/10.1007/978-3-319-21690-4_20}
+
+\bibitem[Google(2026)]{gemini}
+Google: Gemini. \url{https://gemini.google.com/} (2026). Accessed April 2026
+
+\bibitem[Jeon et~al.(2026)]{solqdebug}
+Jeon, I., et al.: SolQDebug: Debug solidity quickly for interactive immediacy in smart contract development. Automated Software Engineering 33(3), 86 (2026). https://doi.org/10.1007/s10515-026-00618-9
+
+\bibitem[IntentChecker(2026a)]{intentchecker}
+IntentChecker. \url{https://github.com/iwwyou/IntentChecker.git} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026b)]{dappscananalysis}
+IntentChecker: DAppSCAN contract analysis dataset. \url{https://github.com/iwwyou/IntentChecker/blob/main/evaluation/DappSCAN_contract_analysis/contract_analysis_table.xlsx} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026c)]{rq2supp}
+IntentChecker: RQ2 supplementary material---L4/L5 case classifications and annotations. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ2} (2026). Accessed April 2026
+
+\bibitem[IntentChecker(2026d)]{rq1supp}
+IntentChecker: RQ1 supplementary material---per-case annotation plans and rationale. \url{https://github.com/iwwyou/IntentChecker/tree/main/evaluation/RQ1/annotation_plans.md} (2026). Accessed April 2026
+
+\bibitem[Kong et~al.(2023)]{defitainter}
+Kong, Q., et al.: Defitainter: Detecting price manipulation vulnerabilities in defi protocols. In: Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA), pp. 1144--1156 (2023). https://doi.org/10.1145/3597926.3598124
+
+\bibitem[Li et~al.(2025)]{defitail}
+Li, X., et al.: Penetrating the hostile: Detecting defi protocol exploits through cross-contract analysis. IEEE Transactions on Information Forensics and Security 20, 11759--11774 (2025). https://doi.org/10.1109/TIFS.2025.3626979
+
+\bibitem[LLVM(2026)]{libfuzzer}
+LLVM: libFuzzer. \url{https://llvm.org/docs/LibFuzzer.html} (2026). Accessed April 2026
+
+\bibitem[Luu et~al.(2016)]{oyente}
+Luu, L., et al.: Making smart contracts smarter. In: Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 254--269 (2016). https://doi.org/10.1145/2976749.2978309
+
+\bibitem[Nguyen et~al.(2023)]{idealist}
+Nguyen, T.D., et al.: An idealist's approach for smart contract correctness. In: International Conference on Formal Engineering Methods, pp. 11--28 (2023). \url{https://doi.org/10.1007/978-981-99-7584-6_2}
+
+\bibitem[OpenAI(2026)]{chatgpt}
+OpenAI: ChatGPT. \url{https://chatgpt.com/} (2026). Accessed April 2026
+
+\bibitem[Pearson(2026)]{pearson_r}
+Pearson correlation coefficient. \url{https://en.wikipedia.org/wiki/Pearson_correlation_coefficient} (2026). Accessed April 2026
+
+\bibitem[Protofire(2026)]{solhint}
+Protofire: Solhint. \url{https://github.com/protofire/solhint} (2026). Accessed April 2026
+
+\bibitem[Ramezany et~al.(2023)]{midnight}
+Ramezany, S., Setthawong, R., Setthawong, P.: Midnight: An Efficient Event-driven EVM Transaction Security Monitoring Approach For Flash Loan Detection. In: Proceedings of the 2023 20th International Joint Conference on Computer Science and Software Engineering (JCSSE), pp. 237--241 (2023). https://doi.org/10.1109/JCSSE58229.2023.10201970
+
+\bibitem[Ren et~al.(2021)]{making}
+Ren, M., et al.: Making smart contract development more secure and easier. In: Proceedings of the 29th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering (ESEC/FSE), pp. 1360--1370 (2021). https://doi.org/10.1145/3468264.3473929
+
+\bibitem[Soud et~al.(2024)]{flyinointment}
+Soud, M., Liebel, G., Hamdaqa, M.: A fly in the ointment: an empirical study on the characteristics of Ethereum smart contract code weaknesses. Empirical Software Engineering 29(1), 13 (2024). https://doi.org/10.1007/s10664-023-10398-5
+
+\bibitem[Stephens et~al.(2021)]{smartpulse}
+Stephens, J., et al.: SmartPulse: automated checking of temporal properties in smart contracts. In: Proceedings of the 2021 IEEE Symposium on Security and Privacy (SP), pp. 555--571 (2021). https://doi.org/10.1109/SP40001.2021.00085
+
+\bibitem[Sun et~al.(2024)]{gptscan}
+Sun, Y., et al.: Gptscan: Detecting logic vulnerabilities in smart contracts by combining gpt with program analysis. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639117
+
+\bibitem[GPTScan(2023)]{gptscan_web3bugs}
+GPTScan: Web3Bugs per-contest evaluation results. \url{https://github.com/MetaTrustLabs/GPTScan-Web3Bugs} (2023). Accessed April 2026
+
+\bibitem[Tsankov et~al.(2018)]{securify}
+Tsankov, P., et al.: Securify: Practical security analysis of smart contracts. In: Proceedings of the 2018 ACM SIGSAC Conference on Computer and Communications Security (CCS), pp. 67--82 (2018). https://doi.org/10.1145/3243734.3243780
+
+\bibitem[Wang et~al.(2024a)]{defiguard}
+Wang, D., et al.: Defiguard: A price manipulation detection service in defi using graph neural networks. IEEE Transactions on Services Computing (2024). https://doi.org/10.1109/TSC.2024.3489439
+
+\bibitem[Wang et~al.(2024b)]{smartinv}
+Wang, S.J., Pei, K., Yang, J.: Smartinv: Multimodal learning for smart contract invariant inference. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 2217--2235 (2024). https://doi.org/10.1109/SP54263.2024.00126
+
+\bibitem[Wei et~al.(2024)]{consolidating}
+Wei, G., et al.: Consolidating Smart Contracts with Behavioral Contracts. Proceedings of the ACM on Programming Languages 8(PLDI), 965--989 (2024). https://doi.org/10.1145/3656416
+
+\bibitem[Wesley et~al.(2022)]{smartace}
+Wesley, S., et al.: Verifying Solidity smart contracts via communication abstraction in SmartACE. In: International Conference on Verification, Model Checking, and Abstract Interpretation, pp. 425--449 (2022). \url{https://doi.org/10.1007/978-3-030-94583-1_21}
+
+\bibitem[Wu et~al.(2023)]{defiranger}
+Wu, S., et al.: Defiranger: Detecting defi price manipulation attacks. IEEE Transactions on Dependable and Secure Computing 21(4), 4147--4161 (2023). https://doi.org/10.1109/TDSC.2023.3346888
+
+\bibitem[Xi et~al.(2024)]{pomabuster}
+Xi, R., Wang, Z., Pattabiraman, K.: POMABuster: Detecting Price Oracle Manipulation Attacks in Decentralized Finance. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 3923--3942 (2024). https://doi.org/10.1109/SP54263.2024.00257
+
+\bibitem[Zhang(2024)]{sctype}
+Zhang, B.: Towards finding accounting errors in smart contracts. In: Proceedings of the IEEE/ACM 46th International Conference on Software Engineering (ICSE), pp. 1--13 (2024). https://doi.org/10.1145/3597503.3639128
+
+\bibitem[Zhang et~al.(2024)]{nyx}
+Zhang, W., et al.: Nyx: Detecting exploitable front-running vulnerabilities in smart contracts. In: Proceedings of the 2024 IEEE Symposium on Security and Privacy (SP), pp. 2198--2216 (2024). https://doi.org/10.1109/SP54263.2024.00146
+
+\bibitem[Yang et~al.(2025)]{hyperion}
+Yang, S., et al.: Hyperion: Unveiling DApp Inconsistencies Using LLM and Dataflow-Guided Symbolic Execution. In: Proceedings of the 2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE), pp. 2125--2137 (2025). https://doi.org/10.1109/ICSE55347.2025.00015
+
+\bibitem[Zhang et~al.(2023)]{exploitablebugs}
+Zhang, Z., et al.: Demystifying exploitable bugs in smart contracts. In: Proceedings of the 2023 IEEE/ACM 45th International Conference on Software Engineering (ICSE), pp. 615--627 (2023). https://doi.org/10.1109/ICSE48619.2023.00061
+
+\bibitem[Zheng et~al.(2024)]{dappscan}
+Zheng, Z., et al.: Dappscan: building large-scale datasets for smart contract weaknesses in dApp projects. IEEE Transactions on Software Engineering 50(6), 1360--1373 (2024). https://doi.org/10.1109/TSE.2024.3383422
+
+\bibitem[Zhou et~al.(2023)]{defiattacks}
+Zhou, L., et al.: Sok: Decentralized finance (defi) attacks. In: Proceedings of the 2023 IEEE Symposium on Security and Privacy (SP), pp. 2444--2461 (2023). https://doi.org/10.1109/SP46215.2023.10179435
+
+\end{thebibliography}
+
+
+\end{document}
