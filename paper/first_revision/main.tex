@@ -1167,7 +1167,7 @@ For warning results, the engine classifies the violation pattern into three risk
 
 \smallskip
 \textbf{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
-Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.2)$ for type~1, $(3.4, 3.2)$ for type~2, $(6.7, 3.2)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
+Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.3)$ for type~1, $(3.4, 6.6)$ for type~2, $(6.7, 9.9)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
 
 \smallskip
 This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Developers can therefore prioritize reviews directly by score without inspecting the underlying probability or region structure.
