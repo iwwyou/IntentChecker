@@ -3,7 +3,8 @@ from Parser.SolidityVisitor import SolidityVisitor
 # 맨 위 import 부분
 from antlr4.tree.Tree import TerminalNodeImpl
 
-from Domain.Variable import Variables, GlobalVariable, ArrayVariable, StructVariable, EnumVariable, MappingVariable
+from Domain.Variable import Variables, GlobalVariable, ArrayVariable, StructVariable, EnumVariable, MappingVariable, \
+    StructDefinition, EnumDefinition
 from Domain.Type import SolType
 from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
 from Domain.IR import Expression
@@ -708,10 +709,17 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                     elif underlying.startswith("uint"):
                         type_obj.intTypeLength = int(underlying[4:]) if len(underlying) > 4 else 256
                 elif '.' in type_name:
-                    # Qualified name: Library.Struct (e.g., FixedPointMath.FixedDecimal)
+                    # Qualified name: Library.Struct or Library.Enum (e.g., FixedPointMath.FixedDecimal,
+                    # Perpetuals.Side) - despite its name, resolve_library_struct looks up both structDefs
+                    # and enumDefs, so the result's actual kind must be checked here rather than assumed.
                     lib_name, member_name = type_name.split('.', 1)
                     resolved = self.contract_analyzer.resolve_library_struct(lib_name, member_name)
-                    if resolved is not None:
+                    if isinstance(resolved, EnumDefinition):
+                        type_obj.typeCategory = "enum"
+                        type_obj.enumTypeName = type_name
+                        if contract_cfg and type_name not in contract_cfg.enumDefs:
+                            contract_cfg.enumDefs[type_name] = resolved
+                    elif isinstance(resolved, StructDefinition):
                         type_obj.typeCategory = "struct"
                         type_obj.structTypeName = type_name
                         # struct 정의를 현재 CFG에 등록 (qualified name으로, 이후 멤버 접근용)
@@ -1007,22 +1015,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def _build_during_clause_dict(self, clause_ctx) -> dict:
         """
         duringClause를 dict로 변환 (새 문법 기반)
+
+        Before/After, Assign/Current는 더 이상 별도 clause가 아니라
+        commonClause의 RelationalCmp 안에서 varRef(Before)/varRef(After)/varRef(Assign)
+        같은 arithFactor 항으로 표현된다 (Solidity.g4 참고) — 그래서 DuringCommon으로 위임된다.
         """
         P = SolidityParser
 
-        if isinstance(clause_ctx, P.DuringBeforeAfterContext):
-            return {
-                "kind": "beforeAfter",
-                "var": self.visit(clause_ctx.intentValue()),
-                "op": self._relop_from_ctx(clause_ctx)
-            }
-        elif isinstance(clause_ctx, P.DuringAssignCurrentContext):
-            return {
-                "kind": "assignCurrent",
-                "var": self.visit(clause_ctx.intentValue()),
-                "op": self._relop_from_ctx(clause_ctx)
-            }
-        elif isinstance(clause_ctx, P.DuringFunctionArgContext):
+        if isinstance(clause_ctx, P.DuringFunctionArgContext):
             # @During transfer.arg[0] > 0
             return {
                 "kind": "functionArg",
@@ -1076,16 +1076,13 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def _build_post_clause_dict(self, clause_ctx) -> dict:
         """
         postClause를 dict로 변환 (새 문법 기반)
+
+        Entry/Exit는 더 이상 별도 clause가 아니라 commonClause의 RelationalCmp 안에서
+        varRef(Entry)/varRef(Exit) 같은 arithFactor 항으로 표현된다 (Solidity.g4 참고).
         """
         P = SolidityParser
 
-        if isinstance(clause_ctx, P.PostEntryExitContext):
-            return {
-                "kind": "entryExit",
-                "var": self.visit(clause_ctx.intentValue()),
-                "op": self._relop_from_ctx(clause_ctx)
-            }
-        elif isinstance(clause_ctx, P.PostCommonContext):
+        if isinstance(clause_ctx, P.PostCommonContext):
             # commonClause로 위임
             return self._build_common_clause_dict(clause_ctx.commonClause())
         else:
@@ -1316,6 +1313,26 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitNumVarRef(self, ctx: SolidityParser.NumVarRefContext):
         # varRef
         return self.visitVarRef(ctx.varRef())
+
+    # ── varRef(Entry) / varRef(Exit) / varRef(Before) / varRef(After) / varRef(Assign) ──
+    # Each wraps the ordinary varRef Expression with a context tag identifying which
+    # snapshot (sigma_entry/sigma_exit/sigma_before/sigma_pt/sigma_assign) it must be
+    # evaluated against, instead of the ambient/current environment. Resolved in
+    # GuardianVerificationEngine.evaluate_guardian_expression.
+    def visitVarRefAtEntry(self, ctx: SolidityParser.VarRefAtEntryContext):
+        return Expression(elements=[self.visitVarRef(ctx.varRef())], context='VarRefAtEntry')
+
+    def visitVarRefAtExit(self, ctx: SolidityParser.VarRefAtExitContext):
+        return Expression(elements=[self.visitVarRef(ctx.varRef())], context='VarRefAtExit')
+
+    def visitVarRefAtBefore(self, ctx: SolidityParser.VarRefAtBeforeContext):
+        return Expression(elements=[self.visitVarRef(ctx.varRef())], context='VarRefAtBefore')
+
+    def visitVarRefAtAfter(self, ctx: SolidityParser.VarRefAtAfterContext):
+        return Expression(elements=[self.visitVarRef(ctx.varRef())], context='VarRefAtAfter')
+
+    def visitVarRefAtAssign(self, ctx: SolidityParser.VarRefAtAssignContext):
+        return Expression(elements=[self.visitVarRef(ctx.varRef())], context='VarRefAtAssign')
 
     # Visit a parse tree produced by SolidityParser#PercentOf.
     def visitPercentOf(self, ctx: SolidityParser.PercentOfContext):
@@ -2880,12 +2897,12 @@ class EnhancedSolidityVisitor(SolidityVisitor):
                 'any': BoolInterval(0, 1)
             }[tok]
 
-        # ⑤ enum
+        # ⑤ enum — identifier ('.' identifier)*, 임의 깊이 지원 (e.g. Long / Side.Long /
+        # Perpetuals.Side.Long, cross-library qualified enum literal 포함). 실제로 사용되는
+        # 건 마지막 segment(멤버 이름)뿐이지만, 문자열 자체는 전체를 보존해 두어 어느
+        # 라이브러리의 enum을 가리키는지 디버깅/기록 시 알아볼 수 있게 한다.
         if isinstance(iv_ctx, SolidityParser.DebugEnumLiteralContext):
-            if iv_ctx.identifier(1):
-                return f"{iv_ctx.identifier(0).getText()}.{iv_ctx.identifier(1).getText()}"
-            else:
-                return iv_ctx.identifier(0).getText()
+            return ".".join(ident.getText() for ident in iv_ctx.identifier())
 
         # ⑥ array[1,2,3]
         if isinstance(iv_ctx, SolidityParser.DebugIntArrayContext):

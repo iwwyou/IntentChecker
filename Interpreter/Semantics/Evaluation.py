@@ -752,7 +752,8 @@ class Evaluation :
                             )
                             ccf = self.an.contract_cfgs[self.an.current_target_contract]
                             if base_t.structTypeName in ccf.structDefs:
-                                empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                                empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName],
+                                                               struct_defs=ccf.structDefs, enum_defs=ccf.enumDefs)
                             return empty_struct
                         else:
                             # 기타 (bytes/string 등)는 symbol
@@ -802,7 +803,8 @@ class Evaluation :
                     # struct_defs가 필요하면 ContractAnalyzer에서 가져오기
                     ccf = self.an.contract_cfgs[self.an.current_target_contract]
                     if base_t.structTypeName in ccf.structDefs:
-                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName],
+                                                       struct_defs=ccf.structDefs, enum_defs=ccf.enumDefs)
                     return empty_struct
 
                 # 기본형: TOP interval
@@ -1009,7 +1011,12 @@ class Evaluation :
                 result_expr._implicit_first_arg = None
                 result_expr._qualified_library_call = True
                 return result_expr
-            # function call이 아닌 경우 (상수 등)
+            # function call이 아닌 경우 (상수/enum 타입 등)
+            # enum 타입 참조 (LibraryName.EnumName, e.g. Perpetuals.Side) - 이후 .Member 접근을
+            # 위해 EnumDefinition 자체를 반환해야 함. 이걸 못 찾으면 아래 symbolic fallback으로
+            # 떨어져서 문자열이 되어버리고, 그 다음 단계의 .Member 접근이 전부 깨짐.
+            if lib_cfg and member in getattr(lib_cfg, 'enumDefs', {}):
+                return lib_cfg.enumDefs[member]
             if lib_cfg and member in getattr(lib_cfg, 'globals', {}):
                 return lib_cfg.globals[member].value
             # state_variable_node에서 상수 조회
@@ -1987,7 +1994,8 @@ class Evaluation :
                 struct_type=qualified_name,
                 scope="memory"
             )
-            new_struct.initialize_struct(struct_def)
+            new_struct.initialize_struct(struct_def, struct_defs=contract_cfg.structDefs,
+                                         enum_defs=contract_cfg.enumDefs)
 
             # named_arguments로 필드 초기화
             named_args = expr.named_arguments if expr.named_arguments else {}
@@ -2698,7 +2706,8 @@ class Evaluation :
                     )
                     ccf = self.an.contract_cfgs[self.an.current_target_contract]
                     if base_t.structTypeName in ccf.structDefs:
-                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName])
+                        empty_struct.initialize_struct(ccf.structDefs[base_t.structTypeName],
+                                                       struct_defs=ccf.structDefs, enum_defs=ccf.enumDefs)
                     return empty_struct
                 elif array_base_is_address(callerObject):
                     return AddressSet.top()
@@ -2837,7 +2846,7 @@ class Evaluation :
                 new_struct.typeInfo = SolType(typeCategory="struct", structTypeName=struct_name)
 
                 # 구조체 초기화
-                new_struct.initialize_struct(struct_def)
+                new_struct.initialize_struct(struct_def, struct_defs=ccf.structDefs, enum_defs=ccf.enumDefs)
 
                 # options에서 필드 값 설정
                 if expr.options:

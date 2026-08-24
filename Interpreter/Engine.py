@@ -1465,6 +1465,10 @@ class Engine:
 
         # 기존 DuringAnnotation 처리 (하위 호환성)
         guardian = self.an.guardian_verifier
+        # varRef(Before)의 sigma_before 조회(cfg_node.before_envs[line_no])를 위해
+        # ambient하게 설정 — evaluate_guardian_expression이 표현식 트리 어디서든 참조 가능하게.
+        guardian._before_cfg_node = node
+        guardian._before_line_no = annot.line_no
         atype = annot.annotation_type
 
         if atype == "beforeAfter":
@@ -1537,6 +1541,11 @@ class Engine:
         if line_no is None:
             # fallback: 노드의 첫 번째 statement에서 라인 번호 추출
             line_no = getattr(node.statements[0], "src_line", 0) if node.statements else 0
+
+        # varRef(Before)의 sigma_before 조회를 위해 ambient하게 설정 (see
+        # GuardianVerificationEngine._evaluate_snapshot_var_ref).
+        guardian._before_cfg_node = node
+        guardian._before_line_no = line_no
 
         if kind == "beforeAfter":
             return guardian.verify_during_before_after(
@@ -1821,6 +1830,9 @@ class Engine:
 
         # 기존 PostAnnotation 처리 (하위 호환성)
         guardian = self.an.guardian_verifier
+        # varRef(Entry)의 sigma_entry 조회를 위해 ambient하게 설정 (see
+        # GuardianVerificationEngine._evaluate_snapshot_var_ref).
+        guardian._current_fn_cfg = fcfg
         atype = annot.annotation_type
 
         if atype == "entryExit":
@@ -1890,6 +1902,10 @@ class Engine:
     def _verify_post_clause_dynamic(self, clause: dict, line_no: int, fcfg, guardian):
         """개별 post clause 동적 검증"""
         kind = clause["kind"]
+
+        # varRef(Entry)의 sigma_entry 조회를 위해 ambient하게 설정 (see
+        # GuardianVerificationEngine._evaluate_snapshot_var_ref).
+        guardian._current_fn_cfg = fcfg
 
         if kind == "entryExit":
             return guardian.verify_post_entry_exit(

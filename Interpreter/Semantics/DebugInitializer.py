@@ -625,6 +625,25 @@ class DebugInitializer:
                 target_var.elements.append(elem)
             return
 
+        # EnumVariable: _parse_debug_value가 만든 "Member" / "Enum.Member" /
+        # "Library.Enum.Member" 형태의 문자열을 실제 멤버 인덱스로 해석해야 한다.
+        # EnumVariable도 Variables의 서브클래스라 아래의 일반 isinstance(target_var, VarClass)
+        # 분기에 걸리긴 하지만, 그 분기는 valueIndex를 계산하지 않고 문자열을 그대로
+        # .value에 박아버려서 (엄밀히는 동작하지도 실패하지도 않는 반쪽짜리 상태) enum
+        # 비교/평가 코드가 기대하는 형태가 안 된다 - 그래서 이 분기를 먼저 확인한다.
+        if isinstance(target_var, EnumVariable) and isinstance(new_value, str):
+            member_name = new_value.rsplit(".", 1)[-1]
+            if member_name not in target_var.members:
+                raise ValueError(
+                    f"Debug annotation value '{new_value}' for enum '{target_var.typeInfo.enumTypeName}': "
+                    f"member '{member_name}' not found (known members: {list(target_var.members.keys())}). "
+                    f"target_var.members is populated from the enum's own EnumDefinition - if it's empty, "
+                    f"the enum type likely wasn't resolved (e.g. an unresolved cross-library qualified type)."
+                )
+            target_var.valueIndex = target_var.members[member_name]
+            target_var.value = member_name
+            return
+
         if isinstance(target_var, VarClass):
             # 리스트 형태 값 처리 [1000,1000] -> UnsignedIntegerInterval(1000, 1000)
             if isinstance(new_value, list) and len(new_value) == 2:

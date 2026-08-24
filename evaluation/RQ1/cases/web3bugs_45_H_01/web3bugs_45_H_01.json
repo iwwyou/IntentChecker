@@ -963,139 +963,163 @@
     "event": "add"
   },
   {
-    "code": "IAssetManager assetManagerContract = IAssetManager(assetManager);",
+    "code": "// @LocalVar amount = [1000000000000000001, 1000000000000000001]",
     "startLine": 197,
     "endLine": 197,
     "event": "add"
   },
   {
-    "code": "require(amount >= minBorrow, \"UToken: amount less than loan size min\");",
+    "code": "// @LocalVar account = symbolicAddress 101",
     "startLine": 198,
     "endLine": 198,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @StateVar minBorrow = [2, 2]",
     "startLine": 199,
     "endLine": 199,
     "event": "add"
   },
   {
-    "code": "require(amount <= getRemainingLoanSize(), \"UToken: amount more than loan global size max\");",
+    "code": "// @StateVar debtCeiling = [1000000000000000002, 1000000000000000002]",
     "startLine": 200,
     "endLine": 200,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @StateVar totalBorrows = [0, 0]",
     "startLine": 201,
     "endLine": 201,
     "event": "add"
   },
   {
-    "code": "uint256 fee = calculatingFee(amount);",
+    "code": "// @StateVar originationFee = [1000000000000001, 1000000000000001]",
     "startLine": 202,
     "endLine": 202,
     "event": "add"
   },
   {
-    "code": "require(borrowBalanceView(msg.sender) + amount + fee <= maxBorrow, \"UToken: amount large than borrow size max\");",
+    "code": "// @StateVar WAD = [1000000000000000000, 1000000000000000000]",
     "startLine": 203,
     "endLine": 203,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @StateVar accountBorrows[101].principal = [1000000000000000001, 1000000000000000001]",
     "startLine": 204,
     "endLine": 204,
     "event": "add"
   },
   {
-    "code": "require(!checkIsOverdue(msg.sender), \"UToken: Member has loans overdue\");",
+    "code": "// @StateVar accrualBlockNumber = [1, 1]",
     "startLine": 205,
     "endLine": 205,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @StateVar borrowIndex = [1000000000000000001, 1000000000000000001]",
     "startLine": 206,
     "endLine": 206,
     "event": "add"
   },
   {
-    "code": "require(amount <= assetManagerContract.getLoanableAmount(underlying), \"UToken: Not enough to lend out\");",
+    "code": "// @StateVar accountBorrows[101].interest = [1, 1]",
     "startLine": 207,
     "endLine": 207,
     "event": "add"
   },
   {
-    "code": "require( uint256(_getCreditLimit(msg.sender)) >= amount + fee, \"UToken: The loan amount plus fee is greater than credit limit\" );",
+    "code": "// @StateVar accountBorrows[101].interestIndex = [1000000000000000001, 1000000000000000001]",
     "startLine": 208,
+    "endLine": 208,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar accountBorrows[101].lastRepay = [1, 1]",
+    "startLine": 209,
+    "endLine": 209,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar maxBorrow = [2001005000000000005, 2001005000000000005]",
+    "startLine": 210,
+    "endLine": 210,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar overdueBlocks = [2, 2]",
+    "startLine": 211,
     "endLine": 211,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @GlobalVar block.number = [2, 2]",
     "startLine": 212,
     "endLine": 212,
     "event": "add"
   },
   {
-    "code": "require(accrueInterest(), \"UToken: accrue interest failed\");",
+    "code": "IAssetManager assetManagerContract = IAssetManager(assetManager);",
     "startLine": 213,
     "endLine": 213,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "require(amount >= minBorrow, \"UToken: amount less than loan size min\");",
     "startLine": 214,
     "endLine": 214,
     "event": "add"
   },
   {
-    "code": "uint256 borrowedAmount = borrowBalanceStoredInternal(msg.sender);",
+    "code": "\n",
     "startLine": 215,
     "endLine": 215,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "require(amount <= getRemainingLoanSize(), \"UToken: amount more than loan global size max\");",
     "startLine": 216,
     "endLine": 216,
     "event": "add"
   },
   {
-    "code": "if (accountBorrows[msg.sender].lastRepay == 0) {\n}",
+    "code": "\n",
     "startLine": 217,
-    "endLine": 218,
+    "endLine": 217,
     "event": "add"
   },
   {
-    "code": "accountBorrows[msg.sender].lastRepay = getBlockNumber();",
+    "code": "uint256 fee = calculatingFee(amount);",
     "startLine": 218,
     "endLine": 218,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @During borrowIndex(Before) < borrowIndex(After)",
+    "startLine": 219,
+    "endLine": 219,
+    "event": "add"
+  },
+  {
+    "code": "require(borrowBalanceView(msg.sender) + amount + fee <= maxBorrow, \"UToken: amount large than borrow size max\");",
     "startLine": 220,
     "endLine": 220,
     "event": "add"
   },
   {
-    "code": "uint256 accountBorrowsNew = borrowedAmount + amount + fee;",
+    "code": "\n",
     "startLine": 221,
     "endLine": 221,
     "event": "add"
   },
   {
-    "code": "uint256 totalBorrowsNew = totalBorrows + amount + fee;",
+    "code": "// @During borrowIndex(Before) < borrowIndex(After)",
     "startLine": 222,
     "endLine": 222,
     "event": "add"
   },
   {
-    "code": "uint256 oldPrincipal = accountBorrows[msg.sender].principal;",
+    "code": "require(!checkIsOverdue(msg.sender), \"UToken: Member has loans overdue\");",
     "startLine": 223,
     "endLine": 223,
     "event": "add"
@@ -1107,55 +1131,37 @@
     "event": "add"
   },
   {
-    "code": "accountBorrows[msg.sender].principal += amount + fee;",
+    "code": "// @During borrowIndex(Before) < borrowIndex(After)",
     "startLine": 225,
     "endLine": 225,
     "event": "add"
   },
   {
-    "code": "uint256 newPrincipal = accountBorrows[msg.sender].principal;",
+    "code": "require(amount <= assetManagerContract.getLoanableAmount(underlying), \"UToken: Not enough to lend out\");",
     "startLine": 226,
     "endLine": 226,
     "event": "add"
   },
   {
-    "code": "IUserManager(userManager).updateLockedData(msg.sender, newPrincipal - oldPrincipal, true);",
+    "code": "require( uint256(_getCreditLimit(msg.sender)) >= amount + fee, \"UToken: The loan amount plus fee is greater than credit limit\" );",
     "startLine": 227,
-    "endLine": 227,
-    "event": "add"
-  },
-  {
-    "code": "accountBorrows[msg.sender].interest = accountBorrowsNew - accountBorrows[msg.sender].principal;",
-    "startLine": 228,
-    "endLine": 228,
-    "event": "add"
-  },
-  {
-    "code": "accountBorrows[msg.sender].interestIndex = borrowIndex;",
-    "startLine": 229,
-    "endLine": 229,
-    "event": "add"
-  },
-  {
-    "code": "totalBorrows = totalBorrowsNew;",
-    "startLine": 230,
     "endLine": 230,
     "event": "add"
   },
   {
-    "code": "totalReserves += fee;",
+    "code": "\n",
     "startLine": 231,
     "endLine": 231,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @During borrowIndex(Before) < borrowIndex(After)",
     "startLine": 232,
     "endLine": 232,
     "event": "add"
   },
   {
-    "code": "require(assetManagerContract.withdraw(underlying, msg.sender, amount), \"UToken: Failed to withdraw\");",
+    "code": "require(accrueInterest(), \"UToken: accrue interest failed\");",
     "startLine": 233,
     "endLine": 233,
     "event": "add"
@@ -1167,135 +1173,123 @@
     "event": "add"
   },
   {
-    "code": "emit LogBorrow(msg.sender, amount, fee);",
+    "code": "uint256 borrowedAmount = borrowBalanceStoredInternal(msg.sender);",
     "startLine": 235,
     "endLine": 235,
     "event": "add"
   },
   {
-    "code": "// @During borrowIndex(Before < After)",
-    "startLine": 219,
-    "endLine": 219,
+    "code": "\n",
+    "startLine": 236,
+    "endLine": 236,
     "event": "add"
   },
   {
-    "code": "// @During borrowIndex(Before < After)",
-    "startLine": 222,
-    "endLine": 222,
+    "code": "if (accountBorrows[msg.sender].lastRepay == 0) {\n}",
+    "startLine": 237,
+    "endLine": 238,
     "event": "add"
   },
   {
-    "code": "// @During borrowIndex(Before < After)",
-    "startLine": 225,
-    "endLine": 225,
+    "code": "accountBorrows[msg.sender].lastRepay = getBlockNumber();",
+    "startLine": 238,
+    "endLine": 238,
     "event": "add"
   },
   {
-    "code": "// @During borrowIndex(Before < After)",
-    "startLine": 232,
-    "endLine": 232,
+    "code": "\n",
+    "startLine": 240,
+    "endLine": 240,
     "event": "add"
   },
   {
-    "code": "// @Debugging BEGIN",
-    "startLine": 197,
-    "endLine": 197,
+    "code": "uint256 accountBorrowsNew = borrowedAmount + amount + fee;",
+    "startLine": 241,
+    "endLine": 241,
     "event": "add"
   },
   {
-    "code": "// @LocalVar amount = [1000000000000000001, 1000000000000000001]",
-    "startLine": 197,
-    "endLine": 197,
+    "code": "uint256 totalBorrowsNew = totalBorrows + amount + fee;",
+    "startLine": 242,
+    "endLine": 242,
     "event": "add"
   },
   {
-    "code": "// @StateVar minBorrow = [2, 2]",
-    "startLine": 198,
-    "endLine": 198,
+    "code": "uint256 oldPrincipal = accountBorrows[msg.sender].principal;",
+    "startLine": 243,
+    "endLine": 243,
     "event": "add"
   },
   {
-    "code": "// @StateVar debtCeiling = [1000000000000000002, 1000000000000000002]",
-    "startLine": 199,
-    "endLine": 199,
+    "code": "\n",
+    "startLine": 244,
+    "endLine": 244,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalBorrows = [0, 0]",
-    "startLine": 200,
-    "endLine": 200,
+    "code": "accountBorrows[msg.sender].principal += amount + fee;",
+    "startLine": 245,
+    "endLine": 245,
     "event": "add"
   },
   {
-    "code": "// @StateVar originationFee = [1000000000000001, 1000000000000001]",
-    "startLine": 201,
-    "endLine": 201,
+    "code": "uint256 newPrincipal = accountBorrows[msg.sender].principal;",
+    "startLine": 246,
+    "endLine": 246,
     "event": "add"
   },
   {
-    "code": "// @StateVar WAD = [1000000000000000000, 1000000000000000000]",
-    "startLine": 202,
-    "endLine": 202,
+    "code": "IUserManager(userManager).updateLockedData(msg.sender, newPrincipal - oldPrincipal, true);",
+    "startLine": 247,
+    "endLine": 247,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[msg.sender].principal = [1000000000000000001, 1000000000000000001]",
-    "startLine": 203,
-    "endLine": 203,
+    "code": "accountBorrows[msg.sender].interest = accountBorrowsNew - accountBorrows[msg.sender].principal;",
+    "startLine": 248,
+    "endLine": 248,
     "event": "add"
   },
   {
-    "code": "// @StateVar accrualBlockNumber = [1, 1]",
-    "startLine": 204,
-    "endLine": 204,
+    "code": "accountBorrows[msg.sender].interestIndex = borrowIndex;",
+    "startLine": 249,
+    "endLine": 249,
     "event": "add"
   },
   {
-    "code": "// @StateVar borrowIndex = [1000000000000000001, 1000000000000000001]",
-    "startLine": 205,
-    "endLine": 205,
+    "code": "totalBorrows = totalBorrowsNew;",
+    "startLine": 250,
+    "endLine": 250,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[msg.sender].interest = [1, 1]",
-    "startLine": 206,
-    "endLine": 206,
+    "code": "totalReserves += fee;",
+    "startLine": 251,
+    "endLine": 251,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[msg.sender].interestIndex = [1000000000000000001, 1000000000000000001]",
-    "startLine": 207,
-    "endLine": 207,
+    "code": "\n",
+    "startLine": 252,
+    "endLine": 252,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[msg.sender].lastRepay = [1, 1]",
-    "startLine": 208,
-    "endLine": 208,
+    "code": "require(assetManagerContract.withdraw(underlying, msg.sender, amount), \"UToken: Failed to withdraw\");",
+    "startLine": 253,
+    "endLine": 253,
     "event": "add"
   },
   {
-    "code": "// @StateVar maxBorrow = [2001005000000000005, 2001005000000000005]",
-    "startLine": 209,
-    "endLine": 209,
+    "code": "\n",
+    "startLine": 254,
+    "endLine": 254,
     "event": "add"
   },
   {
-    "code": "// @StateVar overdueBlocks = [2, 2]",
-    "startLine": 210,
-    "endLine": 210,
-    "event": "add"
-  },
-  {
-    "code": "// @GlobalVar block.number = [2, 2]",
-    "startLine": 211,
-    "endLine": 211,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging END",
-    "startLine": 212,
-    "endLine": 212,
+    "code": "emit LogBorrow(msg.sender, amount, fee);",
+    "startLine": 255,
+    "endLine": 255,
     "event": "add"
   }
 ]

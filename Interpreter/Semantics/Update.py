@@ -749,6 +749,10 @@ class Update :
             enum_defs = self.an.contract_cfgs[self.an.current_target_contract].enumDefs
             if ident in enum_defs:
                 return enum_defs[ident]
+            if ident in self.an.library_cfgs:
+                # LibraryName.Member 접근의 base (e.g. Perpetuals.Side.Long) - Evaluation.py의
+                # isLibrary 처리와 동일한 marker를 반환해 이후 .Member 단계가 이어질 수 있게 함
+                return {"isLibrary": True, "libraryName": ident}
             raise ValueError(f"Identifier '{ident}' not declared.")
 
         # 일반 로컬/상태 변수 직접 갱신

@@ -19,6 +19,20 @@ from Utils.CFG import CFGNode
 class GuardianVerificationEngine:
     def __init__(self, analyzer: "ContractAnalyzer"):
         self.analyzer = analyzer
+        # Ambient (cfg_node, line_no) for the @During clause currently being verified —
+        # needed to resolve varRef(Before), since sigma_before is per-line
+        # (cfg_node.before_envs[line_no]) and evaluate_guardian_expression can be
+        # invoked arbitrarily deep inside an expression tree, not just at the top.
+        # Set once per clause by Engine.py right before dispatching (see
+        # _verify_during_annotation / _verify_during_clause_dynamic).
+        self._before_cfg_node = None
+        self._before_line_no = None
+        # Ambient fn_cfg for the annotation currently being verified — needed to resolve
+        # varRef(Entry)/varRef(Assign). Post verify_* methods receive fn_cfg explicitly as
+        # a parameter (set here from that, not from self.analyzer.current_target_function_cfg,
+        # to avoid any staleness risk); During's existing code already reads
+        # self.analyzer.current_target_function_cfg ambiently, so it's set from there.
+        self._current_fn_cfg = None
 
     # ═══════════════════════════════════════════════════════════════════
     #  Guardian DSL Expression Evaluation
@@ -61,6 +75,14 @@ class GuardianVerificationEngine:
 
         elif ctx in {"AddrLiteralExprContext", "SymAddrLiteralExprContext"}:
             return self._evaluate_address_literal(expr)
+
+        # ─── varRef(Entry) / varRef(Exit) / varRef(Before) / varRef(After) / varRef(Assign) ───
+        # Solidity.g4 arithFactor: VarRefAtEntry/VarRefAtExit (Post-only, gated by
+        # {not self.inDuring}?), VarRefAtBefore/VarRefAtAfter/VarRefAtAssign (During-only,
+        # {self.inDuring}?). Each wraps the plain varRef Expression in expr.elements[0];
+        # only the *environment* it's evaluated against differs from an unqualified reference.
+        elif ctx in {"VarRefAtEntry", "VarRefAtExit", "VarRefAtBefore", "VarRefAtAfter", "VarRefAtAssign"}:
+            return self._evaluate_snapshot_var_ref(expr, ctx, variables, callerObject, callerContext)
 
         # ─── VarRef contexts → evaluator에 위임 ───────────────────
         # NormalVarRef, IntentMemberAccess, IntentIndexAccess는
@@ -164,6 +186,53 @@ class GuardianVerificationEngine:
         """
         val = int(expr.literal, 0)
         return UnsignedIntegerInterval(val, val, 160)
+
+    def _evaluate_snapshot_var_ref(self, expr: Expression, ctx: str, variables: dict,
+                                   callerObject=None, callerContext=None):
+        """
+        varRef(Entry)/varRef(Exit)/varRef(Before)/varRef(After)/varRef(Assign) 평가.
+
+        expr.elements[0] = 안쪽 varRef Expression (visitVarRefAt* 참고, EnhancedSolidityVisitor.py)
+
+        - Exit (Post) / After (During): Post의 evaluate_guardian_expression 호출은 이미
+          exit_env로(_eval_on_exit_value), During의 direct/return 계열 호출은 이미
+          cfg_node.variables로 진입하므로, 별도 snapshot 없이 지금 넘어온 `variables`를
+          그대로 재사용하면 이미 sigma_exit / sigma_pt다.
+        - Entry: fn_cfg.related_variables (verify_post_changed과 동일한 fallback 패턴).
+        - Assign: fn_cfg.assign_env — 변수의 함수 내 최초 대입 시점 상태.
+        - Before: cfg_node.before_envs[line_no] — self._before_cfg_node/_before_line_no로
+          ambient하게 전달됨 (Engine.py의 _verify_during_annotation /
+          _verify_during_clause_dynamic에서 clause 단위로 설정).
+        """
+        inner = expr.elements[0]
+
+        if ctx in ("VarRefAtExit", "VarRefAtAfter"):
+            target_env = variables
+
+        elif ctx == "VarRefAtEntry":
+            fn_cfg = self._current_fn_cfg or self.analyzer.current_target_function_cfg
+            if fn_cfg is None:
+                raise ValueError("varRef(Entry): no current function CFG available")
+            target_env = getattr(fn_cfg, "entry_env", None) or fn_cfg.related_variables
+
+        elif ctx == "VarRefAtAssign":
+            fn_cfg = self._current_fn_cfg or self.analyzer.current_target_function_cfg
+            if fn_cfg is None or getattr(fn_cfg, "assign_env", None) is None:
+                raise ValueError(f"varRef(Assign): no first-assignment state captured for "
+                                 f"'{self._pretty_expr(inner)}'")
+            target_env = fn_cfg.assign_env
+
+        elif ctx == "VarRefAtBefore":
+            if self._before_cfg_node is None or self._before_line_no is None:
+                raise ValueError("varRef(Before): no (cfg_node, line_no) set for this @During clause")
+            target_env = self._before_cfg_node.before_envs.get(self._before_line_no)
+            if target_env is None:
+                raise ValueError(f"varRef(Before): no before-env captured for line {self._before_line_no}")
+
+        else:
+            raise ValueError(f"Unknown snapshot var-ref context: {ctx}")
+
+        return self.evaluate_guardian_expression(inner, target_env, callerObject, callerContext)
 
     # ═══════════════════════════════════════════════════════════════════
     #  DURING / POST Verification Methods

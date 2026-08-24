@@ -483,15 +483,12 @@ Section~\ref{sec:validation-engine} presents the executable procedures that real
 duringIntent & $\rightarrow$ & // @During duringClause & \\[2pt]
 postIntent   & $\rightarrow$ & // @Post postClause & \\[6pt]
 
-duringClause & $\rightarrow$ & intentValue (before relOp after)              & $(D_{\text{ba}})$ \\
-             & $|$           & intentValue (assign relOp current)            & $(D_{\text{ac}})$ \\
-             & $|$           & identifier .arg[ $n$ ] relOp intentValue     & $(D_{\text{arg}})$ \\
+duringClause & $\rightarrow$ & identifier .arg[ $n$ ] relOp intentValue     & $(D_{\text{arg}})$ \\
              & $|$           & require feasible                              & $(D_{\text{req}})$ \\
              & $|$           & assert feasible                               & $(D_{\text{asrt}})$ \\
              & $|$           & commonClause                                  & $(D_{\text{com}})$ \\[6pt]
 
-postClause & $\rightarrow$ & intentValue (entry relOp exit)                   & $(P_{\text{ee}})$ \\
-           & $|$           & commonClause                                     & $(P_{\text{com}})$ \\[6pt]
+postClause & $\rightarrow$ & commonClause                                     & $(P_{\text{com}})$ \\[6pt]
 
 commonClause & $\rightarrow$ & returnExpression relOp intentValue             & $(C_{\text{ret}})$ \\
              & $|$           & return[$n$] relOp intentValue                  & $(C_{\text{ret}_n})$ \\
@@ -507,7 +504,8 @@ arithExpr   & $\rightarrow$ & arithExpr ($\ll$ $|$ $\gg$ $|$ $\ggg$) arithAdd $|
 arithAdd    & $\rightarrow$ & arithAdd (+ $|$ -) arithTerm $|$ arithTerm & \\
 arithTerm   & $\rightarrow$ & arithTerm (* $|$ / $|$ \%) arithExp $|$ arithExp & \\
 arithExp    & $\rightarrow$ & arithFactor ** arithExp $|$ arithFactor & \\
-arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ ( arithExpr ) & \\[2pt]
+arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ varRef( snap ) $|$ ( arithExpr ) & \\[2pt]
+snap        & $\rightarrow$ & entry $|$ exit $|$ before $|$ after $|$ assign  & \\
 varRef      & $\rightarrow$ & identifier subAccess* & \\
 subAccess   & $\rightarrow$ & . identifier $|$ [ expr ] & \\[6pt]
 
@@ -521,12 +519,14 @@ relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $
 \noindent\textbf{Grammar overview.}
 Fig.~\ref{fig:intent-grammar} gives the BNF of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
 Intent-value expressions support arithmetic over variable references with member and index access, numeric literals, inline intervals $[a, b]$, and the DSL helpers PercentOf, ceil, and floor.
+A variable reference may additionally be tagged with a snapshot qualifier, $\mathit{varRef}(\mathit{snap})$, to pin it to one of the five state snapshots of Table~\ref{tab:validation-context} rather than the ambient reference point; an unqualified $\mathit{varRef}$ is unchanged and still reads $\mathrm{ref}(\Gamma)$, defined below.
 Relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in; the implication operator ${=}{>}$ is a truthiness-based atomic form whose semantics is defined below.
 
 \smallskip
 \noindent\textbf{Well-formedness.}
 We write $\Gamma \vdash a : \mathbf{wf}$ to mean that annotation $a$ is well-formed under $\Gamma$: $a$ parses against Fig.~\ref{fig:intent-grammar}, every variable reference in $a$ resolves in the relevant field of $\Gamma$, and all form-specific auxiliary data required by $a$ is present in $\Gamma$.
 The equations below define $\mathcal{V}\llbracket a \rrbracket(\Gamma)$ only for well-formed inputs; annotation forms whose auxiliary data is missing correspond to error paths in the implementation and lie outside the semantic claim.
+This well-formedness clause is also most of why each snapshot qualifier is confined to one annotation kind: $\mathit{exit}$ requires $\sigma_{\text{exit}}$, and $\mathit{before}$ and $\mathit{assign}$ require $\sigma_{\text{before}}$ and $\sigma_{\text{assign}}$---fields Table~\ref{tab:validation-context}'s field-supply list gives to only @Post or only @During, respectively, so the wrong-kind usage is never well-formed under $\Gamma$, with no separate rule needed. $\mathit{entry}$ is the one exception: $\sigma_{\text{entry}}$ is supplied under \emph{both} kinds (@During needs it internally for the $\mathrm{changed}$ primitive below), so nothing in $\Gamma$ itself rules out $\mathit{varRef}(\mathit{entry})$ inside @During. The grammar (Fig.~\ref{fig:intent-grammar}) restricts it to @Post regardless, as a deliberate design choice: it keeps $\{\mathit{entry}, \mathit{exit}\}$ a self-contained pair symmetric with @During's own self-contained $\{\mathit{before}, \mathit{after}, \mathit{assign}\}$, rather than exposing a snapshot developers would rarely need mid-function once $\mathit{before}$/$\mathit{after}$ already cover the statement-local case.
 
 Well-formedness is orthogonal to the informativeness of the input intervals themselves.
 Debug annotations (@StateVar, @LocalVar, @IReturn), inherited from SolQDebug, are the mechanism by which developers supply bounded ranges for otherwise-unknown variables; without them, interval inputs may remain $\top$, and the primitives defined below typically return $W$ even though the semantics is still sound.
@@ -542,6 +542,22 @@ which delegates to the interpreter's expression evaluator for ordinary arithmeti
 A numeric literal $n$ evaluates to the singleton interval $[n, n]$, so literals never need to live in $\Gamma$.
 By contrast, three rules in Fig.~\ref{fig:intent-grammar} whose left-hand sides are not themselves intent-value expressions are handled outside this function: rule $(D_{\text{arg}})$ is reduced by an auxiliary operator $\text{arg}_n(f, \mathcal{K})$ to the actual argument expression---an intent-value expression---which is then passed to $\text{eval}$, while rules $(C_{\text{ret}})$ and $(C_{\text{ret}_n})$ are resolved directly against the return-summary field $R$ as $R(\ell_{\text{ret}})$ and $R(\ell_{\text{ret}})[n]$, respectively, bypassing $\text{eval}$ because $R$ already stores per-line return intervals.
 
+\smallskip
+\noindent\textbf{Snapshot-qualified references.}
+A $\mathit{varRef}$ tagged with a snapshot qualifier evaluates against that snapshot instead of the ambient environment $\sigma$ that $\text{eval}$ was called with:
+\[
+\text{eval}(\sigma, e(\mathit{entry}))  = \text{eval}(\sigma_{\text{entry}}, e), \qquad
+\text{eval}(\sigma, e(\mathit{exit}))   = \text{eval}(\sigma_{\text{exit}}, e),
+\]
+\[
+\text{eval}(\sigma, e(\mathit{before})) = \text{eval}(\sigma_{\text{before}}, e), \qquad
+\text{eval}(\sigma, e(\mathit{after}))  = \text{eval}(\sigma_{\text{pt}}, e), \qquad
+\text{eval}(\sigma, e(\mathit{assign})) = \text{eval}(\sigma_{\text{assign}}, e).
+\]
+Because these equations substitute the snapshot outright rather than deriving from $\sigma$, a snapshot-qualified reference may occur anywhere inside an arithmetic expression---nested under $+$, $-$, $*$, or any other $\mathit{arithFactor}$ operator of Fig.~\ref{fig:intent-grammar}---not only as one whole side of a dedicated comparison. This is what lets a relation such as $\mathit{debts} == \mathit{debts}(\mathit{entry}) + \mathit{increasingDebt}$ be written directly as a single $(C_{\text{cmp}})$ instance: the bare occurrence of $\mathit{debts}$ reads $\text{ref}(\Gamma)$ as usual, while $\mathit{debts}(\mathit{entry})$ reads $\sigma_{\text{entry}}$, both inside the same comparison. The entry/exit and before/after comparisons of the grammar's earlier revision are consequently no longer distinct clause-level rules: $e(\mathit{entry}) \mathrel{\mathit{op}} e(\mathit{exit})$ and $e(\mathit{before}) \mathrel{\mathit{op}} e(\mathit{after})$ are now ordinary instances of $(C_{\text{cmp}})$, and we state their semantics only once, via these five equations, rather than as separate $\mathcal{V}\llbracket \cdot \rrbracket$ rules.
+
+\smallskip
+\noindent\textbf{Feasibility evaluator.}
 To support the feasibility forms introduced below, we also use the space of abstract boolean intervals $\mathcal{B} = \{\{0\}, \{1\}, \{0, 1\}\}$ and a boolean-expression evaluator
 \[
 \text{eval}_{\mathcal{B}} \;:\; \Sigma \times \text{BExpr} \;\to\; \mathcal{B},
@@ -609,12 +625,8 @@ We use $e$ (possibly subscripted) for an intent-value expression (in the state-c
 
 \smallskip
 \textbf{@During annotations.}
-In the equations below, $\text{arg}_n(f, \mathcal{K})$---serving rule $(D_{\text{arg}})$---denotes the $n$-th argument expression of the call to $f$ located within the statements $\mathcal{K}$ at the annotated line (both sides of the comparison are evaluated in $\sigma_{\text{before}}$ because argument values are fixed immediately before the call executes), and $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$---serving rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$---denote the boolean condition expression of the statement located within $\mathcal{K}$ at the annotated line.
+Neither @During nor @Post has a dedicated state-comparison rule any more: what were previously the atomic clauses $(D_{\text{ba}})$ (before/after) and $(D_{\text{ac}})$ (assign/current) under @During, and $(P_{\text{ee}})$ (entry/exit) under @Post, are now ordinary $(C_{\text{cmp}})$ comparisons built from the snapshot-qualified references defined above, so their semantics is already fully covered by that definition of $\text{eval}$ and needs no separate equation here. What remains specific to @During is rules $(D_{\text{arg}})$, $(D_{\text{req}})$, and $(D_{\text{asrt}})$: $\text{arg}_n(f, \mathcal{K})$---serving rule $(D_{\text{arg}})$---denotes the $n$-th argument expression of the call to $f$ located within the statements $\mathcal{K}$ at the annotated line (both sides of the comparison are evaluated in $\sigma_{\text{before}}$ because argument values are fixed immediately before the call executes), and $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$---serving rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$---denote the boolean condition expression of the statement located within $\mathcal{K}$ at the annotated line.
 \begin{align*}
-\mathcal{V}\llbracket e(\text{before}\ \mathit{op}\ \text{after}) \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{before}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{pt}}, e)\bigr), \\[3pt]
-\mathcal{V}\llbracket e(\text{assign}\ \mathit{op}\ \text{current}) \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{assign}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{pt}}, e)\bigr), \\[3pt]
 \mathcal{V}\llbracket f.\text{arg}[n]\ \mathit{op}\ e \rrbracket(\Gamma)
     &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{before}}, \text{arg}_n(f, \mathcal{K})),\; \mathit{op},\; \text{eval}(\sigma_{\text{before}}, e)\bigr), \\[3pt]
 \mathcal{V}\llbracket \text{require feasible} \rrbracket(\Gamma)
@@ -622,14 +634,7 @@ In the equations below, $\text{arg}_n(f, \mathcal{K})$---serving rule $(D_{\text
 \mathcal{V}\llbracket \text{assert feasible} \rrbracket(\Gamma)
     &= \text{Feasible}^*\bigl(\text{eval}_{\mathcal{B}}(\sigma_{\text{pt}},\; \text{cond}_{\text{asrt}}(\mathcal{K}))\bigr),
 \end{align*}
-
-\smallskip
-\textbf{@Post annotations.}
-The only @Post-specific rule $(P_{\text{ee}})$ compares the value of $e$ at function entry ($\sigma_{\text{entry}}$) and exit ($\sigma_{\text{exit}}$); the remaining @Post forms are covered by the common-form equations below.
-\begin{align*}
-\mathcal{V}\llbracket e(\text{entry}\ \mathit{op}\ \text{exit}) \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; \mathit{op},\; \text{eval}(\sigma_{\text{exit}}, e)\bigr).
-\end{align*}
+@Post has no rules of its own at all: every @Post form is a common form, covered below.
 
 \smallskip
 \textbf{Common-form annotations.}
@@ -1180,8 +1185,8 @@ We evaluate IntentChecker as an intent-based approach to supporting developers i
 
 \begin{itemize}
     \item \textbf{RQ1 (Expressibility and Validatability)}: Under what conditions can numeric intent be expressed and validated by IntentChecker?
-    \item \textbf{RQ2 (Validation Costs)}: What are the costs associated with numeric intent validation?
-    \item \textbf{RQ3 (Design-Space Positioning)}: Where does IntentChecker fit in the design space of numeric error analysis?
+    \item \textbf{RQ2 (Specification Requirements and Analysis Costs)}: What specification requirements and analysis costs are associated with numeric intent validation?
+    \item \textbf{RQ3 (Comparison with Existing Detection Tools)}: How does IntentChecker compare to existing numeric logic error detection tools?
 \end{itemize}
 
 We first describe the implementation environment and benchmark dataset shared across the three research questions.
@@ -1254,136 +1259,140 @@ The exclusion categories are:
 
 The remaining \textbf{75 instances} constitute the effective evaluation set.
 
-\subsection{RQ1: Under What Conditions Can IntentChecker Express and Validate Numeric Intent?}\label{sec:rq1}
+\subsection{RQ1: Expressibility and Validatability}\label{sec:rq1}
 
-% RQ1의 전체 목적은 numeric logic errors에 대한 detection effectiveness를 측정하는 것이 아니라,
-% supplied numeric intent에 대한 IntentChecker의 capability와 boundary를 characterize하는 것.
-% 큰 흐름: Expressibility → Annotation Knowledge → Engine Validatability
+% Replaces the old "Mitigation Capability" framing: the retrospective design does not establish that
+% bug-unaware developers would independently discover unknown bugs.
+% RQ: To what extent can the numeric intent associated with reported numeric logic errors be expressed
+% and validated by IntentChecker? Two conceptual parts: intent expressibility, then validation outcomes.
 
-\subsubsection{Intent Expressiveness}\label{sec:rq1:expressiveness}
+\subsubsection{Intent Expressibility}\label{sec:rq1:expressibility}
 
-% 핵심 질문: 필요한 numeric relation을 현재 intent language로 표현할 수 있는가?
-%
-% 여기서 다룰 내용:
-% - 75 effective cases를 대상으로 required numeric relation의 expressibility 분석
-% - 기존 8 numeric error patterns
-% - Value-level vs. Algorithm-level
-% - Usable vs. Unusable
-% - Value/Algorithm × Usable/Unusable 2×2 분석
-% - 현재 grammar로 표현할 수 없는 cases (기존 L4가 여기에 해당)
-% - error characteristics와 expressibility 사이의 관계
-%
-% 핵심 목적은 "몇 개를 잡았는가"가 아니라 current intent model의 expressiveness boundary가
-% 어디에 있는가를 보여주는 것.
+% Question: given the bug-relevant intended numeric behavior identified from a reported defect, can it
+% be represented in IntentChecker's current intent model? Retrospective/oracle-style capability analysis.
+% Audit reports and recommended fixes may inform reconstruction of the expected behavior, but the patch
+% itself must NOT be mechanically translated into the annotation.
+% Synthesis principle: use the least implementation-specific numeric relation supported by the reported
+% intended behavior that still suffices to distinguish buggy from intended behavior --
+%   e.g. exact patch `weiRaised -= amount` -> abstract intent `weiRaised(Entry > Exit)`;
+%        exact accumulation patch -> abstract intent `totalCredit(Entry <= Exit)`.
+% Possible annotation forms: exact equality; inequality/upper-lower bound; Entry/Exit; Before/After;
+% changed/unchanged; return-value relation; call-argument relation; implication/feasibility.
+% @During vs. @Post chosen by the natural observation point.
+% IMPORTANT: expressibility $\neq$ engine success. A case is expressible if the grammar can represent the
+% relation, regardless of whether abstract interpretation later returns Warning.
 
-\subsubsection{Annotation Knowledge Requirements}\label{sec:rq1:knowledge}
-% (working title)
-%
-% 핵심 질문: 표현 가능한 numeric intent를 작성하기 위해 어떤 information/specification knowledge가 필요한가?
-%
-% 여기서 다룰 예정:
-% - 기존 20 confirmed cases와 기존 L5 cases를 새로운 관점에서 재분석
-% - function-local information만으로 specification을 구성할 수 있는 경우
-% - non-local information이 필요한 경우
-%   - cross-function / consistency information
-%   - domain / protocol / business knowledge
-% - retrospective annotation이라는 공통 dependency와 별개로, specification source/knowledge requirement를 characterize
-%
-% 주의: 이 subsection은 현재 추가 분석 중이므로 제목과 세부 taxonomy는 추후 변경 가능.
-% 기존의 단순한 bug-awareness required / not required binary를 그대로 재사용하는 섹션은 아님.
+\subsubsection{Expressibility by Value/Algorithm and Usable/Unusable}\label{sec:rq1:axes}
 
-\subsubsection{Engine Validatability}\label{sec:rq1:validatability}
+% Retain both existing explanatory axes from the prior submission:
+% - Value-level vs. Algorithm-level: still useful for explaining the representational boundary of the
+%   intent model.
+% - Usable vs. Unusable: retain -- Reviewer 2 explicitly found the earlier result interesting (former L5
+%   cases were all Usable; all Unusable cases fell into L4).
+% Reinterpret carefully: Usable/Unusable explains representational AVAILABILITY of the values/relations
+% the intent model needs, not whether a developer would know about the bug.
+% DROP "Bug Awareness Required" as an empirical RQ1 classification -- do not claim a bug-unaware
+% developer would independently formulate the same annotation.
 
-% 핵심 질문: Grammar-legal annotation이 주어졌을 때 현재 analysis engine이 이를 실제로 검증할 수 있는가?
-%
-% 현재 예상되는 outcome 구조:
-% - Violated / conclusively validated
-%   - supplied intent의 violation을 engine이 확인할 수 있는 cases
-% - Warning / inconclusive
-%   - analysis는 수행되지만 abstract interpretation의 precision limitation 때문에 definite verdict를 만들지 못하는 cases
-%   - 기존 L1/L2/L3 중 해당 cases
-%   - loop widening / interface-call ⊤ / external-call unknown state / unsupported construct propagation 등
-% - Unsupported
-%   - 필요한 validation/observation 자체를 현재 engine architecture가 지원하지 않는 경우
-%   - 대표적으로 loop-body granularity와 관련된 cases
-%
-% 기존 20 Violated뿐 아니라 현재 재검토 중인 L1–L3 및 기존 L5 hypothetical annotations의 실제 execution 결과를
-% 반영하여 최종 숫자 결정.
-%
-% 핵심 distinction: language limitation ≠ specification-knowledge limitation ≠ engine limitation
+\subsubsection{Validation Outcomes}\label{sec:rq1:validation}
 
-\subsection{RQ2: What Are the Costs of Specifying and Validating Numeric Intent?}\label{sec:rq2}
+% For expressible cases, evaluate the actual analyzer via real execution (not static prediction from
+% engine source code). Outcomes: Violated / Warning / Unsupported.
+% Key distinctions to preserve:
+% - expressible + Warning is still expressible;
+% - expressible + Unsupported is still not necessarily a grammar limitation;
+% - loops are not automatically unsupported -- only the specific required observation granularity may be.
+% Report aggregate results before detailed breakdowns. Avoid the old narrative ("20 succeed, 55 fail for
+% five reasons"); use instead: "X of 75 bug-relevant numeric relations are expressible. Among the
+% expressible cases, Y produce definite Violated results, while the remaining cases produce Warning or
+% are unsupported because of analysis precision or granularity limitations." Exact numbers TBD after
+% re-analysis.
+% Retrospective-design limitation (state explicitly): RQ1 evaluates the intent model's representational
+% capacity and the analyzer's behavior given an appropriate intent specification; it does NOT establish
+% that bug-unaware developers would independently formulate the same intent. Do not replace this with a
+% new "bug-awareness" taxonomy -- that would require a controlled annotation/developer study.
 
-% RQ1에서 확인한 capability를 실제로 사용하는 과정에서 발생하는 측정 가능한 specification-side 및
-% analysis-side cost를 characterize.
-%
-% practicality 또는 effectiveness 자체를 입증하는 RQ로 framing하지 않음.
-%
-% 큰 흐름: Specify → Validate
+\subsection{RQ2: Specification Requirements and Analysis Costs}\label{sec:rq2}
 
-\subsubsection{Annotation Overhead}\label{sec:rq2:overhead}
-% (working title)
+% RQ: What specification requirements and analysis costs are associated with numeric intent validation?
+% Preferred over "annotation effort" since the study does not directly measure developer time or
+% cognitive effort. Two subsections: Specification Requirements, then Analysis Cost.
+
+\subsubsection{Specification Requirements}\label{sec:rq2:spec}
+
+% Combines two dimensions -- do NOT collapse into one artificial weighted score:
+% (a) program context required to formulate the target intent;
+% (b) additional analyzer inputs required to instantiate the validation context.
+% Goal: characterize a specification PROFILE, not a human-effort score.
 %
-% 핵심 질문: Numeric intent를 annotation으로 명시하는 데 어느 정도의 measurable annotation overhead가 필요한가?
+% Program-context metrics (candidates):
+% - number of intent-relevant statements; number of unique relevant program values;
+% - number of additional functions that must be inspected;
+% - number of additional contracts/libraries/interfaces; context breadth;
+% - whether external protocol/domain specification is required.
+% Avoid raw LOC-before-the-buggy-line; prefer an intent-relevant backward slice or other dependency-based
+% notion of relevant context. Possible ordinal context-breadth scale (not an effort score):
+%   Level 0: target statement/expression only
+%   Level 1: same-function context
+%   Level 2: additional function(s) in same contract/library
+%   Level 3: cross-contract/library context
+%   Level 4: external protocol/domain specification
 %
-% 예상 metrics:
-% - annotation LOC
-% - annotation count
-% - annotation/code ratio
-% - annotation complexity와 관련해 객관적으로 측정 가능한 기타 지표
+% Analyzer-input metrics (candidates):
+% - batch annotation count; number of constrained variables;
+% - number of externally constrained return values / @IReturn assumptions;
+% - exact-value vs. range constraints, if the distinction proves meaningful.
+% Do NOT sum statements+variables+functions+annotations into one total (different semantics/units) --
+% report separately, and state explicitly that these are structural proxies for specification
+% requirements, not measurements of human annotation effort.
 %
-% 중요한 scope distinction:
-% - annotation을 표현하는 데 필요한 syntactic/representational burden을 측정
-% - developer가 올바른 specification을 발견하는 데 필요한 cognitive effort나 prospective authorability를
-%   직접 측정한다고 주장하지 않음
-%
-% 실제 metric이 확정되면 Annotation Overhead, Specification Cost, Annotation Effort 중 최종 subsection title 결정.
+% Relationship to the old L5 analysis: the old "bug awareness required?" classification is REMOVED. Its
+% underlying question is retained but reformulated as "what information/context is required to support
+% the target specification?" -- applied to ALL expressible cases, not only former L5 cases. Do not claim
+% "a developer could have derived this annotation"; instead characterize objectively how much local
+% context is involved, whether other functions/contracts are involved, whether external semantics are
+% required, and how many analysis inputs must be supplied.
 
 \subsubsection{Analysis Cost}\label{sec:rq2:cost}
 
-% 핵심 질문: Supplied numeric intent를 IntentChecker가 분석하고 verdict를 산출하는 데
-% 어느 정도의 computational cost가 발생하는가?
-%
-% 다룰 내용:
-% - analysis latency
-%   - Violated뿐 아니라 실행 가능한 Warning paths도 포함하는 방향
-%   - unsupported cases의 처리/제외 기준
-%   - median / IQR / confidence interval 등 distribution 중심 reporting
-%   - 필요하다면 verdict별 latency
-% - 기존에 사용했던 analysis characteristics 검토:
-%   - number of debug annotations
-%   - function calls
-%   - variables
-%   - 기타 analysis complexity indicators
-%
-% 기존 n=20 Pearson correlation 분석은 Reviewer 3의 지적을 고려해 그대로 유지한다고 전제하지 않고,
-% 확장된 데이터와 실제 결과를 본 뒤 유지 여부 결정.
+% Measures actual runtime after the specification and analysis context are supplied.
+% Question: what is the computational cost of validating numeric intent?
+% Changes from the original 3-run experiment: more than 3 runs; report median (not just mean); report
+% dispersion (e.g. IQR); confidence intervals if appropriate; include executable Warning paths as well as
+% Violated paths; avoid overclaiming linear relationships from a small sample; reconsider or remove the
+% original Pearson-correlation analysis unless a statistically defensible new design is established.
+% Do not equate low runtime with demonstrated developer practicality.
 
-\subsection{RQ3: Where Does IntentChecker Fit in the Design Space of Numeric Error Analysis?}\label{sec:rq3}
+\subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
-% 핵심 질문: IntentChecker는 기존 numeric error analysis approaches와 비교할 때 어떤 design point를 차지하는가?
-%
-% 기존 RQ3처럼 detection count를 중심으로 한 scoreboard comparison은 하지 않음.
-% 대신 ScType, GPTScan, NumScout 등과 design dimensions를 기준으로 비교.
-%
-% 예상 comparison axes:
-% - source of specification / detection criterion
-%   - developer-supplied
-%   - designer-defined
-%   - inferred
-% - analysis timing
-%   - development-time
-%   - audit/post-hoc
-% - analysis objective
-%   - intent/property validation
-%   - error detection
-% - relationship to predefined error patterns
-% - feedback/result semantics
-% - 필요하면 analysis scope 및 implementation characteristics
-%
-% 핵심 목적:
-% "IntentChecker detects more/fewer errors"가 아니라, intent-based validation이 기존
-% numeric-error detection approaches와 구조적으로 어떤 다른 trade-off/design choice를 갖는지 positioning.
+% Title retained from the original submission -- still a comparison, but the content changes
+% substantially. Old coverage scoreboard removed/heavily reconsidered: IntentChecker, ScType, GPTScan,
+% and NumScout operate under different detection/validation models, so a single coverage score implies
+% an unfair apples-to-apples ranking. Two-part structure below.
+
+\subsubsection{Comparison of Analysis Models}\label{sec:rq3:models}
+
+% Compare via design dimensions, not a coverage scoreboard:
+% - specification source: developer-supplied intent / predefined rules-patterns / inferred criteria;
+% - intended use phase: development-time / audit-time (post-hoc);
+% - analysis objective: validating a supplied property / matching known vulnerability-error patterns;
+% - property scope: general numeric relations / predefined bug classes-scenarios;
+% - required prior knowledge: explicit developer-supplied specification / detector-authored criteria.
+% Goal: position IntentChecker -- do not claim superior detection coverage. A compact conceptual
+% comparison table is acceptable if clearly framed as a design-space table, not a detection scoreboard.
+
+\subsubsection{Analysis Time}\label{sec:rq3:time}
+
+% Quantitative latency comparison may remain / be strengthened -- probably the safest quantitative
+% cross-tool comparison, since runtime is measurable under identical hardware/environment.
+% Do NOT force all four tools over all 75 cases merely to create a coverage comparison. Define a fair
+% comparison population instead, e.g. cases executable by all compared tools under their supported input
+% requirements, or another clearly justified common subset.
+% Report: subset-selection criterion; number of cases; repeated-run protocol; median; dispersion;
+% environment; GPTScan model/API dependencies if relevant.
+% Avoid selecting only the original 20 successful IntentChecker cases (obvious selection bias). If no
+% clean common subset can be defined, report per-tool runtime over each tool's own valid executable cases
+% and explicitly state that the distributions are not coverage-normalized.
 
 \subsection{Threats to Validity}\label{sec:threats}
 
@@ -1396,22 +1405,16 @@ The final benchmark comprises 75 numeric logic error cases collected from three 
 
 \smallskip
 \noindent\textbf{Construct validity.}
-RQ1 distinguishes three properties of intent-based validation: whether a bug-relevant numeric relation can be expressed by the intent model, what information is required to support the corresponding annotation, and whether IntentChecker can validate the annotation against the buggy code. These properties characterize different capabilities and limitations of the proposed approach, but they do not directly measure its effectiveness in actual developer use. In particular, the existence of sufficient evidence within a buggy function does not establish that an independent developer would identify or use that evidence to formulate the same annotation. Likewise, a Violated result demonstrates that IntentChecker can identify an inconsistency once an appropriate intent is supplied; it does not establish that developers would independently formulate that intent or successfully diagnose and repair the reported bug. An independent annotation or developer study would be required to evaluate these aspects directly. In RQ2, we use the number of batch annotations required to instantiate the analysis context as a structural measure of specification cost. This measure captures the amount of analysis context that must be explicitly supplied, but does not directly measure the time or cognitive effort required for a developer to determine and write individual annotations. The RQ2 results should therefore be interpreted as characterizing the structural specification requirements of IntentChecker rather than actual human annotation effort.
+RQ1 evaluates two distinct properties of intent-based validation: whether a bug-relevant numeric relation can be represented by the current intent model, and whether IntentChecker can validate a supplied annotation against the buggy implementation. These properties characterize the representational and analysis capabilities of the proposed approach, but they do not directly measure its effectiveness in actual developer use. In particular, the annotations in this study are constructed retrospectively with knowledge of the reported defects. Therefore, an Expressible result shows that the bug-relevant numeric relation can be represented once that relation has been identified, and a Violated result shows that IntentChecker can expose an inconsistency once an appropriate intent specification is supplied. Neither result establishes that developers who are unaware of the reported bug would independently formulate the same or a comparable annotation, identify the relevant supporting evidence, or successfully diagnose and repair the defect. RQ2 partially addresses the specification-side dependency by characterizing the structural requirements associated with constructing and instantiating the selected intents. We report the program context required to support the specification, such as relevant statements, program values, additional functions or contracts, and context breadth, together with the analysis inputs required to instantiate the validation context, including batch annotations. These measures characterize the structural specification requirements of IntentChecker; they are not direct measurements of human annotation effort, learning curve, cognitive burden, or inter-annotator consistency. Consequently, the present evaluation cannot determine how easily developers can formulate numeric intent prospectively or how consistently independent annotators would produce comparable specifications. Evaluating these human-centered aspects would require an independent annotation or developer study.
 
-% 여기서는 특히 새 Evaluation framing과 직접 연결되는 threat를 정리.
+% Internal validity / External validity / Construct validity는 위 prose로 작성 완료. 남은 항목:
 %
-% - Retrospective annotation
-%   - reported error 및 expected behavior를 알고 annotation을 작성함
-%   - 따라서 prospective developer authorability 또는 unknown-bug detection effectiveness를 입증하지 않음
-% - Dataset representativeness
-%   - Code4rena-derived cases
-%   - 75 effective cases
-% - Annotation/specification classification subjectivity
-%   - 특히 4.2.2의 knowledge-requirement classification
-% - Abstract interpretation limitations
-% - Annotation-overhead measurement가 cognitive authoring effort를 직접 측정하지 않는다는 한계
-% - 비교 대상 및 design-space classification의 범위
-% - 필요하면 implementation/hardware measurement validity
+% - Comparison validity (신규, guidance 문서 기준)
+%   - cross-tool 비교는 tool마다 다른 objective/reproducibility 제약 때문에 제한적임
+%   - 새 RQ3(4.4)가 direct detection-coverage scoreboard를 피하고 design dimensions(4.4.1) +
+%     controlled runtime measurement(4.4.2)로 구성됨으로써 이 threat를 완화한다는 점을 명시
+% - Abstract interpretation limitations (미작성)
+% - 필요하면 implementation/hardware measurement validity (미작성, GPTScan 등 API 의존성 이슈 포함 가능)
 
 \section{Discussion}\label{sec:discussion}
 
@@ -1425,7 +1428,7 @@ Three non-obvious guidelines are distilled from this observation.
 \noindent\textbf{Guideline 1: Enumerate state variables a function should affect, not just those it actually affects.}
 Developers naturally reason about the code they wrote---the variables they explicitly assigned, the calls they explicitly made.
 Bugs of omission arise precisely from this cognitive bias: a state variable that should have been updated was simply never mentioned.
-After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry\,$<$\,Exit) or @Post changed(var, true)) for each.
+After writing a function, the developer should list the state variables whose value the function is expected to change and add at least a directional annotation (@Post var(Entry)\,$<$\,var(Exit) or @Post changed(var, true)) for each.
 Crucially, this practice depends only on the developer enumerating expected effects, not on any prior knowledge of the specific bug.
 
 \smallskip

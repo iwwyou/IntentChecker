@@ -435,7 +435,8 @@ class VariableEnv:
                 struct_type=sol_t.structTypeName,
             )
             if sol_t.structTypeName in struct_defs:
-                sv.initialize_struct(struct_defs[sol_t.structTypeName])
+                sv.initialize_struct(struct_defs[sol_t.structTypeName],
+                                     struct_defs=struct_defs, enum_defs=enum_defs)
             return sv
 
         if sol_t.typeCategory == "enum":

@@ -498,8 +498,9 @@ def main():
     # 2) Libraries (의존 순서 고려: 다른 library를 호출하는 파일을 뒤로)
     if args.type in ("libraries", "all"):
         lib_files = sorted(LIB_DIR.glob("*.sol")) if LIB_DIR.exists() else []
-        # cross-library 의존: UFixed18 → Fixed18, FullMath → FixedPoint
-        _late = {"Fixed18.sol", "FixedPoint.sol"}
+        # cross-library 의존: UFixed18 → Fixed18, FullMath → FixedPoint,
+        # LibPerpetuals(Perpetuals) → PRBMathUD60x18 (알파벳순으로 L < P라 뒤로 밀어야 함)
+        _late = {"Fixed18.sol", "FixedPoint.sol", "LibPerpetuals.sol"}
         lib_files_ordered = [f for f in lib_files if f.name not in _late] + \
                             [f for f in lib_files if f.name in _late]
         print(f"\n[Phase 2] Libraries: {len(lib_files_ordered)}개")
@@ -529,6 +530,9 @@ def main():
             ("Authorization.sol",           "contract"),   # is AuthorizationBase
             ("Preparable.sol",              "contract"),
             ("ReentrancyGuardUpgradeable.sol", "contract"),  # is Initializable (pkl)
+            ("Roles.sol",                   "contract"),
+            ("RoleAware.sol",               "contract"),    # uses Roles
+            ("PriceAware.sol",              "contract"),    # is RoleAware
             # --- 47/ : library → parent → child ---
             ("47/SafeMathUpgradeable.sol",  "library"),
             ("47/AddressUpgradeable.sol",   "library"),
