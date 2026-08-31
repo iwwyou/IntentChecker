@@ -217,8 +217,15 @@ class SolidityAnalyzer:
         info['close'] = close_braces
 
     def _is_during_inline(self, code: str, start_line: int) -> bool:
-        """During annotation이 기존 코드 라인에 있어 밀기가 불필요한 inline인지 확인.
-        During만 해당 — 다른 annotation(@GlobalVar, @StateVar, @Post 등)은 항상 standalone.
+        """During/Post annotation이 기존 코드 라인에 있어 밀기가 불필요한 inline인지 확인.
+        @GlobalVar/@StateVar 등 다른 디버그 annotation은 여전히 항상 standalone —
+        저것들은 실제 값을 배치 재생 시점에 주입하는 것이라 자기 자신의 줄을
+        차지할 필요가 있다. @During/@Post는 반대로 이미 존재하는 코드 줄을
+        참조만 하는 것이라, 그 줄에 실제 코드가 있으면 밀 필요가 없다 — 오히려
+        밀어버리면(특히 함수 전체가 이미 다 처리된 뒤, 배열 끝에서 삽입되는
+        현재 컨벤션 하에서는) 그 뒤로 이미 만들어진 CFG/exit-node 상태가 깨진다
+        (@Post는 특정 줄이 아니라 함수 exit 노드에 붙지만, exit 노드를 찾는
+        `find_function_context`도 line_info 기반이라 밀기의 영향을 받는다).
 
         여러 줄에 걸친 statement(soltotestjson.py가 한 레코드로 합친 경우)는 실제
         텍스트가 그 span의 끝(write_start)에 쓰이고 시작 줄의 full_code_lines는

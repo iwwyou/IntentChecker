@@ -213,38 +213,38 @@
   },
   {
     "code": "// @Post lastFee == block.timestamp",
+    "startLine": 23,
+    "endLine": 23,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging BEGIN",
+    "startLine": 19,
+    "endLine": 19,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar lastFee = [1000000, 1000000]",
+    "startLine": 20,
+    "endLine": 20,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar startSupply = [0, 0]",
+    "startLine": 21,
+    "endLine": 21,
+    "event": "add"
+  },
+  {
+    "code": "// @GlobalVar block.timestamp = [1086400, 1086400]",
     "startLine": 22,
     "endLine": 22,
     "event": "add"
   },
   {
-    "code": "// @Debugging BEGIN",
-    "startLine": 36,
-    "endLine": 36,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar lastFee = [1000000, 1000000]",
-    "startLine": 37,
-    "endLine": 37,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar startSupply = [0, 0]",
-    "startLine": 38,
-    "endLine": 38,
-    "event": "add"
-  },
-  {
-    "code": "// @GlobalVar block.timestamp = [1086400, 1086400]",
-    "startLine": 39,
-    "endLine": 39,
-    "event": "add"
-  },
-  {
     "code": "// @Debugging END",
-    "startLine": 40,
-    "endLine": 40,
+    "startLine": 23,
+    "endLine": 23,
     "event": "add"
   }
 ]

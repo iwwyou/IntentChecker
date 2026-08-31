@@ -2,6 +2,7 @@ from Parser.SolidityParser import SolidityParser
 from Parser.SolidityVisitor import SolidityVisitor
 # 맨 위 import 부분
 from antlr4.tree.Tree import TerminalNodeImpl
+from fractions import Fraction
 
 from Domain.Variable import Variables, GlobalVariable, ArrayVariable, StructVariable, EnumVariable, MappingVariable, \
     StructDefinition, EnumDefinition
@@ -281,17 +282,21 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
         # ── ② 변수 object  생성 (array / struct / mapping / enum / elementary) ──
         if type_info.typeCategory == "array":
+            all_structs, all_enums = self.contract_analyzer.get_full_struct_enum_defs()
             var_obj = ArrayVariable(var_name, type_info.arrayBaseType,
                                     type_info.arrayLength, scope="state",
-                                    is_dynamic=type_info.isDynamicArray)
+                                    is_dynamic=type_info.isDynamicArray,
+                                    struct_defs=all_structs, enum_defs=all_enums)
         elif type_info.typeCategory == "struct":
             var_obj = StructVariable(var_name, type_info.structTypeName, scope="state",
                                      )
         elif type_info.typeCategory == "mapping":
+            all_structs, all_enums = self.contract_analyzer.get_full_struct_enum_defs()
             var_obj = MappingVariable(var_name,
                                       type_info.mappingKeyType,
                                       type_info.mappingValueType,
-                                      scope="state")
+                                      scope="state",
+                                      struct_defs=all_structs, enum_defs=all_enums)
         elif type_info.typeCategory == "enum":
             var_obj = EnumVariable(var_name, type_info.enumTypeName, scope="state")
         else:  # elementary / address / bool …
@@ -2424,16 +2429,28 @@ class EnhancedSolidityVisitor(SolidityVisitor):
         denom_tok = ctx.getToken(SolidityParser.SubDenomination, 0)  # 토큰 객체
         denom_txt = denom_tok.getText()  # 'weeks', 'ether', …
 
-        # ── ③ 숫자 → int 변환 -------------------------------------------------
+        # ── ③ 숫자 → 값 변환 ---------------------------------------------------
+        #     Solidity는 subdenomination 리터럴을 임의정밀도 유리수로 평가한다
+        #     (예: 365.25 days == 31557600, 정수로 정확히 떨어지면 유효함).
         try:
-            base_val = int(num_txt, 0)  # 0x… 형태 지원
+            base_val = int(num_txt, 0)  # 정수/hex ('0x…') 형태
         except ValueError:
-            raise ValueError(f"invalid numeric literal “{num_txt}”")
+            try:
+                base_val = Fraction(num_txt)  # 소수 리터럴 ('365.25' 등)
+            except ValueError:
+                raise ValueError(f"invalid numeric literal “{num_txt}”")
 
         # ── ④ 단위 매핑 -------------------------------------------------------
         if denom_txt not in TIME_VALUE:
             raise ValueError(f"unknown sub-denomination “{denom_txt}”")
-        final_val = base_val * TIME_VALUE[denom_txt]
+        product = base_val * TIME_VALUE[denom_txt]
+        if isinstance(product, Fraction):
+            if product.denominator != 1:
+                raise ValueError(
+                    f"fractional literal “{num_txt} {denom_txt}” does not evaluate to an integer"
+                )
+            product = product.numerator
+        final_val = product
 
         # ── ⑤ uint256 상수 Expression 반환 -----------------------------------
         return Expression(

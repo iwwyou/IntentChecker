@@ -564,12 +564,6 @@
     "event": "add"
   },
   {
-    "code": "// @During toMarketing == (contractTokenBalance * _marketingFee + (_marketingFee + _liquidityFee) - 1) / (_marketingFee + _liquidityFee)",
-    "startLine": 139,
-    "endLine": 139,
-    "event": "add"
-  },
-  {
     "code": "uint256 toLiquify = contractTokenBalance.sub(toMarketing);",
     "startLine": 140,
     "endLine": 140,
@@ -642,12 +636,6 @@
     "event": "add"
   },
   {
-    "code": "// @During newBalance == (fromSwap * half + toSwapForEth - 1) / toSwapForEth",
-    "startLine": 151,
-    "endLine": 151,
-    "event": "add"
-  },
-  {
     "code": "\n",
     "startLine": 152,
     "endLine": 152,
@@ -684,39 +672,51 @@
     "event": "add"
   },
   {
+    "code": "// @During toMarketing == (contractTokenBalance * _marketingFee + (_marketingFee + _liquidityFee) - 1) / (_marketingFee + _liquidityFee)",
+    "startLine": 139,
+    "endLine": 139,
+    "event": "add"
+  },
+  {
+    "code": "// @During newBalance == (fromSwap * half + toSwapForEth - 1) / toSwapForEth",
+    "startLine": 151,
+    "endLine": 151,
+    "event": "add"
+  },
+  {
     "code": "// @Debugging BEGIN",
-    "startLine": 158,
-    "endLine": 158,
+    "startLine": 139,
+    "endLine": 139,
     "event": "add"
   },
   {
     "code": "// @LocalVar contractTokenBalance = [17, 17]",
-    "startLine": 159,
-    "endLine": 159,
+    "startLine": 140,
+    "endLine": 140,
     "event": "add"
   },
   {
     "code": "// @StateVar _marketingFee = [2, 2]",
-    "startLine": 160,
-    "endLine": 160,
+    "startLine": 141,
+    "endLine": 141,
     "event": "add"
   },
   {
     "code": "// @StateVar _liquidityFee = [4, 4]",
-    "startLine": 161,
-    "endLine": 161,
+    "startLine": 142,
+    "endLine": 142,
     "event": "add"
   },
   {
     "code": "// @GlobalVar address(this).balance = [1000000000000000000, 1000000000000000000]",
-    "startLine": 162,
-    "endLine": 162,
+    "startLine": 143,
+    "endLine": 143,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 163,
-    "endLine": 163,
+    "startLine": 144,
+    "endLine": 144,
     "event": "add"
   }
 ]

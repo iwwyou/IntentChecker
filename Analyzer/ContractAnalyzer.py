@@ -1054,6 +1054,30 @@ class ContractAnalyzer:
         if exit_node not in self.sa.line_info[self.current_end_line]["cfg_nodes"]:
             self.sa.line_info[self.current_end_line]["cfg_nodes"].append(exit_node)
 
+    def get_full_struct_enum_defs(self, contract_name: str | None = None):
+        """
+        contract_name(기본값: current_target_contract) 기준으로 contract 자신 +
+        file-level + parent 상속 체인의 struct/enum 정의를 모두 합쳐서 반환한다.
+        (struct_defs, enum_defs) 튜플.
+
+        여러 곳(Update.py/Evaluation.py/DebugInitializer.py)에서 struct_defs가
+        비어있는 MappingVariable/ArrayVariable을 보수하려고 `ccf.structDefs`만
+        대입했었는데, 그러면 file-level struct(예: 컨트랙트 밖에 선언된 struct)가
+        빠진 채로 이미 완전했던 값을 오히려 덮어써버리는 문제가 있었다 - 이 헬퍼로
+        통일해서 그 문제를 근본적으로 막는다.
+        """
+        contract_name = contract_name or self.current_target_contract
+        ccf = self.contract_cfgs.get(contract_name) if contract_name else None
+        all_structs = dict(ccf.structDefs) if ccf else {}
+        all_enums = dict(ccf.enumDefs) if ccf else {}
+        if self.sa.file_level_structs:
+            all_structs.update(self.sa.file_level_structs)
+        if ccf:
+            for pcfg in getattr(ccf, 'parent_cfgs', {}).values():
+                all_structs.update(getattr(pcfg, 'structDefs', {}))
+                all_enums.update(getattr(pcfg, 'enumDefs', {}))
+        return all_structs, all_enums
+
     def _create_variable_object(
             self,
             type_obj: SolType,
@@ -1067,12 +1091,15 @@ class ContractAnalyzer:
 
         # 2-A  배열
         if type_obj.typeCategory == "array":
+            all_structs, all_enums = self.get_full_struct_enum_defs()
             v = ArrayVariable(
                 identifier=var_name,
                 base_type=type_obj.arrayBaseType,
                 array_length=type_obj.arrayLength,
                 is_dynamic=type_obj.isDynamicArray,
                 scope="local",
+                struct_defs=all_structs,
+                enum_defs=all_enums,
             )
 
         # 2-B  구조체

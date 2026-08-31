@@ -181,56 +181,56 @@
   },
   {
     "code": "// @Debugging BEGIN",
-    "startLine": 30,
-    "endLine": 30,
+    "startLine": 13,
+    "endLine": 13,
     "event": "add"
   },
   {
     "code": "// @GlobalVar msg.sender = symbolicAddress 1",
-    "startLine": 31,
-    "endLine": 31,
+    "startLine": 14,
+    "endLine": 14,
     "event": "add"
   },
   {
     "code": "// @LocalVar account = symbolicAddress 2",
-    "startLine": 32,
-    "endLine": 32,
+    "startLine": 15,
+    "endLine": 15,
     "event": "add"
   },
   {
     "code": "// @LocalVar amount = [1000, 1000]",
-    "startLine": 33,
-    "endLine": 33,
+    "startLine": 16,
+    "endLine": 16,
     "event": "add"
   },
   {
     "code": "// @StateVar isPaused = false",
-    "startLine": 34,
-    "endLine": 34,
+    "startLine": 17,
+    "endLine": 17,
     "event": "add"
   },
   {
     "code": "// @StateVar balances[msg.sender] = [1000, 1000]",
-    "startLine": 35,
-    "endLine": 35,
+    "startLine": 18,
+    "endLine": 18,
     "event": "add"
   },
   {
     "code": "// @StateVar balances[account] = [0, 0]",
-    "startLine": 36,
-    "endLine": 36,
+    "startLine": 19,
+    "endLine": 19,
     "event": "add"
   },
   {
     "code": "// @StateVar currentAddresses[_LP_GAUGE] = symbolicAddress 3",
-    "startLine": 37,
-    "endLine": 37,
+    "startLine": 20,
+    "endLine": 20,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 38,
-    "endLine": 38,
+    "startLine": 21,
+    "endLine": 21,
     "event": "add"
   }
 ]

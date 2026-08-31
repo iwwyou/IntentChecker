@@ -1523,9 +1523,16 @@ class GuardianVerificationEngine:
         """
         EXIT의 predecessor 중 정상 경로만 뽑아옴.
         (빌더에서 revert/require/assert(false) 엣지에 edge['abnormal']=True 를 붙였다고 가정)
+
+        `return` statement는 일반 exit 노드가 아니라 별도의 RETURN 전용 exit
+        노드(`get_return_exit_node()`)에 엣지를 연결한다
+        (`DynamicCFGBuilder.build_return_statement`). 함수에 실제 return이
+        있는데 일반 `get_exit_node()`만 조회하면 predecessor가 0개로 나와서
+        (아무도 거기 연결한 적이 없으므로) exit 환경이 통째로 비어버린다 —
+        `_get_post_exit_node`가 이미 이 구분을 올바르게 처리하므로 그걸 재사용.
         """
         G = fn_cfg.graph
-        exit_n = fn_cfg.get_exit_node()
+        exit_n = self._get_post_exit_node(fn_cfg)
         out = []
         for p in G.predecessors(exit_n):
             ed = G.get_edge_data(p, exit_n, default={})

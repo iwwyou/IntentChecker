@@ -686,122 +686,122 @@
   },
   {
     "code": "// @Debugging BEGIN",
-    "startLine": 193,
-    "endLine": 193,
+    "startLine": 138,
+    "endLine": 138,
     "event": "add"
   },
   {
     "code": "// @StateVar stopped = false",
-    "startLine": 194,
-    "endLine": 194,
+    "startLine": 139,
+    "endLine": 139,
     "event": "add"
   },
   {
     "code": "// @StateVar auctionStart = [1, 1]",
-    "startLine": 195,
-    "endLine": 195,
+    "startLine": 140,
+    "endLine": 140,
     "event": "add"
   },
   {
     "code": "// @StateVar PHASE_ONE_DURATION = [0, 0]",
-    "startLine": 196,
-    "endLine": 196,
+    "startLine": 141,
+    "endLine": 141,
     "event": "add"
   },
   {
     "code": "// @StateVar PHASE_TWO_DURATION = [0, 0]",
-    "startLine": 197,
-    "endLine": 197,
+    "startLine": 142,
+    "endLine": 142,
     "event": "add"
   },
   {
     "code": "// @StateVar floorPrice = [20000000000000000000000000000000, 20000000000000000000000000000000]",
-    "startLine": 198,
-    "endLine": 198,
+    "startLine": 143,
+    "endLine": 143,
     "event": "add"
   },
   {
     "code": "// @StateVar tokenReserve = [100000000, 100000000]",
-    "startLine": 199,
-    "endLine": 199,
+    "startLine": 144,
+    "endLine": 144,
     "event": "add"
   },
   {
     "code": "// @StateVar wavaxReserve = [1000000000000000000000, 1000000000000000000000]",
-    "startLine": 200,
-    "endLine": 200,
+    "startLine": 145,
+    "endLine": 145,
     "event": "add"
   },
   {
     "code": "// @StateVar tokenIncentivesBalance = [0, 0]",
-    "startLine": 201,
-    "endLine": 201,
+    "startLine": 146,
+    "endLine": 146,
     "event": "add"
   },
   {
     "code": "// @StateVar tokenIncentivesForUsers = [0, 0]",
-    "startLine": 202,
-    "endLine": 202,
+    "startLine": 147,
+    "endLine": 147,
     "event": "add"
   },
   {
     "code": "// @StateVar WAVAX = symbolicAddress 1",
-    "startLine": 203,
-    "endLine": 203,
+    "startLine": 148,
+    "endLine": 148,
     "event": "add"
   },
   {
     "code": "// @StateVar token = symbolicAddress 2",
-    "startLine": 204,
-    "endLine": 204,
+    "startLine": 149,
+    "endLine": 149,
     "event": "add"
   },
   {
     "code": "// @StateVar router = symbolicAddress 3",
-    "startLine": 205,
-    "endLine": 205,
+    "startLine": 150,
+    "endLine": 150,
     "event": "add"
   },
   {
     "code": "// @StateVar factory = symbolicAddress 4",
-    "startLine": 206,
-    "endLine": 206,
+    "startLine": 151,
+    "endLine": 151,
     "event": "add"
   },
   {
     "code": "// @GlobalVar block.timestamp = [1000, 1000]",
-    "startLine": 207,
-    "endLine": 207,
+    "startLine": 152,
+    "endLine": 152,
     "event": "add"
   },
   {
     "code": "// @IReturn token.decimals() = [8, 8]",
-    "startLine": 208,
-    "endLine": 208,
+    "startLine": 153,
+    "endLine": 153,
     "event": "add"
   },
   {
     "code": "// @IReturn factory.getPair() = [0, 0]",
-    "startLine": 209,
-    "endLine": 209,
+    "startLine": 154,
+    "endLine": 154,
     "event": "add"
   },
   {
     "code": "// @IReturn IJoeFactory(factory).getPair() = [0, 0]",
-    "startLine": 210,
-    "endLine": 210,
+    "startLine": 155,
+    "endLine": 155,
     "event": "add"
   },
   {
     "code": "// @IReturn router.addLiquidity()[2] = [0, 0]",
-    "startLine": 211,
-    "endLine": 211,
+    "startLine": 156,
+    "endLine": 156,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 212,
-    "endLine": 212,
+    "startLine": 157,
+    "endLine": 157,
     "event": "add"
   }
 ]

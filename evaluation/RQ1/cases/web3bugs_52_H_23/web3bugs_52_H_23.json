@@ -348,21 +348,21 @@
     "event": "add"
   },
   {
-    "code": "// @During _update.arg[2] == reserveForeign - amountSynth",
+    "code": "\n",
     "startLine": 123,
     "endLine": 123,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "synth.mint(to, amountSynth);",
     "startLine": 124,
     "endLine": 124,
     "event": "add"
   },
   {
-    "code": "synth.mint(to, amountSynth);",
-    "startLine": 125,
-    "endLine": 125,
+    "code": "// @During _update.arg[2] == reserveForeign - amountSynth",
+    "startLine": 116,
+    "endLine": 116,
     "event": "add"
   },
   {

@@ -180,7 +180,9 @@ class ArrayVariable(Variables):
             return MappingVariable(eid,
                                    btype.mappingKeyType,
                                    btype.mappingValueType,
-                                   scope=self.scope)
+                                   scope=self.scope,
+                                   struct_defs=self.struct_defs,
+                                   enum_defs=self.enum_defs)
 
         # ─ 중첩 배열 ────────────────────────────────────────────────
         if isinstance(btype, SolType) and btype.typeCategory == "array":
@@ -188,7 +190,9 @@ class ArrayVariable(Variables):
                                  btype.arrayBaseType,
                                  btype.arrayLength,
                                  scope=self.scope,
-                                 is_dynamic=btype.isDynamicArray)
+                                 is_dynamic=btype.isDynamicArray,
+                                 struct_defs=self.struct_defs,
+                                 enum_defs=self.enum_defs)
 
         # fallback
         raise ValueError(f"Unhandled array base-type for {eid!r}")

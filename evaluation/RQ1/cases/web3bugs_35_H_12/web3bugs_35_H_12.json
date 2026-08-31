@@ -822,110 +822,110 @@
   },
   {
     "code": "// @Post secondsPerLiquidity == secondsPerLiquidity(Entry) + ((block.timestamp - lastObservation(Entry)) << 128) / liquidity(Entry)",
-    "startLine": 180,
-    "endLine": 180,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging BEGIN",
     "startLine": 181,
     "endLine": 181,
     "event": "add"
   },
   {
+    "code": "// @Debugging BEGIN",
+    "startLine": 141,
+    "endLine": 141,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar unlocked = [1, 1]",
-    "startLine": 182,
-    "endLine": 182,
+    "startLine": 142,
+    "endLine": 142,
     "event": "add"
   },
   {
     "code": "// @StateVar price = [79228162514264337593543950336, 79228162514264337593543950336]",
-    "startLine": 183,
-    "endLine": 183,
+    "startLine": 143,
+    "endLine": 143,
     "event": "add"
   },
   {
     "code": "// @StateVar liquidity = [1000, 1000]",
-    "startLine": 184,
-    "endLine": 184,
+    "startLine": 144,
+    "endLine": 144,
     "event": "add"
   },
   {
     "code": "// @StateVar secondsPerLiquidity = [0, 0]",
-    "startLine": 185,
-    "endLine": 185,
+    "startLine": 145,
+    "endLine": 145,
     "event": "add"
   },
   {
     "code": "// @StateVar lastObservation = [1000, 1000]",
-    "startLine": 186,
-    "endLine": 186,
+    "startLine": 146,
+    "endLine": 146,
     "event": "add"
   },
   {
     "code": "// @GlobalVar block.timestamp = [1500, 1500]",
-    "startLine": 187,
-    "endLine": 187,
+    "startLine": 147,
+    "endLine": 147,
     "event": "add"
   },
   {
     "code": "// @StateVar MAX_TICK_LIQUIDITY = [1000000000, 1000000000]",
-    "startLine": 188,
-    "endLine": 188,
+    "startLine": 148,
+    "endLine": 148,
     "event": "add"
   },
   {
     "code": "// @StateVar bento = symbolicAddress 1",
-    "startLine": 189,
-    "endLine": 189,
+    "startLine": 149,
+    "endLine": 149,
     "event": "add"
   },
   {
     "code": "// @StateVar token0 = symbolicAddress 2",
-    "startLine": 190,
-    "endLine": 190,
+    "startLine": 150,
+    "endLine": 150,
     "event": "add"
   },
   {
     "code": "// @StateVar token1 = symbolicAddress 3",
-    "startLine": 191,
-    "endLine": 191,
+    "startLine": 151,
+    "endLine": 151,
     "event": "add"
   },
   {
     "code": "// @LocalVar lower = [0, 0]",
-    "startLine": 192,
-    "endLine": 192,
+    "startLine": 152,
+    "endLine": 152,
     "event": "add"
   },
   {
     "code": "// @LocalVar upper = [100, 100]",
-    "startLine": 193,
-    "endLine": 193,
+    "startLine": 153,
+    "endLine": 153,
     "event": "add"
   },
   {
     "code": "// @LocalVar amount = [200, 200]",
-    "startLine": 194,
-    "endLine": 194,
+    "startLine": 154,
+    "endLine": 154,
     "event": "add"
   },
   {
     "code": "// @LocalVar recipient = symbolicAddress 4",
-    "startLine": 195,
-    "endLine": 195,
+    "startLine": 155,
+    "endLine": 155,
     "event": "add"
   },
   {
     "code": "// @LocalVar unwrapBento = [0, 0]",
-    "startLine": 196,
-    "endLine": 196,
+    "startLine": 156,
+    "endLine": 156,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 197,
-    "endLine": 197,
+    "startLine": 157,
+    "endLine": 157,
     "event": "add"
   }
 ]

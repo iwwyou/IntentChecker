@@ -220,9 +220,9 @@ class Update :
             full_name = f"{expr.base.identifier}.{member}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                callerObject.struct_defs = ccf.structDefs
-                callerObject.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
             # global var의 실제 값으로 key 결정 (identifier 경로와 동일)
             key = full_name  # fallback
@@ -465,9 +465,9 @@ class Update :
         # ========================================================================
         if isinstance(caller_object, MappingVariable):
             if not caller_object.struct_defs or not caller_object.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                caller_object.struct_defs = ccf.structDefs
-                caller_object.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                caller_object.struct_defs = {**all_structs, **caller_object.struct_defs}
+                caller_object.enum_defs = {**all_enums, **caller_object.enum_defs}
 
             key = lit_str  # 매핑 키는 문자열 그대로
             entry = caller_object.mapping.setdefault(key, caller_object.get_or_create(key))
@@ -669,9 +669,9 @@ class Update :
         # ======================================================================
         if isinstance(caller_object, MappingVariable):
             if not caller_object.struct_defs or not caller_object.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                caller_object.struct_defs = ccf.structDefs
-                caller_object.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                caller_object.struct_defs = {**all_structs, **caller_object.struct_defs}
+                caller_object.enum_defs = {**all_enums, **caller_object.enum_defs}
 
             # ── (1) ident 가 변수로 선언돼 있을 때 ──────────────────────────
             if ident in variables:

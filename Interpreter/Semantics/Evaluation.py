@@ -249,9 +249,9 @@ class Evaluation :
 
         mapping_var = callerObject
         if not mapping_var.struct_defs or not mapping_var.enum_defs:
-            ccf = self.an.contract_cfgs[self.an.current_target_contract]
-            mapping_var.struct_defs = ccf.structDefs
-            mapping_var.enum_defs = ccf.enumDefs
+            all_structs, all_enums = self.an.get_full_struct_enum_defs()
+            mapping_var.struct_defs = {**all_structs, **mapping_var.struct_defs}
+            mapping_var.enum_defs = {**all_enums, **mapping_var.enum_defs}
 
         # key 결정: 리턴값에서 추론
         if isinstance(result, AddressSet):
@@ -641,9 +641,9 @@ class Evaluation :
             # 1-B) 매핑 키 – 문자열·hex·decimal 모두 허용
             if isinstance(callerObject, MappingVariable):
                 if not callerObject.struct_defs or not callerObject.enum_defs:
-                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                    callerObject.struct_defs = ccf.structDefs
-                    callerObject.enum_defs = ccf.enumDefs
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
                 key = lit
                 if key not in callerObject.mapping:
@@ -842,9 +842,9 @@ class Evaluation :
 
             elif isinstance(callerObject, MappingVariable):
                 if not callerObject.struct_defs or not callerObject.enum_defs:
-                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                    callerObject.struct_defs = ccf.structDefs
-                    callerObject.enum_defs = ccf.enumDefs
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
                 # ── ① key 결정 ──────────────────────────────────
                 if ident_str in variables:  # ident_str == 변수명
@@ -1090,9 +1090,9 @@ class Evaluation :
                 full_name = f"{baseVal}.{member}"
                 if isinstance(callerObject, MappingVariable):
                     if not callerObject.struct_defs or not callerObject.enum_defs:
-                        ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                        callerObject.struct_defs = ccf.structDefs
-                        callerObject.enum_defs = ccf.enumDefs
+                        all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                        callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                        callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
                     # global var의 실제 값으로 key 결정 (identifier 경로와 동일)
                     key_val = full_name  # fallback
                     if full_name in variables:
@@ -1524,9 +1524,9 @@ class Evaluation :
             # ★ callerObject가 MappingVariable이면 mapping lookup 수행
             if isinstance(callerObject, MappingVariable):
                 if not callerObject.struct_defs or not callerObject.enum_defs:
-                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                    callerObject.struct_defs = ccf.structDefs
-                    callerObject.enum_defs = ccf.enumDefs
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
                 key_val = str(addr_result)
                 if key_val not in callerObject.mapping:
                     callerObject.mapping[key_val] = callerObject.get_or_create(key_val)
@@ -2796,9 +2796,9 @@ class Evaluation :
         # 3) callerObject가 MappingVariable인 경우
         if isinstance(callerObject, MappingVariable):
             if not callerObject.struct_defs or not callerObject.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                callerObject.struct_defs = ccf.structDefs
-                callerObject.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
             # result => 단일 키 or 범위 => map lookup
             if not hasattr(result, 'min_value') or not hasattr(result, 'max_value'):

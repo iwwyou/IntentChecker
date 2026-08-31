@@ -109,56 +109,56 @@
   },
   {
     "code": "// @Post _reserve0 == reserve0",
-    "startLine": 20,
-    "endLine": 20,
-    "event": "add"
-  },
-  {
-    "code": "// @Post _reserve1 == reserve1",
-    "startLine": 20,
-    "endLine": 20,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging BEGIN",
     "startLine": 21,
     "endLine": 21,
     "event": "add"
   },
   {
+    "code": "// @Post _reserve1 == reserve1",
+    "startLine": 21,
+    "endLine": 21,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging BEGIN",
+    "startLine": 18,
+    "endLine": 18,
+    "event": "add"
+  },
+  {
     "code": "// @StateVar bento = symbolicAddress 1",
+    "startLine": 19,
+    "endLine": 19,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar token0 = symbolicAddress 2",
+    "startLine": 20,
+    "endLine": 20,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar token1 = symbolicAddress 3",
+    "startLine": 21,
+    "endLine": 21,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar reserve0 = [1500, 1500]",
     "startLine": 22,
     "endLine": 22,
     "event": "add"
   },
   {
-    "code": "// @StateVar token0 = symbolicAddress 2",
+    "code": "// @StateVar reserve1 = [900, 900]",
     "startLine": 23,
     "endLine": 23,
     "event": "add"
   },
   {
-    "code": "// @StateVar token1 = symbolicAddress 3",
+    "code": "// @Debugging END",
     "startLine": 24,
     "endLine": 24,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar reserve0 = [1500, 1500]",
-    "startLine": 25,
-    "endLine": 25,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar reserve1 = [900, 900]",
-    "startLine": 26,
-    "endLine": 26,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging END",
-    "startLine": 27,
-    "endLine": 27,
     "event": "add"
   }
 ]

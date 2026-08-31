@@ -178,9 +178,9 @@ class DebugInitializer:
 
             # ── ③ 매핑 엔트리 가져오거나 생성 ─────────────
             if not caller_object.struct_defs or not caller_object.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                caller_object.struct_defs = ccf.structDefs
-                caller_object.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                caller_object.struct_defs = {**all_structs, **caller_object.struct_defs}
+                caller_object.enum_defs = {**all_enums, **caller_object.enum_defs}
 
             entry = caller_object.get_or_create(key_str)
             if isinstance(entry, (StructVariable, ArrayVariable, MappingVariable)):
@@ -264,9 +264,9 @@ class DebugInitializer:
             full_name = f"{expr.base.identifier}.{member_name}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                callerObject.struct_defs = ccf.structDefs
-                callerObject.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
             # global var의 실제 값으로 key 결정
             key = full_name  # fallback
@@ -305,9 +305,9 @@ class DebugInitializer:
                 full_name = f"{base_obj}.{member_name}"
 
                 if not callerObject.struct_defs or not callerObject.enum_defs:
-                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                    callerObject.struct_defs = ccf.structDefs
-                    callerObject.enum_defs = ccf.enumDefs
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
                 key = full_name
                 if full_name in variables:
@@ -381,9 +381,9 @@ class DebugInitializer:
             # MappingVariable인 경우
             elif isinstance(callerObject, MappingVariable):
                 if not callerObject.struct_defs or not callerObject.enum_defs:
-                    ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                    callerObject.struct_defs = ccf.structDefs
-                    callerObject.enum_defs = ccf.enumDefs
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
                 key = lit
                 # 디버깅에서는 키가 없어도 생성
@@ -414,9 +414,9 @@ class DebugInitializer:
             full_name = f"{expr.base.identifier}.{member}"  # "msg.sender"
 
             if not callerObject.struct_defs or not callerObject.enum_defs:
-                ccf = self.an.contract_cfgs[self.an.current_target_contract]
-                callerObject.struct_defs = ccf.structDefs
-                callerObject.enum_defs = ccf.enumDefs
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
             # global var의 실제 값으로 key 결정
             key = full_name
@@ -689,9 +689,9 @@ class DebugInitializer:
             key_str = str(key_val)
 
         if not callerObject.struct_defs or not callerObject.enum_defs:
-            ccf = self.an.contract_cfgs[self.an.current_target_contract]
-            callerObject.struct_defs = ccf.structDefs
-            callerObject.enum_defs = ccf.enumDefs
+            all_structs, all_enums = self.an.get_full_struct_enum_defs()
+            callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+            callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
         return callerObject.get_or_create(key_str)
 

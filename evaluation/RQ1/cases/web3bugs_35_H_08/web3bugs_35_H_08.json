@@ -677,135 +677,135 @@
     "event": "add"
   },
   {
-    "code": "// @Post liquidity == liquidity(Entry) - amount",
+    "code": "\n",
     "startLine": 150,
     "endLine": 150,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "(uint256 amount0, uint256 amount1) = _getAmountsForLiquidity( uint256(priceLower), uint256(priceUpper), uint256(currentPrice), uint256(amount) );",
     "startLine": 151,
-    "endLine": 151,
+    "endLine": 156,
     "event": "add"
   },
   {
-    "code": "(uint256 amount0, uint256 amount1) = _getAmountsForLiquidity( uint256(priceLower), uint256(priceUpper), uint256(currentPrice), uint256(amount) );",
-    "startLine": 152,
+    "code": "\n",
+    "startLine": 157,
     "endLine": 157,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "(uint256 amount0fees, uint256 amount1fees) = _updatePosition(msg.sender, lower, upper, -int128(amount));",
     "startLine": 158,
     "endLine": 158,
     "event": "add"
   },
   {
-    "code": "(uint256 amount0fees, uint256 amount1fees) = _updatePosition(msg.sender, lower, upper, -int128(amount));",
+    "code": "\n",
     "startLine": 159,
     "endLine": 159,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 160,
-    "endLine": 160,
-    "event": "add"
-  },
-  {
     "code": "unchecked {\n}",
-    "startLine": 161,
-    "endLine": 162,
+    "startLine": 160,
+    "endLine": 161,
     "event": "add"
   },
   {
     "code": "amount0 += amount0fees;",
+    "startLine": 161,
+    "endLine": 161,
+    "event": "add"
+  },
+  {
+    "code": "amount1 += amount1fees;",
     "startLine": 162,
     "endLine": 162,
     "event": "add"
   },
   {
-    "code": "amount1 += amount1fees;",
-    "startLine": 163,
-    "endLine": 163,
+    "code": "\n",
+    "startLine": 164,
+    "endLine": 164,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "withdrawnAmounts = new IPool.TokenAmount[](2);",
     "startLine": 165,
     "endLine": 165,
     "event": "add"
   },
   {
-    "code": "withdrawnAmounts = new IPool.TokenAmount[](2);",
+    "code": "withdrawnAmounts[0] = IPool.TokenAmount({token: token0, amount: amount0});",
     "startLine": 166,
     "endLine": 166,
     "event": "add"
   },
   {
-    "code": "withdrawnAmounts[0] = IPool.TokenAmount({token: token0, amount: amount0});",
+    "code": "withdrawnAmounts[1] = IPool.TokenAmount({token: token1, amount: amount1});",
     "startLine": 167,
     "endLine": 167,
     "event": "add"
   },
   {
-    "code": "withdrawnAmounts[1] = IPool.TokenAmount({token: token1, amount: amount1});",
+    "code": "\n",
     "startLine": 168,
     "endLine": 168,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 169,
-    "endLine": 169,
-    "event": "add"
-  },
-  {
     "code": "unchecked {\n}",
-    "startLine": 170,
-    "endLine": 171,
+    "startLine": 169,
+    "endLine": 170,
     "event": "add"
   },
   {
     "code": "reserve0 -= uint128(amount0fees);",
+    "startLine": 170,
+    "endLine": 170,
+    "event": "add"
+  },
+  {
+    "code": "reserve1 -= uint128(amount1fees);",
     "startLine": 171,
     "endLine": 171,
     "event": "add"
   },
   {
-    "code": "reserve1 -= uint128(amount1fees);",
-    "startLine": 172,
-    "endLine": 172,
+    "code": "\n",
+    "startLine": 173,
+    "endLine": 173,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "_transferBothTokens(recipient, amount0, amount1, unwrapBento);",
     "startLine": 174,
     "endLine": 174,
     "event": "add"
   },
   {
-    "code": "_transferBothTokens(recipient, amount0, amount1, unwrapBento);",
+    "code": "\n",
     "startLine": 175,
     "endLine": 175,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "nearestTick = Ticks.remove(ticks, lower, upper, amount, nearestTick);",
     "startLine": 176,
     "endLine": 176,
     "event": "add"
   },
   {
-    "code": "nearestTick = Ticks.remove(ticks, lower, upper, amount, nearestTick);",
+    "code": "emit Burn(msg.sender, amount0, amount1, recipient);",
     "startLine": 177,
     "endLine": 177,
     "event": "add"
   },
   {
-    "code": "emit Burn(msg.sender, amount0, amount1, recipient);",
-    "startLine": 178,
-    "endLine": 178,
+    "code": "// @Post liquidity == liquidity(Entry) - amount",
+    "startLine": 150,
+    "endLine": 150,
     "event": "add"
   },
   {
