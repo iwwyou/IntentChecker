@@ -301,73 +301,91 @@
     "closeBefore": true
   },
   {
-    "code": "// ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance",
-    "startLine": 55,
-    "endLine": 55,
-    "event": "add"
-  },
-  {
     "code": "return cumulativeRewardPerToken + ( ((uint256(lastApplicableTime()) - lastUpdate) * rewardTokenAmount * depositDecimalsOne/streamDuration) / totalVirtualBalance );",
-    "startLine": 56,
-    "endLine": 59,
+    "startLine": 55,
+    "endLine": 58,
     "event": "add"
   },
   {
     "code": "\n",
-    "startLine": 62,
-    "endLine": 62,
+    "startLine": 61,
+    "endLine": 61,
     "event": "add"
   },
   {
     "code": "function earned(TokenStream storage ts, uint256 currCumRewardPerToken) internal view returns (uint112) {\n}",
-    "startLine": 63,
-    "endLine": 64,
+    "startLine": 62,
+    "endLine": 63,
     "event": "add"
   },
   {
     "code": "return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne) + ts.rewards;",
-    "startLine": 64,
-    "endLine": 64,
+    "startLine": 63,
+    "endLine": 63,
     "event": "add"
   },
   {
     "code": "\n",
-    "startLine": 66,
-    "endLine": 66,
+    "startLine": 65,
+    "endLine": 65,
     "event": "add"
   },
   {
-    "code": "/** *  @dev Allows a receipt token holder (or original depositor in case of a sale) to claim their rewardTokens */ function claimReward() public lock {\n}",
-    "startLine": 67,
-    "endLine": 71,
+    "code": "function claimReward() public lock {\n}",
+    "startLine": 66,
+    "endLine": 67,
     "event": "add"
   },
   {
     "code": "require(block.timestamp > endRewardLock, \"lock\");",
+    "startLine": 67,
+    "endLine": 67,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 68,
+    "endLine": 68,
+    "event": "add"
+  },
+  {
+    "code": "TokenStream storage ts = tokensNotYetStreamed[msg.sender];",
+    "startLine": 69,
+    "endLine": 69,
+    "event": "add"
+  },
+  {
+    "code": "cumulativeRewardPerToken = rewardPerToken();",
+    "startLine": 70,
+    "endLine": 70,
+    "event": "add"
+  },
+  {
+    "code": "\n",
     "startLine": 71,
     "endLine": 71,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "ts.rewards = earned(ts, cumulativeRewardPerToken);",
     "startLine": 72,
     "endLine": 72,
     "event": "add"
   },
   {
-    "code": "TokenStream storage ts = tokensNotYetStreamed[msg.sender];",
+    "code": "ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;",
     "startLine": 73,
     "endLine": 73,
     "event": "add"
   },
   {
-    "code": "// accumulate reward per token info",
+    "code": "\n",
     "startLine": 74,
     "endLine": 74,
     "event": "add"
   },
   {
-    "code": "cumulativeRewardPerToken = rewardPerToken();",
+    "code": "lastUpdate = lastApplicableTime();",
     "startLine": 75,
     "endLine": 75,
     "event": "add"
@@ -379,25 +397,25 @@
     "event": "add"
   },
   {
-    "code": "// update user rewards",
+    "code": "uint256 rewardAmt = ts.rewards;",
     "startLine": 77,
     "endLine": 77,
     "event": "add"
   },
   {
-    "code": "ts.rewards = earned(ts, cumulativeRewardPerToken);",
+    "code": "ts.rewards = 0;",
     "startLine": 78,
     "endLine": 78,
     "event": "add"
   },
   {
-    "code": "// update users last cumulative reward per token",
+    "code": "\n",
     "startLine": 79,
     "endLine": 79,
     "event": "add"
   },
   {
-    "code": "ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;",
+    "code": "require(rewardAmt > 0, \"amt\");",
     "startLine": 80,
     "endLine": 80,
     "event": "add"
@@ -409,7 +427,7 @@
     "event": "add"
   },
   {
-    "code": "lastUpdate = lastApplicableTime();",
+    "code": "ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);",
     "startLine": 82,
     "endLine": 82,
     "event": "add"
@@ -421,153 +439,105 @@
     "event": "add"
   },
   {
-    "code": "uint256 rewardAmt = ts.rewards;",
+    "code": "emit RewardsClaimed(msg.sender, rewardAmt);",
     "startLine": 84,
     "endLine": 84,
     "event": "add"
   },
   {
-    "code": "ts.rewards = 0;",
+    "code": "// @Post rewardTokenAmount == rewardTokenAmount(Entry) - rewardAmt",
     "startLine": 85,
     "endLine": 85,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 86,
-    "endLine": 86,
-    "event": "add"
-  },
-  {
-    "code": "require(rewardAmt > 0, \"amt\");",
-    "startLine": 87,
-    "endLine": 87,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 88,
-    "endLine": 88,
-    "event": "add"
-  },
-  {
-    "code": "// transfer the tokens",
-    "startLine": 89,
-    "endLine": 89,
-    "event": "add"
-  },
-  {
-    "code": "ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);",
-    "startLine": 90,
-    "endLine": 90,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 91,
-    "endLine": 91,
-    "event": "add"
-  },
-  {
-    "code": "emit RewardsClaimed(msg.sender, rewardAmt);",
-    "startLine": 92,
-    "endLine": 92,
-    "event": "add"
-  },
-  {
-    "code": "// @Post rewardTokenAmount == rewardTokenAmount(Entry) - rewardAmt",
-    "startLine": 93,
-    "endLine": 93,
-    "event": "add"
-  },
-  {
     "code": "// @Debugging BEGIN",
+    "startLine": 63,
+    "endLine": 63,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar unlocked = [1, 1]",
     "startLine": 64,
     "endLine": 64,
     "event": "add"
   },
   {
-    "code": "// @StateVar unlocked = [1, 1]",
+    "code": "// @StateVar rewardTokenAmount = [1000, 1000]",
     "startLine": 65,
     "endLine": 65,
     "event": "add"
   },
   {
-    "code": "// @StateVar rewardTokenAmount = [1000, 1000]",
+    "code": "// @StateVar cumulativeRewardPerToken = [0, 0]",
     "startLine": 66,
     "endLine": 66,
     "event": "add"
   },
   {
-    "code": "// @StateVar cumulativeRewardPerToken = [0, 0]",
+    "code": "// @StateVar totalVirtualBalance = [0, 0]",
     "startLine": 67,
     "endLine": 67,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalVirtualBalance = [0, 0]",
+    "code": "// @StateVar depositDecimalsOne = [1000000000000000000, 1000000000000000000]",
     "startLine": 68,
     "endLine": 68,
     "event": "add"
   },
   {
-    "code": "// @StateVar depositDecimalsOne = [1000000000000000000, 1000000000000000000]",
+    "code": "// @StateVar endStream = [3000000, 3000000]",
     "startLine": 69,
     "endLine": 69,
     "event": "add"
   },
   {
-    "code": "// @StateVar endStream = [3000000, 3000000]",
+    "code": "// @StateVar endRewardLock = [1000000, 1000000]",
     "startLine": 70,
     "endLine": 70,
     "event": "add"
   },
   {
-    "code": "// @StateVar endRewardLock = [1000000, 1000000]",
+    "code": "// @StateVar rewardToken = symbolicAddress 1",
     "startLine": 71,
     "endLine": 71,
     "event": "add"
   },
   {
-    "code": "// @StateVar rewardToken = symbolicAddress 1",
+    "code": "// @GlobalVar msg.sender = symbolicAddress 2",
     "startLine": 72,
     "endLine": 72,
     "event": "add"
   },
   {
-    "code": "// @GlobalVar msg.sender = symbolicAddress 2",
+    "code": "// @GlobalVar block.timestamp = [2000000, 2000000]",
     "startLine": 73,
     "endLine": 73,
     "event": "add"
   },
   {
-    "code": "// @GlobalVar block.timestamp = [2000000, 2000000]",
+    "code": "// @LocalVar ts.rewards = [1000, 1000]",
     "startLine": 74,
     "endLine": 74,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.rewards = [1000, 1000]",
+    "code": "// @LocalVar ts.virtualBalance = [0, 0]",
     "startLine": 75,
     "endLine": 75,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.virtualBalance = [0, 0]",
+    "code": "// @LocalVar ts.lastCumulativeRewardPerToken = [0, 0]",
     "startLine": 76,
     "endLine": 76,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.lastCumulativeRewardPerToken = [0, 0]",
+    "code": "// @Debugging END",
     "startLine": 77,
     "endLine": 77,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging END",
-    "startLine": 78,
-    "endLine": 78,
     "event": "add"
   }
 ]

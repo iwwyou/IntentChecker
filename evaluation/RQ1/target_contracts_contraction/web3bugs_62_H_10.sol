@@ -30,18 +30,11 @@ contract Stream {
         unlocked = 1;
     }
 
-    /**
-     *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale
-    */
     function creatorClaimSoldTokens(address destination) public lock {
-        // can only claim when its a sale
         require(isSale, "!sale");
 
-        // only can claim once
         require(!claimedDepositTokens, "claimed");
-        // creator is claiming
         require(msg.sender == streamCreator, "!creator");
-        // stream ended
         require(block.timestamp >= endStream, "stream");
 
         uint112 amount = depositTokenAmount;

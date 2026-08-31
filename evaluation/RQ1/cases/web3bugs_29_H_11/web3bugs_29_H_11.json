@@ -246,684 +246,636 @@
     "event": "add"
   },
   {
-    "code": "// @dev balanceOf(address,address).",
+    "code": "(, bytes memory _balance0) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token0, address(this)));",
     "startLine": 52,
     "endLine": 52,
     "event": "add"
   },
   {
-    "code": "(, bytes memory _balance0) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token0, address(this)));",
+    "code": "balance0 = abi.decode(_balance0, (uint256));",
     "startLine": 53,
     "endLine": 53,
     "event": "add"
   },
   {
-    "code": "balance0 = abi.decode(_balance0, (uint256));",
+    "code": "(, bytes memory _balance1) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token1, address(this)));",
     "startLine": 54,
     "endLine": 54,
     "event": "add"
   },
   {
-    "code": "// @dev balanceOf(address,address).",
+    "code": "balance1 = abi.decode(_balance1, (uint256));",
     "startLine": 55,
     "endLine": 55,
     "event": "add"
   },
   {
-    "code": "(, bytes memory _balance1) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token1, address(this)));",
-    "startLine": 56,
-    "endLine": 56,
-    "event": "add"
-  },
-  {
-    "code": "balance1 = abi.decode(_balance1, (uint256));",
+    "code": "\n",
     "startLine": 57,
     "endLine": 57,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "function _mint(address recipient, uint256 amount) internal {\n}",
+    "startLine": 58,
+    "endLine": 59,
+    "event": "add"
+  },
+  {
+    "code": "totalSupply += amount;",
     "startLine": 59,
     "endLine": 59,
     "event": "add"
   },
   {
-    "code": "function _mint(address recipient, uint256 amount) internal {\n}",
+    "code": "unchecked {\n}",
     "startLine": 60,
     "endLine": 61,
     "event": "add"
   },
   {
-    "code": "totalSupply += amount;",
+    "code": "balanceOf[recipient] += amount;",
     "startLine": 61,
     "endLine": 61,
     "event": "add"
   },
   {
-    "code": "unchecked {\n}",
-    "startLine": 62,
-    "endLine": 63,
-    "event": "add"
-  },
-  {
-    "code": "balanceOf[recipient] += amount;",
+    "code": "emit Transfer(address(0), recipient, amount);",
     "startLine": 63,
     "endLine": 63,
     "event": "add"
   },
   {
-    "code": "emit Transfer(address(0), recipient, amount);",
+    "code": "\n",
     "startLine": 65,
     "endLine": 65,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 67,
-    "endLine": 67,
-    "event": "add"
-  },
-  {
     "code": "function _mintFee( uint112 _reserve0, uint112 _reserve1, uint256 _totalSupply ) internal returns (uint256 liquidity) {\n}",
-    "startLine": 68,
-    "endLine": 73,
+    "startLine": 66,
+    "endLine": 71,
     "event": "add"
   },
   {
     "code": "uint256 _kLast = kLast;",
+    "startLine": 71,
+    "endLine": 71,
+    "event": "add"
+  },
+  {
+    "code": "if (_kLast != 0) {\n}",
+    "startLine": 72,
+    "endLine": 73,
+    "event": "add"
+  },
+  {
+    "code": "uint256 computed = TridentMath.sqrt(uint256(_reserve0) * _reserve1);",
     "startLine": 73,
     "endLine": 73,
     "event": "add"
   },
   {
-    "code": "if (_kLast != 0) {\n}",
+    "code": "if (computed > _kLast) {\n}",
     "startLine": 74,
     "endLine": 75,
     "event": "add"
   },
   {
-    "code": "uint256 computed = TridentMath.sqrt(uint256(_reserve0) * _reserve1);",
+    "code": "liquidity = (_totalSupply * (computed - _kLast) * barFee) / computed / MAX_FEE;",
     "startLine": 75,
     "endLine": 75,
     "event": "add"
   },
   {
-    "code": "if (computed > _kLast) {\n}",
+    "code": "if (liquidity != 0) {\n}",
     "startLine": 76,
     "endLine": 77,
     "event": "add"
   },
   {
-    "code": "liquidity = (_totalSupply * (computed - _kLast) * barFee) / computed / MAX_FEE;",
+    "code": "_mint(barFeeTo, liquidity);",
     "startLine": 77,
     "endLine": 77,
     "event": "add"
   },
   {
-    "code": "if (liquidity != 0) {\n}",
-    "startLine": 78,
-    "endLine": 79,
-    "event": "add"
-  },
-  {
-    "code": "_mint(barFeeTo, liquidity);",
-    "startLine": 79,
-    "endLine": 79,
-    "event": "add"
-  },
-  {
     "code": "\n",
+    "startLine": 82,
+    "endLine": 82,
+    "event": "add"
+  },
+  {
+    "code": "function _burn(address sender, uint256 amount) internal {\n}",
+    "startLine": 83,
+    "endLine": 84,
+    "event": "add"
+  },
+  {
+    "code": "balanceOf[sender] -= amount;",
     "startLine": 84,
     "endLine": 84,
     "event": "add"
   },
   {
-    "code": "function _burn(address sender, uint256 amount) internal {\n}",
+    "code": "unchecked {\n}",
     "startLine": 85,
     "endLine": 86,
     "event": "add"
   },
   {
-    "code": "balanceOf[sender] -= amount;",
+    "code": "totalSupply -= amount;",
     "startLine": 86,
     "endLine": 86,
     "event": "add"
   },
   {
-    "code": "unchecked {\n}",
-    "startLine": 87,
-    "endLine": 88,
-    "event": "add"
-  },
-  {
-    "code": "totalSupply -= amount;",
+    "code": "emit Transfer(sender, address(0), amount);",
     "startLine": 88,
     "endLine": 88,
     "event": "add"
   },
   {
-    "code": "emit Transfer(sender, address(0), amount);",
+    "code": "\n",
     "startLine": 90,
     "endLine": 90,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 92,
-    "endLine": 92,
-    "event": "add"
-  },
-  {
     "code": "function _getAmountOut( uint256 amountIn, uint256 reserveAmountIn, uint256 reserveAmountOut ) internal view returns (uint256 amountOut) {\n}",
-    "startLine": 93,
-    "endLine": 98,
+    "startLine": 91,
+    "endLine": 96,
     "event": "add"
   },
   {
     "code": "uint256 amountInWithFee = amountIn * MAX_FEE_MINUS_SWAP_FEE;",
-    "startLine": 98,
-    "endLine": 98,
+    "startLine": 96,
+    "endLine": 96,
     "event": "add"
   },
   {
     "code": "amountOut = (amountInWithFee * reserveAmountOut) / (reserveAmountIn * MAX_FEE + amountInWithFee);",
+    "startLine": 97,
+    "endLine": 97,
+    "event": "add"
+  },
+  {
+    "code": "\n",
     "startLine": 99,
     "endLine": 99,
     "event": "add"
   },
   {
-    "code": "\n",
-    "startLine": 101,
-    "endLine": 101,
-    "event": "add"
-  },
-  {
     "code": "function _transfer( address token, uint256 shares, address to, bool unwrapBento ) internal {\n}",
-    "startLine": 102,
-    "endLine": 108,
+    "startLine": 100,
+    "endLine": 106,
     "event": "add"
   },
   {
     "code": "if (unwrapBento) {\n}",
-    "startLine": 108,
-    "endLine": 109,
-    "event": "add"
-  },
-  {
-    "code": "// @dev withdraw(address,address,address,uint256,uint256).",
-    "startLine": 109,
-    "endLine": 109,
+    "startLine": 106,
+    "endLine": 107,
     "event": "add"
   },
   {
     "code": "(bool success, ) = bento.call(abi.encodeWithSelector(0x97da6d30, token, address(this), to, 0, shares));",
+    "startLine": 107,
+    "endLine": 107,
+    "event": "add"
+  },
+  {
+    "code": "require(success, \"WITHDRAW_FAILED\");",
+    "startLine": 108,
+    "endLine": 108,
+    "event": "add"
+  },
+  {
+    "code": "else {\n}",
+    "startLine": 109,
+    "endLine": 110,
+    "event": "add",
+    "closeBefore": true
+  },
+  {
+    "code": "(bool success, ) = bento.call(abi.encodeWithSelector(0xf18d03cc, token, address(this), to, shares));",
     "startLine": 110,
     "endLine": 110,
     "event": "add"
   },
   {
-    "code": "require(success, \"WITHDRAW_FAILED\");",
+    "code": "require(success, \"TRANSFER_FAILED\");",
     "startLine": 111,
     "endLine": 111,
     "event": "add"
   },
   {
-    "code": "else {\n}",
-    "startLine": 112,
-    "endLine": 113,
-    "event": "add",
-    "closeBefore": true
-  },
-  {
-    "code": "// @dev transfer(address,address,address,uint256).",
-    "startLine": 113,
-    "endLine": 113,
-    "event": "add"
-  },
-  {
-    "code": "(bool success, ) = bento.call(abi.encodeWithSelector(0xf18d03cc, token, address(this), to, shares));",
+    "code": "\n",
     "startLine": 114,
     "endLine": 114,
     "event": "add"
   },
   {
-    "code": "require(success, \"TRANSFER_FAILED\");",
-    "startLine": 115,
-    "endLine": 115,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 118,
-    "endLine": 118,
-    "event": "add"
-  },
-  {
     "code": "function _update( uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast ) internal {\n}",
-    "startLine": 119,
-    "endLine": 126,
+    "startLine": 115,
+    "endLine": 122,
     "event": "add"
   },
   {
     "code": "require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, \"OVERFLOW\");",
-    "startLine": 126,
-    "endLine": 126,
+    "startLine": 122,
+    "endLine": 122,
     "event": "add"
   },
   {
     "code": "if (blockTimestampLast == 0) {\n}",
-    "startLine": 127,
-    "endLine": 128,
-    "event": "add"
-  },
-  {
-    "code": "// @dev TWAP support is disabled for gas efficiency.",
-    "startLine": 128,
-    "endLine": 128,
+    "startLine": 123,
+    "endLine": 124,
     "event": "add"
   },
   {
     "code": "reserve0 = uint112(balance0);",
-    "startLine": 129,
-    "endLine": 129,
+    "startLine": 124,
+    "endLine": 124,
     "event": "add"
   },
   {
     "code": "reserve1 = uint112(balance1);",
-    "startLine": 130,
-    "endLine": 130,
+    "startLine": 125,
+    "endLine": 125,
     "event": "add"
   },
   {
     "code": "else {\n}",
-    "startLine": 131,
-    "endLine": 132,
+    "startLine": 126,
+    "endLine": 127,
     "event": "add",
     "closeBefore": true
   },
   {
     "code": "uint32 blockTimestamp = uint32(block.timestamp % 2**32);",
+    "startLine": 127,
+    "endLine": 127,
+    "event": "add"
+  },
+  {
+    "code": "if (blockTimestamp != _blockTimestampLast && _reserve0 != 0 && _reserve1 != 0) {\n}",
+    "startLine": 128,
+    "endLine": 129,
+    "event": "add"
+  },
+  {
+    "code": "unchecked {\n}",
+    "startLine": 129,
+    "endLine": 130,
+    "event": "add"
+  },
+  {
+    "code": "uint32 timeElapsed = blockTimestamp - _blockTimestampLast;",
+    "startLine": 130,
+    "endLine": 130,
+    "event": "add"
+  },
+  {
+    "code": "uint256 price0 = (uint256(_reserve1) << PRECISION) / _reserve0;",
+    "startLine": 131,
+    "endLine": 131,
+    "event": "add"
+  },
+  {
+    "code": "price0CumulativeLast += price0 * timeElapsed;",
     "startLine": 132,
     "endLine": 132,
     "event": "add"
   },
   {
-    "code": "if (blockTimestamp != _blockTimestampLast && _reserve0 != 0 && _reserve1 != 0) {\n}",
+    "code": "uint256 price1 = (uint256(_reserve0) << PRECISION) / _reserve1;",
     "startLine": 133,
+    "endLine": 133,
+    "event": "add"
+  },
+  {
+    "code": "price1CumulativeLast += price1 * timeElapsed;",
+    "startLine": 134,
     "endLine": 134,
     "event": "add"
   },
   {
-    "code": "unchecked {\n}",
-    "startLine": 134,
-    "endLine": 135,
-    "event": "add"
-  },
-  {
-    "code": "uint32 timeElapsed = blockTimestamp - _blockTimestampLast;",
-    "startLine": 135,
-    "endLine": 135,
-    "event": "add"
-  },
-  {
-    "code": "uint256 price0 = (uint256(_reserve1) << PRECISION) / _reserve0;",
-    "startLine": 136,
-    "endLine": 136,
-    "event": "add"
-  },
-  {
-    "code": "price0CumulativeLast += price0 * timeElapsed;",
+    "code": "reserve0 = uint112(balance0);",
     "startLine": 137,
     "endLine": 137,
     "event": "add"
   },
   {
-    "code": "uint256 price1 = (uint256(_reserve0) << PRECISION) / _reserve1;",
+    "code": "reserve1 = uint112(balance1);",
     "startLine": 138,
     "endLine": 138,
     "event": "add"
   },
   {
-    "code": "price1CumulativeLast += price1 * timeElapsed;",
+    "code": "blockTimestampLast = blockTimestamp;",
     "startLine": 139,
     "endLine": 139,
     "event": "add"
   },
   {
-    "code": "reserve0 = uint112(balance0);",
-    "startLine": 142,
-    "endLine": 142,
+    "code": "emit Sync(balance0, balance1);",
+    "startLine": 141,
+    "endLine": 141,
     "event": "add"
   },
   {
-    "code": "reserve1 = uint112(balance1);",
+    "code": "\n",
     "startLine": 143,
     "endLine": 143,
     "event": "add"
   },
   {
-    "code": "blockTimestampLast = blockTimestamp;",
+    "code": "function burnSingle(bytes calldata data) public lock returns (uint256 amountOut) {\n}",
     "startLine": 144,
-    "endLine": 144,
+    "endLine": 145,
     "event": "add"
   },
   {
-    "code": "emit Sync(balance0, balance1);",
+    "code": "(address tokenOut, address recipient, bool unwrapBento) = abi.decode(data, (address, address, bool));",
+    "startLine": 145,
+    "endLine": 145,
+    "event": "add"
+  },
+  {
+    "code": "(uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) = _getReserves();",
     "startLine": 146,
     "endLine": 146,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "(uint256 balance0, uint256 balance1) = _balance();",
+    "startLine": 147,
+    "endLine": 147,
+    "event": "add"
+  },
+  {
+    "code": "uint256 _totalSupply = totalSupply;",
     "startLine": 148,
     "endLine": 148,
     "event": "add"
   },
   {
-    "code": "function burnSingle(bytes calldata data) public lock returns (uint256 amountOut) {\n}",
+    "code": "uint256 liquidity = balanceOf[address(this)];",
     "startLine": 149,
-    "endLine": 150,
+    "endLine": 149,
     "event": "add"
   },
   {
-    "code": "(address tokenOut, address recipient, bool unwrapBento) = abi.decode(data, (address, address, bool));",
+    "code": "\n",
     "startLine": 150,
     "endLine": 150,
     "event": "add"
   },
   {
-    "code": "(uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) = _getReserves();",
-    "startLine": 151,
-    "endLine": 151,
-    "event": "add"
-  },
-  {
-    "code": "(uint256 balance0, uint256 balance1) = _balance();",
-    "startLine": 152,
-    "endLine": 152,
-    "event": "add"
-  },
-  {
-    "code": "uint256 _totalSupply = totalSupply;",
-    "startLine": 153,
-    "endLine": 153,
-    "event": "add"
-  },
-  {
-    "code": "uint256 liquidity = balanceOf[address(this)];",
-    "startLine": 154,
-    "endLine": 154,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 155,
-    "endLine": 155,
-    "event": "add"
-  },
-  {
     "code": "unchecked {\n}",
-    "startLine": 156,
-    "endLine": 157,
+    "startLine": 151,
+    "endLine": 152,
     "event": "add"
   },
   {
     "code": "_totalSupply += _mintFee(_reserve0, _reserve1, _totalSupply);",
-    "startLine": 157,
-    "endLine": 157,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 159,
-    "endLine": 159,
-    "event": "add"
-  },
-  {
-    "code": "uint256 amount0 = (liquidity * balance0) / _totalSupply;",
-    "startLine": 160,
-    "endLine": 160,
-    "event": "add"
-  },
-  {
-    "code": "uint256 amount1 = (liquidity * balance1) / _totalSupply;",
-    "startLine": 161,
-    "endLine": 161,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 162,
-    "endLine": 162,
-    "event": "add"
-  },
-  {
-    "code": "_burn(address(this), liquidity);",
-    "startLine": 163,
-    "endLine": 163,
-    "event": "add"
-  },
-  {
-    "code": "unchecked {\n}",
-    "startLine": 164,
-    "endLine": 165,
-    "event": "add"
-  },
-  {
-    "code": "if (tokenOut == token1) {\n}",
-    "startLine": 165,
-    "endLine": 166,
-    "event": "add"
-  },
-  {
-    "code": "// @dev Swap `token0` for `token1`",
-    "startLine": 166,
-    "endLine": 166,
-    "event": "add"
-  },
-  {
-    "code": "// - calculate `amountOut` as if the user first withdrew balanced liquidity and then swapped `token0` for `token1`.",
-    "startLine": 167,
-    "endLine": 167,
-    "event": "add"
-  },
-  {
-    "code": "amount1 += _getAmountOut(amount0, _reserve0 - amount0, _reserve1 - amount1);",
-    "startLine": 168,
-    "endLine": 168,
-    "event": "add"
-  },
-  {
-    "code": "_transfer(token1, amount1, recipient, unwrapBento);",
-    "startLine": 169,
-    "endLine": 169,
-    "event": "add"
-  },
-  {
-    "code": "balance1 -= amount1;",
-    "startLine": 170,
-    "endLine": 170,
-    "event": "add"
-  },
-  {
-    "code": "amountOut = amount1;",
-    "startLine": 171,
-    "endLine": 171,
-    "event": "add"
-  },
-  {
-    "code": "amount0 = 0;",
-    "startLine": 172,
-    "endLine": 172,
-    "event": "add"
-  },
-  {
-    "code": "else {\n}",
-    "startLine": 173,
-    "endLine": 174,
-    "event": "add",
-    "closeBefore": true
-  },
-  {
-    "code": "// @dev Swap `token1` for `token0`.",
-    "startLine": 174,
-    "endLine": 174,
-    "event": "add"
-  },
-  {
-    "code": "require(tokenOut == token0, \"INVALID_OUTPUT_TOKEN\");",
-    "startLine": 175,
-    "endLine": 175,
-    "event": "add"
-  },
-  {
-    "code": "amount0 += _getAmountOut(amount1, _reserve1 - amount1, _reserve0 - amount0);",
-    "startLine": 176,
-    "endLine": 176,
-    "event": "add"
-  },
-  {
-    "code": "_transfer(token0, amount0, recipient, unwrapBento);",
-    "startLine": 177,
-    "endLine": 177,
-    "event": "add"
-  },
-  {
-    "code": "balance0 -= amount0;",
-    "startLine": 178,
-    "endLine": 178,
-    "event": "add"
-  },
-  {
-    "code": "amountOut = amount0;",
-    "startLine": 179,
-    "endLine": 179,
-    "event": "add"
-  },
-  {
-    "code": "amount1 = 0;",
-    "startLine": 180,
-    "endLine": 180,
-    "event": "add"
-  },
-  {
-    "code": "_update(balance0, balance1, _reserve0, _reserve1, _blockTimestampLast);",
-    "startLine": 183,
-    "endLine": 183,
-    "event": "add"
-  },
-  {
-    "code": "kLast = TridentMath.sqrt(balance0 * balance1);",
-    "startLine": 184,
-    "endLine": 184,
-    "event": "add"
-  },
-  {
-    "code": "emit Burn(msg.sender, amount0, amount1, recipient);",
-    "startLine": 185,
-    "endLine": 185,
-    "event": "add"
-  },
-  {
-    "code": "// @During amount1 == amount1(Before) + (amount0 * MAX_FEE_MINUS_SWAP_FEE * (balance1 - amount1(Before))) / ((balance0 - amount0) * MAX_FEE + amount0 * MAX_FEE_MINUS_SWAP_FEE)",
-    "startLine": 168,
-    "endLine": 168,
-    "event": "add"
-  },
-  {
-    "code": "// @During amount0 == amount0(Before) + (amount1 * MAX_FEE_MINUS_SWAP_FEE * (balance0 - amount0(Before))) / ((balance1 - amount1) * MAX_FEE + amount1 * MAX_FEE_MINUS_SWAP_FEE)",
-    "startLine": 176,
-    "endLine": 176,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging BEGIN",
-    "startLine": 150,
-    "endLine": 150,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar unlocked = [1, 1]",
-    "startLine": 151,
-    "endLine": 151,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar reserve0 = [1000, 1000]",
     "startLine": 152,
     "endLine": 152,
     "event": "add"
   },
   {
-    "code": "// @StateVar reserve1 = [1000, 1000]",
-    "startLine": 153,
-    "endLine": 153,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar blockTimestampLast = [0, 0]",
+    "code": "\n",
     "startLine": 154,
     "endLine": 154,
     "event": "add"
   },
   {
-    "code": "// @StateVar bento = symbolicAddress 1",
+    "code": "uint256 amount0 = (liquidity * balance0) / _totalSupply;",
     "startLine": 155,
     "endLine": 155,
     "event": "add"
   },
   {
-    "code": "// @StateVar token0 = symbolicAddress 2",
+    "code": "uint256 amount1 = (liquidity * balance1) / _totalSupply;",
     "startLine": 156,
     "endLine": 156,
     "event": "add"
   },
   {
-    "code": "// @StateVar token1 = symbolicAddress 3",
+    "code": "\n",
     "startLine": 157,
     "endLine": 157,
     "event": "add"
   },
   {
-    "code": "// @StateVar totalSupply = [1000, 1000]",
+    "code": "_burn(address(this), liquidity);",
     "startLine": 158,
     "endLine": 158,
     "event": "add"
   },
   {
-    "code": "// @StateVar balanceOf[address(this)] = [100, 100]",
+    "code": "unchecked {\n}",
     "startLine": 159,
-    "endLine": 159,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar kLast = [0, 0]",
-    "startLine": 160,
     "endLine": 160,
     "event": "add"
   },
   {
-    "code": "// @LocalVar tokenOut = symbolicAddress 3",
+    "code": "if (tokenOut == token1) {\n}",
+    "startLine": 160,
+    "endLine": 161,
+    "event": "add"
+  },
+  {
+    "code": "amount1 += _getAmountOut(amount0, _reserve0 - amount0, _reserve1 - amount1);",
     "startLine": 161,
     "endLine": 161,
     "event": "add"
   },
   {
-    "code": "// @LocalVar recipient = symbolicAddress 4",
+    "code": "_transfer(token1, amount1, recipient, unwrapBento);",
     "startLine": 162,
     "endLine": 162,
     "event": "add"
   },
   {
-    "code": "// @LocalVar unwrapBento = [0, 0]",
+    "code": "balance1 -= amount1;",
     "startLine": 163,
     "endLine": 163,
     "event": "add"
   },
   {
-    "code": "// @Debugging END",
+    "code": "amountOut = amount1;",
     "startLine": 164,
     "endLine": 164,
+    "event": "add"
+  },
+  {
+    "code": "amount0 = 0;",
+    "startLine": 165,
+    "endLine": 165,
+    "event": "add"
+  },
+  {
+    "code": "else {\n}",
+    "startLine": 166,
+    "endLine": 167,
+    "event": "add",
+    "closeBefore": true
+  },
+  {
+    "code": "require(tokenOut == token0, \"INVALID_OUTPUT_TOKEN\");",
+    "startLine": 167,
+    "endLine": 167,
+    "event": "add"
+  },
+  {
+    "code": "amount0 += _getAmountOut(amount1, _reserve1 - amount1, _reserve0 - amount0);",
+    "startLine": 168,
+    "endLine": 168,
+    "event": "add"
+  },
+  {
+    "code": "_transfer(token0, amount0, recipient, unwrapBento);",
+    "startLine": 169,
+    "endLine": 169,
+    "event": "add"
+  },
+  {
+    "code": "balance0 -= amount0;",
+    "startLine": 170,
+    "endLine": 170,
+    "event": "add"
+  },
+  {
+    "code": "amountOut = amount0;",
+    "startLine": 171,
+    "endLine": 171,
+    "event": "add"
+  },
+  {
+    "code": "amount1 = 0;",
+    "startLine": 172,
+    "endLine": 172,
+    "event": "add"
+  },
+  {
+    "code": "_update(balance0, balance1, _reserve0, _reserve1, _blockTimestampLast);",
+    "startLine": 175,
+    "endLine": 175,
+    "event": "add"
+  },
+  {
+    "code": "kLast = TridentMath.sqrt(balance0 * balance1);",
+    "startLine": 176,
+    "endLine": 176,
+    "event": "add"
+  },
+  {
+    "code": "emit Burn(msg.sender, amount0, amount1, recipient);",
+    "startLine": 177,
+    "endLine": 177,
+    "event": "add"
+  },
+  {
+    "code": "// @During amount1 == amount1(Before) + (amount0 * MAX_FEE_MINUS_SWAP_FEE * (balance1 - amount1(Before))) / ((balance0 - amount0) * MAX_FEE + amount0 * MAX_FEE_MINUS_SWAP_FEE)",
+    "startLine": 161,
+    "endLine": 161,
+    "event": "add"
+  },
+  {
+    "code": "// @During amount0 == amount0(Before) + (amount1 * MAX_FEE_MINUS_SWAP_FEE * (balance0 - amount0(Before))) / ((balance1 - amount1) * MAX_FEE + amount1 * MAX_FEE_MINUS_SWAP_FEE)",
+    "startLine": 168,
+    "endLine": 168,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging BEGIN",
+    "startLine": 145,
+    "endLine": 145,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar unlocked = [1, 1]",
+    "startLine": 146,
+    "endLine": 146,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar reserve0 = [1000, 1000]",
+    "startLine": 147,
+    "endLine": 147,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar reserve1 = [1000, 1000]",
+    "startLine": 148,
+    "endLine": 148,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar blockTimestampLast = [0, 0]",
+    "startLine": 149,
+    "endLine": 149,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar bento = symbolicAddress 1",
+    "startLine": 150,
+    "endLine": 150,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar token0 = symbolicAddress 2",
+    "startLine": 151,
+    "endLine": 151,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar token1 = symbolicAddress 3",
+    "startLine": 152,
+    "endLine": 152,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar totalSupply = [1000, 1000]",
+    "startLine": 153,
+    "endLine": 153,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar balanceOf[address(this)] = [100, 100]",
+    "startLine": 154,
+    "endLine": 154,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar kLast = [0, 0]",
+    "startLine": 155,
+    "endLine": 155,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar tokenOut = symbolicAddress 3",
+    "startLine": 156,
+    "endLine": 156,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar recipient = symbolicAddress 4",
+    "startLine": 157,
+    "endLine": 157,
+    "event": "add"
+  },
+  {
+    "code": "// @LocalVar unwrapBento = [0, 0]",
+    "startLine": 158,
+    "endLine": 158,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 159,
+    "endLine": 159,
     "event": "add"
   }
 ]

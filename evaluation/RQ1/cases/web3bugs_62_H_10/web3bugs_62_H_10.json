@@ -180,19 +180,37 @@
     "event": "add"
   },
   {
-    "code": "/** *  @dev Allows a creator to claim sold tokens if the stream has ended & this contract is a sale */ function creatorClaimSoldTokens(address destination) public lock {\n}",
+    "code": "function creatorClaimSoldTokens(address destination) public lock {\n}",
     "startLine": 33,
-    "endLine": 37,
+    "endLine": 34,
     "event": "add"
   },
   {
-    "code": "// can only claim when its a sale",
+    "code": "require(isSale, \"!sale\");",
+    "startLine": 34,
+    "endLine": 34,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 35,
+    "endLine": 35,
+    "event": "add"
+  },
+  {
+    "code": "require(!claimedDepositTokens, \"claimed\");",
+    "startLine": 36,
+    "endLine": 36,
+    "event": "add"
+  },
+  {
+    "code": "require(msg.sender == streamCreator, \"!creator\");",
     "startLine": 37,
     "endLine": 37,
     "event": "add"
   },
   {
-    "code": "require(isSale, \"!sale\");",
+    "code": "require(block.timestamp >= endStream, \"stream\");",
     "startLine": 38,
     "endLine": 38,
     "event": "add"
@@ -204,87 +222,45 @@
     "event": "add"
   },
   {
-    "code": "// only can claim once",
+    "code": "uint112 amount = depositTokenAmount;",
     "startLine": 40,
     "endLine": 40,
     "event": "add"
   },
   {
-    "code": "require(!claimedDepositTokens, \"claimed\");",
+    "code": "claimedDepositTokens = true;",
     "startLine": 41,
     "endLine": 41,
     "event": "add"
   },
   {
-    "code": "// creator is claiming",
+    "code": "\n",
     "startLine": 42,
     "endLine": 42,
     "event": "add"
   },
   {
-    "code": "require(msg.sender == streamCreator, \"!creator\");",
+    "code": "ERC20(depositToken).safeTransfer(destination, amount);",
     "startLine": 43,
     "endLine": 43,
     "event": "add"
   },
   {
-    "code": "// stream ended",
+    "code": "\n",
     "startLine": 44,
     "endLine": 44,
     "event": "add"
   },
   {
-    "code": "require(block.timestamp >= endStream, \"stream\");",
+    "code": "emit SoldTokensClaimed(destination, amount);",
     "startLine": 45,
     "endLine": 45,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "// @Post (depositTokenAmount - redeemedDepositTokens) == (depositTokenAmount(Entry) - redeemedDepositTokens(Entry)) - amount",
     "startLine": 46,
     "endLine": 46,
-    "event": "add"
-  },
-  {
-    "code": "uint112 amount = depositTokenAmount;",
-    "startLine": 47,
-    "endLine": 47,
-    "event": "add"
-  },
-  {
-    "code": "claimedDepositTokens = true;",
-    "startLine": 48,
-    "endLine": 48,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 49,
-    "endLine": 49,
-    "event": "add"
-  },
-  {
-    "code": "ERC20(depositToken).safeTransfer(destination, amount);",
-    "startLine": 50,
-    "endLine": 50,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 51,
-    "endLine": 51,
-    "event": "add"
-  },
-  {
-    "code": "emit SoldTokensClaimed(destination, amount);",
-    "startLine": 52,
-    "endLine": 52,
-    "event": "add"
-  },
-  {
-    "code": "// @Post (depositTokenAmount - redeemedDepositTokens) == (depositTokenAmount(Entry) - redeemedDepositTokens(Entry)) - amount",
-    "startLine": 53,
-    "endLine": 53,
     "event": "add"
   },
   {

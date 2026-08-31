@@ -324,8 +324,20 @@
     "event": "add"
   },
   {
-    "code": "(uint112 reserveNative, uint112 reserveForeign, ) = getReserves( foreignAsset ); // gas savings amountSynth = VaderMath.calculateSwap( nativeDeposit, reserveNative, reserveForeign );",
+    "code": "(uint112 reserveNative, uint112 reserveForeign, ) = getReserves( foreignAsset ); amountSynth = VaderMath.calculateSwap( nativeDeposit, reserveNative, reserveForeign );",
     "startLine": 105,
+    "endLine": 105,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 106,
+    "endLine": 106,
+    "event": "add"
+  },
+  {
+    "code": "_update( foreignAsset, reserveNative + nativeDeposit, reserveForeign, reserveNative, reserveForeign );",
+    "startLine": 107,
     "endLine": 113,
     "event": "add"
   },
@@ -336,33 +348,15 @@
     "event": "add"
   },
   {
-    "code": "// TODO: Clarify",
+    "code": "synth.mint(to, amountSynth);",
     "startLine": 115,
     "endLine": 115,
     "event": "add"
   },
   {
-    "code": "_update( foreignAsset, reserveNative + nativeDeposit, reserveForeign, reserveNative, reserveForeign );",
-    "startLine": 116,
-    "endLine": 122,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 123,
-    "endLine": 123,
-    "event": "add"
-  },
-  {
-    "code": "synth.mint(to, amountSynth);",
-    "startLine": 124,
-    "endLine": 124,
-    "event": "add"
-  },
-  {
     "code": "// @During _update.arg[2] == reserveForeign - amountSynth",
-    "startLine": 116,
-    "endLine": 116,
+    "startLine": 107,
+    "endLine": 107,
     "event": "add"
   },
   {

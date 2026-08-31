@@ -6,9 +6,6 @@ contract Lock {
 
     mapping(address => uint) public totalLocked;
 
-    /**
-     * @notice Claim rewards from gov nfts and distribute them to bonds
-     */
     function claimGovFees() public {
         address[] memory assets = bondNFT.getAssets();
 
@@ -30,12 +27,6 @@ contract Lock {
         return _tigAsset;
     }
 
-    /**
-     * @notice Reset the lock time and extend the period and/or token amount
-     * @param _id Bond id being extended
-     * @param _amount tigAsset amount being added
-     * @param _period number of days being added
-     */
     function extendLock(
         uint _id,
         uint _amount,

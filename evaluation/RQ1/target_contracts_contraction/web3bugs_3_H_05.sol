@@ -100,9 +100,6 @@ abstract contract CrossMarginAccounts is RoleAware, PriceAware {
     {
         uint256 loan = loanInPeg(account, true);
         uint256 holdings = holdingsInPeg(account, true);
-        // The following should hold:
-        // holdings / loan >= 1.1
-        // => holdings >= loan * 1.1
         return 100 * holdings >= liquidationThresholdPercent * loan;
     }
 }

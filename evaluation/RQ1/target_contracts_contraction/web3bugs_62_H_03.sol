@@ -52,7 +52,6 @@ contract Stream {
         if (totalVirtualBalance == 0) {
             return cumulativeRewardPerToken;
         } else {
-            // ∆time*rewardTokensPerSecond*oneDepositToken / totalVirtualBalance
             return cumulativeRewardPerToken + (
                 ((uint256(lastApplicableTime()) - lastUpdate) * rewardTokenAmount * depositDecimalsOne/streamDuration)
                 / totalVirtualBalance
@@ -64,19 +63,13 @@ contract Stream {
         return uint112(ts.virtualBalance * (currCumRewardPerToken - ts.lastCumulativeRewardPerToken) / depositDecimalsOne) + ts.rewards;
     }
 
-    /**
-     *  @dev Allows a receipt token holder (or original depositor in case of a sale) to claim their rewardTokens
-    */
     function claimReward() public lock {
         require(block.timestamp > endRewardLock, "lock");
 
         TokenStream storage ts = tokensNotYetStreamed[msg.sender];
-        // accumulate reward per token info
         cumulativeRewardPerToken = rewardPerToken();
 
-        // update user rewards
         ts.rewards = earned(ts, cumulativeRewardPerToken);
-        // update users last cumulative reward per token
         ts.lastCumulativeRewardPerToken = cumulativeRewardPerToken;
 
         lastUpdate = lastApplicableTime();
@@ -86,7 +79,6 @@ contract Stream {
 
         require(rewardAmt > 0, "amt");
 
-        // transfer the tokens
         ERC20(rewardToken).safeTransfer(msg.sender, rewardAmt);
 
         emit RewardsClaimed(msg.sender, rewardAmt);

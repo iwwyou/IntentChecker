@@ -104,7 +104,7 @@ contract VaderPoolV2 {
 
         (uint112 reserveNative, uint112 reserveForeign, ) = getReserves(
             foreignAsset
-        ); // gas savings
+        );
 
         amountSynth = VaderMath.calculateSwap(
             nativeDeposit,
@@ -112,7 +112,6 @@ contract VaderPoolV2 {
             reserveForeign
         );
 
-        // TODO: Clarify
         _update(
             foreignAsset,
             reserveNative + nativeDeposit,

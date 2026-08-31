@@ -18,7 +18,6 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
 
     mapping(address => HourlyBondMetadata) hourlyBondMetadata;
 
-    // issuer => holder => bond record
     mapping(address => mapping(address => HourlyBond))
         public hourlyBondAccounts;
 
@@ -27,9 +26,6 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
         uint256 timeDelta
     ) internal view returns (uint256 accumulatorFP) {
         uint256 secondsDelta = timeDelta % (1 hours);
-        // linearly interpolate interest for seconds
-        // accumulator * hourly_yield == seconds_per_hour * accumulator * hourly_yield / seconds_per_hour
-        // FP * FP * 1 / (FP * 1) = FP
         accumulatorFP =
             (yieldAccumulator.accumulatorFP *
                 yieldAccumulator.hourlyYieldFP *
@@ -38,10 +34,7 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
 
         uint256 hoursDelta = timeDelta / (1 hours);
         if (hoursDelta > 0) {
-            // This loop should hardly ever 1 or more unless something bad happened
-            // In which case it costs gas but there isn't overflow
             for (uint256 i = 0; hoursDelta > i; i++) {
-                // FP32 * FP32 / FP32 = FP32
                 accumulatorFP =
                     (accumulatorFP * yieldAccumulator.hourlyYieldFP) /
                     FP32;
@@ -57,7 +50,6 @@ abstract contract HourlyBondSubscriptionLending is BaseLending {
         return calcCumulativeYieldFP(yA, timeDelta);
     }
 
-    // Retrieves bond balance for issuer and holder
     function viewHourlyBondAmount(address issuer, address holder)
         public
         view

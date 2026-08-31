@@ -228,21 +228,15 @@
     "event": "add"
   },
   {
-    "code": "// NOTE: Accuracy of VADER & USDV is 18 decimals == 1 ether",
+    "code": "return (totalUSD * 1 ether) / totalUSDV;",
     "startLine": 55,
     "endLine": 55,
     "event": "add"
   },
   {
-    "code": "return (totalUSD * 1 ether) / totalUSDV;",
+    "code": "// @Post returnExpression == (totalUSD * (10 ** 10) * (10 ** 18)) / totalUSDV",
     "startLine": 56,
     "endLine": 56,
-    "event": "add"
-  },
-  {
-    "code": "// @Post returnExpression == (totalUSD * (10 ** 10) * (10 ** 18)) / totalUSDV",
-    "startLine": 57,
-    "endLine": 57,
     "event": "add"
   },
   {

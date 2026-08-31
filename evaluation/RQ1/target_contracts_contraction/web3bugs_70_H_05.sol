@@ -52,7 +52,6 @@ contract LiquidityBasedTWAP is ILiquidityBasedTWAP, Ownable {
                 totalUSDVLiquidityWeight;
         }
 
-        // NOTE: Accuracy of VADER & USDV is 18 decimals == 1 ether
         return (totalUSD * 1 ether) / totalUSDV;
     }
 }

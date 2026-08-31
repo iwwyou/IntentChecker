@@ -216,39 +216,39 @@
     "event": "add"
   },
   {
-    "code": "mapping(address => mapping(int24 => mapping(int24 => Position))) public positions;",
+    "code": "struct Position {\n}",
     "startLine": 38,
-    "endLine": 38,
+    "endLine": 39,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "uint128 liquidity;",
     "startLine": 39,
     "endLine": 39,
     "event": "add"
   },
   {
-    "code": "struct Position {\n}",
+    "code": "uint256 feeGrowthInside0Last;",
     "startLine": 40,
-    "endLine": 41,
+    "endLine": 40,
     "event": "add"
   },
   {
-    "code": "uint128 liquidity;",
+    "code": "uint256 feeGrowthInside1Last;",
     "startLine": 41,
     "endLine": 41,
     "event": "add"
   },
   {
-    "code": "uint256 feeGrowthInside0Last;",
-    "startLine": 42,
-    "endLine": 42,
+    "code": "\n",
+    "startLine": 43,
+    "endLine": 43,
     "event": "add"
   },
   {
-    "code": "uint256 feeGrowthInside1Last;",
-    "startLine": 43,
-    "endLine": 43,
+    "code": "mapping(address => mapping(int24 => mapping(int24 => Position))) public positions;",
+    "startLine": 44,
+    "endLine": 44,
     "event": "add"
   },
   {

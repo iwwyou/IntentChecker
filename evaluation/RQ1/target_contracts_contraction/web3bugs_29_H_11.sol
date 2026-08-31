@@ -49,10 +49,8 @@ contract ConstantProductPool {
     }
 
     function _balance() internal view returns (uint256 balance0, uint256 balance1) {
-        // @dev balanceOf(address,address).
         (, bytes memory _balance0) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token0, address(this)));
         balance0 = abi.decode(_balance0, (uint256));
-        // @dev balanceOf(address,address).
         (, bytes memory _balance1) = bento.staticcall(abi.encodeWithSelector(0xf7888aec, token1, address(this)));
         balance1 = abi.decode(_balance1, (uint256));
     }
@@ -106,11 +104,9 @@ contract ConstantProductPool {
         bool unwrapBento
     ) internal {
         if (unwrapBento) {
-            // @dev withdraw(address,address,address,uint256,uint256).
             (bool success, ) = bento.call(abi.encodeWithSelector(0x97da6d30, token, address(this), to, 0, shares));
             require(success, "WITHDRAW_FAILED");
         } else {
-            // @dev transfer(address,address,address,uint256).
             (bool success, ) = bento.call(abi.encodeWithSelector(0xf18d03cc, token, address(this), to, shares));
             require(success, "TRANSFER_FAILED");
         }
@@ -125,7 +121,6 @@ contract ConstantProductPool {
     ) internal {
         require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, "OVERFLOW");
         if (blockTimestampLast == 0) {
-            // @dev TWAP support is disabled for gas efficiency.
             reserve0 = uint112(balance0);
             reserve1 = uint112(balance1);
         } else {
@@ -163,15 +158,12 @@ contract ConstantProductPool {
         _burn(address(this), liquidity);
         unchecked {
             if (tokenOut == token1) {
-                // @dev Swap `token0` for `token1`
-                // - calculate `amountOut` as if the user first withdrew balanced liquidity and then swapped `token0` for `token1`.
                 amount1 += _getAmountOut(amount0, _reserve0 - amount0, _reserve1 - amount1);
                 _transfer(token1, amount1, recipient, unwrapBento);
                 balance1 -= amount1;
                 amountOut = amount1;
                 amount0 = 0;
             } else {
-                // @dev Swap `token1` for `token0`.
                 require(tokenOut == token0, "INVALID_OUTPUT_TOKEN");
                 amount0 += _getAmountOut(amount1, _reserve1 - amount1, _reserve0 - amount0);
                 _transfer(token0, amount0, recipient, unwrapBento);
