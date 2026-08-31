@@ -545,6 +545,7 @@ def main():
             ("51/ERC20.sol",                "contract"),   # is Context
             ("51/ERC20Burnable.sol",        "contract"),   # is ERC20
             ("51/LPToken.sol",              "contract"),   # is ERC20Burnable, Ownable
+            ("BaseLending.sol",             "contract"),   # standalone (trimmed to FP32/applyInterest for web3bugs_3_H_04, no base deps)
             # --- 112/ : library → contract ---
             ("112/Roles.sol",               "library"),
             ("112/Controller.sol",          "contract"),

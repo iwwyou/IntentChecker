@@ -1822,6 +1822,63 @@ class Evaluation :
         else:
             return result
 
+    def _elementary_type_top(self, type_name: str):
+        """
+        elementary 타입 이름 문자열(예: "uint256", "address", "bytes32") → 그 타입의
+        top 값. `abi.decode`의 타입-리스트 원소처럼 SolType 객체 없이 타입 이름만
+        있는 상황 전용 — 실제 SolType이 있는 경우는 Utils.Helper.top_from_soltype을 쓸 것.
+        """
+        t = (type_name or "").strip()
+        if t in ("address", "addresspayable", "address payable"):
+            return AddressSet.top()
+        if t == "bool":
+            return BoolInterval.top()
+        if t.startswith("uint"):
+            bits = int(t[4:]) if t[4:].isdigit() else 256
+            return UnsignedIntegerInterval.top(bits)
+        if t.startswith("int"):
+            bits = int(t[3:]) if t[3:].isdigit() else 256
+            return IntegerInterval.top(bits)
+        if t.startswith("bytes") and t[5:].isdigit():
+            return BytesSet.top(int(t[5:]))
+        if t in ("bytes", "string"):
+            return BytesSet.top()
+        raise ValueError(f"abi.decode: unsupported elementary type name '{type_name}'")
+
+    def _evaluate_abi_call(self, expr, member_name: str):
+        """
+        abi.decode / abi.encode / abi.encodePacked / abi.encodeWithSelector /
+        abi.encodeWithSignature / abi.encodeCall — 실제 ABI 인코딩·디코딩을
+        추적하지 않고 opaque TOP을 반환한다. `.call()`/`.staticcall()`이 이미
+        자신의 인자를 평가하지 않고 바로 top을 반환하는 것과 동일한 패턴 — 크래시
+        대신 이 계열 전체를 미지원 외부 인터랙션으로 취급한다.
+        """
+        if member_name == "decode":
+            args = expr.arguments or []
+            if len(args) != 2:
+                raise ValueError(f"abi.decode expects 2 arguments, got {len(args)}")
+            type_list_expr = args[1]
+            type_exprs = (type_list_expr.elements
+                          if getattr(type_list_expr, 'elements', None) is not None
+                          else [type_list_expr])
+            if not type_exprs:
+                raise ValueError("abi.decode: empty type list")
+
+            results = []
+            for t in type_exprs:
+                type_name = getattr(t, 'identifier', None)
+                if type_name is None:
+                    raise ValueError(f"abi.decode: unrecognised type-list element {t!r}")
+                results.append(self._elementary_type_top(type_name))
+
+            return results[0] if len(results) == 1 else results
+
+        if member_name in ("encode", "encodePacked", "encodeWithSelector",
+                            "encodeWithSignature", "encodeCall"):
+            return BytesSet.top()
+
+        raise ValueError(f"abi.{member_name} is not a recognised abi function")
+
     def evaluate_function_call_context(self, expr, variables, callerObject=None, callerContext=None):
         # [TRACE]
         _fn = getattr(expr, 'function', None)
@@ -1833,6 +1890,12 @@ class Evaluation :
             # ★ @IReturn: interface call이면 registry에서 값 조회 (evaluate 전에 short-circuit)
             base_expr = expr.function.base
             member_name = expr.function.member
+
+            # abi.decode / abi.encode* — 실제 ABI 인코딩을 추적하지 않고 opaque TOP
+            # 반환 (.call()/.staticcall()이 이미 인자를 보지 않고 top을 반환하는 것과 동일한 패턴).
+            if getattr(base_expr, 'identifier', None) == 'abi':
+                return self._evaluate_abi_call(expr, member_name)
+
             if hasattr(base_expr, 'identifier'):
                 contract_var = base_expr.identifier
                 fcfg = self.an.current_target_function_cfg

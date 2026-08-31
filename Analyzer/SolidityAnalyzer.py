@@ -218,12 +218,21 @@ class SolidityAnalyzer:
 
     def _is_during_inline(self, code: str, start_line: int) -> bool:
         """During annotation이 기존 코드 라인에 있어 밀기가 불필요한 inline인지 확인.
-        During만 해당 — 다른 annotation(@GlobalVar, @StateVar, @Post 등)은 항상 standalone."""
+        During만 해당 — 다른 annotation(@GlobalVar, @StateVar, @Post 등)은 항상 standalone.
+
+        여러 줄에 걸친 statement(soltotestjson.py가 한 레코드로 합친 경우)는 실제
+        텍스트가 그 span의 끝(write_start)에 쓰이고 시작 줄의 full_code_lines는
+        빈 placeholder로 남는다 — 반면 CFG 노드는 current_start_line(그 statement의
+        선언 시점 startLine) 기준으로 등록된다. full_code_lines만 보면 이런 경우
+        시작 줄이 "비어있다"고 오판해서 밀기 경로로 빠지므로, 실제 CFG 노드가
+        등록돼 있는지(line_info)도 함께 확인한다."""
         stripped = code.strip()
         if not stripped.startswith("// @During"):
             return False
-        return (start_line in self.full_code_lines and
-                self.full_code_lines[start_line].strip() != "")
+        has_text = (start_line in self.full_code_lines and
+                    self.full_code_lines[start_line].strip() != "")
+        has_cfg_node = bool(self.line_info.get(start_line, {}).get("cfg_nodes"))
+        return has_text or has_cfg_node
 
     def get_full_code(self):
         return self.full_code

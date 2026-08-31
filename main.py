@@ -143,7 +143,11 @@ def simulate_inputs(records, silent=False):
             # Intent annotation (@During, @Post)은 코드의 일부로 영구 등록
             # → batch_mgr(snapshot/restore)를 거치지 않음
             if stripped.startswith("// @During") or stripped.startswith("// @Post"):
-                sa.update_code(s, e, code, ev)  # line_info에 반영
+                # update_code는 루프 맨 위에서 이미 이 레코드에 대해 한 번 호출됨
+                # (close_before 포함) - 여기서 다시 호출하면 같은 라인에 대해
+                # update_code가 두 번 실행되어, 첫 호출 시점엔 아직 존재하지
+                # 않던 상태(예: multi-line statement의 startLine 텍스트가 비어
+                # 있는 경우)를 잘못 판단해 불필요한 라인 밀기가 발생할 수 있었음.
                 tree = ParserHelpers.generate_parse_tree(code, "intentUnit")
                 EnhancedSolidityVisitor(contract_analyzer).visit(tree)
                 continue

@@ -844,7 +844,9 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     def visitGlobalVarAddressBalance(self, ctx: SolidityParser.GlobalVarAddressBalanceContext):
         # @GlobalVar address(X).balance = [value, value]
-        addr_identifier = ctx.identifier().getText()
+        # 문법상 identifier가 이 룰에 두 번 나옴('address(X)'의 X, '.balance'의 balance) —
+        # ctx.identifier()는 리스트를 반환하므로 인덱스로 첫 번째(X)를 지정해야 함.
+        addr_identifier = ctx.identifier(0).getText()
 
         if addr_identifier != "this":
             raise ValueError(
@@ -2751,7 +2753,14 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#TypeNameExp.
     def visitTypeNameExp(self, ctx:SolidityParser.TypeNameExpContext):
-        return self.visitChildren(ctx)
+        # elementaryTypeName이 값이 아니라 "타입 이름 그 자체"로 쓰인 경우
+        # (예: abi.decode(data, (uint256, address))의 타입-리스트 원소).
+        # 이전에는 visitChildren()이 터미널 노드까지 내려가 None을 반환했음.
+        type_name_txt = ctx.elementaryTypeName().getText()
+        return Expression(
+            identifier=type_name_txt,
+            context="TypeNameExprContext"
+        )
 
     # Visit a parse tree produced by SolidityParser#InlineArrayExp.
     def visitInlineArrayExp(self, ctx:SolidityParser.InlineArrayExpContext):

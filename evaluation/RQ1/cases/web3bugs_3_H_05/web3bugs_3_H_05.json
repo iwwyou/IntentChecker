@@ -258,6 +258,30 @@
     "event": "add"
   },
   {
+    "code": "uint256 loan = loanInPeg(account, true);",
+    "startLine": 101,
+    "endLine": 101,
+    "event": "add"
+  },
+  {
+    "code": "uint256 holdings = holdingsInPeg(account, true);",
+    "startLine": 102,
+    "endLine": 102,
+    "event": "add"
+  },
+  {
+    "code": "return 100 * holdings >= liquidationThresholdPercent * loan;",
+    "startLine": 103,
+    "endLine": 103,
+    "event": "add"
+  },
+  {
+    "code": "// @Post returnExpression == 0",
+    "startLine": 104,
+    "endLine": 104,
+    "event": "add"
+  },
+  {
     "code": "// @Debugging BEGIN",
     "startLine": 101,
     "endLine": 101,
@@ -270,93 +294,69 @@
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.borrowTokens.length = [1, 1]",
+    "code": "// @LocalVar account.borrowTokens[0] = symbolicAddress 1",
     "startLine": 103,
     "endLine": 103,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.borrowTokens[0] = symbolicAddress 1",
+    "code": "// @LocalVar account.borrowed[1] = [1000, 1000]",
     "startLine": 104,
     "endLine": 104,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.borrowed[1] = [1000, 1000]",
+    "code": "// @LocalVar account.borrowedYieldQuotientsFP[1] = [1000000000000000000, 1000000000000000000]",
     "startLine": 105,
     "endLine": 105,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.borrowedYieldQuotientsFP[1] = [1000000000000000000, 1000000000000000000]",
+    "code": "// @LocalVar account.borrowTokens[1] = symbolicAddress 3",
     "startLine": 106,
     "endLine": 106,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.holdingTokens.length = [1, 1]",
+    "code": "// @LocalVar account.borrowed[3] = [500, 500]",
     "startLine": 107,
     "endLine": 107,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.holdingTokens[0] = symbolicAddress 2",
+    "code": "// @LocalVar account.borrowedYieldQuotientsFP[3] = [1000000000000000000, 1000000000000000000]",
     "startLine": 108,
     "endLine": 108,
     "event": "add"
   },
   {
-    "code": "// @LocalVar account.holdings[2] = [2000, 2000]",
+    "code": "// @LocalVar account.holdingTokens[0] = symbolicAddress 2",
     "startLine": 109,
     "endLine": 109,
     "event": "add"
   },
   {
-    "code": "// @Debugging END",
+    "code": "// @LocalVar account.holdings[2] = [2000, 2000]",
     "startLine": 110,
     "endLine": 110,
     "event": "add"
   },
   {
-    "code": "uint256 loan = loanInPeg(account, true);",
+    "code": "// @LocalVar account.holdingTokens[1] = symbolicAddress 4",
     "startLine": 111,
     "endLine": 111,
     "event": "add"
   },
   {
-    "code": "uint256 holdings = holdingsInPeg(account, true);",
+    "code": "// @LocalVar account.holdings[4] = [1000, 1000]",
     "startLine": 112,
     "endLine": 112,
     "event": "add"
   },
   {
-    "code": "// The following should hold:",
+    "code": "// @Debugging END",
     "startLine": 113,
     "endLine": 113,
-    "event": "add"
-  },
-  {
-    "code": "// holdings / loan >= 1.1",
-    "startLine": 114,
-    "endLine": 114,
-    "event": "add"
-  },
-  {
-    "code": "// => holdings >= loan * 1.1",
-    "startLine": 115,
-    "endLine": 115,
-    "event": "add"
-  },
-  {
-    "code": "return 100 * holdings >= liquidationThresholdPercent * loan;",
-    "startLine": 116,
-    "endLine": 116,
-    "event": "add"
-  },
-  {
-    "code": "// @Post returnExpression == 0",
-    "startLine": 117,
-    "endLine": 117,
     "event": "add"
   }
 ]

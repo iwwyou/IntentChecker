@@ -26,3 +26,5 @@ DomainNotes/
   - contracts: [web3bugs_3_H_05_CrossMarginAccounts.md](Cross_Margin_Trading/contracts/web3bugs_3_H_05_CrossMarginAccounts.md)
 - [Concentrated_Liquidity_AMM](Concentrated_Liquidity_AMM/README.md) — 집중 유동성 AMM(틱 관리), SushiSwap Trident
   - contracts: [web3bugs_35_H_11_Ticks.md](Concentrated_Liquidity_AMM/contracts/web3bugs_35_H_11_Ticks.md)
+- [Price_Oracle](Price_Oracle/README.md) — TWAP+Chainlink 하이브리드 오라클, Vader Protocol
+  - contracts: [web3bugs_52_H_04_TwapOracle.md](Price_Oracle/contracts/web3bugs_52_H_04_TwapOracle.md)

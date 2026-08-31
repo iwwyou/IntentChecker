@@ -3,7 +3,7 @@ pragma solidity ^0.8.11;
 interface IERC20 {
 }
 
-contract MasterChef {
+contract MasterChef is Ownable {
     using SafeMath for uint;
 
     struct PoolInfo {
@@ -18,7 +18,7 @@ contract MasterChef {
     mapping(address => uint256) public pid;
     uint public totalAllocPoint = 0;
 
-    function add(address _token, uint _allocationPoints, uint16 _depositFee, uint _startBlock) public {
+    function add(address _token, uint _allocationPoints, uint16 _depositFee, uint _startBlock) public onlyOwner {
         require(_token != address(0), "zero address");
         uint lastRewardBlock = block.number > _startBlock ? block.number : _startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocationPoints);

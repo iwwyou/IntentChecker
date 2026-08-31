@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.0;
+
+struct HourlyBond {
+    uint256 amount;
+    uint256 yieldQuotientFP;
+    uint256 moduloHour;
+}
+
+abstract contract HourlyBondSubscriptionLending is BaseLending {
+    struct HourlyBondMetadata {
+        YieldAccumulator yieldAccumulator;
+        uint256 buyingSpeed;
+        uint256 withdrawingSpeed;
+        uint256 lastBought;
+        uint256 lastWithdrawn;
+    }
+
+    mapping(address => HourlyBondMetadata) hourlyBondMetadata;
+
+    // issuer => holder => bond record
+    mapping(address => mapping(address => HourlyBond))
+        public hourlyBondAccounts;
+
+    function calcCumulativeYieldFP(
+        YieldAccumulator storage yieldAccumulator,
+        uint256 timeDelta
+    ) internal view returns (uint256 accumulatorFP) {
+        uint256 secondsDelta = timeDelta % (1 hours);
+        // linearly interpolate interest for seconds
+        // accumulator * hourly_yield == seconds_per_hour * accumulator * hourly_yield / seconds_per_hour
+        // FP * FP * 1 / (FP * 1) = FP
+        accumulatorFP =
+            (yieldAccumulator.accumulatorFP *
+                yieldAccumulator.hourlyYieldFP *
+                secondsDelta) /
+            (FP32 * 1 hours);
+
+        uint256 hoursDelta = timeDelta / (1 hours);
+        if (hoursDelta > 0) {
+            // This loop should hardly ever 1 or more unless something bad happened
+            // In which case it costs gas but there isn't overflow
+            for (uint256 i = 0; hoursDelta > i; i++) {
+                // FP32 * FP32 / FP32 = FP32
+                accumulatorFP =
+                    (accumulatorFP * yieldAccumulator.hourlyYieldFP) /
+                    FP32;
+            }
+        }
+    }
+
+    function viewCumulativeYieldFP(
+        YieldAccumulator storage yA,
+        uint256 timestamp
+    ) internal view returns (uint256) {
+        uint256 timeDelta = (timestamp - yA.lastUpdated);
+        return calcCumulativeYieldFP(yA, timeDelta);
+    }
+
+    // Retrieves bond balance for issuer and holder
+    function viewHourlyBondAmount(address issuer, address holder)
+        public
+        view
+        returns (uint256)
+    {
+        HourlyBond storage bond = hourlyBondAccounts[issuer][holder];
+        uint256 yieldQuotientFP = bond.yieldQuotientFP;
+
+        uint256 cumulativeYield =
+            viewCumulativeYieldFP(
+                hourlyBondMetadata[issuer].yieldAccumulator,
+                block.timestamp
+            );
+
+        if (yieldQuotientFP > 0) {
+            return
+                bond.amount +
+                applyInterest(bond.amount, cumulativeYield, yieldQuotientFP);
+        }
+        return bond.amount + 0;
+    }
+}
