@@ -766,13 +766,16 @@ class EnhancedSolidityVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#mappingKeyType.
     def visitMappingKeyType(self, ctx:SolidityParser.MappingKeyTypeContext):
-        # 키 타입은 elementaryTypeName만 가능
+        # 키 타입: elementaryTypeName 외에, contract/interface(-> address)와 enum(-> 정수)도
+        # 유효한 mapping key 타입임 (Solidity 문법도 identifierPath를 허용함, Solidity.g4:203-205)
         if ctx.elementaryTypeName() is not None:
             key_type_obj = SolType()
             self.visitBasicType(ctx.elementaryTypeName(), key_type_obj)
             return key_type_obj
+        elif ctx.identifierPath() is not None:
+            key_type_obj = SolType()
+            return self.visitUserDefinedType(ctx.identifierPath(), key_type_obj)
         else:
-            # Solidity에서 키 타입은 elementary 타입만 허용하므로, 기타 타입은 오류 처리
             raise ValueError("Invalid key type in mapping: {}".format(ctx.getText()))
 
     # Visit a parse tree produced by SolidityParser#functionTypeName.

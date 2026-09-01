@@ -52,7 +52,9 @@ class Interval:
                 and self.max_value == other.max_value)
 
     def copy(self):
-        return type(self)(self.min_value, self.max_value)
+        new_obj = type(self)(self.min_value, self.max_value)
+        new_obj.type_length = self.type_length
+        return new_obj
 
     def __repr__(self):
         if self.is_bottom():

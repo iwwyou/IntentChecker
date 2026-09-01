@@ -8,7 +8,7 @@ if TYPE_CHECKING:                                         # 타입 검사 전용
 from Utils.CFG import ContractCFG, FunctionCFG
 from Utils.Helper import VariableEnv
 from Domain.Interval import UnsignedIntegerInterval, IntegerInterval, BoolInterval
-from Domain.Variable import GlobalVariable, Variables, ArrayVariable, StructVariable, EnumVariable
+from Domain.Variable import GlobalVariable, Variables, ArrayVariable, StructVariable, EnumVariable, MappingVariable
 from Domain.AddressSet import AddressSet
 from Domain.Type import SolType
 
@@ -395,6 +395,27 @@ class StaticCFGFactory:
             v.value = AddressSet.top()
             an.register_var(v)
             return v
+
+        # ──────────────────────────── ⑥ mapping ──────────────────────────
+        # storage 파라미터는 caller의 실제 mapping을 aliasing해야 하는 게
+        # Solidity 시맨틱스지만, 이 함수의 ① array 분기도 storage 배열
+        # 파라미터를 caller와 잇지 않고 독립적인 fresh 값으로 근사하는 것과
+        # 같은 컨벤션으로, 여기서도 진짜 aliasing 없이 fresh & empty
+        # MappingVariable을 만든다 — 키별 값은 기존 lazy 경로
+        # (MappingVariable.get_or_create/_make_value)가 실제 접근 시점에
+        # 알아서 채운다.
+        if sol_type.typeCategory == "mapping":
+            all_structs, all_enums = an.get_full_struct_enum_defs()
+            mv = MappingVariable(
+                identifier=ident,
+                key_type=sol_type.mappingKeyType,
+                value_type=sol_type.mappingValueType,
+                scope=scope,
+                struct_defs=all_structs,
+                enum_defs=all_enums,
+            )
+            an.register_var(mv)
+            return mv
 
         # ──────────────────────────── ⑤ elementary ───────────────────────
         if sol_type.typeCategory == "elementary":

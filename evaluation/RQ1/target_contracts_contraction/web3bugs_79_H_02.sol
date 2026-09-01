@@ -83,12 +83,11 @@ contract LaunchEvent {
     function currentPhase() public view returns (uint8) {
         if (block.timestamp < auctionStart || auctionStart == 0) {
             return PHASE_NOT_STARTED;
-        } else if (block.timestamp < auctionStart + PHASE_ONE_DURATION) {
+        } 
+        else if (block.timestamp < auctionStart + PHASE_ONE_DURATION) {
             return PHASE_ONE;
-        } else if (
-            block.timestamp <
-            auctionStart + PHASE_ONE_DURATION + PHASE_TWO_DURATION
-        ) {
+        } 
+        else if (block.timestamp < auctionStart + PHASE_ONE_DURATION + PHASE_TWO_DURATION) {
             return PHASE_TWO;
         }
         return PHASE_THREE;
@@ -96,26 +95,18 @@ contract LaunchEvent {
 
     function _atPhase(uint8 _phase) internal view {
         if (_phase == PHASE_NOT_STARTED) {
-            require(
-                currentPhase() == PHASE_NOT_STARTED,
-                "LaunchEvent: not in not started"
-            );
-        } else if (_phase == PHASE_ONE) {
-            require(
-                currentPhase() == PHASE_ONE,
-                "LaunchEvent: not in phase one"
-            );
-        } else if (_phase == PHASE_TWO) {
-            require(
-                currentPhase() == PHASE_TWO,
-                "LaunchEvent: not in phase two"
-            );
-        } else if (_phase == PHASE_THREE) {
-            require(
-                currentPhase() == PHASE_THREE,
-                "LaunchEvent: not in phase three"
-            );
-        } else {
+            require(currentPhase() == PHASE_NOT_STARTED, "LaunchEvent: not in not started");
+        } 
+        else if (_phase == PHASE_ONE) {
+            require(currentPhase() == PHASE_ONE, "LaunchEvent: not in phase one");
+        } 
+        else if (_phase == PHASE_TWO) {
+            require(currentPhase() == PHASE_TWO, "LaunchEvent: not in phase two");
+        } 
+        else if (_phase == PHASE_THREE) {
+            require(currentPhase() == PHASE_THREE, "LaunchEvent: not in phase three");
+        } 
+        else {
             revert("LaunchEvent: unknown state");
         }
     }
@@ -128,54 +119,30 @@ contract LaunchEvent {
     modifier isStopped(bool _stopped) {
         if (_stopped) {
             require(stopped, "LaunchEvent: is still running");
-        } else {
+        } 
+        else {
             require(!stopped, "LaunchEvent: stopped");
         }
         _;
     }
 
     function createPair() external isStopped(false) atPhase(PHASE_THREE) {
-        (address wavaxAddress, address tokenAddress) = (
-            address(WAVAX),
-            address(token)
-        );
-        require(
-            factory.getPair(wavaxAddress, tokenAddress) == address(0) ||
-                IJoePair(
-                    IJoeFactory(factory).getPair(wavaxAddress, tokenAddress)
-                ).totalSupply() ==
-                0,
-            "LaunchEvent: liquid pair already exists"
-        );
+        (address wavaxAddress, address tokenAddress) = (address(WAVAX), address(token));
+        require(factory.getPair(wavaxAddress, tokenAddress) == address(0) || IJoePair(IJoeFactory(factory).getPair(wavaxAddress, tokenAddress)).totalSupply() == 0, "LaunchEvent: liquid pair already exists");
         require(wavaxReserve > 0, "LaunchEvent: no wavax balance");
 
         uint256 tokenAllocated = tokenReserve;
 
-        if (
-            floorPrice > (wavaxReserve * 10**token.decimals()) / tokenAllocated
-        ) {
+        if (floorPrice > (wavaxReserve * 10**token.decimals()) / tokenAllocated ) {
             tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice;
-            tokenIncentivesForUsers =
-                (tokenIncentivesForUsers * tokenAllocated) /
-                tokenReserve;
-            tokenIncentiveIssuerRefund =
-                tokenIncentivesBalance -
-                tokenIncentivesForUsers;
+            tokenIncentivesForUsers = (tokenIncentivesForUsers * tokenAllocated) / tokenReserve;
+            tokenIncentiveIssuerRefund = tokenIncentivesBalance - tokenIncentivesForUsers;
         }
 
         WAVAX.approve(address(router), wavaxReserve);
         token.approve(address(router), tokenAllocated);
 
-        (, , lpSupply) = router.addLiquidity(
-            wavaxAddress,
-            tokenAddress,
-            wavaxReserve,
-            tokenAllocated,
-            wavaxReserve,
-            tokenAllocated,
-            address(this),
-            block.timestamp
-        );
+        (, , lpSupply) = router.addLiquidity(wavaxAddress, tokenAddress, wavaxReserve, tokenAllocated, wavaxReserve, tokenAllocated, address(this), block.timestamp);
 
         pair = IJoePair(factory.getPair(tokenAddress, wavaxAddress));
         wavaxAllocated = wavaxReserve;

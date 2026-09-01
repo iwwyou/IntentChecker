@@ -23,15 +23,7 @@ contract MasterChef is Ownable {
         uint lastRewardBlock = block.number > _startBlock ? block.number : _startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocationPoints);
         require(pid[_token] == 0, "already registered");
-        poolInfo.push(
-            PoolInfo({
-                depositToken: IERC20(_token),
-                allocPoint: _allocationPoints,
-                lastRewardBlock: lastRewardBlock,
-                accConcurPerShare: 0,
-                depositFeeBP: _depositFee
-            })
-        );
+        poolInfo.push( PoolInfo({ depositToken: IERC20(_token), allocPoint: _allocationPoints, lastRewardBlock: lastRewardBlock, accConcurPerShare: 0, depositFeeBP: _depositFee }) );
         pid[_token] = poolInfo.length - 1;
     }
 }

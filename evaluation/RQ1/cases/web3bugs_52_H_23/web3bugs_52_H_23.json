@@ -282,13 +282,13 @@
     "event": "add"
   },
   {
-    "code": "function mintSynth( IERC20 foreignAsset, uint256 nativeDeposit, address from, address to ) external supportedToken(foreignAsset) returns (uint256 amountSynth) {\n}",
+    "code": "function mintSynth( IERC20 foreignAsset, uint256 nativeDeposit, address _from, address to ) external supportedToken(foreignAsset) returns (uint256 amountSynth) {\n}",
     "startLine": 86,
     "endLine": 96,
     "event": "add"
   },
   {
-    "code": "nativeAsset.safeTransferFrom(from, address(this), nativeDeposit);",
+    "code": "nativeAsset.safeTransferFrom(_from, address(this), nativeDeposit);",
     "startLine": 96,
     "endLine": 96,
     "event": "add"
@@ -378,7 +378,7 @@
     "event": "add"
   },
   {
-    "code": "// @LocalVar from = symbolicAddress 2",
+    "code": "// @LocalVar _from = symbolicAddress 2",
     "startLine": 99,
     "endLine": 99,
     "event": "add"

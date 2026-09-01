@@ -276,27 +276,9 @@
     "event": "add"
   },
   {
-    "code": "// @IReturn oracle.latestRoundData()[0] = [1, 1]",
+    "code": "// @Debugging END",
     "startLine": 39,
     "endLine": 39,
-    "event": "add"
-  },
-  {
-    "code": "// @IReturn oracle.latestRoundData()[1] = [100000000, 100000000]",
-    "startLine": 40,
-    "endLine": 40,
-    "event": "add"
-  },
-  {
-    "code": "// @IReturn oracle.latestRoundData()[4] = [1, 1]",
-    "startLine": 41,
-    "endLine": 41,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging END",
-    "startLine": 42,
-    "endLine": 42,
     "event": "add"
   }
 ]

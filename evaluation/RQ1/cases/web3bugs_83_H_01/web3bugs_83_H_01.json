@@ -138,27 +138,21 @@
     "event": "add"
   },
   {
-    "code": "poolInfo.push( PoolInfo({\n}",
+    "code": "poolInfo.push( PoolInfo({ depositToken: IERC20(_token), allocPoint: _allocationPoints, lastRewardBlock: lastRewardBlock, accConcurPerShare: 0, depositFeeBP: _depositFee }) );",
     "startLine": 26,
-    "endLine": 28,
-    "event": "add"
-  },
-  {
-    "code": "depositToken: IERC20(_token), allocPoint: _allocationPoints, lastRewardBlock: lastRewardBlock, accConcurPerShare: 0, depositFeeBP: _depositFee }) );",
-    "startLine": 28,
-    "endLine": 34,
+    "endLine": 26,
     "event": "add"
   },
   {
     "code": "pid[_token] = poolInfo.length - 1;",
-    "startLine": 35,
-    "endLine": 35,
+    "startLine": 27,
+    "endLine": 27,
     "event": "add"
   },
   {
     "code": "// @Post poolInfo[1].accConcurPerShare(Exit) == poolInfo[1].accConcurPerShare(Entry) + 20000000000000",
-    "startLine": 36,
-    "endLine": 36,
+    "startLine": 28,
+    "endLine": 28,
     "event": "add"
   },
   {

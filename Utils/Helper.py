@@ -120,7 +120,9 @@ class VariableEnv:
                 base_type=copy.deepcopy(v.typeInfo.arrayBaseType),
                 array_length=v.typeInfo.arrayLength,
                 is_dynamic=v.typeInfo.isDynamicArray,
-                scope=v.scope
+                scope=v.scope,
+                struct_defs=v.struct_defs,
+                enum_defs=v.enum_defs
             )
             new_arr.elements = [
                 VariableEnv.copy_single_variable(e) for e in v.elements

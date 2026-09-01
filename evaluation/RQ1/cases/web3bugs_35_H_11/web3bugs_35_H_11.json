@@ -121,12 +121,6 @@
     "event": "add"
   },
   {
-    "code": "// @During ticks[nextTickToCross].feeGrowthOutside1 == feeGrowthGlobal - ticks[nextTickToCross].feeGrowthOutside1(Before)",
-    "startLine": 30,
-    "endLine": 30,
-    "event": "add"
-  },
-  {
     "code": "else {\n}",
     "startLine": 31,
     "endLine": 32,
@@ -180,6 +174,12 @@
     "code": "return (currentLiquidity, nextTickToCross);",
     "startLine": 41,
     "endLine": 41,
+    "event": "add"
+  },
+  {
+    "code": "// @During ticks[nextTickToCross].feeGrowthOutside1 == feeGrowthGlobal - ticks[nextTickToCross].feeGrowthOutside1(Before)",
+    "startLine": 29,
+    "endLine": 29,
     "event": "add"
   },
   {

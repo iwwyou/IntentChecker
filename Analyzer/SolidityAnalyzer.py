@@ -236,8 +236,12 @@ class SolidityAnalyzer:
         stripped = code.strip()
         if not stripped.startswith("// @During"):
             return False
-        has_text = (start_line in self.full_code_lines and
-                    self.full_code_lines[start_line].strip() != "")
+        target_line = self.full_code_lines.get(start_line, "").strip()
+        # 순수 구조적 문자({, }, 공백)만 있는 줄은 실제 target statement가 아님 —
+        # 밀려난 함수 skeleton의 닫는 `}` placeholder를 "이미 텍스트 있음"으로
+        # 오판하지 않도록 제외한다.
+        is_structural_only = target_line != "" and all(c in "{}" for c in target_line)
+        has_text = target_line != "" and not is_structural_only
         has_cfg_node = bool(self.line_info.get(start_line, {}).get("cfg_nodes"))
         return has_text or has_cfg_node
 

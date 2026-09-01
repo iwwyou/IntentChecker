@@ -175,50 +175,50 @@
   },
   {
     "code": "// @Debugging BEGIN",
-    "startLine": 24,
-    "endLine": 24,
+    "startLine": 31,
+    "endLine": 31,
     "event": "add"
   },
   {
     "code": "// @LocalVar _id = [1, 1]",
-    "startLine": 25,
-    "endLine": 25,
+    "startLine": 32,
+    "endLine": 32,
     "event": "add"
   },
   {
     "code": "// @LocalVar _amount = [10, 10]",
-    "startLine": 26,
-    "endLine": 26,
+    "startLine": 33,
+    "endLine": 33,
     "event": "add"
   },
   {
     "code": "// @LocalVar _period = [0, 0]",
-    "startLine": 27,
-    "endLine": 27,
+    "startLine": 34,
+    "endLine": 34,
     "event": "add"
   },
   {
     "code": "// @LocalVar _asset = symbolicAddress 1",
-    "startLine": 28,
-    "endLine": 28,
+    "startLine": 35,
+    "endLine": 35,
     "event": "add"
   },
   {
     "code": "// @StateVar totalLocked[_asset] = [100, 100]",
-    "startLine": 29,
-    "endLine": 29,
+    "startLine": 36,
+    "endLine": 36,
     "event": "add"
   },
   {
     "code": "// @GlobalVar msg.sender = symbolicAddress 2",
-    "startLine": 30,
-    "endLine": 30,
+    "startLine": 37,
+    "endLine": 37,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 31,
-    "endLine": 31,
+    "startLine": 38,
+    "endLine": 38,
     "event": "add"
   }
 ]

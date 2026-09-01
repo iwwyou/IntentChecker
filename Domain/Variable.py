@@ -194,6 +194,14 @@ class ArrayVariable(Variables):
                                  struct_defs=self.struct_defs,
                                  enum_defs=self.enum_defs)
 
+        # ─ interface ────────────────────────────────────────────────
+        if isinstance(btype, SolType) and btype.typeCategory == "interface":
+            ifc_name = getattr(btype, 'interfaceName', None)
+            v = Variables(eid, AddressSet.top(), scope=self.scope, typeInfo=btype)
+            if ifc_name:
+                v.value._cast_interface = ifc_name
+            return v
+
         # fallback
         raise ValueError(f"Unhandled array base-type for {eid!r}")
 

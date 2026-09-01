@@ -13,10 +13,35 @@ if TYPE_CHECKING:
 
 from Domain.IR import Expression
 from Domain.Interval import IntegerInterval, UnsignedIntegerInterval, BoolInterval
+from Domain.Variable import Variables, StructVariable, ArrayVariable, MappingVariable
 from Utils.Helper import VariableEnv
 from Utils.CFG import CFGNode
 
 class GuardianVerificationEngine:
+    # varRef(Entry)/(Exit)/(Before)/(After)/(Assign) — 각각 다른 env(sigma)를 참조하는
+    # 5개의 snapshot-qualified 컨텍스트. _materialize_snapshot_refs가 이 컨텍스트를
+    # 가진 노드를 찾아서 미리 계산된 값으로 치환한다.
+    _SNAPSHOT_CONTEXTS = frozenset({
+        "VarRefAtEntry", "VarRefAtExit", "VarRefAtBefore", "VarRefAtAfter", "VarRefAtAssign",
+    })
+
+    # Expression이 자식 Expression을 담을 수 있는 필드들 — Domain/IR.py의 생성자
+    # 시그니처와 정확히 일치해야 함(구조적 트리 순회에 사용, 의미는 몰라도 됨).
+    _CHILD_SINGLE_FIELDS = (
+        "left", "right", "function", "base", "index",
+        "start_index", "end_index", "expression",
+        "condition", "true_expr", "false_expr",
+    )
+    _CHILD_LIST_FIELDS = ("arguments", "elements")
+
+    _EXPR_CTOR_FIELDS = (
+        "left", "operator", "right", "identifier", "literal", "var_type",
+        "function", "arguments", "named_arguments", "base", "access",
+        "index", "start_index", "end_index", "member", "options",
+        "typeName", "expression", "condition", "true_expr", "false_expr",
+        "is_postfix", "elements", "expr_type", "type_length", "context",
+    )
+
     def __init__(self, analyzer: "ContractAnalyzer"):
         self.analyzer = analyzer
         # Ambient (cfg_node, line_no) for the @During clause currently being verified —
@@ -84,19 +109,22 @@ class GuardianVerificationEngine:
         elif ctx in {"VarRefAtEntry", "VarRefAtExit", "VarRefAtBefore", "VarRefAtAfter", "VarRefAtAssign"}:
             return self._evaluate_snapshot_var_ref(expr, ctx, variables, callerObject, callerContext)
 
-        # ─── VarRef contexts → evaluator에 위임 ───────────────────
-        # NormalVarRef, IntentMemberAccess, IntentIndexAccess는
-        # 일반 IdentifierExpContext, MemberAccessContext, IndexAccessExpContext와
-        # 동일하게 처리되므로 evaluator에 위임
-        elif ctx in {"NormalVarRef", "IntentMemberAccess", "IntentIndexAccess"}:
-            return self.analyzer.evaluator.evaluate_expression(
+        # ─── VarRef contexts / 일반 Solidity expression → evaluator 위임 ───
+        # NormalVarRef, IntentMemberAccess, IntentIndexAccess는 일반
+        # IdentifierExpContext, MemberAccessContext, IndexAccessExpContext와
+        # 동일하게 처리되므로 evaluator에 위임. binary/unary/ternary/함수호출 등
+        # 복합 expression도 마찬가지로 evaluator에 위임하되, **위임 전에** 트리
+        # 안 어디에 중첩돼 있든 varRef(Entry/Exit/Before/After/Assign) 노드를
+        # 먼저 찾아 계산해서 합성 변수로 치환해야 함 — evaluator(Evaluation.py)는
+        # 이 5개 컨텍스트를 전혀 모르고 단일 env만 다루므로, 안 그러면 nested된
+        # snapshot 참조가 조용히 None을 리턴하다가 크래시함 (2026-09-01,
+        # web3bugs_29_H_11/35_H_11에서 발견).
+        else:
+            materialized_expr, aug_vars = self._materialize_snapshot_refs(
                 expr, variables, callerObject, callerContext
             )
-
-        # ─── 일반 Solidity expression → evaluator 위임 ───────────
-        else:
             return self.analyzer.evaluator.evaluate_expression(
-                expr, variables, callerObject, callerContext
+                materialized_expr, aug_vars, callerObject, callerContext
             )
 
     # ─── Guardian DSL 평가 헬퍼들 ─────────────────────────────────────
@@ -233,6 +261,96 @@ class GuardianVerificationEngine:
             raise ValueError(f"Unknown snapshot var-ref context: {ctx}")
 
         return self.evaluate_guardian_expression(inner, target_env, callerObject, callerContext)
+
+    def _clone_expr_with(self, expr: Expression, **overrides) -> Expression:
+        """expr과 동일한 필드값을 갖되 overrides로 지정한 필드만 교체한 새
+        Expression을 만든다. 원본은 건드리지 않음(파스 트리는 여러 CFG fixpoint
+        반복/여러 line에 걸쳐 재사용되는 공유 객체라 in-place mutation은 위험)."""
+        kwargs = {f: getattr(expr, f) for f in self._EXPR_CTOR_FIELDS}
+        kwargs.update(overrides)
+        return Expression(**kwargs)
+
+    def _materialize_snapshot_refs(self, expr: Expression, variables: dict,
+                                   callerObject=None, callerContext=None,
+                                   aug_vars: dict | None = None) -> tuple[Expression, dict]:
+        """
+        expr 트리 안 어디에 있든 varRef(Entry/Exit/Before/After/Assign) 노드를
+        찾아서 지금 바로 계산한 값으로 치환한다 — 값은 합성 identifier로 감싸서
+        env(사본)에 넣고, 트리의 해당 위치는 그 identifier를 가리키는 평범한
+        leaf 노드로 바꿔치기한다.
+
+        일반 evaluator(Interpreter/Semantics/Evaluation.py)는 이 5개 snapshot
+        컨텍스트를 전혀 모르고 항상 env 하나만 다루기 때문에, `a == a(Before) +
+        (b - a(Before))`처럼 snapshot 참조가 binary/ternary/함수호출 등 복합
+        expression 안에 중첩되면 evaluator가 그 노드를 만나는 순간 조용히 None을
+        리턴해서 크래시로 이어짐 (2026-09-01, web3bugs_29_H_11/35_H_11에서 발견).
+        이 함수로 "여러 env가 섞인 문제"를 "치환 한 번으로 env 하나만 남는 문제"로
+        미리 풀어버리면, 남은 트리는 기존 evaluator에 통째로 한 번에 넘겨도 안전함
+        — evaluator의 binary/ternary/함수호출 dispatch를 중복 구현할 필요가 없고,
+        앞으로 새 expression 문법이 추가돼도(구조만 Expression의 알려진 자식
+        필드를 쓰는 한) 이 함수를 안 고쳐도 자동으로 커버됨.
+
+        원본 expr 트리는 절대 in-place로 안 바꿈(CFG fixpoint 반복/여러 line에서
+        같은 파스 트리가 재사용되므로) — 바뀐 경로만 얕은 복사로 새 Expression을
+        만들어서 반환. variables도 원본을 안 바꾸고 첫 호출 시 한 번만 얕은
+        복사해서(aug_vars) 그 사본에 합성 변수를 추가해나감.
+
+        Returns: (new_expr, aug_vars) — new_expr을 aug_vars와 함께 evaluator에
+        넘기면 됨.
+        """
+        if aug_vars is None:
+            aug_vars = dict(variables)
+
+        if expr is None:
+            return expr, aug_vars
+
+        ctx = expr.context
+        if ctx in self._SNAPSHOT_CONTEXTS:
+            value = self._evaluate_snapshot_var_ref(expr, ctx, variables, callerObject, callerContext)
+            synth_name = f"__snap_{ctx}_L{self._before_line_no}_{id(expr)}" if ctx == "VarRefAtBefore" \
+                else f"__snap_{ctx}_{id(expr)}"
+            if isinstance(value, (StructVariable, ArrayVariable, MappingVariable)):
+                aug_vars[synth_name] = value
+            else:
+                wrapper = Variables(identifier=synth_name)
+                wrapper.value = value
+                aug_vars[synth_name] = wrapper
+            new_leaf = Expression(identifier=synth_name, context="VarRefBase")
+            return new_leaf, aug_vars
+
+        # 순수 구조적 재귀 — Expression이 자식을 담을 수 있는 필드들만 순회.
+        # 부모 노드의 의미(삼항이든 함수호출이든 튜플이든)는 몰라도 됨.
+        changed = False
+        overrides = {}
+
+        for f in self._CHILD_SINGLE_FIELDS:
+            child = getattr(expr, f)
+            if child is not None:
+                new_child, aug_vars = self._materialize_snapshot_refs(
+                    child, variables, callerObject, callerContext, aug_vars)
+                if new_child is not child:
+                    overrides[f] = new_child
+                    changed = True
+
+        for f in self._CHILD_LIST_FIELDS:
+            lst = getattr(expr, f)
+            if lst:
+                new_lst = []
+                local_changed = False
+                for item in lst:
+                    new_item, aug_vars = self._materialize_snapshot_refs(
+                        item, variables, callerObject, callerContext, aug_vars)
+                    new_lst.append(new_item)
+                    if new_item is not item:
+                        local_changed = True
+                if local_changed:
+                    overrides[f] = new_lst
+                    changed = True
+
+        if not changed:
+            return expr, aug_vars
+
+        return self._clone_expr_with(expr, **overrides), aug_vars
 
     # ═══════════════════════════════════════════════════════════════════
     #  DURING / POST Verification Methods

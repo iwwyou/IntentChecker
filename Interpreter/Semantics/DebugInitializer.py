@@ -114,6 +114,11 @@ class DebugInitializer:
         # 1) caller_object가 ArrayVariable인 경우 - arr[variable_index]
         # ======================================================================
         if isinstance(caller_object, ArrayVariable):
+            if not caller_object.struct_defs or not caller_object.enum_defs:
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                caller_object.struct_defs = {**all_structs, **caller_object.struct_defs}
+                caller_object.enum_defs = {**all_enums, **caller_object.enum_defs}
+
             if ident not in variables:
                 # 디버깅에서는 변수가 없어도 리터럴로 처리 시도
                 if ident.isdigit():
@@ -364,6 +369,10 @@ class DebugInitializer:
                 idx = int(lit)
                 if idx < 0:
                     return None
+                if not callerObject.struct_defs or not callerObject.enum_defs:
+                    all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                    callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
+                    callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
                 # 동적 배열이면 확장 가능, 정적 배열이면 범위 체크
                 try:
                     if callerObject.typeInfo.isDynamicArray:
@@ -829,11 +838,19 @@ class DebugInitializer:
 
         # struct type인 경우
         elif base_type.typeCategory == "struct":
-            return StructVariable(
+            sv = StructVariable(
                 identifier=elem_id,
                 struct_type=base_type.structTypeName,
                 scope=arr.scope
             )
+            if not arr.struct_defs or not arr.enum_defs:
+                all_structs, all_enums = self.an.get_full_struct_enum_defs()
+                arr.struct_defs = {**all_structs, **arr.struct_defs}
+                arr.enum_defs = {**all_enums, **arr.enum_defs}
+            if base_type.structTypeName in arr.struct_defs:
+                sv.initialize_struct(arr.struct_defs[base_type.structTypeName],
+                                     struct_defs=arr.struct_defs, enum_defs=arr.enum_defs)
+            return sv
 
         # nested array인 경우
         elif base_type.typeCategory == "array":

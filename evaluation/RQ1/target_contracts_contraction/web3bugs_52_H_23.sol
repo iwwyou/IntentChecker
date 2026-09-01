@@ -86,14 +86,14 @@ contract VaderPoolV2 {
     function mintSynth(
         IERC20 foreignAsset,
         uint256 nativeDeposit,
-        address from,
+        address _from,
         address to
     )
         external
         supportedToken(foreignAsset)
         returns (uint256 amountSynth)
     {
-        nativeAsset.safeTransferFrom(from, address(this), nativeDeposit);
+        nativeAsset.safeTransferFrom(_from, address(this), nativeDeposit);
 
         ISynth synth = synthFactory.synths(foreignAsset);
 

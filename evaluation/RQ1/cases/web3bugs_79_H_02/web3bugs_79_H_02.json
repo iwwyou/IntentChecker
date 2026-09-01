@@ -355,453 +355,446 @@
   },
   {
     "code": "else if (block.timestamp < auctionStart + PHASE_ONE_DURATION) {\n}",
-    "startLine": 86,
-    "endLine": 87,
-    "event": "add",
-    "closeBefore": true
-  },
-  {
-    "code": "return PHASE_ONE;",
     "startLine": 87,
-    "endLine": 87,
+    "endLine": 88,
     "event": "add"
   },
   {
-    "code": "else if ( block.timestamp < auctionStart + PHASE_ONE_DURATION + PHASE_TWO_DURATION ) {\n}",
+    "code": "return PHASE_ONE;",
     "startLine": 88,
-    "endLine": 92,
-    "event": "add",
-    "closeBefore": true
+    "endLine": 88,
+    "event": "add"
+  },
+  {
+    "code": "else if (block.timestamp < auctionStart + PHASE_ONE_DURATION + PHASE_TWO_DURATION) {\n}",
+    "startLine": 90,
+    "endLine": 91,
+    "event": "add"
   },
   {
     "code": "return PHASE_TWO;",
-    "startLine": 92,
-    "endLine": 92,
+    "startLine": 91,
+    "endLine": 91,
     "event": "add"
   },
   {
     "code": "return PHASE_THREE;",
-    "startLine": 94,
-    "endLine": 94,
+    "startLine": 93,
+    "endLine": 93,
     "event": "add"
   },
   {
     "code": "\n",
-    "startLine": 96,
-    "endLine": 96,
+    "startLine": 95,
+    "endLine": 95,
     "event": "add"
   },
   {
     "code": "function _atPhase(uint8 _phase) internal view {\n}",
+    "startLine": 96,
+    "endLine": 97,
+    "event": "add"
+  },
+  {
+    "code": "if (_phase == PHASE_NOT_STARTED) {\n}",
     "startLine": 97,
     "endLine": 98,
     "event": "add"
   },
   {
-    "code": "if (_phase == PHASE_NOT_STARTED) {\n}",
+    "code": "require(currentPhase() == PHASE_NOT_STARTED, \"LaunchEvent: not in not started\");",
     "startLine": 98,
-    "endLine": 99,
-    "event": "add"
-  },
-  {
-    "code": "require( currentPhase() == PHASE_NOT_STARTED, \"LaunchEvent: not in not started\" );",
-    "startLine": 99,
-    "endLine": 102,
+    "endLine": 98,
     "event": "add"
   },
   {
     "code": "else if (_phase == PHASE_ONE) {\n}",
-    "startLine": 103,
-    "endLine": 104,
-    "event": "add",
-    "closeBefore": true
+    "startLine": 100,
+    "endLine": 101,
+    "event": "add"
   },
   {
-    "code": "require( currentPhase() == PHASE_ONE, \"LaunchEvent: not in phase one\" );",
-    "startLine": 104,
-    "endLine": 107,
+    "code": "require(currentPhase() == PHASE_ONE, \"LaunchEvent: not in phase one\");",
+    "startLine": 101,
+    "endLine": 101,
     "event": "add"
   },
   {
     "code": "else if (_phase == PHASE_TWO) {\n}",
-    "startLine": 108,
-    "endLine": 109,
-    "event": "add",
-    "closeBefore": true
+    "startLine": 103,
+    "endLine": 104,
+    "event": "add"
   },
   {
-    "code": "require( currentPhase() == PHASE_TWO, \"LaunchEvent: not in phase two\" );",
-    "startLine": 109,
-    "endLine": 112,
+    "code": "require(currentPhase() == PHASE_TWO, \"LaunchEvent: not in phase two\");",
+    "startLine": 104,
+    "endLine": 104,
     "event": "add"
   },
   {
     "code": "else if (_phase == PHASE_THREE) {\n}",
-    "startLine": 113,
-    "endLine": 114,
-    "event": "add",
-    "closeBefore": true
+    "startLine": 106,
+    "endLine": 107,
+    "event": "add"
   },
   {
-    "code": "require( currentPhase() == PHASE_THREE, \"LaunchEvent: not in phase three\" );",
-    "startLine": 114,
-    "endLine": 117,
+    "code": "require(currentPhase() == PHASE_THREE, \"LaunchEvent: not in phase three\");",
+    "startLine": 107,
+    "endLine": 107,
     "event": "add"
   },
   {
     "code": "else {\n}",
-    "startLine": 118,
-    "endLine": 119,
-    "event": "add",
-    "closeBefore": true
+    "startLine": 109,
+    "endLine": 110,
+    "event": "add"
   },
   {
     "code": "revert(\"LaunchEvent: unknown state\");",
-    "startLine": 119,
-    "endLine": 119,
+    "startLine": 110,
+    "endLine": 110,
     "event": "add"
   },
   {
     "code": "\n",
-    "startLine": 122,
-    "endLine": 122,
+    "startLine": 113,
+    "endLine": 113,
     "event": "add"
   },
   {
     "code": "modifier atPhase(uint8 _phase) {\n}",
+    "startLine": 114,
+    "endLine": 115,
+    "event": "add"
+  },
+  {
+    "code": "_atPhase(_phase);",
+    "startLine": 115,
+    "endLine": 115,
+    "event": "add"
+  },
+  {
+    "code": "_;",
+    "startLine": 116,
+    "endLine": 116,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 118,
+    "endLine": 118,
+    "event": "add"
+  },
+  {
+    "code": "modifier isStopped(bool _stopped) {\n}",
+    "startLine": 119,
+    "endLine": 120,
+    "event": "add"
+  },
+  {
+    "code": "if (_stopped) {\n}",
+    "startLine": 120,
+    "endLine": 121,
+    "event": "add"
+  },
+  {
+    "code": "require(stopped, \"LaunchEvent: is still running\");",
+    "startLine": 121,
+    "endLine": 121,
+    "event": "add"
+  },
+  {
+    "code": "else {\n}",
     "startLine": 123,
     "endLine": 124,
     "event": "add"
   },
   {
-    "code": "_atPhase(_phase);",
+    "code": "require(!stopped, \"LaunchEvent: stopped\");",
     "startLine": 124,
     "endLine": 124,
     "event": "add"
   },
   {
     "code": "_;",
-    "startLine": 125,
-    "endLine": 125,
+    "startLine": 126,
+    "endLine": 126,
     "event": "add"
   },
   {
     "code": "\n",
-    "startLine": 127,
-    "endLine": 127,
-    "event": "add"
-  },
-  {
-    "code": "modifier isStopped(bool _stopped) {\n}",
     "startLine": 128,
-    "endLine": 129,
+    "endLine": 128,
     "event": "add"
   },
   {
-    "code": "if (_stopped) {\n}",
+    "code": "function createPair() external isStopped(false) atPhase(PHASE_THREE) {\n}",
     "startLine": 129,
     "endLine": 130,
     "event": "add"
   },
   {
-    "code": "require(stopped, \"LaunchEvent: is still running\");",
+    "code": "(address wavaxAddress, address tokenAddress) = (address(WAVAX), address(token));",
     "startLine": 130,
     "endLine": 130,
     "event": "add"
   },
   {
-    "code": "else {\n}",
+    "code": "require(factory.getPair(wavaxAddress, tokenAddress) == address(0) || IJoePair(IJoeFactory(factory).getPair(wavaxAddress, tokenAddress)).totalSupply() == 0, \"LaunchEvent: liquid pair already exists\");",
     "startLine": 131,
-    "endLine": 132,
-    "event": "add",
-    "closeBefore": true
+    "endLine": 131,
+    "event": "add"
   },
   {
-    "code": "require(!stopped, \"LaunchEvent: stopped\");",
+    "code": "require(wavaxReserve > 0, \"LaunchEvent: no wavax balance\");",
     "startLine": 132,
     "endLine": 132,
     "event": "add"
   },
   {
-    "code": "_;",
+    "code": "\n",
+    "startLine": 133,
+    "endLine": 133,
+    "event": "add"
+  },
+  {
+    "code": "uint256 tokenAllocated = tokenReserve;",
     "startLine": 134,
     "endLine": 134,
     "event": "add"
   },
   {
     "code": "\n",
+    "startLine": 135,
+    "endLine": 135,
+    "event": "add"
+  },
+  {
+    "code": "if (floorPrice > (wavaxReserve * 10**token.decimals()) / tokenAllocated ) {\n}",
     "startLine": 136,
-    "endLine": 136,
-    "event": "add"
-  },
-  {
-    "code": "function createPair() external isStopped(false) atPhase(PHASE_THREE) {\n}",
-    "startLine": 137,
-    "endLine": 138,
-    "event": "add"
-  },
-  {
-    "code": "(address wavaxAddress, address tokenAddress) = ( address(WAVAX), address(token) );",
-    "startLine": 138,
-    "endLine": 141,
-    "event": "add"
-  },
-  {
-    "code": "require( factory.getPair(wavaxAddress, tokenAddress) == address(0) || IJoePair( IJoeFactory(factory).getPair(wavaxAddress, tokenAddress) ).totalSupply() == 0, \"LaunchEvent: liquid pair already exists\" );",
-    "startLine": 142,
-    "endLine": 149,
-    "event": "add"
-  },
-  {
-    "code": "require(wavaxReserve > 0, \"LaunchEvent: no wavax balance\");",
-    "startLine": 150,
-    "endLine": 150,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 151,
-    "endLine": 151,
-    "event": "add"
-  },
-  {
-    "code": "uint256 tokenAllocated = tokenReserve;",
-    "startLine": 152,
-    "endLine": 152,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 153,
-    "endLine": 153,
-    "event": "add"
-  },
-  {
-    "code": "if ( floorPrice > (wavaxReserve * 10**token.decimals()) / tokenAllocated ) {\n}",
-    "startLine": 154,
-    "endLine": 157,
+    "endLine": 137,
     "event": "add"
   },
   {
     "code": "tokenAllocated = (wavaxReserve * 10**token.decimals()) / floorPrice;",
-    "startLine": 157,
-    "endLine": 157,
+    "startLine": 137,
+    "endLine": 137,
     "event": "add"
   },
   {
     "code": "tokenIncentivesForUsers = (tokenIncentivesForUsers * tokenAllocated) / tokenReserve;",
-    "startLine": 158,
-    "endLine": 160,
-    "event": "add"
-  },
-  {
-    "code": "tokenIncentiveIssuerRefund = tokenIncentivesBalance - tokenIncentivesForUsers;",
-    "startLine": 161,
-    "endLine": 163,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 165,
-    "endLine": 165,
-    "event": "add"
-  },
-  {
-    "code": "WAVAX.approve(address(router), wavaxReserve);",
-    "startLine": 166,
-    "endLine": 166,
-    "event": "add"
-  },
-  {
-    "code": "token.approve(address(router), tokenAllocated);",
-    "startLine": 167,
-    "endLine": 167,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 168,
-    "endLine": 168,
-    "event": "add"
-  },
-  {
-    "code": "(, , lpSupply) = router.addLiquidity( wavaxAddress, tokenAddress, wavaxReserve, tokenAllocated, wavaxReserve, tokenAllocated, address(this), block.timestamp );",
-    "startLine": 169,
-    "endLine": 178,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 179,
-    "endLine": 179,
-    "event": "add"
-  },
-  {
-    "code": "pair = IJoePair(factory.getPair(tokenAddress, wavaxAddress));",
-    "startLine": 180,
-    "endLine": 180,
-    "event": "add"
-  },
-  {
-    "code": "wavaxAllocated = wavaxReserve;",
-    "startLine": 181,
-    "endLine": 181,
-    "event": "add"
-  },
-  {
-    "code": "wavaxReserve = 0;",
-    "startLine": 182,
-    "endLine": 182,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 183,
-    "endLine": 183,
-    "event": "add"
-  },
-  {
-    "code": "tokenReserve -= tokenAllocated;",
-    "startLine": 184,
-    "endLine": 184,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 185,
-    "endLine": 185,
-    "event": "add"
-  },
-  {
-    "code": "emit LiquidityPoolCreated( address(pair), tokenAddress, wavaxAddress, tokenAllocated, wavaxAllocated );",
-    "startLine": 186,
-    "endLine": 192,
-    "event": "add"
-  },
-  {
-    "code": "// @During tokenAllocated == wavaxReserve * 1e18 / floorPrice",
-    "startLine": 157,
-    "endLine": 157,
-    "event": "add"
-  },
-  {
-    "code": "// @Debugging BEGIN",
     "startLine": 138,
     "endLine": 138,
     "event": "add"
   },
   {
-    "code": "// @StateVar stopped = false",
+    "code": "tokenIncentiveIssuerRefund = tokenIncentivesBalance - tokenIncentivesForUsers;",
     "startLine": 139,
     "endLine": 139,
     "event": "add"
   },
   {
-    "code": "// @StateVar auctionStart = [1, 1]",
-    "startLine": 140,
-    "endLine": 140,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar PHASE_ONE_DURATION = [0, 0]",
+    "code": "\n",
     "startLine": 141,
     "endLine": 141,
     "event": "add"
   },
   {
-    "code": "// @StateVar PHASE_TWO_DURATION = [0, 0]",
+    "code": "WAVAX.approve(address(router), wavaxReserve);",
     "startLine": 142,
     "endLine": 142,
     "event": "add"
   },
   {
-    "code": "// @StateVar floorPrice = [20000000000000000000000000000000, 20000000000000000000000000000000]",
+    "code": "token.approve(address(router), tokenAllocated);",
     "startLine": 143,
     "endLine": 143,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokenReserve = [100000000, 100000000]",
+    "code": "\n",
     "startLine": 144,
     "endLine": 144,
     "event": "add"
   },
   {
-    "code": "// @StateVar wavaxReserve = [1000000000000000000000, 1000000000000000000000]",
+    "code": "(, , lpSupply) = router.addLiquidity(wavaxAddress, tokenAddress, wavaxReserve, tokenAllocated, wavaxReserve, tokenAllocated, address(this), block.timestamp);",
     "startLine": 145,
     "endLine": 145,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokenIncentivesBalance = [0, 0]",
+    "code": "\n",
     "startLine": 146,
     "endLine": 146,
     "event": "add"
   },
   {
-    "code": "// @StateVar tokenIncentivesForUsers = [0, 0]",
+    "code": "pair = IJoePair(factory.getPair(tokenAddress, wavaxAddress));",
     "startLine": 147,
     "endLine": 147,
     "event": "add"
   },
   {
-    "code": "// @StateVar WAVAX = symbolicAddress 1",
+    "code": "wavaxAllocated = wavaxReserve;",
     "startLine": 148,
     "endLine": 148,
     "event": "add"
   },
   {
-    "code": "// @StateVar token = symbolicAddress 2",
+    "code": "wavaxReserve = 0;",
     "startLine": 149,
     "endLine": 149,
     "event": "add"
   },
   {
-    "code": "// @StateVar router = symbolicAddress 3",
+    "code": "\n",
     "startLine": 150,
     "endLine": 150,
     "event": "add"
   },
   {
-    "code": "// @StateVar factory = symbolicAddress 4",
+    "code": "tokenReserve -= tokenAllocated;",
     "startLine": 151,
     "endLine": 151,
     "event": "add"
   },
   {
-    "code": "// @GlobalVar block.timestamp = [1000, 1000]",
+    "code": "\n",
     "startLine": 152,
     "endLine": 152,
     "event": "add"
   },
   {
-    "code": "// @IReturn token.decimals() = [8, 8]",
+    "code": "emit LiquidityPoolCreated( address(pair), tokenAddress, wavaxAddress, tokenAllocated, wavaxAllocated );",
     "startLine": 153,
-    "endLine": 153,
+    "endLine": 159,
+    "event": "add"
+  },
+  {
+    "code": "// @During tokenAllocated == wavaxReserve * 1e18 / floorPrice",
+    "startLine": 137,
+    "endLine": 137,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging BEGIN",
+    "startLine": 130,
+    "endLine": 130,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar stopped = false",
+    "startLine": 131,
+    "endLine": 131,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar auctionStart = [1, 1]",
+    "startLine": 132,
+    "endLine": 132,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar PHASE_ONE_DURATION = [0, 0]",
+    "startLine": 133,
+    "endLine": 133,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar PHASE_TWO_DURATION = [0, 0]",
+    "startLine": 134,
+    "endLine": 134,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar floorPrice = [20000000000000000000000000000000, 20000000000000000000000000000000]",
+    "startLine": 135,
+    "endLine": 135,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar tokenReserve = [100000000, 100000000]",
+    "startLine": 136,
+    "endLine": 136,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar wavaxReserve = [1000000000000000000000, 1000000000000000000000]",
+    "startLine": 137,
+    "endLine": 137,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar tokenIncentivesBalance = [0, 0]",
+    "startLine": 138,
+    "endLine": 138,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar tokenIncentivesForUsers = [0, 0]",
+    "startLine": 139,
+    "endLine": 139,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar WAVAX = symbolicAddress 1",
+    "startLine": 140,
+    "endLine": 140,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar token = symbolicAddress 2",
+    "startLine": 141,
+    "endLine": 141,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar router = symbolicAddress 3",
+    "startLine": 142,
+    "endLine": 142,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar factory = symbolicAddress 4",
+    "startLine": 143,
+    "endLine": 143,
+    "event": "add"
+  },
+  {
+    "code": "// @GlobalVar block.timestamp = [1000, 1000]",
+    "startLine": 144,
+    "endLine": 144,
+    "event": "add"
+  },
+  {
+    "code": "// @IReturn token.decimals() = [8, 8]",
+    "startLine": 145,
+    "endLine": 145,
     "event": "add"
   },
   {
     "code": "// @IReturn factory.getPair() = [0, 0]",
-    "startLine": 154,
-    "endLine": 154,
+    "startLine": 146,
+    "endLine": 146,
     "event": "add"
   },
   {
     "code": "// @IReturn IJoeFactory(factory).getPair() = [0, 0]",
-    "startLine": 155,
-    "endLine": 155,
+    "startLine": 147,
+    "endLine": 147,
     "event": "add"
   },
   {
     "code": "// @IReturn router.addLiquidity()[2] = [0, 0]",
-    "startLine": 156,
-    "endLine": 156,
+    "startLine": 148,
+    "endLine": 148,
     "event": "add"
   },
   {
     "code": "// @Debugging END",
-    "startLine": 157,
-    "endLine": 157,
+    "startLine": 149,
+    "endLine": 149,
     "event": "add"
   }
 ]
