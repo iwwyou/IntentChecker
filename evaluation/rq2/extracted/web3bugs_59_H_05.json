@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_59_H_05",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_md_says_L5b_but_limitation_types_md_says_L4a_objective_judgment_L4a",
+  "notes": "Case4_twin_dual_use_value_collapse_pre_vs_post_penalty",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_59_H_05) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 7, lines 1205-1365)",
+  "extraction_note": "One of the ~10 reclass_reason cases explicitly named in README \u00a71 bullet 3, and one the README itself says was already spot-checked ('Verified once already for web3bugs_59_H_05') and confirmed to correctly land on L4a for the right reason (Type B \u2014 the needed values userMaltPurchased/userCommitment are another contract's state with no in-scope proxy, not merely a call result with a known bound; README \u00a74's known-bound-rescue note explicitly lists this case as a confirmed rescue FAILURE). Doc resolves the annotation_plans.md-vs-limitation_types.md disagreement in favor of L4a: an @During amendAccountParticipation.arg[3] == maltQuantity annotation using the in-scope (buggy, post-penalty) local would tautologically pass buggy and fail correct (silent sanction), while the true correct value (pre-penalty maltQuantity) requires an external-contract call (auction.getAuctionParticipationForAccount) that isn't present in exitEarly's body at all -- G1 (call not permitted in intentValue) + G3 (no scope binding) + G8 (external contract state). Doc explicitly frames this as axis alpha (external view call result needed + variable outside scope), matching csv's l4a_axis=alpha, and as a structural twin of Case 4/39_H_02's 'dual-use value collapse' pattern (single return value used for two purposes needing different pre/post states).",
+  "case_built": "No"
+}

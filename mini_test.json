@@ -1,0 +1,68 @@
+[
+  {
+    "code": "pragma solidity ^0.8.0;",
+    "startLine": 1,
+    "endLine": 1,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 2,
+    "endLine": 2,
+    "event": "add"
+  },
+  {
+    "code": "library Balances {\n}",
+    "startLine": 3,
+    "endLine": 4,
+    "event": "add"
+  },
+  {
+    "code": "struct Position {\n}",
+    "startLine": 4,
+    "endLine": 6,
+    "event": "add"
+  },
+  {
+    "code": "int256 quote;",
+    "startLine": 5,
+    "endLine": 5,
+    "event": "add"
+  },
+  {
+    "code": "int256 base;",
+    "startLine": 6,
+    "endLine": 6,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 7,
+    "endLine": 7,
+    "event": "add"
+  },
+  {
+    "code": "function applyTrade( Position memory position, uint256 feeRate ) internal pure returns (Position memory) {\n}",
+    "startLine": 8,
+    "endLine": 8,
+    "event": "add"
+  },
+  {
+    "code": "int256 newQuote = position.quote;",
+    "startLine": 9,
+    "endLine": 9,
+    "event": "add"
+  },
+  {
+    "code": "Position memory newPosition = Position(newQuote, position.base);",
+    "startLine": 10,
+    "endLine": 10,
+    "event": "add"
+  },
+  {
+    "code": "return newPosition;",
+    "startLine": 11,
+    "endLine": 11,
+    "event": "add"
+  }
+]

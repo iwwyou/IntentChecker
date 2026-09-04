@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_51_H_06",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_rescue_recheck",
+  "reclass_reason": "",
+  "notes": "Case5_twin_consistent_A_D_absence",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_51_H_06) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 6, lines 1032-1203)",
+  "extraction_note": "Explicitly named in README \u00a71's ~9-case carry-forward list, but l4a_axis=alpha triggers README \u00a71 bullet 2's rescue-recheck instruction, so tagged needs_rescue_recheck. Doc describes this as a 'twin' of 51_H_04 in the same SwapUtils/dual-A library: the bug is that addLiquidity computes idealBalance = d1*balances[i]/d0 mixing D values computed under two different amplifier (A) regimes (d0 under A_old, d1 under A_new), which is dimensionally meaningless. Correct requires a re-invocation of getD(...) with a consistent A, whose result is not in scope (G3) and cannot be written inside intentValue (G1). Doc explicitly frames this as a single-step (not multi-step) algorithm error, structurally simpler than Case 5/51_H_04, and speculates the grammar could resolve it if it allowed 'reference to the result of re-invoking an existing call with a new argument' -- but this is a hypothetical grammar extension, not a known-bound rescue the doc actually tried; no rescue check is documented for this case.",
+  "case_built": "No"
+}

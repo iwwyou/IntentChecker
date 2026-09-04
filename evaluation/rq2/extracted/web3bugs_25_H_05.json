@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_25_H_05",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "beta",
+  "final_class": "L4a",
+  "triage_status": "carry_forward",
+  "reclass_reason": "",
+  "notes": "purest_Type_B_example_hardcoded_18",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_25_H_05) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 2, lines 404-543)",
+  "extraction_note": "Explicitly named in README \u00a71's ~9-case proxy_type=B/no-reclass_reason carry-forward list. blocker_tags=beta matches csv l4a_axis and the doc's root-cause section, which states there is no variable anywhere in CTokenMultiOracle corresponding to the needed underlying-token-decimals value 'uD' (the hardcoded decimals_=18 in _setSource is a fabrication, not a proxy of anything in scope) \u2014 a clean instance of 'no in-scope variable/expression exists at all,' distinct from Case 1/29_H_05's alpha (where the needed value at least requires a function call, but some scope material exists).",
+  "case_built": "No"
+}

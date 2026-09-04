@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_17_H_02",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha_and_beta",
+  "final_class": "L4b",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_md_said_L5a_but_post_condition_not_expressible_due_to_missing_scope_vars_limitation_types_L4b_confirmed",
+  "notes": "view_function_missing_b_c_check_AND_missing_cache_state_var_deepest_L4b_requires_data_model_extension",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_17_H_02) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 11)",
+  "extraction_note": "csv l4a_axis is blank (this is an L4b case, not L4a, so the axis column was never populated) and primary_G=G1;G3;G4. Mapped to alpha_and_beta myself from the case-review prose, not copied from a pre-existing tag: the missing b/c-ratio check needs a function call inside the relation (curvePool.get_dy(1,2,...), G1) -> alpha; AND the comparison baseline (a 'lastRatio_bc' cache) does not exist anywhere in the contract's state at all (G3, data-model absence, not just an unreachable call result) -> beta. G4 (view function, state-write channel closed) explains why this lands in L4b rather than L4a, but isn't itself part of the alpha/beta/gamma/delta relation-expressibility vocabulary. Case review flags this as the deepest L4b instance because closing the gap would require extending the contract's data model (adding a new state var), not just aux-injecting a local.",
+  "case_built": "No"
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_25_H_01",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "A_candidate_resolved_to_B_proxy_unreliable_depends_on_setSource_invariant_not_code_enforced",
+  "notes": "runtime_equivalent_in_alcueca_reading_but_audit_accepts_as_bug_under_cmichel_framing_Type_B_proxy_unreliable",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_25_H_01) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 1, lines 247-402)",
+  "extraction_note": "Doc's [Category (I8)] line at case-review Case 1 initially flags this as a 'Type A candidate' (source.decimals is a struct field set once in _setSource and could look like an in-scope snapshot proxy), but the csv reclass_reason records that this was subsequently resolved back to Type B \u2014 the numeric equivalence 'source.decimals == oracle.decimals()' only holds because of an invariant maintained by _setSource's construction discipline, not something the engine/grammar can verify from code, so it is not a reliable in-scope proxy. blocker_tags=alpha follows the csv l4a_axis column directly and is corroborated by the doc's root-cause section (G1: IOracle(source.source).decimals() is a function call not in the target function's own trace; G3: no call site for .decimals() exists inside _peek/_get, so @IReturn cannot bind it either; the doc explicitly states 'this rescue is not available' in-substance by noting the call site doesn't exist in scope, though it does not use the README's exact 'known-bound rescue' phrasing). A secondary G2 concern (annotation grammar lacks '**' for 10**x) is noted as annotation-only, not the primary blocker, and doesn't change the axis tag.",
+  "case_built": "No"
+}

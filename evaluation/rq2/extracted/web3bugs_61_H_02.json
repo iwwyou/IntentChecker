@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_61_H_02",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_md_said_L5a_but_self_contradictory_limitation_types_md_says_L4a_confirmed",
+  "notes": "Case7_twin_wrapper_return_misrouting_drop_pattern_pps_shares_mismatch",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_61_H_02) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 9, lines 1544-1713)",
+  "extraction_note": "One of the ~10 reclass_reason cases named in README \u00a71 bullet 3. Doc gives a clear vocabulary mapping: annotation_plans.md's L5a claim was found internally self-contradictory -- it asserted the fix was a missing return-capture (bug-awareness-only, L5a-shaped) while, in the same breath, admitting 'returnExpression == _savingsAccount.transfer(...)' cannot be written because the grammar disallows function calls in intentValue -- L5a requires the post-condition be expressible with only bug-awareness missing, which this contradicts. Correct value (the shares actually returned by the state-modifying transfer()/transferFrom() call) is never captured into any local (that omission is the bug itself), and @IReturn cannot rescue it because @IReturn is view/pure-only and transfer() is state-modifying -- so the debug-annotation channel is structurally closed too, not just the intent grammar. Doc assigns axis alpha (function-call-result needed, no scope binding, and no debug-channel workaround given the state-modifying-call restriction), matching csv's l4a_axis=alpha. Twinned by the doc with Case 7 (59_H_05) as a 'wrapper return misrouting' family -- Case 7 is a dual-use value collapse, Case 9 (this case) is a returned-value drop (parameter substituted for the real interface-call result).",
+  "case_built": "No"
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_36_H_02",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Usable",
+  "blocker_tags": "gamma",
+  "final_class": "L4d",
+  "triage_status": "carry_forward_pure_grammar",
+  "reclass_reason": "",
+  "notes": "only_L4d_case_multi_var_product_invariant_ibRatio_totalSupply_preservation_merger_candidate_with_L4c_both_grammar_limit",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_36_H_02) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 14)",
+  "extraction_note": "proxy_type=A, reclass_reason empty -> carry_forward_pure_grammar per README section 1's fourth bullet. All relevant variables (ibRatio, totalSupply, amount) are in scope -- Type A, not a scope-absence problem. Two compounding blockers per the doc: (1) `changed(ibRatio, true)` is masked in one branch because handleFees() already mutates ibRatio for an unrelated reason (fee accrual), making it satisfied in both buggy and correct code under that scenario -- a silent-sanction/scenario-dependent issue, not itself gamma; (2) the actual correct intent is a multi-variable product invariant (`ibRatio * totalSupply` preserved across the call), which the postClause grammar's single entry/exit relOp form cannot express at all. Mapped blocker_tags to gamma (relation is inherently multi-point/structural -- an accounting relationship spanning two state variables in a product that the grammar's single-relation forms can't capture) -- this is a stronger/cleaner fit for gamma than 35_H_10's single-variable magnitude gap, since it's genuinely a multi-variable structural invariant. As with 35_H_10, the doc itself does not use alpha/beta/gamma/delta vocabulary for this case (predates it) -- this is my own inferred mapping per the task's default instruction. Doc explicitly proposes merging this with 35_H_10 (L4c) into one 'PostEntryExit arithmetic gap' category.",
+  "case_built": "No"
+}

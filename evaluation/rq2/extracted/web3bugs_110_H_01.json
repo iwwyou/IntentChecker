@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_110_H_01",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4b",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_L5a_but_view_function_missing_call_site_G3_I9_L4b",
+  "notes": "missing_strategy_balance_call_NatSpec_mentions_vault_plus_strategy_Case11_Case16_Case20_family",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_110_H_01) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 20)",
+  "extraction_note": "csv l4a_axis blank (L4b, not L4a); primary_G=G1;G3;G4. `strategy` (the target contract address) is in scope as a state var, but the correct return expression needs `IStrategy(strategy).balanceOf()` -- a call that does not exist anywhere in the buggy code, so there's no call-site to attach an @IReturn to and no way to reference its result inside the relation either. Case review explicitly cites this as G1 ('\ub450 \ud638\ucd9c \ubaa8\ub450 intent\uc5d0\uc11c \ud45c\ud604 \ubd88\uac00 (G1)'). Mapped to alpha (function call needed inside intentValue, grammar disallows, no rescue available since the value is genuinely another contract's state). Twinned with the view+missing-call family (Case 11 / 17_H_02, Case 16 / 58_H_04, and this one).",
+  "case_built": "No"
+}

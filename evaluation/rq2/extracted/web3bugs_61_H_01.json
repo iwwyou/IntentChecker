@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_61_H_01",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "L5b_trial_withdrawn_arg_n_is_lint_level_I9_principle_semantic_channel_blocked_by_IReturn_arg_indifference",
+  "notes": "oracle_arg_order_bug_semantic_channel_L4a_Case2_Case7_twin_Value_TypeB_cell",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_61_H_01) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 8, lines 1367-1541)",
+  "extraction_note": "One of the ~10 reclass_reason cases named in README \u00a71 bullet 3. Doc gives a clear vocabulary mapping: an initial L5b proposal used '@During getLatestPrice.arg[0] == _collateralAsset' (grammar-expressible, formally distinguishes the swapped-argument bug -- structurally identical to the accepted L5b pattern in 52_H_15). This was withdrawn under a new 'I9 principle' articulated in the doc: .arg[n] argument-identity checks are lint-level (syntactic pattern-matching a tool like Slither could also catch) and not evidence of IntentChecker's semantic-intent contribution; the semantic question is whether the *meaning* of the oracle's returned ratio (collateral/borrow vs. borrow/collateral) can be checked, and it cannot, because @IReturn supplies one concrete value that is argument-order-indifferent -- buggy and correct code paths receive the identical @IReturn-supplied value from the engine's perspective, so no @Post return-value relation can distinguish them either. This blocked-semantic-channel-by-@IReturn-arg-indifference reasoning is the doc's explicit rationale for keeping L4a and matches csv's l4a_axis=alpha (external oracle call whose semantic return value cannot be referenced/verified). Twinned by the doc with Case 2 (25_H_05) and Case 7 (59_H_05) as the same 'Value error / Type B' cell.",
+  "case_built": "No"
+}

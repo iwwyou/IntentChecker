@@ -1,0 +1,776 @@
+{
+  "WANGMI": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "428",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000021E482BC2E0> < <Domain.IR.Expression object at 0x0000021E482BE740>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "Nokon": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "51",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x00000263FF796920> >= <Domain.IR.Expression object at 0x00000263FF796620>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "SwordCrowdsale": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "81",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002035873F010> > <Domain.IR.Expression object at 0x000002035873EDA0> \u2192 violated (risk=10.0) [risk=10.0]"
+      },
+      {
+        "line": "81",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002035873ED10> > <Domain.IR.Expression object at 0x000002035873EDD0> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "BoostToken": {
+    "declared_annotations": 4,
+    "observed_output_lines": 4,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "140",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "transfer.arg[0] > <Domain.IR.Expression object at 0x0000020135ABEF20> \u2192 violated (risk=10.0) [risk=10.0]"
+      },
+      {
+        "line": "141",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "transfer.arg[0] > <Domain.IR.Expression object at 0x0000020135ABFF70> \u2192 violated (risk=10.0) [risk=10.0]"
+      },
+      {
+        "line": "142",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "transfer.arg[0] > <Domain.IR.Expression object at 0x0000020135ABEDA0> \u2192 violated (risk=10.0) [risk=10.0]"
+      },
+      {
+        "line": "143",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "transfer.arg[0] > <Domain.IR.Expression object at 0x0000020135ABC160> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "HIT": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "69",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": null,
+        "text": "A \u21d2 B with A=true \u2192 B is violated."
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_5_H_07": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "24",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x000001511732C370> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_5_H_08": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "40",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "_units == <Domain.IR.Expression object at 0x000001EA95A8D2A0>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_5_H_12": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "34",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x00000242F03982E0> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_45_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "236",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002C254EE6FE0> < <Domain.IR.Expression object at 0x000002C254EE7C10> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_47_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "32",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000013A22D58670> == <Domain.IR.Expression object at 0x0000013A22D5B1F0> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_51_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "113",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": null,
+        "text": "require condition is always false \u2014 never passable"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_56_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "46",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002275FF3DC00> <= <Domain.IR.Expression object at 0x000002275FF3DA20> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_58_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "85",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "toMint < baseSupply  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_60_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "23",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000012B57431150> == <Domain.IR.Expression object at 0x0000012B57430B50>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_62_H_08": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "182",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002786DB72C20> == <Domain.IR.Expression object at 0x000002786DB71480> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_70_H_10": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "114",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "changed(<Domain.IR.Expression object at 0x0000012FA1DED750>, true) \u2192 changed: violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_77_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "38",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "returnExpression >= <Domain.IR.Expression object at 0x000001F7A700C430> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_78_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "24",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000027DD1700970> <= amount \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_101_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "45",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "_principalWithdrawable <= _totalLiquidityWithdrawable  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_112_H_01": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "24",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "changed(<Domain.IR.Expression object at 0x000001B3A0AD8EB0>, false) \u2192 unchanged: violated (risk=10.0) [risk=10.0]"
+      },
+      {
+        "line": "24",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "changed(<Domain.IR.Expression object at 0x000001B3A0AD9270>, false) \u2192 unchanged: violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_113_H_05": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "52",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000026C56B65F90> <= <Domain.IR.Expression object at 0x0000026C56B66140>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_16_H_06": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "13",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "result == <Domain.IR.Expression object at 0x000001BB302E78E0> \u2192 warning (risk=9.9) | violation lower=[0, 14999999999999999999999] upper=[15000000000000000000001, 11579208923731619542357098500868790785"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_192_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "34",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000013B22273460> == <Domain.IR.Expression object at 0x0000013B22273910> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_29_H_08": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "21",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "_reserve0 == reserve0 \u2192 warning (risk=9.9) | violation lower=[0, 1499] upper=[1501, 115792089237316195423570985008687907853269984665640564039457584007913129639935] overlap=[1500, 1500] [risk=9.9]"
+      },
+      {
+        "line": "21",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "_reserve1 == reserve1 \u2192 warning (risk=9.9) | violation lower=[0, 899] upper=[901, 115792089237316195423570985008687907853269984665640564039457584007913129639935] overlap=[900, 900] [risk=9.9]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_29_H_11": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "161",
+        "scope": "During/Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "amount1 == <Domain.IR.Expression object at 0x0000023479010C40>  \u2192  warning (risk=9.9)  | violation lower=None upper=None overlap=[0, 1052655356702874503850645318260799162302454406051277854904159854617"
+      },
+      {
+        "line": "168",
+        "scope": "During/Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "amount0 == <Domain.IR.Expression object at 0x0000023479010280>  \u2192  warning (risk=9.9)  | violation lower=None upper=None overlap=[0, 1052655356702874503850645318260799162302454406051277854904159854617"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_31_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "83",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "currentLockRatio == balanceInLock  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_35_H_08": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "150",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "liquidity == <Domain.IR.Expression object at 0x00000257BEC44A60> \u2192 warning (risk=9.9) | violation lower=None upper=None overlap=[0, 6000000] [risk=9.9]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_35_H_11": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "29",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000025ABA4DD030> == <Domain.IR.Expression object at 0x0000025ABA4DF550>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_35_H_12": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "181",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "secondsPerLiquidity == <Domain.IR.Expression object at 0x00000223289769E0> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_3_H_04": {
+    "declared_annotations": 1,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "71",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x000002990D5BA800> \u2192 warning (risk=9.9) | violation lower=None upper=[1, 11579208923731619542357098500868790785326998466564056403945758400791312963"
+      },
+      {
+        "line": "71",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x000002990D5BA800> \u2192 warning (risk=9.9) | violation lower=[0, 1999] upper=[2001, 115792089237316195423570985008687907853269984665640564039457584007"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_3_H_05": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "104",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x0000015065873790> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_42_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "104",
+        "scope": "During/Post",
+        "outcome": "Warning",
+        "risk": 3.4,
+        "text": "debts >= <Domain.IR.Expression object at 0x0000024958D563B0>  \u2192  warning (risk=3.4)  | violation lower=None upper=None overlap=[800, 1157920892373161954235709850086879078532699846656405640394575840079"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_52_H_04": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "60",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "result == <Domain.IR.Expression object at 0x000002DF1F080610> \u2192 warning (risk=9.9) | violation lower=None upper=None overlap=[0, 11579208923731619542357098500868790785326998466564056403945758400791312"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_52_H_23": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "114",
+        "scope": "During/Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "_update.arg[2] == <Domain.IR.Expression object at 0x000001FB6B4A7730> \u2192 warning (risk=9.9) | violation lower=None upper=None overlap=[0, 5192296858534827628530496329220095] [risk=9.9]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_52_H_34": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "60",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "result == <Domain.IR.Expression object at 0x0000024E9EBA7730> \u2192 warning (risk=9.9) | violation lower=[0, 449999999999999999999999] upper=[450000000000000000000001, 115792089237316195423570985008687907"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_59_H_04": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "28",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x0000023639541060> \u2192 warning (risk=9.9) | violation lower=None upper=None overlap=[0, 0] [risk=9.9]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_62_H_03": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "85",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "rewardTokenAmount == <Domain.IR.Expression object at 0x0000021E79CF58A0> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_62_H_10": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "46",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x000002CE23FB3DC0> == <Domain.IR.Expression object at 0x000002CE23FB3D90> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_65_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "23",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "lastFee == <Domain.IR.Expression object at 0x000001F2FF2C2A40> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_70_H_04": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "114",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "<Domain.IR.Expression object at 0x0000019D10CA79D0> == <Domain.IR.Expression object at 0x0000019D10CA5150> \u2192 warning (risk=9.9) | violation lower=[0, 499] upper=[501, 115792089237316195423570985008687"
+      },
+      {
+        "line": "115",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "<Domain.IR.Expression object at 0x0000019D10D1A6E0> == <Domain.IR.Expression object at 0x0000019D10D1BC40> \u2192 warning (risk=9.9) | violation lower=[0, 499] upper=[501, 115792089237316195423570985008687"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_70_H_05": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Warning",
+    "per_line_outcomes": [
+      {
+        "line": "56",
+        "scope": "Post",
+        "outcome": "Warning",
+        "risk": 9.9,
+        "text": "returnExpression == <Domain.IR.Expression object at 0x000001C1441E6920> \u2192 warning (risk=9.9) | violation lower=None upper=None overlap=[0, 1157920892373161954235709850086879078532699846656405640394575"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_79_H_02": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "137",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "tokenAllocated == <Domain.IR.Expression object at 0x000001E56D3BFFA0>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "web3bugs_83_H_01": {
+    "declared_annotations": 1,
+    "observed_output_lines": 1,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "28",
+        "scope": "Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "<Domain.IR.Expression object at 0x0000027EB08A95D0> == <Domain.IR.Expression object at 0x0000027EB08AB760> \u2192 violated (risk=10.0) [risk=10.0]"
+      }
+    ],
+    "error": ""
+  },
+  "numscout_EthereumGod": {
+    "declared_annotations": 2,
+    "observed_output_lines": 2,
+    "missing_lines": 0,
+    "case_level_outcome": "Violated",
+    "per_line_outcomes": [
+      {
+        "line": "139",
+        "scope": "During/Post",
+        "outcome": "Violated",
+        "risk": 10.0,
+        "text": "toMarketing == <Domain.IR.Expression object at 0x000002017D960460>  \u2192  violated (risk=10.0)  [risk=10.0]"
+      },
+      {
+        "line": "151",
+        "scope": "During/Post",
+        "outcome": "Satisfied",
+        "risk": 0.0,
+        "text": "newBalance == <Domain.IR.Expression object at 0x000002017D961210>  \u2192  satisfied (risk=0.0)  [risk=0.0]"
+      }
+    ],
+    "error": ""
+  }
+}

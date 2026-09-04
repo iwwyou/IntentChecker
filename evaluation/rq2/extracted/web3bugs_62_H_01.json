@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_62_H_01",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4b",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_L5a_but_wrapper_no_state_balanceOf_inline_chain_I9_principle",
+  "notes": "missing_formula_term_flashloan_fee_deduction_balanceOf_inline_unbound_Case9_wrapper_family",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_62_H_01) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 17)",
+  "extraction_note": "csv l4a_axis blank (L4b, not L4a); primary_G=G1;G3;G4. The missing formula term (depositTokenFlashloanFeeAmount) is itself an in-scope state var, not a blocker by itself. The actual blocker per the case review is that `balanceOf(this)` is only ever used inline in the buggy expression -- its result is never captured to a local -- so the correct relation needs a function call inside the intent (G1) with no aux-injected local currently standing in for it. Mapped to alpha (function call needed inside intentValue, grammar disallows). Case review compares this to Case 9 (61_H_02)'s 'wrapper return handling' family.",
+  "case_built": "No"
+}

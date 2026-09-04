@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_39_H_02",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "gamma",
+  "final_class": "L4a",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "L5b_trial_withdrawn_arg_n_proxy_is_not_intent_level",
+  "notes": "cross_line_fee_flow_composition_external_ERC20_state",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_39_H_02) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 4, lines 696-856)",
+  "extraction_note": "Doc gives a clear vocabulary mapping: an initial reclassification attempt to L5b used a '@During uToken.transferFrom.arg[2] == premiumFilled' proxy annotation (grammar-expressible, distinguishes buggy/correct formally), but this was withdrawn on the grounds that the true intent (sender's net token flow = an external ERC20 balanceOf entry-exit difference, outside Swivel's own scope) cannot itself be expressed, and the arg[2] relation is only a proxy that happens to work, not a direct statement of intent. Doc's root-cause section explicitly assigns this case a new axis label 'axis \u03b3 \u2014 multi-point accounting cannot be captured by a single-point annotation' (the bug spans two separate transferFrom calls whose combined net effect, not either call alone, is what's wrong), matching csv's l4a_axis=gamma directly. Also flags a natspec-driven silent-sanction risk: the in-code comment above the buggy line states the buggy behavior verbatim, so a developer following it would write the wrong intent as-is.",
+  "case_built": "No"
+}

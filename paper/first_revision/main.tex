@@ -37,6 +37,7 @@
 \usepackage{algpseudocode}%
 
 % Other packages
+\usepackage{textcomp}% For \textregistered, \texttrademark
 \usepackage{float}% For [H] option to force exact placement
 \usepackage{xcolor}%
 \usepackage{listings}%
@@ -162,7 +163,7 @@ These observations together motivate a development-time tool that runs while the
 To that end, this paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope.
 The intent model comprises two annotation types and a validation engine. The two annotation types cover different temporal windows of a function's execution: @During for relationships that should hold at specific program points during execution, and @Post for relationships that should hold at function exit. The validation engine, grounded in a formal denotational semantics, classifies each annotation as Satisfied, Warning, or Violated against the intervals produced by abstract interpretation, reporting the result together with a risk score on a 0--10 scale and the sub-intervals where the violation may occur.
 
-IntentChecker is evaluated on 75 effective benchmark instances (89 collected, 14 excluded) drawn from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}.
+IntentChecker is evaluated on 74 effective benchmark instances (89 collected, 15 excluded) drawn from Web3Bugs~\citep{exploitablebugs}, NumScout~\citep{numscout}, and the Greedy Contract dataset of \citet{flyinointment}.
 The evaluation is organized around three research questions: whether IntentChecker can surface real-world numeric logic errors as Violated judgments at development-time latency (RQ1), what structural limitations of the analysis engine and the intent model account for the cases it cannot surface (RQ2), and how IntentChecker compares with existing detection tools along the criteria and position axes that define the design space (RQ3).
 IntentChecker is positioned as a development-time complement to existing auditing-time detectors: it enables intent-driven validation during editing rather than competing with bug-pattern detectors on detection accuracy, and the RQ3 comparison is designed around this complementarity.
 
@@ -171,7 +172,7 @@ IntentChecker is positioned as a development-time complement to existing auditin
 \begin{itemize}
     \item This paper defines numeric logic errors, classifies their representative patterns by abstraction level (value-level vs algorithm-level), and shows that existing detection tools share two structural constraints in addressing this class: detection criteria fixed at design time, and analysis input confined to completed source code at audit time.
     \item An intent model is presented, consisting of two annotation types and a validation engine grounded in a formal denotational semantics; the engine produces a tri-valued judgment (Satisfied / Warning / Violated) against abstract states, along with a separately computed risk score and violated region.
-    \item IntentChecker is evaluated on 75 effective benchmark instances, on which it surfaces 20 numeric logic errors as Violated judgments at a mean 3.69\,s per case, and is compared with ScType, GPTScan, and NumScout along the criteria and position axes to substantiate its complementary role as a development-time debugging assistant.
+    \item IntentChecker is evaluated on 74 effective benchmark instances, of which 46 admit a representable numeric intent and 32 validate as Violated (median 2.11\,s per case), and is compared with ScType, GPTScan, and NumScout along the criteria and position axes to substantiate its complementary role as a development-time debugging assistant.
     \item Building on the evaluation results, this paper turns recurring patterns across the mitigated and L5 cases into three practical guidelines for authoring intent annotations: enumerating expected state effects, anchoring outputs to in-scope quantities, and expressing arithmetic intent at the mathematically ideal level.
 \end{itemize}
 
@@ -1203,7 +1204,7 @@ IntentChecker is implemented in Python~3.10 and operates directly on Solidity so
 
 \smallskip
 \noindent\textbf{Dataset Collection.}
-We initially collect 89 real-world numeric logic error instances from three complementary sources covering diverse numeric error patterns. We then apply the exclusion criteria described below to obtain the final benchmark of 75 instances within IntentChecker's analysis scope.
+We initially collect 89 real-world numeric logic error instances from three complementary sources covering diverse numeric error patterns. We then apply the exclusion criteria described below to obtain the final benchmark of 74 instances within IntentChecker's analysis scope.
 
 \smallskip\noindent\textbf{NumScout (7 instances).}
 NumScout~\citep{numscout} provides a curated collection of numeric logic errors mined from deployed BNB Smart Chain contracts.
@@ -1237,17 +1238,17 @@ Flyinointment & Greedy Contract & 1 \\
   & Inconsistent State Updates  & 9  \\
 \midrule
 \textbf{Total (collected)} & & \textbf{89} \\
-Excluded (see below)        & & $-14$ \\
-\textbf{Effective}          & & \textbf{75} \\
+Excluded (see below)        & & $-15$ \\
+\textbf{Effective}          & & \textbf{74} \\
 \bottomrule
 \end{tabular*}
 \end{table}
 
 \smallskip\noindent\textbf{Exclusions.}
-Of the 89 collected instances, 14 are excluded after manual inspection because they either do not satisfy Definition 1 or fall outside the single-transaction study scope established in Section 2, or cannot serve as distinct reproducible evaluation instances.
+Of the 89 collected instances, 15 are excluded after manual inspection because they either do not satisfy Definition 1 or fall outside the single-transaction study scope established in Section 2, or cannot serve as distinct reproducible evaluation instances.
 The exclusion categories are:
 \begin{itemize}
-  \item \textbf{E1 (Source already patched, 2).} The provided source code corresponds to a post-fix version and therefore does not contain the reported bug.
+  \item \textbf{E1 (Source already patched, 3).} The provided source code corresponds to a post-fix version and therefore does not contain the reported bug. One instance in this category was identified only during the revised RQ1/RQ2 analysis pass: extended provenance checking against the underlying issue-tracker discussion (rather than the compiled audit report alone) revealed that the target source already implements the reported fix.
   \item \textbf{E2 (Integer overflow/underflow, 2).} Under Solidity~$\geq$0.8 checked arithmetic, the reported operation causes the transaction to revert rather than producing an incorrect numeric value; we therefore exclude these cases from the numeric logic errors considered in this study.
   \item \textbf{E3 (Duplicate, 2).} Multiple audit findings refer to the same buggy code location.
   \item \textbf{E4 (Disputed finding, 1).} The project sponsor disputed the reported issue as intended behavior.
@@ -1257,7 +1258,7 @@ The exclusion categories are:
   \item \textbf{E8 (Bug not in target contract, 1).} The bug actually resides in a different contract than the one documented in the audit report.
 \end{itemize}
 
-The remaining \textbf{75 instances} constitute the effective evaluation set.
+The remaining \textbf{74 instances} constitute the effective evaluation set.
 
 \subsection{RQ1: Expressibility and Validatability}\label{sec:rq1}
 
@@ -1575,7 +1576,7 @@ Moreover, although each case's classification (Expressibility, Value/Algorithm-l
 
 \smallskip
 \noindent\textbf{External validity.}
-The final benchmark comprises 75 numeric logic error cases collected from three complementary sources: Web3Bugs, NumScout, and the Greedy Contract example presented in Fly-in-the-Ointment. These sources cover diverse types of numeric errors that arise in real-world Solidity contracts, but they do not exhaustively cover the full space of numeric logic errors. In addition, the benchmark is constrained by IntentChecker's analysis scope: the NumScout cases are affected by the range of Solidity versions supported by IntentChecker's front-end, and the Web3Bugs cases were selected from categories relevant to the multi-contract, single-transaction analysis addressed in this study, so bugs involving state changes across multiple transactions were excluded. As a result, the distributional characteristics observed with respect to expressiveness, evidence provenance, and engine limitations may not generalize to unsupported Solidity versions, multi-transaction behavior, or numeric error types not represented in the benchmark.
+The final benchmark comprises 74 numeric logic error cases collected from three complementary sources: Web3Bugs, NumScout, and the Greedy Contract example presented in Fly-in-the-Ointment. These sources cover diverse types of numeric errors that arise in real-world Solidity contracts, but they do not exhaustively cover the full space of numeric logic errors. In addition, the benchmark is constrained by IntentChecker's analysis scope: the NumScout cases are affected by the range of Solidity versions supported by IntentChecker's front-end, and the Web3Bugs cases were selected from categories relevant to the multi-contract, single-transaction analysis addressed in this study, so bugs involving state changes across multiple transactions were excluded. As a result, the distributional characteristics observed with respect to expressiveness, evidence provenance, and engine limitations may not generalize to unsupported Solidity versions, multi-transaction behavior, or numeric error types not represented in the benchmark.
 
 \smallskip
 \noindent\textbf{Construct validity.}
@@ -1744,7 +1745,7 @@ IntentChecker enables developers to specify their intended numeric behaviors thr
 
 This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity built on SolQDebug and extended to a multi-contract single-transaction scope. The tool classifies developer-supplied @During/@Post intent annotations as Satisfied, Warning, or Violated against the abstract states produced by interval-domain analysis, grounded in a formal denotational semantics, and reports a risk score and the violated region per annotation.
 
-On 75 effective benchmark instances drawn from Web3Bugs, NumScout, and the Greedy Contract dataset of \citet{flyinointment}, IntentChecker mitigated 20 cases by returning Violated judgments at a mean 3.69\,s per case (RQ1). RQ2 traced the remaining 55 cases to two levels of limitation. Of these, 21 are analysis-engine limits where the interval-domain state at the check point is too coarse to distinguish the bug. The other 34 are annotation-grammar limits rooted in two structural properties of the value-level intent model: value-level annotations can express a bug only when the corrective variable is in the function's scope, and algorithm-level bugs lie outside what a value-level grammar is designed to express. RQ3 then compared IntentChecker with existing detectors and empirically confirmed that their coverage and latency envelopes are bounded by both structural axes this paper identifies, namely who authors the detection criteria and when the tool is run.
+On 74 effective benchmark instances drawn from Web3Bugs, NumScout, and the Greedy Contract dataset of \citet{flyinointment}, IntentChecker's intent model can represent the bug-relevant numeric relation for 46 instances (RQ1); among these, actual execution against the buggy implementation yields a Violated judgment for 32, a Warning for 13, and a single Unsupported outcome tied to an unmodeled external-call state transition. The remaining 28 instances are inexpressible, predominantly (17 of 28) because the required value is reachable only through a function call inside the annotation with no available rescue ($\alpha$), with the rest attributable to values with no in-scope reference ($\beta$, 9), inherently structural relations ($\gamma$, 5), or an architecturally unevaluated observation point ($\delta$, 2). RQ2 characterizes the specification cost of the 46 expressible instances: a median of 4 relevant statements and 6 unique program values, with half requiring no more than same-function context (breadth 0--1) and 89.1\% requiring no external protocol-specific knowledge; validation itself completes at a median of 2.11\,s per case. RQ3 then compared IntentChecker with existing detectors and empirically confirmed that their coverage and latency envelopes are bounded by both structural axes this paper identifies, namely who authors the detection criteria and when the tool is run.
 
 These results position IntentChecker as complementary to existing detection tools: rather than competing on detection accuracy, it fills the development-time slot that auditing-time tools structurally cannot occupy. Future work targets LLM-assisted annotation suggestion and auto-repair, along with capturing contract-level intent.
 

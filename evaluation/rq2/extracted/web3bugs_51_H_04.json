@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_51_H_04",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha_and_gamma",
+  "final_class": "L4a",
+  "triage_status": "needs_rescue_recheck",
+  "reclass_reason": "",
+  "notes": "missing_split_decomposition_dual_A_curve",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_51_H_04) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 5, lines 858-1030)",
+  "extraction_note": "Explicitly named in README \u00a71's ~9-case carry-forward list, but l4a_axis=alpha_and_gamma (kept as given per instructions) means the alpha component triggers README \u00a71 bullet 2's rescue-recheck instruction, so this is tagged needs_rescue_recheck rather than plain carry_forward. Doc corroborates both components: G1/alpha \u2014 correct return value needs two internal getY(...) calls and one getD(...) call chained together, all disallowed inside intentValue; G3/gamma \u2014 the intermediate quantities (boundary point M, mid-state xpMid, second invariant d2, partial results y1/y2) exist nowhere in scope, and the doc frames the defect as an intrinsically multi-step sequential chain (M -> y1 -> xpMid -> d2 -> y2) that a single-relation grammar cannot describe as a whole. The doc also notes the boundary point M is itself the root of a nonlinear equation (getD([M,M],a) == d), so even if a call-result reference were allowed, no closed-form value is available \u2014 a known-bound rescue is not explicitly tested by the doc for this reason, left flagged rather than re-derived here.",
+  "case_built": "No"
+}

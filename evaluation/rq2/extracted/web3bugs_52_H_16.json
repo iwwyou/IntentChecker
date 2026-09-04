@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_52_H_16",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "alpha_and_beta",
+  "final_class": "L4b",
+  "triage_status": "needs_reexpression",
+  "reclass_reason": "annotation_plans_L5b_but_view_function_no_state_I9_principle_L4b",
+  "notes": "Case12_52H15_twin_view_version_pool0_pool1_reserve_order_swap",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_52_H_16) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 15)",
+  "extraction_note": "csv l4a_axis blank (L4b, not L4a); primary_G=G1;G3;G4. View-function twin of 52_H_15 (VaderRouter.calculateOutGivenIn vs. _swap): same pool0/pool1 reserve-order bug, same blocker shape. Mapped alpha_and_beta for the same reasons as 52_H_15 -- correct return value needs a VaderMath.calculateSwap-style call chain over external pool reserves inside the relation (G1, alpha) and those reserves/formula result have no in-scope proxy (G3, beta). Case review's own '[Category (I8)]' line calls this 'Value error / Type B' and explicitly labels it the view-version twin of Case 12 (52_H_15); it also notes a `.arg[n]` ordering channel exists but is excluded from L5b credit under I9 (lint-level).",
+  "case_built": "No"
+}

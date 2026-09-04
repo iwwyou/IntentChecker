@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_29_H_05",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Algorithm",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_rescue_recheck",
+  "reclass_reason": "",
+  "notes": "grammar_algebraic_coincidence_with_CP_buggy_formula",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_29_H_05) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 3, lines 546-694)",
+  "extraction_note": "Explicitly named in README \u00a71's ~9-case carry-forward list, but also has l4a_axis=alpha, so per this extraction's triage scheme it is flagged needs_rescue_recheck (README \u00a71 bullet 2 instructs re-checking every alpha case for a known-bound/Nokon-style rescue, and this hasn't been done for this specific case). The doc does discuss a closely related point: correct 'ideal balance' depends on the stableswap invariant D, which is the root of a cubic equation (D^3 - 16A*xy*D + ... = 0) and therefore not a rational-polynomial function of the in-scope reserves/amounts at all -- the doc frames this as a structural closure-of-operations barrier ('like trisecting an angle with compass and straightedge'), not merely 'D requires a function call.' This suggests a known-bound rescue is unlikely to close the gap (D has no simple closed-form bound derivable from rational-polynomial ops on scope variables either), but the doc does not explicitly run/rule out the README's bound-substitution rescue by name, so this is left as unresolved/needs_rescue_recheck per instructions rather than re-derived here.",
+  "case_built": "No"
+}

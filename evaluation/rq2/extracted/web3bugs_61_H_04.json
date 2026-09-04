@@ -1,0 +1,15 @@
+{
+  "case_id": "web3bugs_61_H_04",
+  "group": "old_l4_track20",
+  "expressible": "No",
+  "value_or_algorithm": "Value",
+  "usable": "Unusable",
+  "blocker_tags": "alpha",
+  "final_class": "L4a",
+  "triage_status": "needs_rescue_recheck",
+  "reclass_reason": "",
+  "notes": "Case1_Case2_scaling_trio_decimals_based_L4a_pure_Type_B_version_of_Case1",
+  "source_file": "evaluation/RQ2/l4_l5_classification.csv (row: web3bugs_61_H_04) + evaluation/RQ2/l4_l5_case_review_(kor).md (Case 10, lines 1716-1873)",
+  "extraction_note": "Explicitly named in README \u00a71's ~9-case carry-forward list, but l4a_axis=alpha triggers README \u00a71 bullet 2's rescue-recheck instruction, so tagged needs_rescue_recheck. Doc describes a triple blocker: needed divisor 10**vault.decimals() requires (1) a getPricePerFullShare() call and a decimals() call, both disallowed inside intentValue (G1); (2) neither call's result is bound to any local, and critically the .decimals() call site does not exist anywhere in the buggy code at all, so @IReturn has no call site to attach to (G3, described as 'the strictest form' of the scope-absence problem); and (3) even if the value were obtained, the annotation grammar itself lacks '**' (G2, annotation-only -- the engine's abstract interpreter does support it). Doc explicitly frames this as the 'clean/pure Type B version' of Case 1 (25_H_01), which had a partial Type-A-candidate proxy (source.decimals) that this case entirely lacks. It also notes that IF the grammar were extended with '**', an auxiliary-injection path to L5 could become viable (still requiring bug-awareness) -- this is a hypothetical grammar-extension observation, not the README's known-bound-rescue test, so needs_rescue_recheck is left open rather than resolved here per instructions.",
+  "case_built": "No"
+}
