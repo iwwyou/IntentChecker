@@ -419,7 +419,7 @@ class VariableEnv:
                 struct_defs=struct_defs,
                 enum_defs=enum_defs,
             )
-            arr.initialize_not_abstracted_type()
+            arr.initialize_default_by_base_type()
             return arr
 
         if sol_t.typeCategory == "mapping":

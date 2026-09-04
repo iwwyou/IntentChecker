@@ -312,51 +312,69 @@
     "event": "add"
   },
   {
-    "code": "if (synth == ISynth(address(0))) synth = synthFactory.createSynth( IERC20Extended(address(foreignAsset)) );",
+    "code": "if (synth == ISynth(address(0))) {\n}",
     "startLine": 100,
+    "endLine": 101,
+    "event": "add"
+  },
+  {
+    "code": "synth = synthFactory.createSynth(IERC20Extended(address(foreignAsset)));",
+    "startLine": 101,
+    "endLine": 101,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 103,
     "endLine": 103,
     "event": "add"
   },
   {
-    "code": "\n",
+    "code": "(uint112 reserveNative, uint112 reserveForeign, ) = getReserves( foreignAsset );",
     "startLine": 104,
-    "endLine": 104,
-    "event": "add"
-  },
-  {
-    "code": "(uint112 reserveNative, uint112 reserveForeign, ) = getReserves( foreignAsset ); amountSynth = VaderMath.calculateSwap( nativeDeposit, reserveNative, reserveForeign );",
-    "startLine": 105,
-    "endLine": 105,
-    "event": "add"
-  },
-  {
-    "code": "\n",
-    "startLine": 106,
     "endLine": 106,
     "event": "add"
   },
   {
-    "code": "_update( foreignAsset, reserveNative + nativeDeposit, reserveForeign, reserveNative, reserveForeign );",
+    "code": "\n",
     "startLine": 107,
-    "endLine": 113,
+    "endLine": 107,
+    "event": "add"
+  },
+  {
+    "code": "amountSynth = VaderMath.calculateSwap( nativeDeposit, reserveNative, reserveForeign );",
+    "startLine": 108,
+    "endLine": 112,
     "event": "add"
   },
   {
     "code": "\n",
+    "startLine": 113,
+    "endLine": 113,
+    "event": "add"
+  },
+  {
+    "code": "_update( foreignAsset, reserveNative + nativeDeposit, reserveForeign, reserveNative, reserveForeign );",
     "startLine": 114,
-    "endLine": 114,
+    "endLine": 120,
+    "event": "add"
+  },
+  {
+    "code": "\n",
+    "startLine": 121,
+    "endLine": 121,
     "event": "add"
   },
   {
     "code": "synth.mint(to, amountSynth);",
-    "startLine": 115,
-    "endLine": 115,
+    "startLine": 122,
+    "endLine": 122,
     "event": "add"
   },
   {
     "code": "// @During _update.arg[2] == reserveForeign - amountSynth",
-    "startLine": 107,
-    "endLine": 107,
+    "startLine": 114,
+    "endLine": 114,
     "event": "add"
   },
   {

@@ -26,6 +26,9 @@ class SolidityAnalyzer:
 
         # ── File-level definitions ─────────────────────────────
         self.file_level_structs = {}    # {"StructName": {field_name: SolType, ...}}
+        self.file_level_enums = {}      # {"EnumName": ["Member0", "Member1", ...]} — main.py의
+                                         # load_dependencies()가 regex 스캔으로 채움
+                                         # (web3bugs_42_H_01, `Status` — interface 밖 file-level enum)
         self.type_aliases = {}          # {"TypeName": "underlyingElementaryType"}
         self._current_file_struct = None  # 현재 열린 file-level struct 이름
 

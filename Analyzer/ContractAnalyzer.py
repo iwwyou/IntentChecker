@@ -1314,8 +1314,15 @@ class ContractAnalyzer:
         cur_blk = self.builder.get_current_block()
 
         # 각 변수 객체 생성 및 초기화
+        # ★ var_declarations는 튜플 슬롯 전체(빈 슬롯 포함)를 위치 그대로 담고
+        # 있음 — idx는 반드시 enumerate로 원본 위치를 유지해야 resolved[idx]가
+        # 맞는 반환값을 가리킨다. 빈 슬롯(None)은 변수를 만들지 않고 건너뜀
+        # (예: `(, , lpSupply) = router.addLiquidity(...)`의 앞 2슬롯).
         var_objects = []
-        for idx, (type_obj, var_name) in enumerate(var_declarations):
+        for idx, decl in enumerate(var_declarations):
+            if decl is None:
+                continue
+            type_obj, var_name = decl
             v = self._create_variable_object(type_obj, var_name, ccf)
 
             # ───────────────────────────────────────────────────────────────

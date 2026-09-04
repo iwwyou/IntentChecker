@@ -78,21 +78,35 @@ def load_dependencies():
                     contract_analyzer.contract_cfgs[con_name] = con_cfg
                 except Exception:
                     pass
-    # 2) type alias 사전 수집 (type X is Y;)
+    # 2) type alias 사전 수집 (type X is Y;) + file-level enum 사전 수집
+    # (enum X { A, B, ... } 가 interface/contract 밖, 파일 최상위에 선언된 경우 —
+    # web3bugs_42_H_01의 `Status`처럼. file_level_structs와 달리 이건 pkl에
+    # 미리 구워져 있지 않아서(오프라인 빌드 파이프라인이 애초에 enum을 추적 안 함,
+    # `EnhancedSolidityVisitor.visitEnumDefinition`이 no-op) type_aliases와 같은
+    # regex 사전-스캔 방식으로 보완함 — pkl 재생성 불필요, 훨씬 가벼움)
     _type_re = re.compile(r'type\s+(\w+)\s+is\s+(\w+)\s*;')
+    _enum_re = re.compile(r'enum\s+(\w+)\s*\{([^}]*)\}', re.DOTALL)
     type_scan_dirs = [
         base / "Dependencies" / "libraries",
         base / "Dependencies" / "contracts",
+        base / "Dependencies" / "interfaces",
         base / "Libraries",
     ]
     for d in type_scan_dirs:
         if not d.exists():
             continue
         for sol in d.rglob("*.sol"):
-            for alias, underlying in _type_re.findall(sol.read_text(encoding='utf-8', errors='ignore')):
+            text = sol.read_text(encoding='utf-8', errors='ignore')
+            for alias, underlying in _type_re.findall(text):
                 sa.type_aliases[alias] = underlying
+            for enum_name, body in _enum_re.findall(text):
+                members = [m.strip() for m in body.split(',') if m.strip()]
+                if members:
+                    sa.file_level_enums[enum_name] = members
     if sa.type_aliases:
         print(f"[Dependencies] {len(sa.type_aliases)} type aliases registered: {sa.type_aliases}")
+    if sa.file_level_enums:
+        print(f"[Dependencies] {len(sa.file_level_enums)} file-level enums registered")
 
     # 3) 입력 소스 + original dependencies에서 interface 이름 regex 사전 수집 (Phase 0과 동일)
     _ifc_re = re.compile(r'interface\s+(\w+)')

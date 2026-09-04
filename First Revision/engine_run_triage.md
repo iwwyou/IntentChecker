@@ -10,15 +10,40 @@
 
 ---
 
-## 지금 안 되는 케이스 (우선순위 순) — 총 14건 (2026-09-02 기준, 전수 재조사 완료 + 7건 수정 반영, `70_H_05`는 크래시→verdict 불일치로 재분류)
+## 지금 안 되는 케이스 (우선순위 순) — 총 7건 (2026-09-03 기준)
 
-baseline 회귀 1 + Group H 1 + 단발성 9 + verdict 불일치 3 = 14건. `45_H_01`이
-2026-09-02에 완전히 해결(VIOLATED 확인)돼서 baseline 회귀 2 → 1로 줄었고, `70_H_05`는
-크래시는 사라졌지만 완전 해결은 아니라서 단발성에서 verdict 불일치로 재분류(아래 해당
-섹션 및 §고쳐진 것들 참고). `79_H_02`(Group H)는 2026-09-02에 **진짜 원인이 마침내
-확정**됐지만(CFG 빌더가 `else { revert(...) }` 블록 연결을 잘못해서 `_run_worklist`가
-영원히 join 노드를 기다리는 진짜 CFG 버그, ANTLR과 무관 — 아래 Group H 섹션 참고) 아직
-실제 수정은 안 해서 카운트 자체는 그대로 1건. (해결된
+**2026-09-03 업데이트**: `3_H_05`/`42_H_01` 둘 다 완전 해결(§고쳐진 것들로 이동) —
+`3_H_05`는 stale dependency pkl + `Engine.py`의 named-composite-return `.value`
+버그 + `PriceAware.sol` 함수 순서 재배치(3중 수정)로, `42_H_01`은 interface
+리턴의 file-level struct 병합 누락 + file-level enum 추적 메커니즘 부재 +
+`Refine.py`의 narrowing이 enum/library 상수를 lvalue로 착각해 write-back
+시도하던 버그(3중 수정)로 해결됨. 그 과정에서 `35_H_08`/`35_H_12`에 회귀가
+발생했다가(같은 계열의 library 상수 narrowing 버그가 새 위치에서 터짐) 같은
+메커니즘으로 즉시 재수정, 그리고 `35_H_12`의 마지막 잔여 이슈였던 shift
+타입 불일치 에러도 별도로 완전 해결됨(`@Post`/`@During` 어노테이션 숫자
+리터럴이 부호 무관하게 무조건 `int`로 찍히던 게 원인 — 값의 부호로
+int/uint 판정하도록 수정, `GuardianVerificationEngine._evaluate_inline_interval`
+이 이미 쓰던 관례와 통일). 상세 근거는 `engine_code_changes.md`의
+"2026-09-03" RESOLVED 항목들 참고. baseline 20/20 유지, 이번 세션 손댄
+케이스 8건 전부 재검증 완료(verdict 변동 없음).
+
+baseline 회귀 0 + Group H 1 + verdict 불일치 6 = 7건. **baseline은
+`51_H_02` 완전 해결로 20/20 VIOLATED 복원**(더 이상 이 섹션에 없음). `79_H_02`는
+livelock 자체는 해결됐지만 그 직후 별개의 새 크래시가 남아서 Group H에 그대로
+1건. `113_H_05`는 완전 해결돼서 목록에서 빠짐. `52_H_23`/`52_H_04`/`52_H_34`는
+크래시 자체는 사라졌지만 verdict가 WARNING이라 단발성 → verdict 불일치로
+재분류(`52_H_04`/`52_H_34`의 `sumNative` 크래시는 사용자가 "fixpoint 전체는
+빼되 이 크래시만은 고쳐달라"고 별도 지시해서 처리, fixpoint의 정밀도 자체는
+안 건드림). `29_H_11`은 AddressSet narrowing 부분은 고쳤지만 LocalVar 시딩
+부분은 "버그 아님, 케이스 설계 결함"으로 판정하고 안 고치기로 해서 더 이상
+이 목록에 없음. **`3_H_05`/`42_H_01`은 2026-09-03에 각자 남아있던 새 크래시까지
+완전히 해결돼서 목록에서 빠짐**(§고쳐진 것들 참고, 3중 근본 수정씩). **`35_H_08`/
+`35_H_12`는 2026-09-02 후속 조사로 완전히 해결돼서 목록에서 빠짐**(진짜 근본 원인은
+`Update.py`의 composite 전체-재할당 버그 — §고쳐진 것들 참고, 두 케이스 다 크래시 없이
+완주. `35_H_12`의 잔여 shift 타입 불일치 에러도 2026-09-03에 완전 해결됨 — §고쳐진
+것들 참고). `59_H_04`는 fixpoint의 loop-carried-accumulator 정밀도 문제라 원인만
+정정하고 안 고침(concrete unroll을 시도했다가 사용자가 sound함을 확신 못 해서
+반려, 전부 되돌림 — 아래 §고쳐진 것들 및 해당 verdict-불일치 항목 참고). (해결된
 그룹은 확인 즉시 이 섹션에서 내리고 §고쳐진 것들로 옮기는 걸 원칙으로 함 —
 Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정에서 새로 드러난
 크래시들은 기존 그룹에 안 맞으면 전부 "단발성"으로 재분류함. **2026-09-01,
@@ -36,17 +61,11 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
 남아있어 여전히 단발성에 있음(아래 각 항목 참고). 나머지는 아직 실제 수정
 구현 안 함, 사용자 검토 대기 중. 이 숫자가 바뀌면 이 줄도 같이 업데이트할 것.)
 
-### 최우선 — baseline 회귀 (논문 결과에 직접 영향) — 2026-09-01 재조사, 원인 재확정 + 수정 방향 제시
+### 최우선 — baseline 회귀 — **2026-09-02, `51_H_02` 완전 해결로 baseline 20/20 VIOLATED 복원됨**
 
-**병렬 fork로 실제 트레이싱(임시 프로브 삽입 → 실행 → 확인 → 원복, worktree 격리)해서
-재조사함. 기존에 문서에 적혀있던 원인 추정이 세 건 중 두 건(45/56)에서 부정확했던 게
-드러남** — 아래 반영. (`56_H_02`는 조사 후 바로 수정 적용해서 §고쳐진 것들로 이동,
-`45_H_01`도 2026-09-02에 완전히 해결돼서 이동함 — 아래 §고쳐진 것들 참고. 표엔 나머지
-1건만 남음.)
-
-| 케이스 | 확정된 원인 | 제안하는 수정 방향 |
-|---|---|---|
-| `web3bugs_51_H_02` | **문서의 struct_defs 가설은 확인 결과 틀렸음(반증됨)**. 진짜 원인: `Utils/Helper.py`의 `top_from_soltype()`(struct 멤버 기본값 생성 헬퍼, ~397-421행) 배열 분기가 base type을 전혀 안 가리고 무조건 `arr.initialize_not_abstracted_type()`을 호출함 — `TargetPrice.originalPrecisionMultipliers`(`uint256[2]`, struct 멤버)가 이 경로를 타면서 각 원소가 진짜 `Interval`이 아니라 `f"symbol_{eid}"` 같은 raw 파이썬 **문자열**로 초기화됨. `self.originalPrecisionMultipliers[0]`이 그 문자열 그대로 `.mul(...)`(SafeMath 라이브러리 호출) 안으로 들어가서 `a * b`가 `문자열.multiply(...)`이 되어 크래시 — `evaluate_library_function_call_context`의 광범위한 except가 이걸 또 다른 fallback 문자열로 감싸서 리턴하고, 그 문자열에 `.div(...)`를 부르면서 "not a recognised global-member" 에러로 최종 표면화됨(실제 근본 원인 지점에서 두 단계 떨어져서 찍힘). `StaticCFGFactory.make_param_variable`의 배열 분기는 이미 base type을 올바르게 체크해서 numeric이면 `initialize_elements(TOP interval)`을 쓰는데, `top_from_soltype`만 이 체크가 빠져있음 — 게다가 `MappingVariable._make_value`의 배열 분기에도 똑같은 무조건-`initialize_not_abstracted_type()` 패턴이 발견됨(같은 버그, 다른 호출부, 총 3곳 중 2곳이 틀림). | `Utils/Helper.py`의 `top_from_soltype()` 배열 분기(~411-421행)에 `make_param_variable`과 동일한 base-type 체크(elementary numeric/bool이면 `initialize_elements(TOP)`, 아니면 `initialize_not_abstracted_type()`)를 추가. **`MappingVariable._make_value`의 배열 분기(`Domain/Variable.py` ~314-326행)도 같이 고쳐야 함** — 이미 3곳 중 2곳이 이 로직을 서로 다르게 복붙해서 발산해있는 상태라, 차라리 공용 헬퍼(예: `ArrayVariable.initialize_default_by_base_type()`)로 뽑아서 세 호출부(`make_param_variable`/`top_from_soltype`/`MappingVariable._make_value`) 전부 그걸 쓰게 하는 게 네 번째 발산을 막는 더 안전한 방향.
+`web3bugs_51_H_02`는 §고쳐진 것들로 이동(아래 참고). baseline 회귀 표는 이제 비어있음
+— `evaluation/RQ1/run_all.py` 재실행 결과 **20 VIOLATED / 20 cases**, 논문 원래 결과와
+일치.
 
 ### Group H — livelock (1건) — 2026-09-02, **진짜 원인 확정** (ANTLR은 완전히 무관했음, 처음 가설이 맞았음)
 
@@ -61,19 +80,17 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
 **2026-09-01 재조사(fork로 실제 트레이싱)해서 아래 대부분 원인 확정 + 수정 방향 제시함. 2026-09-02, 사용자
 승인 받은 `35_H_11`/`52_H_23`/`83_H_01`/`42_H_01`/`62_H_10`/`192_H_01` 적용 — 그중 `35_H_11`/`83_H_01`/
 `62_H_10`/`192_H_01`은 완전히 해결(§고쳐진 것들로 이동), `52_H_23`/`42_H_01`은 원래 크래시는 고쳤지만
-그 뒤에 별개의 새 크래시가 나와서 아직 여기 남아있음(내용 갱신).**
+그 뒤에 별개의 새 크래시가 나와서 그때는 여기 남아있었음. `35_H_08`/`35_H_12`는 2026-09-02 후속
+조사로 완전히 해결돼서(진짜 근본 원인은 `Update.py`의 composite 전체-재할당 버그였음) §고쳐진 것들로
+이동. **2026-09-03, `3_H_05`/`42_H_01`도 남아있던 새 크래시까지 완전히 해결돼서 §고쳐진 것들로 이동**
+— 이제 이 표엔 `29_H_11`만 남음(그마저도 (1)은 의도적으로 안 고치기로 한 항목).**
 
 | 우선순위 | 케이스 | 확정된 원인 (요약) | 제안하는 수정 방향 (요약) |
 |---|---|---|---|
-| 1 | `web3bugs_29_H_11` (잔여 2건) | (1) `@LocalVar` 시드가 `related_variables`(파라미터/리턴변수/주입된 state·global만) 기반이라 `abi.decode` destructure로 생기는 local 3개를 못 찾아 조용히 드롭됨. (2) **전역급 정밀도 갭**: `Refine.py`의 narrowing이 `AddressSet`을 명시적으로 제외해서, 코드베이스 전체에서 `if (addr1==addr2)` 분기 narrowing이 단 한 번도 안 됨. | (1) `FunctionCFG`에 `pending_local_debug_overrides` 레지스트리 추가, local 생성 시점에 적용(정확한 삽입 지점은 미특정). (2) `_update_comparison_condition`에 `AddressSet` 비교 narrowing 케이스 신규 추가(`==`→교집합, `!=`→singleton 제외) — **`29_H_11` 하나보다 우선순위를 높게 볼 것**(전 코드베이스 영향). |
-| 2 | `web3bugs_52_H_04` / `web3bugs_52_H_34` | `fixpoint()`의 루프 narrowing이, 루프 안팎 `require`가 하나의 공유 `ERROR` sink로 수렴하는 구조에서 루프 밖 predecessor(아직 미방문)를 빈 `{}` env로 fallback시켜 `sumNative`가 뻥 뚫림. | `fixpoint()`(`Interpreter/Engine.py` ~582-588행) predecessor 루프에서 `loop_nodes` 밖이면서 미계산인 predecessor는 join에서 제외. 더 근본적으론 `require`/`revert`가 루프 경계를 넘어 공유 sink로 수렴하는 설계 자체 재검토도 고려. |
-| 3 | `web3bugs_3_H_05` | `PriceAware`는 라이브러리가 아니라 **base contract**(명시적 base-contract-qualified 호출, `super.foo()`류) — `evaluate_identifier_context`의 `MemberAccessContext` 분기에 "known parent contract 이름" 체크가 아예 없음. | 바로 위에 있는 `super.foo()` 핸들러를 미러링: parent-contract 체크 추가 → `{"isBaseContract": True, ...}` 마커 → `evaluate_member_access_context`에서 `find_function_in_hierarchy` + 기존 `SuperFunctionCallContext` 태그 재사용. |
-| 4 | `web3bugs_52_H_23` | **`from` 예약어 크래시도 2026-09-02에 RESOLVED**(케이스 데이터 수정, 아래 참고) — 근데 그 직후 또 다른, 별개의 새 이슈가 드러남: `if (synth == ISynth(address(0))) synth = synthFactory.createSynth(...);`(중괄호 없는 단일-statement if 본문, 여러 줄에 걸침)에서 `[ANTLR] 1:33 mismatched input 'synth' expecting '{'` — 크래시는 아니고 파싱 경고(ANTLR 에러 복구로 실행은 계속됨), 최종 `[INTENT WARNING]`으로 완주는 함. | (from 예약어는 해결, 아래 참고) 중괄호 없는 단일 statement if 본문 처리가 이 문법/청커 조합에서 제대로 안 되는 것으로 보임 — 조사 범위 밖, 이번엔 손 안 댐. |
-| 5 | `web3bugs_42_H_01` | **원래 크래시(`Modifier 'updateDebt' is not defined`) 2026-09-02에 RESOLVED**(§고쳐진 것들 참고, 케이스 JSON이 `modifier updateDebt`/`accrueDebt`/`liveDebtIndex`/`mintFeeToPool`/`_liquidatable` 전체를 빠뜨린 채 stale했던 게 원인 — 데이터 문제, 엔진 버그 아님, 재빌드로 해결). 재빌드 후 문서가 예측했던 대로 다음 블로커가 정확히 그대로 나옴: `'denominator' not in struct 'lf'`(cast 없는 chained interface 호출이 struct 반환하는 경로 미지원) + 그 예외 처리 경로에서 따라오는 2차 CFG `KeyError`. | 조사 범위 밖, 이번엔 손 안 댐. `evaluate_library_function_call_context`/`evaluate_member_access_context` 쪽에서 cast 없는 interface 체이닝이 struct를 반환하는 경우의 타입 추론 지원이 필요해 보임. |
-| 6 | `web3bugs_113_H_05` | `AttributeError: 'str' object has no attribute 'multiply'`(`startLine 66`, 근본 원인은 `startLine 65`) — interface 타입 변수를 통한 "Pattern A" 호출 경로엔 Pattern B(`_lookup_interface_return`→TOP)와 달리 TOP-degradation 폴백이 없어서 raw 문자열로 바텀아웃. | `evaluate_function_call_context`의 Pattern-A 분기에 Pattern B와 동일한 `_lookup_interface_return(...)` → `UnsignedIntegerInterval.top()` 폴백 추가(이미 옆 분기에 있는 헬퍼 재사용). |
-| 8 | `web3bugs_35_H_08` / `web3bugs_35_H_12` | `_is_abstractable`(`Domain/Variable.py:275-282`)이 struct 등 non-elementary base type일 때 `elementaryTypeName`이 `None`인 걸 가드 안 함 — `new <StructType>[](n)`을 쓰는 첫 케이스라서 처음 걸림. qualified-namespace 자체는 무관(red herring이었음 확인). | `_is_abstractable`에 `if et is None: return False` 가드 한 줄(→ `initialize_not_abstracted_type()`으로 보냄, sound). **주의**: 이 가드만 적용해도 바로 다음 줄에서 `IPool.TokenAmount({...})` 관련 별개 크래시(`evaluate_identifier_context`가 qualified 네임스페이스 struct-literal을 못 알아봄)로 이어짐 확인 — 조사 범위 밖, 별도 처리 필요. |
+| 1 | `web3bugs_29_H_11` | **(1) 2026-09-02 판정: 버그 아님, 케이스 설계 결함, 손대지 않기로 함.** `tokenOut`/`recipient`/`unwrapBento`는 `abi.decode(data, ...)`로 함수 중간에 **계산되는** local — `@LocalVar`로 직접 seed하면 그 계산 로직을 건너뛰고 임의 값을 주입하는 셈이라 **unsound**함(사용자 판정, `feedback_debug_seeding_soundness` 메모리 참고). `related_variables` 기반이라 못 찾아서 드롭되는 현재 동작(경고만 찍고 무시)이 오히려 올바름 — "pending override" 메커니즘 같은 걸 만들어서 이걸 seedable하게 만들면 안 됨. 케이스를 고치려면 `data` 자체를 seed해야 함(엔진 변경 불필요). **(2) 전역급 정밀도 갭, 2026-09-02 RESOLVED**(§고쳐진 것들 참고): `Refine.py`의 narrowing이 `AddressSet`을 명시적으로 제외해서 `if (addr1==addr2)` narrowing이 코드베이스 전체에서 단 한 번도 안 되던 것 — `AddressSet` 비교 narrowing 케이스 추가로 고침. | (1) 안 고침(고치면 안 됨) — 케이스가 `data`를 seed하도록 재설계해야 함(사용자 판단 필요, 이번 세션엔 안 함). (2) 완료. |
 
-자세한 근거는 아래 상세 설명 참고.
+`3_H_05`/`42_H_01`의 완전 해결 상세 근거는 §고쳐진 것들 및 `engine_code_changes.md`의
+"2026-09-03" RESOLVED 항목 참고. 자세한 근거는 아래 상세 설명 참고.
 
 - **`web3bugs_29_H_11`**(구 Group G) — Group G의 원래 join 크래시도,
   `[INTENT ERROR]`도 둘 다 2026-09-01에 RESOLVED(§고쳐진 것들 참고, 둘 다
@@ -150,6 +167,11 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
   contractName의 cfg, member)`로 함수 찾아서 기존 `SuperFunctionCallContext`
   태그로 감싸기(다운스트림 소비자는 이미 이 태그만 보고 동작해서 안 건드려도 됨).
   기존 코드 경로를 그대로 재사용하는 작고 안전한 수정.
+  **2026-09-03, 이 새 크래시도 완전히 해결됨 → §고쳐진 것들로 이동.** 실제 원인은
+  3중이었음(stale dependency pkl + `Engine.py`의 named-composite-return `.value`
+  버그 + `PriceAware.sol` 함수 순서 재배치) — "base-contract 호출이 CFG 빌드
+  상태를 오염시킨다"는 위 가설은 틀렸었음, 상세는 `engine_code_changes.md`
+  "2026-09-03" 항목 참고. `[POST INTENT VIOLATION] Line 104` risk=10.0으로 완주.
 - **`web3bugs_52_H_23`** — **원래 크래시(`EnhancedSolidityVisitor.py:771`,
   `Invalid key type in mapping: IERC20`, 케이스 JSON `startLine 21`)는
   2026-09-02에 RESOLVED**(§고쳐진 것들 참고: `visitMappingKeyType`에
@@ -191,6 +213,13 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
   반환하는 경우의 타입 추론을 `evaluate_library_function_call_context`/
   `evaluate_member_access_context` 쪽에 추가해야 할 것으로 보임(별도
   조사 필요, 위 2차 CFG 크래시도 같이 봐야 함).
+  **2026-09-03, 이 새 크래시도 완전히 해결됨 → §고쳐진 것들로 이동.** 실제 원인은
+  "cast 없는 interface 체이닝 자체를 지원 안 함"이 아니라, interface 함수의
+  리턴 타입이 file-level struct일 때 그 struct 정의를 못 찾던 문제였음(interface
+  리턴 TOP-값 생성 시 `file_level_structs` 병합 누락) + file-level enum을 아예
+  추적하지 않던 문제 + `Refine.py`의 narrowing이 enum/library 상수를 lvalue로
+  착각해 write-back 시도하다 크래시하던 문제, 3중. 상세는 `engine_code_changes.md`
+  "2026-09-03" 항목 참고. `[INTENT WARNING] Line 104` risk=3.4로 완주.
 - **`web3bugs_113_H_05`**(구 Group I) — **원인 확정됨.** `AttributeError:
   'str' object has no attribute 'multiply'` — 실제 근본 원인은 크래시
   지점(`startLine 66`, `openFeeShare = (totalShare * OPEN_FEE_BPS) / BPS;`)
@@ -213,32 +242,107 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
   컨벤션을, 이미 옆 분기에 있는 헬퍼를 그대로 재사용해서 적용하면 됨(같은
   함수 안에서 한 분기만 이 폴백이 빠져있던 비대칭).
 - **`web3bugs_35_H_08`**(구 Group J) / **`web3bugs_35_H_12`**(구 Group J) —
-  **원인 확정, qualified-namespace 자체는 문제가 아니었음.** `_is_abstractable`
-  (`Domain/Variable.py:275-282`)이 무조건 `et = bt.elementaryTypeName; ...
-  et.startswith(...)`을 하는데, struct 타입 base type이면 `elementaryTypeName`
-  이 (qualified든 아니든) 원래부터 정상적으로 `None`임 — 직접 트레이싱해보니
-  `sol_t.arrayBaseType`은 `typeCategory='struct'`, `structTypeName='IPool.TokenAmount'`
-  로 **정확하게** resolve돼 있었음(qualified-namespace 타입 resolution 자체는
-  멀쩡함, 처음 가설은 red herring). 이 두 케이스가 이 테스트 스위트 전체에서
-  `new <StructType>[](n)` 형태를 쓰는 **첫 케이스**라서(다른 케이스는 전부
-  `address[]`/`uint256[]` 같은 elementary), qualified 여부와 무관하게 struct
-  배열 `new`는 다 이 경로에서 처음 걸릴 것. **수정 방향**: `_is_abstractable`
-  에 null 가드 한 줄 — `if et is None: return False`(struct 등 non-elementary
-  base type을 기존 `else` 분기, `arr.initialize_not_abstracted_type()`으로
-  보냄 — 정밀하진 않지만 sound, 여기선 두 케이스 다 `new` 직후 바로 모든
-  슬롯을 struct-literal로 덮어써서 placeholder가 실제로 안 읽힘). **주의**:
-  이 가드만 적용하면 크래시가 사라지고 바로 다음 줄에서 **새로운 별개 크래시**
-  로 이어짐 확인함 — `withdrawnAmounts[0] = IPool.TokenAmount({token: token0,
-  amount: amount0});`(qualified 인터페이스-네임스페이스 타입으로 struct
-  리터럴 생성)에서 `ValueError: This 'IPool' is may be array or struct but
-  may not be declared` — `evaluate_identifier_context`가 이 형태를 member/call
-  접근 base로 인식 못 함. 이건 조사 범위 밖의 별개 버그라 그대로 뒀음 —
-  `_is_abstractable` 가드만 적용하고 "고쳤다"고 착각하지 말 것.
+  **2026-09-02 완전 해결(진짜 엔진 수정, 크래시 없이 완주).** 최초 크래시
+  (`_is_abstractable`이 struct base type의 `elementaryTypeName=None`을
+  못 버텨서 죽던 것)는 null 가드 한 줄로 없앴으나(여전히 유효한 수정,
+  `if et is None: return False`), 그 뒤로 최소 세 겹의 별개 문제가 더
+  있었고 전부 확인/수정함:
+  1. qualified 네임스페이스 struct 생성자(`IPool.TokenAmount({...})`)를
+     `evaluate_function_call_context`/`evaluate_identifier_context`가 아예
+     인식 못 하던 문제 — interface 이름 인식 + qualified struct 생성자
+     경로 추가로 해결(§고쳐진 것들 참고).
+  2. `ArrayVariable._init_recursive`/`_create_new_array_element`가 struct
+     원소를 실제 `StructVariable`로 안 만들고 raw 심볼 문자열로 바텀아웃
+     시키던 문제 — struct 분기 추가로 해결.
+  3. **진짜 근본 원인, 가장 마지막에 발견함**: `withdrawnAmounts = new
+     IPool.TokenAmount[](2);`처럼 **이미 선언된 배열/구조체/매핑 변수 전체를
+     새 composite 값으로 재할당**하는 문이 `Interpreter/Semantics/Update.py`의
+     `update_left_var_of_identifier_context`에서 완전히 잘못 처리되고
+     있었음 — `ArrayVariable`/`StructVariable`/`MappingVariable`이 전부
+     `Variables`의 서브클래스라서, "top-level bare identifier 대입" 폴백
+     분기(`if not isinstance(tgt, (Variables, EnumVariable))`)가 composite
+     재할당도 그냥 통과시켜서 leaf 전용 헬퍼 `_apply_to_leaf`(`.value`에
+     그냥 얹어버림)로 보내버림 — 새로 만든 배열(`new` 표현식이 만든, 원소
+     2개 다 올바르게 초기화된 임시 `arr` 객체)이 통째로 버려지고, 원래
+     상태변수 선언 시점의 **빈** `ArrayVariable`(`elements=[]`)이 그대로
+     남음. 그 뒤 `withdrawnAmounts[0] = ...`가 실행되면 `Update.py`의
+     literal-index 배열 분기(`update_left_var_of_literal_context`)의
+     동적배열 padding 로직이 raw 심볼 `Variables`(base type 무관하게
+     무조건)로 1칸만 채워 넣었고, 그 padding된 leaf에 struct 리터럴을
+     `_to_interval`로 억지로 밀어넣으려다가 `elementaryTypeName=None`에서
+     크래시. **게다가 별개로**, 같은 두 함수의 "composite 원소" 분기들
+     (`if isinstance(elem, (Variables, EnumVariable))` vs `(ArrayVariable,
+     StructVariable, MappingVariable)`)의 **체크 순서 자체가 잘못**돼
+     있었음 — composite도 `Variables`의 서브클래스라서 leaf 체크가 항상
+     먼저 걸려버려 composite 체크 분기가 **죽은 코드**였음(`arr[i] =
+     StructLit`류 통짜 재할당, `arr[i].field = x`류 체이닝 둘 다 영향
+     받는 일반적 버그, struct 배열에 국한된 문제가 아니었음).
+     **수정**(`Interpreter/Semantics/Update.py`): (a) 새 정적 헬퍼
+     `Update._assign_whole_composite(dst, src)` 추가 — dst/src가 같은
+     계열 composite(Array/Struct/Mapping)면 `dst.elements`/`members`/
+     `mapping`을 `VariableEnv.copy_single_variable`/`copy_variables`로
+     **deep-copy**해서 교체(참조를 그냥 공유하면 `b = a;`처럼 양쪽 다
+     계속 살아있는 경우 한쪽을 고치면 다른 쪽도 같이 바뀌는 aliasing
+     버그가 생겨서, 기존에 있던 `MappingVariable` struct-entry 재할당
+     코드가 이미 하던 것과 같은 방식으로 통일함); dst/src 계열이 안 맞으면
+     `False`를 반환해 호출자가 기존 체이닝 로직을 계속 타게 함. (b)
+     `update_left_var_of_identifier_context`의 top-level bare-identifier
+     분기, `update_left_var_of_literal_context`의 ArrayVariable/
+     MappingVariable 분기, `update_left_var_of_identifier_context`의
+     ArrayVariable(`arr[i]=`)/StructVariable(`s.x=`) 분기까지 전부 이
+     헬퍼를 먼저 시도하도록 통일(순서도 composite 체크를 leaf 체크보다
+     앞으로 옮김). (c) `update_left_var_of_literal_context`의 동적배열
+     padding도 raw 심볼 `Variables`를 손으로 만드는 대신
+     `caller_object._create_new_array_element(...)`(이미 struct/nested
+     array/mapping/enum 분기를 다 가진 헬퍼)를 재사용하도록 교체.
+     **검증**: `35_H_08`/`35_H_12` 둘 다 원래 크래시 완전히 사라지고
+     끝까지 완주 확인(`35_H_08` → `[POST INTENT WARNING]` risk=9.9,
+     `withdrawnAmounts[0].token`/`.amount`, `withdrawnAmounts[1].token`/
+     `.amount` 넷 다 독립적으로 올바르게 추적됨 — aliasing 없이 두 원소가
+     분리돼 있음 확인; `35_H_12`는 원래 크래시는 사라지고 이후 무관한
+     별개 `[POST INTENT ERROR]`(`Shift operands must both be int/uint
+     intervals` — shift 연산 타입 불일치)로 완주 — **이것도 2026-09-03에
+     완전히 해결됨**(`@Post`/`@During` 어노테이션 숫자 리터럴이 부호
+     무관하게 무조건 `int`로 찍히던 게 원인, `EnhancedSolidityVisitor.
+     visitNumLiteral` 수정. 상세는 `engine_code_changes.md` "2026-09-03"
+     항목 참고. `[POST INTENT VIOLATION] Line 181` risk=10.0, RHS=`2^127`
+     로 정확히 계산됨, `burn()`이 `secondsPerLiquidity`를 실제로 갱신 안
+     하는 소스 구조와 부합하는 정당한 VIOLATED). baseline 20개 재실행
+     확인(20/20 VIOLATED 유지, 회귀 없음).
+     `web3bugs_3_H_05`/`113_H_05`/`52_H_04`/`52_H_34`/`52_H_23`/`29_H_11`
+     (이번 세션에서 수정한 다른 케이스들)도 개별 재실행해서 verdict 동일함
+     확인 — `Update.py`의 assignment 경로는 모든 케이스가 공유하는
+     핵심 코드라 회귀 위험이 커서 별도로 재검증함.
+  **남은 무관한 이슈**(조사 범위 밖, 손 안 댐): `35_H_08`에서
+  `[WARNING] Cannot resolve LHS expression: VarRefBase (identifier:
+  lower/upper/amount/recipient/unwrapBento)` — 아마 콜백 함수 파라미터
+  destructuring 관련 별개 문제로 보이나 크래시는 아니고 최종 verdict에도
+  영향 없어서 조사 안 함. (`35_H_12`의 shift 타입 불일치 에러는 위에서
+  설명한 대로 2026-09-03에 완전히 해결됨.)
 ### 크래시는 안 나지만 verdict가 기대와 다름 (엔진 크래시 아님, 결과 정확성 문제)
 
 **2026-09-01 재조사 결과 — 중요: 이 문서의 "현재 상태" 서술 자체가 stale했음이
 드러남(두 케이스 다). 재실행해서 실제 현재 출력부터 다시 확인하고 원인 파악함.**
 
+- **`web3bugs_52_H_04`** / **`web3bugs_52_H_34`**(구 단발성 2번, 2026-09-02
+  재분류) — **`sumNative` 크래시 RESOLVED**(§고쳐진 것들 참고, 진짜 엔진
+  수정) — `fixpoint()`의 narrowing/exit-env 계산이 루프 밖에 있고 아직
+  outer worklist가 방문 안 한 predecessor를 빈 `{}` env로 fallback시켜서,
+  그 predecessor가 `require(sumNative...)`류 condition node일 때 `sumNative`
+  를 못 찾아 크래시하던 버그. **수정**: 그런 predecessor는 join에서 완전히
+  제외하도록 `_pred_src` 헬퍼 추가(2군데 적용). **검증**: 크래시 사라지고
+  `[POST INTENT WARNING]`(risk=9.9)으로 완주(정밀도는 그대로 낮음 —
+  `sumNative`가 `[0, inf]`로 나오는 건 알려진 loop-carried-accumulator
+  imprecision, 아래 `59_H_04` 참고, 이번엔 정밀도는 안 건드리기로 함).
+  baseline 20개 회귀 확인(영향 없음, 20/20 유지).
+- **`web3bugs_52_H_23`**(구 단발성 4번, 2026-09-02 재분류) — `from` 예약어 크래시
+  (케이스 데이터에서 `from`→`_from` 개명) + 중괄호 없는 단일 statement `if` 본문
+  ANTLR 파싱 경고(contraction `.sol`에 중괄호 추가 + 케이스 재빌드) 둘 다
+  RESOLVED(§고쳐진 것들 참고) — 더 이상 크래시도 파싱 경고도 없음. 다만 최종
+  결과는 여전히 `[INTENT WARNING]`(risk=9.9, `_update.arg[2]`) — 두 수정 다
+  이 특정 `@During` 체크의 정밀도 자체와는 무관해서 verdict는 그대로임. 더
+  이상 수정 방향 없음(남은 정밀도 문제는 이 두 수정과 무관한 별개 원인일 걸로
+  보이나 조사 안 함).
 - **`web3bugs_70_H_05`**(구 단발성 7번, 2026-09-02 재분류) — **원래 있던 크래시는
   사라졌지만 VIOLATED가 아니라 WARNING으로 수렴, 예상된 결과.** 두 가지가 겹쳐서
   일어남: (1) **진짜 엔진 버그**(아래 §고쳐진 것들 참고) — `usdvPairs`(`IERC20[]`,
@@ -257,22 +361,28 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
   함수-한정자 문법을 새로 추가하지 않는 한 이게 이 케이스의 최종 상태.
 - **`web3bugs_59_H_04`** — 문서엔 "SATISFIED"라고 적혀있었지만 **지금 실제로는
   `[POST INTENT WARNING]`**(risk 9.9)을 냄, Analysis=`[0, ~1.16e77]`,
-  Intent=`[0, ~3.86e77]`. **원인 확정**: 디버그로 시드한 배열(`pegObservations[0..2]
-  = [1,1,0]`, `analysis.md`의 시나리오와 정확히 일치)은 정상적으로 읽힘(직접
-  프로브로 확인, 원복함) — 문제는 그 뒤: `total`이 루프 안에서 누적되는데
-  (`total = total + pegObservations[index]`), 엔진 자체의 fixpoint 반복을
-  거치면서 3번의 진짜 합이 아니라 타입 최댓값 쪽으로 계속 넓어짐 — 전형적인
-  "loop-carried accumulator에 widening 연산자가 없음" 증상. 사실 이건
-  `analysis.md`의 R1-7 항목이 이미 예견했던 결과("루프가... `total`의 값을
-  widen/join할 수도... 결과적으로 깔끔한 Violated가 아니라 Warning일 가능성이
-  높음") — 즉 **예상치 못한 오작동이 아니라 예견된 대로 동작 중**. **수정
-  방향(둘 중 하나, 설계 선택)**: (a) fixpoint 엔진(`Interpreter/Engine.py`의
-  `fixpoint()`)에 루프 누적 변수용 진짜 widening 연산자 추가 — 정적으로 작고
-  구체적인 반복 횟수(디버그 시나리오 기준)에서도 타이트하게 수렴하도록. (b)
-  더 좁은 특수 케이스: 루프 반복 횟수(여기선 `count - initialIndex`)가 디버그
-  시나리오 하에서 확실히 작은 singleton으로 확정되면, 일반 abstract fixpoint
-  대신 그 루프를 구체적으로 unroll — (a)보다 훨씬 더 수술적이고 저위험, 이
-  방향부터 시작하는 걸 추천.
+  Intent=`[0, ~3.86e77]`. **원인 정정(2026-09-02)**: "widening 연산자가 없다"는
+  기존 서술은 부정확했음 — `Interpreter/Engine.py`의 `fixpoint()`를 직접
+  읽어보니 이미 표준적인 widening(`_estimate_loop_iterations`로 threshold
+  추정) + narrowing 2단계 구현이 있음. 실제 근본 원인은 **알고리즘 자체의
+  구조**: 루프 본문의 각 CFG 노드를 "모든 반복에 걸쳐 유효한 하나의 불변식"
+  으로 계산하는 표준 fixpoint 방식이라, 서로 다른 반복에서 그 노드에 도달한
+  환경을 매번 join(합집합)해야 함 — `total = total + pegObservations[index]`
+  처럼 반복마다 다른 구체값이 쌓이는 accumulator는 이 join 자체 때문에
+  반복마다 넓어짐(widening/narrowing을 아무리 튜닝해도 이 join 구조 자체는
+  못 피함, 직접 프로브로 반복별 `total`/`index` 값을 찍어서 확인함). 이건
+  `analysis.md`의 R1-7 항목이 이미 예견했던 결과이기도 함. **2026-09-02
+  시도했다가 되돌림**: 조건의 양쪽 피연산자가 진입 시점에 singleton이면
+  join 없이 반복마다 환경을 순차 교체하는 "concrete unroll" 경로를
+  `fixpoint()`에 추가해봤고(실제로 `total`이 정확히 `[2,2]`로 수렴하는 것까지
+  확인함) — **사용자가 이 접근의 sound함을 확신할 수 없다며 반려**, 기존
+  widening/narrowing 알고리즘을 최대한 그대로 유지해달라고 요청. 코드
+  전부 되돌림(`git diff` 깨끗함 확인). **현재 상태**: 정밀도 문제는 의도적으로
+  안 건드리기로 함 — 이 케이스는 그대로 WARNING으로 남음. 나중에 다시
+  다룬다면, concrete unroll 대신 (a) 기존 join 기반 알고리즘 안에서 accumulator
+  전용 widening 연산자를 sound하게 설계하는 방향, 또는 (b) concrete unroll을
+  다시 시도하되 이번엔 sound함을 더 엄밀하게(예: 정지성/모든 분기 처리 증명)
+  검토한 뒤 진행하는 방향을 고려.
 - **`web3bugs_70_H_04`** — 문서엔 "VIOLATED가 아니라 WARNING"이라고 적혀있었지만,
   **`analysis.md`의 target annotation 자체가 이후 리비전에서 `@Post` 절 2개로
   쪼개졌다는 걸 문서가 반영을 못 했음**(stale) — 지금 실제로 나오는 건:
@@ -312,6 +422,134 @@ Group C/D/E/F/G는 전부 §고쳐진 것들로 이동 완료. 그 수정 과정
 ---
 
 ## 참고: 이번 세션에 고쳐진 것들
+
+### 2026-09-02, "전부 수정" 라운드 — fixpoint 관련 제외 전 항목 시도 (baseline 20/20 VIOLATED 복원 포함)
+
+사용자가 "fixpoint 함수 관련된 것 제외하고는 전부 수정해봐. 코드 문제인지 annotation
+문제인지 먼저 검토하고, 코드면 잘 수정해줘"라고 요청. 아래 7건 시도, 결과 요약:
+**완전 해결 3건**(`51_H_02`/`79_H_02` livelock/`52_H_23`), **원래 문제 해결 +
+별개의 새 문제로 진행 3건**(`3_H_05`/`113_H_05`는 완전 해결, `35_H_08`/`35_H_12`는
+이 라운드 시점엔 부분 해결 — **2026-09-02 후속 조사로 이후 완전 해결됨, 아래
+`35_H_08` 상세 항목 참고**), **버그 아님으로 판정, 안 고침 1건**(`29_H_11`의
+LocalVar 시딩 — 사용자가 unsound하다고 지적해서 되돌림, 대신 AddressSet
+narrowing 부분은 고침).
+전부 진짜 **코드(엔진) 수정**이었음 — annotation/케이스 데이터만으로 해결 가능한
+게 있는지 먼저 확인했으나 없었음(단, `52_H_23`의 두 번째 이슈는 케이스 데이터
+수정으로 해결됨, 아래 참고). 모든 수정 뒤 baseline 20개 재실행으로 회귀 확인함
+(최종 20 VIOLATED / 20 — 최초 회귀 없음).
+
+**1) `web3bugs_51_H_02` — baseline 완전 해결, baseline 20/20 VIOLATED 복원 (진짜 엔진 수정).**
+`Utils/Helper.py`의 `top_from_soltype()`과 `Domain/Variable.py`의
+`MappingVariable._make_value()` 둘 다 배열 분기에서 base type을 안 가리고
+무조건 `arr.initialize_not_abstracted_type()`을 호출해서, `TargetPrice.
+originalPrecisionMultipliers`(`uint256[2]`) 같은 numeric 배열의 원소가 진짜
+`Interval`이 아니라 raw 문자열로 초기화되던 버그. **수정**: `Domain/Variable.py`의
+`ArrayVariable`에 공용 헬퍼 `initialize_default_by_base_type(is_return_param=False)`
+신규 추가(elementary numeric/bool이면 `initialize_elements(TOP 또는 0)`, 아니면
+`initialize_not_abstracted_type()`으로 위임) — `top_from_soltype`/`MappingVariable.
+_make_value`/`StaticCFGFactory.make_param_variable` 세 호출부 전부 이 헬퍼를
+쓰도록 통일(예전엔 세 곳이 서로 다르게 복붙돼 있어서 두 곳이 틀렸었음, 이제
+단일 진실 공급원). **검증**: `51_H_02` 크래시 사라지고 `[INTENT VIOLATED] Line
+113: require condition is always false — never passable`로 정상 완주.
+baseline 재실행: **20 VIOLATED / 20 cases**(18/2로 시작했던 이번 세션의 baseline
+회귀가 이걸로 전부 해소됨 — 논문 원래 결과와 일치).
+
+**2) `web3bugs_79_H_02` — Group H livelock 완전 해결 (진짜 엔진 수정, CFG 빌더 버그).**
+자세한 원인 분석은 위 Group H 섹션 및 `First Revision/external_review/
+web3bugs_79_H_02.md` §10 참고. **수정**: `Analyzer/DynamicCFGBuilder.py`의
+`build_revert_statement`(740-782행) — `insert_new_statement_block`이 이미
+`cur_block → new_block(revert 문 자체) → old_succs`로 재배선해뒀는데, 그 다음에
+`cur_block`의 (이미 `[new_block]`으로 바뀐) successor를 다시 조회해서
+`cur_block → ERROR`로 직접 재배선하는 바람에 `new_block`이 그래프에서 고아가
+되던 버그. `cur_block` 대신 `new_block`의 successor를 조회/재배선하도록 수정
+(`new_block → ERROR`), `line_info`의 `cfg_nodes` 등록 대상도 `cur_block`에서
+`new_block`으로 수정(그 줄을 실제로 대표하는 노드가 맞게). **검증**: `79_H_02`가
+더 이상 멈추지 않고(180초+ 걸리던 게 수 초 안에 다음 지점까지 진행), 다른
+곳(`(, , lpSupply) = router.addLiquidity(...)` 튜플 destructure 중 빈 슬롯
+파싱)에서 별개의 새 `[ANTLR] mismatched input ')' ...` 크래시로 진행 —
+livelock 자체는 확실히 해결, 이 새 크래시는 조사 범위 밖으로 남겨둠. baseline
+20개 회귀 확인(영향 없음, `79_H_02`는 baseline 세트 밖).
+
+**3) `web3bugs_113_H_05` — 완전 해결 (진짜 엔진 수정, VIOLATED 확인).**
+`Interpreter/Semantics/Evaluation.py`의 `evaluate_function_call_context`,
+interface 변수를 통한 "Pattern A" 호출 경로(`bentoBox.toShare(...)`류, cast
+없이 바로 interface 타입 변수로 호출)에 `_resolve_ireturn_pattern_a`가 `None`을
+리턴했을 때의 폴백이 없어서, 그 아래 일반 member-access 평가 경로로 흘러가
+호출 결과가 아니라 호출 대상 자체(함수 참조)가 반환되고 raw 문자열로
+바텀아웃하던 버그. **수정**: Pattern B(`IERC20(x).balanceOf()`류 explicit cast)가
+이미 하는 것과 동일한 폴백(`_lookup_interface_return(...)` → 그것도 없으면
+`UnsignedIntegerInterval.top()`)을 Pattern A 분기에도 추가. **검증**:
+`[INTENT VIOLATION] Line 52`(risk=10.0, LHS=[8600,8600]/RHS=[8000,8000])로
+정상 완주.
+
+**4) `web3bugs_3_H_05` — 원래 크래시 완전 해결(진짜 엔진 수정), 별개의 새 크래시로 진행.**
+`PriceAware`는 라이브러리가 아니라 base contract(`abstract contract
+CrossMarginAccounts is RoleAware, PriceAware`) — `PriceAware.getCurrentPriceInPeg(...)`
+같은 명시적 base-contract-qualified 호출을 `evaluate_identifier_context`의
+`MemberAccessContext` 분기가 아예 인식 못 하고 raise하던 버그. **수정**:
+`Interpreter/Semantics/Evaluation.py`에 (1) `_is_known_parent_contract(contract_cfg,
+name)` 헬퍼 신규 추가(부모 체인 재귀 검색), (2) `evaluate_identifier_context`의
+`MemberAccessContext` 분기에서 `library_cfgs` 체크 다음, 최종 raise 이전에
+이 헬퍼로 parent contract 이름인지 확인해서 `{"isBaseContract": True,
+"contractName": ident_str}` 마커 반환, (3) `evaluate_member_access_context`에
+`super.foo()` 핸들러 바로 뒤에 미러링한 새 분기 추가 — `find_function_in_hierarchy`
+로 함수 찾아서 기존 `SuperFunctionCallContext` 태그로 감싸 반환(다운스트림
+소비자 재사용, 새 태그 안 만듦). **검증**: 원래 크래시(`ValueError: This
+'PriceAware' is may be array or struct...`) 사라짐. 그 직후 별개의 새 크래시로
+진행: `networkx.exception.NetworkXError`(`DynamicCFGBuilder.insert_new_statement_block`
+이 그래프에 없는 stale 노드를 조회) — 조사 범위 밖, 이번엔 손 안 댐(위 단발성
+표 참고).
+
+**5) `web3bugs_35_H_08` / `web3bugs_35_H_12` — 이 라운드 시점엔 `_is_abstractable`
+null-guard만 적용해 부분 해결(진짜 엔진 수정), 별개의 새 크래시로 진행.**
+`Domain/Variable.py`의 `_is_abstractable`이 struct 등 non-elementary base
+type일 때 `elementaryTypeName`이 `None`인 걸 가드 안 해서 `new <StructType>[](n)`
+을 쓰는 첫 케이스에서 크래시하던 버그(qualified-namespace 자체는 무관, red
+herring이었음이 이미 확인돼 있었음). 이 시점의 수정: `if et is None: return
+False` 가드 한 줄 추가(→ `initialize_not_abstracted_type()`으로 감, sound).
+검증 결과 원래 크래시는 사라졌지만 바로 다음 줄에서 별개의 새 크래시로 진행함
+확인(당시엔 여기서 멈춤, 조사 범위 밖으로 분류). **→ 2026-09-02 후속 조사로
+완전히 해결됨 — 진짜 근본 원인은 `Update.py`의 composite 전체-재할당/체이닝
+버그였음(qualified struct 생성자 인식 부재는 그 중간 단계에서 걸린 증상 중
+하나였을 뿐), 상세 내용과 최종 수정은 위 "지금 안 되는 케이스" 섹션의
+`35_H_08` 항목 참고.**
+
+**6) `web3bugs_52_H_23` — 완전 해결(크래시/파싱 경고 둘 다 사라짐, verdict는 WARNING으로 유지).**
+`from`→`_from` 개명(이미 이전 라운드에 완료)에 이어, 중괄호 없는 단일
+statement `if` 본문(`if (synth == ISynth(address(0))) synth = synthFactory.
+createSynth(...)`, 여러 줄에 걸침)이 `interactiveBlockUnit` 문법 경로에서
+`[ANTLR] mismatched input 'synth' expecting '{'` 파싱 경고를 내던 문제 — **코드
+문제가 아니라 케이스 데이터 문제로 판정**(이 프로젝트의 다른 모든 working
+if-statement가 `if (...) {\n}` 스켈레톤 + 별도 본문 레코드 구조를 쓰는 것과
+비교해서 확인). **수정**: contraction `.sol`에서 그 if문에 중괄호 추가, 케이스
+JSON을 `soltotestjson.slice_solidity()`로 전체 재빌드(annotation 블록 라인
+번호 재계산 포함, `@Debugging BEGIN`=96 불변, `@During` 타겟만 107→114로
+이동). **검증**: ANTLR 경고 사라짐, 최종 verdict는 `[INTENT WARNING]`으로
+동일(이 두 수정 다 그 특정 `@During` 체크의 정밀도 자체와는 무관해서 예상된
+결과) — verdict-mismatch 섹션으로 재분류(아래 참고).
+
+**7) `web3bugs_29_H_11` — AddressSet 비교 narrowing 신규 추가 (진짜 엔진 수정, 전 코드베이스 영향), LocalVar 시딩은 버그 아님으로 판정하고 되돌림.**
+`Interpreter/Semantics/Refine.py`의 `_update_comparison_condition`이
+narrowing하는 4개 CASE(숫자 interval, 숫자 vs 리터럴 양방향, bool, address-
+as-interval)가 전부 `VariableEnv.is_interval(x)`로 게이트돼 있는데, 이 함수가
+`AddressSet`을 명시적으로 제외해서 **address 타입끼리의 `==`/`!=` 비교는 이
+코드베이스 전체에서 단 한 번도 분기 narrowing이 안 되고 있었음**(`29_H_11`
+하나만의 문제가 아니라 전역 정밀도 갭). **수정**: `Refine.py`에 `AddressSet`
+import 추가 + CASE 5(AddressSet 비교) 신규 추가 — `==`면 `AddressSet.meet()`
+(기존 메소드 재사용)으로 양쪽 다 교집합, `!=`면 한쪽이 singleton일 때 그
+반대쪽에서 그 id를 빼는 방식(숫자 interval의 `!=` narrowing과 동일한 패턴),
+동일 singleton끼리 `!=`면 모순이라 양쪽 다 bottom. 리터럴(hex 문자열/정수 0
+등)을 AddressSet으로 바꾸는 `_coerce_literal_to_addressset` 헬퍼도 신규 추가.
+**LocalVar 부분은 되돌림**: `abi.decode` destructure로 생기는 `tokenOut`/
+`recipient`/`unwrapBento` 같은 local을 `@LocalVar`로 직접 seed 가능하게 만드는
+"pending override" 메커니즘을 만들려다가, **사용자가 이건 unsound하다고
+지적**(파라미터가 아닌, 함수 로직으로 계산되는 local을 직접 override하면 그
+계산 자체를 건너뛰는 셈이라 디버그 시나리오가 더 이상 실제 도달 가능한 상태를
+대표 못 함) — 관련 코드(`Utils/CFG.py`의 `pending_local_debug_overrides`,
+`ContractAnalyzer.py`의 등록/적용 로직) 전부 되돌림, `git diff` 확인해서 깨끗함.
+이 항목은 "버그"가 아니라 "케이스 설계 결함"으로 재분류(위 단발성 표 1번
+참고) — `feedback_debug_seeding_soundness` 메모리에 원칙으로 저장해둠.
+**검증**: baseline 20개 회귀 확인(영향 없음, 20/20 유지).
 
 ### 2026-09-02, `web3bugs_45_H_01` baseline 회귀 완전 해결 (엔진 수정 + Group 1a 재빌드 + `@During`/`@Post` 문법 오해 정정)
 

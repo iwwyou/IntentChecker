@@ -452,92 +452,92 @@
   },
   {
     "code": "// @Debugging BEGIN",
-    "startLine": 63,
-    "endLine": 63,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar unlocked = [1, 1]",
-    "startLine": 64,
-    "endLine": 64,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar rewardTokenAmount = [1000, 1000]",
-    "startLine": 65,
-    "endLine": 65,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar cumulativeRewardPerToken = [0, 0]",
-    "startLine": 66,
-    "endLine": 66,
-    "event": "add"
-  },
-  {
-    "code": "// @StateVar totalVirtualBalance = [0, 0]",
     "startLine": 67,
     "endLine": 67,
     "event": "add"
   },
   {
-    "code": "// @StateVar depositDecimalsOne = [1000000000000000000, 1000000000000000000]",
+    "code": "// @StateVar unlocked = [1, 1]",
+    "startLine": 67,
+    "endLine": 67,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar rewardTokenAmount = [1000, 1000]",
     "startLine": 68,
     "endLine": 68,
     "event": "add"
   },
   {
-    "code": "// @StateVar endStream = [3000000, 3000000]",
+    "code": "// @StateVar cumulativeRewardPerToken = [0, 0]",
     "startLine": 69,
     "endLine": 69,
     "event": "add"
   },
   {
-    "code": "// @StateVar endRewardLock = [1000000, 1000000]",
+    "code": "// @StateVar totalVirtualBalance = [0, 0]",
     "startLine": 70,
     "endLine": 70,
     "event": "add"
   },
   {
-    "code": "// @StateVar rewardToken = symbolicAddress 1",
+    "code": "// @StateVar depositDecimalsOne = [1000000000000000000, 1000000000000000000]",
     "startLine": 71,
     "endLine": 71,
     "event": "add"
   },
   {
-    "code": "// @GlobalVar msg.sender = symbolicAddress 2",
+    "code": "// @StateVar endStream = [3000000, 3000000]",
     "startLine": 72,
     "endLine": 72,
     "event": "add"
   },
   {
-    "code": "// @GlobalVar block.timestamp = [2000000, 2000000]",
+    "code": "// @StateVar endRewardLock = [1000000, 1000000]",
     "startLine": 73,
     "endLine": 73,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.rewards = [1000, 1000]",
+    "code": "// @StateVar rewardToken = symbolicAddress 1",
     "startLine": 74,
     "endLine": 74,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.virtualBalance = [0, 0]",
+    "code": "// @GlobalVar msg.sender = symbolicAddress 2",
     "startLine": 75,
     "endLine": 75,
     "event": "add"
   },
   {
-    "code": "// @LocalVar ts.lastCumulativeRewardPerToken = [0, 0]",
+    "code": "// @GlobalVar block.timestamp = [2000000, 2000000]",
     "startLine": 76,
     "endLine": 76,
     "event": "add"
   },
   {
-    "code": "// @Debugging END",
+    "code": "// @StateVar tokensNotYetStreamed[msg.sender].rewards = [1000, 1000]",
     "startLine": 77,
     "endLine": 77,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar tokensNotYetStreamed[msg.sender].virtualBalance = [0, 0]",
+    "startLine": 78,
+    "endLine": 78,
+    "event": "add"
+  },
+  {
+    "code": "// @StateVar tokensNotYetStreamed[msg.sender].lastCumulativeRewardPerToken = [0, 0]",
+    "startLine": 79,
+    "endLine": 79,
+    "event": "add"
+  },
+  {
+    "code": "// @Debugging END",
+    "startLine": 80,
+    "endLine": 80,
     "event": "add"
   }
 ]

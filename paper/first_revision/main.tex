@@ -1282,6 +1282,44 @@ The remaining \textbf{75 instances} constitute the effective evaluation set.
 % IMPORTANT: expressibility $\neq$ engine success. A case is expressible if the grammar can represent the
 % relation, regardless of whether abstract interpretation later returns Warning.
 
+Of the 74 eligible benchmark instances, IntentChecker's intent model can represent the bug-relevant numeric relation for \textbf{46 (62.2\%)}; the remaining \textbf{28 (37.8\%)} are inexpressible. Table~\ref{tab:rq1-expressibility} breaks this down by whether the underlying defect is Value-level (a wrong operand, operator, or missing assignment within an otherwise-complete expression) or Algorithm-level (a missing procedure call, absent state update, or incorrect operation ordering).
+
+\begin{table}[t]
+\centering
+\caption{Expressibility of the bug-relevant numeric relation, by defect type (74 eligible instances).}
+\label{tab:rq1-expressibility}
+\small
+\begin{tabular}{l r r r}
+\toprule
+\textbf{Error type} & \textbf{Expressible} & \textbf{Inexpressible} & \textbf{Total} \\
+\midrule
+Value     & 29 & 12 & 41 \\
+Algorithm & 17 & 16 & 33 \\
+\midrule
+\textbf{Total} & \textbf{46} & \textbf{28} & \textbf{74} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For the 28 inexpressible instances, Table~\ref{tab:rq1-blockers} reports the specific grammar limitation that blocks representation, using the four-way taxonomy from §\ref{sec:design}: $\alpha$ (a required value is reachable only through a function call inside \texttt{intentValue}, with no known-bound or exact-formula rescue), $\beta$ (no in-scope reference to the required value exists at all), $\gamma$ (the required relation is inherently multi-point or structural, exceeding what a single relation form can capture), and $\delta$ (the only viable observation point is architecturally never evaluated by the engine, e.g., a \texttt{@During} clause whose sole attachment point lies inside a loop body).
+
+\begin{table}[t]
+\centering
+\caption{Reasons for inexpressibility (28 inexpressible instances). A single instance may carry more than one blocker tag, so the Findings column sums to more than 28.}
+\label{tab:rq1-blockers}
+\small
+\begin{tabular}{c p{5.6cm} r}
+\toprule
+\textbf{Blocker} & \textbf{Description} & \textbf{Findings} \\
+\midrule
+$\alpha$ & Required value reachable only via a function call inside \texttt{intentValue}, with no rescue & 17 \\
+$\beta$  & Required value has no in-scope reference at all & 9 \\
+$\gamma$ & Required relation is inherently multi-point/structural & 5 \\
+$\delta$ & Required observation point is architecturally never evaluated & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsubsection{Expressibility by Value/Algorithm and Usable/Unusable}\label{sec:rq1:axes}
 
 % Retain both existing explanatory axes from the prior submission:
@@ -1311,6 +1349,45 @@ The remaining \textbf{75 instances} constitute the effective evaluation set.
 % capacity and the analyzer's behavior given an appropriate intent specification; it does NOT establish
 % that bug-unaware developers would independently formulate the same intent. Do not replace this with a
 % new "bug-awareness" taxonomy -- that would require a controlled annotation/developer study.
+
+Each of the 46 expressible instances was given its constructed target annotation, supplied with debug annotations for a concrete discriminating scenario, and actually executed against the buggy implementation (not predicted from engine source). Table~\ref{tab:rq1-validation} reports the resulting distribution. \textbf{32 of 46 (69.6\%)} produce a definite Violated judgment; \textbf{13 (28.3\%)} produce Warning, where the relation is representable but abstract-interpretation precision is insufficient to resolve it against the buggy execution; and \textbf{1 (2.2\%)} is Unsupported.
+
+\begin{table}[t]
+\centering
+\caption{Validation outcomes for the 46 expressible instances.}
+\label{tab:rq1-validation}
+\small
+\begin{tabular}{l r r}
+\toprule
+\textbf{Validation outcome} & \textbf{Findings} & \textbf{\% of expressible} \\
+\midrule
+Violated    & 32 & 69.6\% \\
+Warning     & 13 & 28.3\% \\
+Unsupported &  1 &  2.2\% \\
+\midrule
+\textbf{Total} & \textbf{46} & \textbf{100\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The single Unsupported instance illustrates a case that requires the finding-level completeness treatment: its reported defect has two independently-checkable mechanisms, and while the first validates cleanly to Violated, the second cannot be assigned any outcome other than Unsupported---the corrective quantity depends on an implicit contract-balance change produced by an external call, and IntentChecker's execution model does not track balance effects of calls it does not itself model. Because the finding as a whole cannot be said to validate cleanly when one of its required mechanisms is Unsupported, it is reported as Unsupported rather than Violated.
+
+Breaking the validation outcome down by defect type (Table~\ref{tab:rq1-validation-by-type}) shows Algorithm-level instances resolving to Violated somewhat more often than Value-level ones (82.4\% vs.\ 65.5\%); the difference is directional rather than sharp, and both defect types validate cleanly in the majority of cases.
+
+\begin{table}[t]
+\centering
+\caption{Validation outcome by defect type, among the 46 expressible instances (excludes the single Unsupported instance).}
+\label{tab:rq1-validation-by-type}
+\small
+\begin{tabular}{l r r r r}
+\toprule
+\textbf{Error type} & \textbf{Violated} & \textbf{Warning} & \textbf{Total} & \textbf{\% Violated} \\
+\midrule
+Value     & 19 & 10 & 29 & 65.5\% \\
+Algorithm & 14 &  3 & 17 & 82.4\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{RQ2: Specification Requirements and Analysis Costs}\label{sec:rq2}
 
@@ -1353,6 +1430,83 @@ The remaining \textbf{75 instances} constitute the effective evaluation set.
 % context is involved, whether other functions/contracts are involved, whether external semantics are
 % required, and how many analysis inputs must be supplied.
 
+Table~\ref{tab:rq2-profile} reports, for the 46 expressible instances, the distribution of four structural metrics: the number of relevant statements and unique program values that the target relation's derivation depends on (§\ref{sec:design}), and the number of additional functions or protocol-specific contracts/libraries whose behavior is load-bearing to that derivation. Because a small number of instances draw on substantially more context than the rest, we report the median and interquartile range (IQR) rather than the mean.
+
+\begin{table}[t]
+\centering
+\caption{Specification profile summary across the 46 expressible instances.}
+\label{tab:rq2-profile}
+\small
+\begin{tabular}{l r r r}
+\toprule
+\textbf{Metric} & \textbf{Median} & \textbf{IQR} & \textbf{Min--Max} \\
+\midrule
+Relevant statements                                   & 4 & 2--6 & 1--20 \\
+Unique relevant values                                & 6 & 4--9 & 1--16 \\
+Additional functions required                         & 0 & 0--1 & 0--3 \\
+Additional protocol-specific contracts/libraries      & 0 & 0--0 & 0--2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Context breadth (Table~\ref{tab:rq2-breadth}) captures how far from the target statement a developer must look to formulate the specification, on the five-level ordinal scale defined above. Half of the expressible instances (50.0\%) require no more than same-function context (levels 0--1); a further 34.8\% require inspecting another function within the same contract or library (level 2); and the remaining 15.2\% require crossing a contract/library boundary or consulting external protocol- or domain-specific knowledge (levels 3--4).
+
+\begin{table}[t]
+\centering
+\caption{Context breadth across the 46 expressible instances.}
+\label{tab:rq2-breadth}
+\small
+\begin{tabular}{c p{4.6cm} r r}
+\toprule
+\textbf{Breadth} & \textbf{Meaning} & \textbf{Findings} & \textbf{\%} \\
+\midrule
+0 & Target statement/expression only     &  2 &  4.3\% \\
+1 & Same-function context                & 21 & 45.7\% \\
+2 & Other function, same contract/library& 16 & 34.8\% \\
+3 & Cross-contract/library context       &  6 & 13.0\% \\
+4 & External protocol/domain specification&  1 &  2.2\% \\
+\midrule
+\multicolumn{2}{l}{Local (0--1)}        & 23 & 50.0\% \\
+\multicolumn{2}{l}{Intra-contract (2)}  & 16 & 34.8\% \\
+\multicolumn{2}{l}{Cross-boundary (3--4)}& 7 & 15.2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+External protocol- or domain-specific specification is needed to justify the selected relation in only \textbf{5 of 46 instances (10.9\%)}; the remaining \textbf{41 (89.1\%)} require nothing beyond the source code itself and ordinary language/library semantics (Table~\ref{tab:rq2-extspec}). Consistent with §\ref{sec:design}, generic protocol-independent facts (e.g., a fixed-point library's rounding convention, a safe-cast helper's revert-on-overflow behavior) do not by themselves count as external specification here.
+
+\begin{table}[t]
+\centering
+\caption{External specification dependence across the 46 expressible instances.}
+\label{tab:rq2-extspec}
+\small
+\begin{tabular}{l r r}
+\toprule
+\textbf{External specification required} & \textbf{Findings} & \textbf{\%} \\
+\midrule
+No  & 41 & 89.1\% \\
+Yes &  5 & 10.9\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Finally, Table~\ref{tab:rq2-complexity} reports annotation multiplicity: \textbf{37 of 46 instances (80.4\%)} are captured by a single \texttt{@During}/\texttt{@Post} clause, while the remaining \textbf{9 (19.6\%)} require a multi-annotation set because the reported defect has more than one independently-checkable mechanism (§\ref{sec:design}).
+
+\begin{table}[t]
+\centering
+\caption{Annotation multiplicity across the 46 expressible instances.}
+\label{tab:rq2-complexity}
+\small
+\begin{tabular}{l r r}
+\toprule
+\textbf{Annotation form} & \textbf{Findings} & \textbf{\%} \\
+\midrule
+Single annotation    & 37 & 80.4\% \\
+Multi-annotation set  &  9 & 19.6\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsubsection{Analysis Cost}\label{sec:rq2:cost}
 
 % Measures actual runtime after the specification and analysis context are supplied.
@@ -1362,6 +1516,25 @@ The remaining \textbf{75 instances} constitute the effective evaluation set.
 % Violated paths; avoid overclaiming linear relationships from a small sample; reconsider or remove the
 % original Pearson-correlation analysis unless a statistically defensible new design is established.
 % Do not equate low runtime with demonstrated developer practicality.
+
+Each of the 46 expressible instances was run 10 times (single thread, dependency pre-analysis excluded, both Violated and Warning outcomes included), and the per-case median is used as the representative value rather than the mean, since analysis time is sensitive to transient system load and a small number of outlier runs. Across the 46 case-level medians, the overall median analysis time is \textbf{2.11\,s} (IQR 0.99--4.30\,s; min 0.39\,s; max 12.99\,s), summarized in Table~\ref{tab:rq2-latency}. Full per-case medians and IQRs, together with the cumulative-median stability check across 1/3/6/10 runs that motivated the choice of 10 repetitions, are reported in the supplementary material.
+
+\begin{table}[t]
+\centering
+\caption{IntentChecker analysis latency across the 46 expressible, executed instances (median of 10 runs per case; single thread).}
+\label{tab:rq2-latency}
+\small
+\begin{tabular}{l r}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Median latency across cases & 2.11\,s \\
+IQR                          & 0.99--4.30\,s \\
+Min                          & 0.39\,s \\
+Max                          & 12.99\,s \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 

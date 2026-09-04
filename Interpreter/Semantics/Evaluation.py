@@ -119,7 +119,14 @@ class Evaluation :
             return None
 
         rt = ifc_fcfg.return_types[0]
-        struct_defs = getattr(ifc_cfg, 'structDefs', {})
+        # ★ file-level struct(예: `struct FloatStruct {...}`가 인터페이스/컨트랙트
+        # 밖, 파일 최상위에 선언된 경우, `IMochiProfile.liquidationFactor()`처럼
+        # 그 인터페이스의 함수가 반환 타입으로만 참조함) 병합 — `ifc_cfg.structDefs`는
+        # 그 인터페이스 "안에" 선언된 struct만 담고 있어서 빠짐, 안 채우면
+        # `top_from_soltype`이 멤버 없는 빈 StructVariable을 만듦
+        # (web3bugs_42_H_01에서 발견, `'denominator' not in struct 'lf'`).
+        struct_defs = dict(getattr(self.an.sa, 'file_level_structs', {}) or {})
+        struct_defs.update(getattr(ifc_cfg, 'structDefs', {}) or {})
         enum_defs = getattr(ifc_cfg, 'enumDefs', {})
 
         # top 값 생성
@@ -224,7 +231,10 @@ class Evaluation :
             ifc_fcfg = ifc_cfg.get_function_cfg(func_name)
             if ifc_fcfg and ifc_fcfg.return_types:
                 rt = ifc_fcfg.return_types[0]
-                struct_defs = getattr(ifc_cfg, 'structDefs', {})
+                # ★ file-level struct 병합 — _assemble_ireturn_value와 동일 이유
+                # (web3bugs_42_H_01, `'denominator' not in struct 'lf'`)
+                struct_defs = dict(getattr(self.an.sa, 'file_level_structs', {}) or {})
+                struct_defs.update(getattr(ifc_cfg, 'structDefs', {}) or {})
                 enum_defs = getattr(ifc_cfg, 'enumDefs', {})
                 top_val = VariableEnv.top_from_soltype(
                     rt, struct_defs, enum_defs,
@@ -234,6 +244,35 @@ class Evaluation :
                     return top_val.value
                 return top_val
             # parent chain 추가
+            for pname in getattr(ifc_cfg, 'parent_contracts', []):
+                if pname not in visited:
+                    queue.append(pname)
+        return None
+
+    def _find_interface_struct_def(self, interface_name, struct_name):
+        """interface pkl에서 struct 정의 조회 (parent chain 포함) — qualified
+        네임스페이스 struct 생성자(예: `IPool.TokenAmount({...})`, struct가
+        interface `IPool` 안에 정의된 경우)를 위한 헬퍼. `_lookup_interface_return`
+        과 동일한 PKL 로딩 패턴 재사용.
+        Returns: (struct_def, struct_defs, enum_defs) 또는 None"""
+        import pickle, pathlib
+        visited = set()
+        queue = [interface_name]
+        while queue:
+            ifc_name = queue.pop(0)
+            if ifc_name in visited:
+                continue
+            visited.add(ifc_name)
+            pkl_path = pathlib.Path(f'Dependencies/objectfile/ifc_{ifc_name}.pkl')
+            if not pkl_path.exists():
+                continue
+            with open(pkl_path, 'rb') as f:
+                raw = pickle.load(f)
+            ifc_cfg = raw["cfg"] if isinstance(raw, dict) and "cfg" in raw else raw
+            struct_defs = getattr(ifc_cfg, 'structDefs', {})
+            if struct_name in struct_defs:
+                enum_defs = getattr(ifc_cfg, 'enumDefs', {})
+                return struct_defs[struct_name], struct_defs, enum_defs
             for pname in getattr(ifc_cfg, 'parent_contracts', []):
                 if pname not in visited:
                     queue.append(pname)
@@ -323,6 +362,20 @@ class Evaluation :
                     return result
 
         return None
+
+    def _is_known_parent_contract(self, contract_cfg, name: str) -> bool:
+        """name이 contract_cfg의 부모 체인(직계/조상 포함) 안에 있는 컨트랙트
+        이름인지 확인 — 명시적 base-contract-qualified 호출(`ParentName.foo()`,
+        `super.foo()`와 비슷하지만 조상 하나를 이름으로 못박는 문법)을 위한 체크."""
+        parent_contracts = getattr(contract_cfg, 'parent_contracts', [])
+        parent_cfgs = getattr(contract_cfg, 'parent_cfgs', {})
+        for parent_name in parent_contracts:
+            if parent_name == name:
+                return True
+            parent_cfg = parent_cfgs.get(parent_name)
+            if parent_cfg and self._is_known_parent_contract(parent_cfg, name):
+                return True
+        return False
 
     def _join_struct_fields(self, struct_list):
         """
@@ -540,6 +593,21 @@ class Evaluation :
                 scope="memory"
             )
 
+            # ★ base type이 qualified 네임스페이스 struct(예: `IPool.TokenAmount`,
+            # interface 안에 정의된 struct)면 현재 컨트랙트의 struct_defs엔
+            # 당연히 없음 — interface pkl에서 struct_defs를 가져와 채워야
+            # `_init_recursive`의 struct 분기가 실제로 초기화할 수 있음
+            # (web3bugs_35_H_08/35_H_12에서 발견).
+            base_t = sol_t.arrayBaseType
+            if isinstance(base_t, SolType) and base_t.typeCategory == "struct" and \
+                    isinstance(base_t.structTypeName, str) and "." in base_t.structTypeName:
+                ifc_name, bare_name = base_t.structTypeName.split(".", 1)
+                ifc_struct = self._find_interface_struct_def(ifc_name, bare_name)
+                if ifc_struct is not None:
+                    _, ifc_struct_defs, ifc_enum_defs = ifc_struct
+                    arr.struct_defs = {**ifc_struct_defs, **arr.struct_defs}
+                    arr.enum_defs = {**ifc_enum_defs, **arr.enum_defs}
+
             # ⬇ Solidity default: new array elements are zero-initialized
             if ArrayVariable._is_abstractable(sol_t.arrayBaseType):
                 et = str(sol_t.arrayBaseType.elementaryTypeName)
@@ -595,15 +663,6 @@ class Evaluation :
         ety = expr.expr_type  # 'uint'·'int'·'bool'·'string'·'address' 등
         _NUM_SCI = re.compile(r"^[+-]?\d+([eE][+-]?\d+)$")  # 1e8, 2E+18 …
 
-        def _to_scalar_int(txt: str) :
-            """
-            10·16·8진수(+부호) + decimal scientific notation → int 로 변환.
-            """
-            try:
-                return int(txt, 0)  # 0x… / 0o… / plain decimal
-            except ValueError:
-                pass
-
         def _parse_maybe_int(txt: str):
             """10·16·8진수 또는 지수표기를 int 로 반환. 실패하면 None."""
             # ➊ 0x / 0o / decimal
@@ -658,8 +717,19 @@ class Evaluation :
             return lit  # key 로 그대로 사용
 
         # ───────── 3. 실제 값으로 해석해 반환 ──────────
+        # (예전엔 여기서 과학적 표기(`1e18` 등)를 처리 못 하는 `_to_scalar_int`라는
+        # 별도 헬퍼를 썼음 — docstring은 "scientific notation 지원"이라 적혀있었지만
+        # 실제로는 `_NUM_SCI`/`Decimal` 폴백이 없어서 `int("1e18", 0)`이 ValueError를
+        # 던지고 조용히 None을 리턴했음. `int` 분기는 그 None을 그대로
+        # `IntegerInterval(None, None, bits)`(= bottom)로 만들어 조용히 삼켰고,
+        # `uint` 분기는 `if val < 0`에서 `None < 0`으로 크래시했음
+        # (web3bugs_79_H_02, `@During tokenAllocated == wavaxReserve * 1e18 /
+        # floorPrice`에서 발견 — `1e18`이 예전엔 무조건 'int' 타입이라 전자로 조용히
+        # bottom이 됐다가, 이번 세션의 리터럴 부호-판정 수정으로 양수라 'uint'가
+        # 되면서 후자의 크래시로 드러남). `_parse_maybe_int`가 바로 아래 이미
+        # 과학적 표기를 제대로 처리하므로 그걸 그대로 재사용.
         if ety == "uint":
-            val = _to_scalar_int(lit)
+            val = _parse_maybe_int(lit)
             if val < 0:
                 raise ValueError("uint literal cannot be negative")
             bits = expr.type_length or 256
@@ -667,7 +737,7 @@ class Evaluation :
 
         if ety == "int":
             bits = expr.type_length or 256
-            val = _to_scalar_int(lit)
+            val = _parse_maybe_int(lit)
             return IntegerInterval(val, val, bits)
 
         if ety == "bool":
@@ -915,8 +985,25 @@ class Evaluation :
                     return ident_str  # block, tx, msg를 리턴
                 elif self._find_enum_in_chain(ident_str):  # EnumDef 리턴 (parent chain 포함)
                     return self._find_enum_in_chain(ident_str)
+                elif ident_str in getattr(self.an.sa, 'file_level_enums', {}):
+                    # ★ interface/contract 밖, 파일 최상위에 선언된 enum(예: `Status`,
+                    # web3bugs_42_H_01) — _find_enum_in_chain은 현재 컨트랙트+부모
+                    # 체인의 enumDefs만 보므로 못 찾음. main.py의 load_dependencies()가
+                    # regex로 미리 수집해둔 sa.file_level_enums에서 즉석으로
+                    # EnumDefinition을 만들어 반환(기존 EnumDefinition 소비 경로 재사용).
+                    enum_def = EnumDefinition(ident_str)
+                    for m in self.an.sa.file_level_enums[ident_str]:
+                        enum_def.add_member(m)
+                    return enum_def
                 elif ident_str in self.an.library_cfgs:
                     return {"isLibrary": True, "libraryName": ident_str}
+                elif (self.an.current_target_contract and
+                      self.an.current_target_contract in self.an.contract_cfgs and
+                      self._is_known_parent_contract(
+                          self.an.contract_cfgs[self.an.current_target_contract], ident_str)):
+                    # 명시적 base-contract-qualified 호출: ParentName.foo()
+                    # (super.foo()와 비슷하지만 조상 하나를 이름으로 못박는 문법)
+                    return {"isBaseContract": True, "contractName": ident_str}
                 else:
                     raise ValueError(f"This '{ident_str}' is may be array or struct but may not be declared")
             elif callerContext == "IndexAccessContext":  # base에 대한 접근
@@ -1052,6 +1139,31 @@ class Evaluation :
             return f"super.{member}"
 
         # ──────────────────────────────────────────────────────────────
+        # 0-1b. 명시적 base-contract-qualified 호출 (ParentName.foo())
+        # super.foo()와 비슷하지만 조상 하나를 이름으로 못박는 문법 — e.g.
+        # `abstract contract CrossMarginAccounts is RoleAware, PriceAware { ...
+        # PriceAware.getCurrentPriceInPeg(...) ... }`. super와 동일하게
+        # SuperFunctionCallContext로 태그해서 기존 소비 경로(evaluate_super_
+        # function_call_context)를 그대로 재사용한다.
+        # ──────────────────────────────────────────────────────────────
+        if isinstance(baseVal, dict) and baseVal.get("isBaseContract"):
+            contract_name = baseVal["contractName"]
+            if callerContext == "functionCallContext":
+                base_cfg = self.an.contract_cfgs.get(contract_name)
+                if base_cfg:
+                    base_function = self.find_function_in_hierarchy(base_cfg, member)
+                    if base_function:
+                        result_expr = Expression(
+                            function=Expression(identifier=member),
+                            operator='super_call',
+                            context='SuperFunctionCallContext'
+                        )
+                        result_expr._super_function_cfg = base_function
+                        return result_expr
+
+            return f"{contract_name}.{member}"
+
+        # ──────────────────────────────────────────────────────────────
         # 0-2. this 키워드 처리 (this.foo(), this.balance, address(this).balance 등)
         # ──────────────────────────────────────────────────────────────
         if isinstance(baseVal, str) and baseVal == "this":
@@ -1178,7 +1290,6 @@ class Evaluation :
 
             # interface cast된 address에서 interface 함수 호출 (IERC20(x).balanceOf())
             cast_ifc = getattr(baseVal, '_cast_interface', None)
-            import sys as _s; print(f"[CAST-CHK] member={member}, baseVal={type(baseVal).__name__}, cast_ifc={cast_ifc}, callerCtx={callerContext}", file=_s.stderr) if member in ('delayedStrategyParams','delayedProtocolParams') else None
             if cast_ifc and callerContext == "functionCallContext":
                 # interface function lookup → return type 기반 top 반환
                 result_expr = Expression(
@@ -1485,13 +1596,24 @@ class Evaluation :
             #    - 음수 부분은 0으로 clamp
             #    - 상한은 2^bits - 1로 clamp
             #    - 만약 sub_val이 BoolInterval, string, etc. => 대략 변환 로직 / symbolic
-            return self.convert_to_uint(sub_val, bits)
+            result = self.convert_to_uint(sub_val, bits)
+            # ★ callerObject가 Array/MappingVariable이면 이 cast는 인덱스/키로
+            # 쓰인 것(예: `arr[uint256(EnumType.Member)]`) — evaluate_binary_operator가
+            # 이미 하는 것과 동일하게 실제 element/entry lookup으로 위임
+            # (web3bugs_70_H_04, `totalLiquidityWeight[uint256(Paths.VADER)]`에서 발견:
+            # 이 분기가 없어서 인덱스 값 자체(0)를 배열 원소인 것처럼 리턴하고 있었음).
+            if isinstance(callerObject, (ArrayVariable, MappingVariable)):
+                return self.evaluate_binary_operator_of_index(result, callerObject)
+            return result
 
         elif type_name.startswith("int"):
             # 예: "int8", "int256"
             bits_str = "".join(ch for ch in type_name[3:] if ch.isdigit())
             bits = int(bits_str) if bits_str else 256
-            return self.convert_to_int(sub_val, bits)
+            result = self.convert_to_int(sub_val, bits)
+            if isinstance(callerObject, (ArrayVariable, MappingVariable)):
+                return self.evaluate_binary_operator_of_index(result, callerObject)
+            return result
 
         elif type_name == "bool":
             # sub_val이 Interval이면:
@@ -1699,18 +1821,27 @@ class Evaluation :
 
         op = expr.operator
         if op == '-':
-            return operand_val.negate()
+            result = operand_val.negate()
         elif op == '!':
-            return operand_val.logical_not()
+            result = operand_val.logical_not()
         elif op == '~':
-            return operand_val.bitwise_not()
+            result = operand_val.bitwise_not()
         elif op == 'delete':
             # 분석 단계에서는 “완전 미정” 값으로 — 스칼라는 0-singleton,
             # Interval 이면 같은 bit-width bottom 으로.
             if hasattr(operand_val, "bottom"):
-                return operand_val.bottom(getattr(operand_val, "type_length", 256))
-            return 0
-        return
+                result = operand_val.bottom(getattr(operand_val, "type_length", 256))
+            else:
+                result = 0
+        else:
+            return
+
+        # ★ callerObject가 Array/MappingVariable이면 이 단항식이 인덱스/키로
+        # 쓰인 것(예: `arr[~x]`) — evaluate_type_conversion_context와 동일한
+        # 패턴으로 evaluate_binary_operator_of_index에 위임.
+        if isinstance(callerObject, (ArrayVariable, MappingVariable)):
+            return self.evaluate_binary_operator_of_index(result, callerObject)
+        return result
 
     def evaluate_binary_operator(self, expr, variables, callerObject=None, callerContext=None):
         leftInterval = self.evaluate_expression(expr.left, variables, None, "Binary")
@@ -1898,6 +2029,43 @@ class Evaluation :
 
             if hasattr(base_expr, 'identifier'):
                 contract_var = base_expr.identifier
+
+                # ★ qualified 네임스페이스 struct 생성자: IPool.TokenAmount({...})
+                # — IPool이 변수가 아니라 interface *이름 그 자체*이고, TokenAmount가
+                # 그 interface 안에 정의된 struct일 때. 아래 Pattern A는 contract_var가
+                # interface 타입 변수일 때만 해당되므로(진짜 함수 호출), 이 체크가
+                # 먼저 와야 함 — 안 그러면 "IPool"을 변수로 찾으려다가 실패해서
+                # 크래시함(web3bugs_35_H_08/35_H_12에서 발견).
+                if contract_var in self.an.interface_names:
+                    ifc_struct = self._find_interface_struct_def(contract_var, member_name)
+                    if ifc_struct is not None:
+                        struct_def, struct_defs, enum_defs = ifc_struct
+                        new_struct = StructVariable(
+                            identifier=f"temp_{member_name}_{id(expr)}",
+                            struct_type=f"{contract_var}.{member_name}",
+                            scope="memory"
+                        )
+                        new_struct.initialize_struct(struct_def, struct_defs=struct_defs, enum_defs=enum_defs)
+
+                        named_args = expr.named_arguments if expr.named_arguments else {}
+                        if named_args:
+                            for field_name, field_expr in named_args.items():
+                                if field_name in new_struct.members:
+                                    field_value = self.evaluate_expression(field_expr, variables, None, None)
+                                    field_var = new_struct.members[field_name]
+                                    if isinstance(field_var, Variables):
+                                        field_var.value = field_value
+                        elif expr.arguments:
+                            member_names = list(new_struct.members.keys())
+                            for i, arg_expr in enumerate(expr.arguments):
+                                if i < len(member_names):
+                                    field_value = self.evaluate_expression(arg_expr, variables, None, None)
+                                    field_var = new_struct.members[member_names[i]]
+                                    if isinstance(field_var, Variables):
+                                        field_var.value = field_value
+
+                        return self._mapping_lookup_if_needed(new_struct, callerObject)
+
                 fcfg = self.an.current_target_function_cfg
                 interface_name = self._get_interface_name_of_var(contract_var, variables)
                 if fcfg and interface_name:
@@ -1905,6 +2073,15 @@ class Evaluation :
                         fcfg, interface_name, contract_var, member_name, callerObject)
                     if ret is not None:
                         return ret
+                    # ★ @IReturn/@Debugging 블록이 없거나 이 호출을 못 잡은 경우 —
+                    # Pattern B(explicit cast)가 이미 하는 것과 동일한 TOP-degradation
+                    # 폴백을 여기도 적용. 이게 없으면 일반 member-access 평가 경로로
+                    # 흘러가서 호출 결과가 아니라 호출 대상 자체(함수 참조)가 반환돼
+                    # raw 문자열로 바텀아웃함(web3bugs_113_H_05에서 발견).
+                    result = self._lookup_interface_return(interface_name, member_name)
+                    if result is not None:
+                        return self._mapping_lookup_if_needed(result, callerObject)
+                    return self._mapping_lookup_if_needed(UnsignedIntegerInterval.top(), callerObject)
 
             # ★ @IReturn Pattern B: explicit cast — IERC20(want).balanceOf() 등
             if (hasattr(base_expr, 'context') and base_expr.context == 'FunctionCallContext'
@@ -2081,8 +2258,43 @@ class Evaluation :
 
             return new_struct
 
-        # 3) 함수 CFG 가져오기 (상속 계층 포함 검색)
-        function_cfg = self.find_function_in_hierarchy(contract_cfg, function_name)
+        # 3) 함수 CFG 가져오기
+        # ★ 지금 라이브러리 함수 몸체 안에서 이름만으로 호출하는 중이라면(예:
+        # SafeMathUpgradeable의 `sub(a,b) { return sub(a,b,errorMsg); }`처럼
+        # 2-인자 오버로드가 같은 라이브러리의 3-인자 오버로드를 이름으로 위임
+        # 호출), Solidity 스코프 규칙상 이 이름은 그 라이브러리 자신의
+        # 함수(오버로드 포함)만 가리킬 수 있음 — 호출자 컨트랙트의 함수 목록을
+        # 찾으면 안 됨. 예전엔 항상 contract_cfg만 검색해서 이런 라이브러리
+        # 내부 위임 호출이 "함수를 못 찾음" → TOP으로 조용히 무너졌음
+        # (web3bugs_47_H_02, `SafeMathUpgradeable.div(a,b)`가 내부에서
+        # `div(a,b,errorMessage)`를 부르는 지점에서 발견 — mul()은 이 위임
+        # 패턴이 없어서 우연히 안 걸렸었음).
+        owning_lib = None
+        cur_fcfg = self.an.current_target_function_cfg
+        if cur_fcfg is not None:
+            # ★ self.an.library_cfgs는 Dependencies pkl에서 로드된 "참고용"
+            # 사본이라, 실제로 `using X for Y`가 붙이는(=`find_library_function`이
+            # 반환하는) 라이브러리 함수 객체와 동일 인스턴스가 아님(별개
+            # 재빌드본) — 그래서 이 dict로 identity 비교하면 항상 실패함.
+            # 실제로 호출되는 라이브러리 함수는 각 컨트랙트의
+            # `contract_cfg.using_libraries[target_type] -> [LibraryCFG, ...]`
+            # 에 붙어있는 것이므로, 거기서 찾아야 함.
+            for _lib_list in getattr(contract_cfg, 'using_libraries', {}).values():
+                for _lib_cfg in _lib_list:
+                    if cur_fcfg in [f for _, f in _lib_cfg.iter_all_functions()]:
+                        owning_lib = _lib_cfg
+                        break
+                if owning_lib is not None:
+                    break
+
+        if owning_lib is not None:
+            functions_source = owning_lib.functions.get(function_name)
+            function_cfg = next(iter(functions_source.values())) if functions_source else None
+        else:
+            function_cfg = self.find_function_in_hierarchy(contract_cfg, function_name)
+            functions_source = (contract_cfg.functions.get(function_name)
+                                 if hasattr(contract_cfg, 'functions') else None)
+
         if not function_cfg:
             # 함수를 찾을 수 없음 → Top 반환 (외부 함수, interface 메서드, 미정의 함수)
             # ★ 아직 분석 안 된 함수일 수 있음 → pending_callee_name에 기록
@@ -2102,8 +2314,10 @@ class Evaluation :
         total_args = len(arguments) + len(named_arguments)
 
         # overload 재검색: 인자 개수 불일치 시 같은 이름의 다른 overload 탐색
-        if total_params != total_args and hasattr(contract_cfg, 'functions') and function_name in contract_cfg.functions:
-            for sig, fcfg_candidate in contract_cfg.functions[function_name].items():
+        # (owning_lib가 있으면 라이브러리 쪽, 없으면 contract_cfg 쪽 — 둘 다
+        # functions_source 하나로 통일했으므로 분기 불필요)
+        if total_params != total_args and functions_source:
+            for sig, fcfg_candidate in functions_source.items():
                 if len(getattr(fcfg_candidate, 'parameters', [])) == total_args:
                     function_cfg = fcfg_candidate
                     param_names = function_cfg.parameters
@@ -2252,7 +2466,6 @@ class Evaluation :
 
             return_value = self.engine.interpret_function_cfg(library_function_cfg, caller_env)
 
-
             # 함수 컨텍스트 복원
             self.an.current_target_function = saved_function
             self.an.current_target_function_cfg = saved_function_cfg
@@ -2277,7 +2490,7 @@ class Evaluation :
             super_function_cfg: 부모 컨트랙트의 함수 FunctionCFG
         """
         if not super_function_cfg:
-            return f"symbolic_super_error(function not found)"
+            return UnsignedIntegerInterval.top()
 
         # 1) 함수 파라미터 정보
         param_names = getattr(super_function_cfg, 'parameters', [])
@@ -2290,7 +2503,7 @@ class Evaluation :
         total_args = len(arguments) + len(named_arguments)
 
         if total_params != total_args:
-            return f"symbolic_super_error(arg count mismatch: expected {total_params}, got {total_args})"
+            return UnsignedIntegerInterval.top()
 
         # 3) 인자 값 설정
         caller_env = variables.copy()
@@ -2319,22 +2532,38 @@ class Evaluation :
             super_function_cfg.related_variables.setdefault(k, v)
 
         # 5) 부모 함수 CFG 실행
+        saved_function = self.an.current_target_function
+        saved_function_cfg = self.an.current_target_function_cfg
         try:
-            saved_function = self.an.current_target_function
-            saved_function_cfg = self.an.current_target_function_cfg
-
             self.an.current_target_function = super_function_cfg.function_name
             self.an.current_target_function_cfg = super_function_cfg
 
             return_value = self.engine.interpret_function_cfg(super_function_cfg, caller_env)
 
-            self.an.current_target_function = saved_function
-            self.an.current_target_function_cfg = saved_function_cfg
-
             return return_value
 
         except Exception as e:
-            return f"symbolic_super_error({super_function_cfg.function_name}: {str(e)})"
+            # ★ 실패 원인을 조용히 삼키지 않고 경고로 남김(다른 코드베이스 곳곳의
+            # "Cannot resolve ..." 경고와 동일한 컨벤션) — 다만 리턴값 자체는
+            # raw 문자열이 아니라 TOP interval로 degrade시켜서, 이 값이 그대로
+            # 산술 연산(+=/등)에 들어가 AttributeError로 크래시하지 않게 함
+            # (Pattern A/B의 TOP-degradation 폴백과 동일한 패턴, web3bugs_3_H_05
+            # 에서 발견 — 예전엔 raw 문자열이 그대로 리턴돼서 다음 statement의
+            # 산술 연산에서 크래시했음).
+            print(f"[WARNING] super/base-contract call '{super_function_cfg.function_name}' "
+                  f"failed to interpret: {e}")
+            return UnsignedIntegerInterval.top()
+
+        finally:
+            # ★ interpret_function_cfg가 도중에 예외를 던져도(위 except가 잡음)
+            # current_target_function/_cfg는 반드시 원상복구돼야 함 — 안 그러면
+            # 이 호출 이후 나머지 caller 함수 전체(CFG 빌드 포함)가 계속
+            # callee(super_function_cfg)의 컨텍스트로 오염된 채 진행되다가,
+            # DynamicCFGBuilder.get_current_block()이 엉뚱한 그래프에서
+            # line_info를 조회해서 원래 함수 그래프엔 없는 stale 노드를 리턴
+            # → networkx.NetworkXError로 표면화됨(web3bugs_3_H_05에서 발견).
+            self.an.current_target_function = saved_function
+            self.an.current_target_function_cfg = saved_function_cfg
 
     def evaluate_this_function_call_context(self, expr, variables, this_function_cfg):
         """

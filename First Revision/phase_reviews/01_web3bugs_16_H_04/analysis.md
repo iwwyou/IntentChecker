@@ -100,3 +100,44 @@ All three identifiers are pre-existing, semantically meaningful in-scope values 
 - **Quantified property instantiated: No** — the relation targets a single trade's `newQuote`, not a collection-quantified property; no instantiation-on-a-representative-element issue here.
 - Alternatives considered at R1-3: directional (rejected, non-discriminating), bound (selected), known-bound-rescue variant (collapses into bound, no distinct case here), exact equality (rejected, over-specific with no added discrimination).
 - RQ1-B/RQ2-B: deferred, not run in this pass.
+
+## RQ1-B (later session) — case built and run, root cause of the Warning identified
+
+**Status: resolved, case now built** (`evaluation/RQ1/cases/web3bugs_16_H_04/web3bugs_16_H_04.json`). Concrete
+seeded scenario: `feeRate=0.01e18` (1%), `trade.side=Long`, `trade.amount=10e18`, `trade.price=2e18`,
+`position.quote=1000e18`, `position.base=0`.
+
+**Hand-derived expected outcome (what the source's own arithmetic gives): `Violated`.**
+`quoteChange = 10e18 * 2e18 = 20e18`; `fee = 20e18 * 0.01e18 = 0.2e18`; buggy
+`newQuote = 1000e18 - 20e18 + 0.2e18 = 980.2e18`; target bound `newQuote <= 1000e18 - 20e18 = 980e18`;
+`980.2e18 <= 980e18` is false, so the intended, precise engine run should report `Violated`.
+
+**Actual engine outcome: `Warning`** (risk=6.6, `newQuote` resolves to `[1000e18, ~TOP]` instead of the
+precise `980.2e18`). Root cause identified by reading `Dependencies/libraries/PRBMathSD59x18.sol:292`
+directly: `PRBMathSD59x18.mul` (the signed fixed-point multiply used for `quoteChange =
+PRBMathSD59x18.mul(signedAmount, signedPrice)`) determines the result's sign via inline assembly:
+
+```solidity
+assembly {
+    sx := sgt(x, sub(0, 1))
+    sy := sgt(y, sub(0, 1))
+}
+result = sx ^ sy == 1 ? -int256(resultUnsigned) : int256(resultUnsigned);
+```
+
+This is the same category the project's old (superseded) L1-L5 taxonomy called L3 ("Unsupported
+construct... non-arithmetic Yul") — the analyzer does not evaluate this assembly block precisely, so
+`quoteChange` (and transitively `fee`, `newQuote`) come out imprecise rather than the exact `20e18`.
+`PRBMathUD60x18.mul` (the *unsigned* variant, used inside `getFee`) has no such assembly block and
+computes with more precision, which is why `fee`'s interval is wide-but-bounded rather than fully TOP.
+
+**This is not a case-construction error** — the case JSON, debug seeding, and target annotation are all
+confirmed correct (the hand-derived arithmetic above matches the reported bug exactly). The gap is a
+genuine, source-verified analyzer limitation on inline-assembly sign handling inside a specific PRBMath
+function, distinct from the more general "PRBMath precision loss" pattern seen elsewhere in this
+dataset (e.g. `16_H_06`, `70_H_05`) — this one is specifically about signed multiplication's
+assembly-based sign determination, not fixed-point rounding.
+
+**Recorded outcome: RQ1-B = `Warning`, per the user's explicit decision to accept the actual engine
+result rather than force a match to the hand-derived expectation.** Latency/validation data collected
+via `evaluation/RQ2/collect_rq2b.py --case web3bugs_16_H_04`.

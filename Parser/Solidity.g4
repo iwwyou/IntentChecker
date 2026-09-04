@@ -632,7 +632,7 @@ literalWithSubDenomination
   : numberLiteral SubDenomination ;
 
 tupleExpression
-  : '(' (expression (',' expression)*)? ')' ;
+  : '(' expression? (',' expression?)* ')' ;
 
 numberLiteral
   : (DecimalNumber | HexNumber) ;

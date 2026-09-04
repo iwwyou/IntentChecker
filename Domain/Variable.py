@@ -247,6 +247,30 @@ class ArrayVariable(Variables):
             build_val=builder
         )
 
+    def initialize_default_by_base_type(self, is_return_param: bool = False):
+        """base_type을 보고 numeric/bool이면 initialize_elements(TOP 또는 0),
+        아니면 initialize_not_abstracted_type()으로 위임 — make_param_variable/
+        top_from_soltype/MappingVariable._make_value 세 호출부가 공유하는
+        단일 진실 공급원(예전엔 세 곳이 서로 다르게 복붙돼 있어서 두 곳이
+        base type 체크 없이 무조건 initialize_not_abstracted_type()을 불러
+        numeric 배열 원소가 raw 문자열로 초기화되는 버그가 있었음)."""
+        bt = self.typeInfo.arrayBaseType
+        et = bt.elementaryTypeName if isinstance(bt, SolType) else None
+
+        if et and et.startswith("int"):
+            bits = bt.intTypeLength or 256
+            val = IntegerInterval(0, 0, bits) if is_return_param else IntegerInterval.top(bits)
+            self.initialize_elements(val)
+        elif et and et.startswith("uint"):
+            bits = bt.intTypeLength or 256
+            val = UnsignedIntegerInterval(0, 0, bits) if is_return_param else UnsignedIntegerInterval.top(bits)
+            self.initialize_elements(val)
+        elif et == "bool":
+            val = BoolInterval(0, 0) if is_return_param else BoolInterval.top()
+            self.initialize_elements(val)
+        else:
+            self.initialize_not_abstracted_type()
+
     # ──────────────────────── private helper ────────────────────────
     def _init_recursive(self, *, baseT, length: int, build_val):
         """
@@ -277,6 +301,22 @@ class ArrayVariable(Variables):
                     sub_arr.initialize_not_abstracted_type()
                 self.elements.append(sub_arr)
                 continue
+            # ─ struct element ---------------------------------------------------------------
+            # build_val(elementary 전용 콜백)은 struct를 몰라서 raw 문자열
+            # (`symbol_{eid}`)로 바텀아웃시킴 — `new <StructType>[](n)`처럼
+            # struct 타입 배열을 미리(정적으로) 할당할 때 걸림
+            # (web3bugs_35_H_08/35_H_12에서 발견). `_create_new_array_element`
+            # 의 struct 분기와 동일한 패턴으로 진짜 StructVariable을 만든다.
+            if isinstance(baseT, SolType) and baseT.typeCategory == "struct":
+                sv = StructVariable(eid, baseT.structTypeName, scope=self.scope)
+                # qualified 네임스페이스 struct(예: "IPool.TokenAmount")는
+                # struct_defs에 마지막 "." 뒤 bare 이름으로 등록돼 있음
+                bare_name = baseT.structTypeName.rsplit(".", 1)[-1]
+                if bare_name in self.struct_defs:
+                    sv.initialize_struct(self.struct_defs[bare_name],
+                                         struct_defs=self.struct_defs, enum_defs=self.enum_defs)
+                self.elements.append(sv)
+                continue
             # ─ leaf element -----------------------------------------------------------------
             self.elements.append(build_val(eid, baseT))
 
@@ -287,6 +327,10 @@ class ArrayVariable(Variables):
             et = bt.elementaryTypeName
         else:
             et = str(bt)
+        # struct 등 non-elementary base type이면 elementaryTypeName이 None —
+        # new <StructType>[](n) 같은 케이스에서 걸림(web3bugs_35_H_08/35_H_12).
+        if et is None:
+            return False
         return et.startswith("int") or et.startswith("uint") or et == "bool"
 
 class MappingVariable(Variables):
@@ -330,7 +374,7 @@ class MappingVariable(Variables):
                 struct_defs  = self.struct_defs,  # ★ struct 정의 전달
                 enum_defs    = self.enum_defs,    # ★ enum 정의 전달
             )
-            arr.initialize_not_abstracted_type()   # 내부까지 재귀 초기화
+            arr.initialize_default_by_base_type()   # 내부까지 재귀 초기화, base type 체크 포함
             return arr
 
         # 2) 매핑 --------------------------------------------------------

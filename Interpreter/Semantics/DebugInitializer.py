@@ -394,7 +394,14 @@ class DebugInitializer:
                     callerObject.struct_defs = {**all_structs, **callerObject.struct_defs}
                     callerObject.enum_defs = {**all_enums, **callerObject.enum_defs}
 
-                key = lit
+                # ★ 리터럴 키도 identifier-context 분기(위 159번째 줄)와 동일하게
+                # _resolve_mapping_key로 변환 — 매핑의 key type이 address면
+                # `AddressSet({N})` 형태로 맞춰줘야 실제 evaluator가 나중에
+                # 계산하는 키와 일치함. 예전엔 원본 텍스트를 그대로 키로 써서
+                # `twapData[1]`처럼 address-keyed 매핑을 bare 정수로 seed하면
+                # 실제 조회 키(`AddressSet({1})`)와 안 맞아 조용히 다른 엔트리를
+                # 만들었음(web3bugs_70_H_04/45_H_01 등에서 발견).
+                key = self._resolve_mapping_key(lit, callerObject, variables)
                 # 디버깅에서는 키가 없어도 생성
                 entry = callerObject.get_or_create(key)
                 return entry

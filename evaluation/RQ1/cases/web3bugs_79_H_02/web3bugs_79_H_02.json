@@ -786,12 +786,6 @@
     "event": "add"
   },
   {
-    "code": "// @IReturn router.addLiquidity()[2] = [0, 0]",
-    "startLine": 148,
-    "endLine": 148,
-    "event": "add"
-  },
-  {
     "code": "// @Debugging END",
     "startLine": 149,
     "endLine": 149,

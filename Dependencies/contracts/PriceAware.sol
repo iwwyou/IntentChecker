@@ -17,29 +17,28 @@ abstract contract PriceAware is RoleAware {
     uint256 public UPDATE_MAX_PEG_AMOUNT = 50_000;
     uint256 public UPDATE_MIN_PEG_AMOUNT = 1_000;
 
-    function getCurrentPriceInPeg(
-        address token,
+    function _setPriceVal(
+        TokenPrice storage tokenPrice,
         uint256 inAmount,
-        bool forceCurBlock
-    ) public returns (uint256) {
-        TokenPrice storage tokenPrice = tokenPrices[token];
-        if (forceCurBlock) {
-            if (
-                block.number - tokenPrice.blockLastUpdated > priceUpdateWindow
-            ) {
-                return getPriceFromAMM(token, inAmount);
-            } else {
-                return viewCurrentPriceInPeg(token, inAmount);
-            }
-        } else if (tokenPrice.tokenPer1k == 0) {
-            return getPriceFromAMM(token, inAmount);
-        }
+        uint256 outAmount,
+        uint256 weightPerMil
+    ) internal {
+        uint256 updatePer1k = (1000 ether * inAmount) / (outAmount + 1);
+        tokenPrice.tokenPer1k =
+            (tokenPrice.tokenPer1k *
+                (1000 - weightPerMil) +
+                updatePer1k *
+                weightPerMil) /
+            1000;
+    }
 
-        if (block.number - tokenPrice.blockLastUpdated > priceUpdateWindow) {
-            getPriceFromAMM(token, inAmount);
-        }
-
-        return (inAmount * 1000 ether) / tokenPrice.tokenPer1k;
+    function setPriceVal(
+        TokenPrice storage tokenPrice,
+        uint256 inAmount,
+        uint256 outAmount
+    ) internal {
+        _setPriceVal(tokenPrice, inAmount, outAmount, UPDATE_RATE_PERMIL);
+        tokenPrice.blockLastUpdated = block.number;
     }
 
     function viewCurrentPriceInPeg(address token, uint256 inAmount)
@@ -90,27 +89,28 @@ abstract contract PriceAware is RoleAware {
         }
     }
 
-    function setPriceVal(
-        TokenPrice storage tokenPrice,
+    function getCurrentPriceInPeg(
+        address token,
         uint256 inAmount,
-        uint256 outAmount
-    ) internal {
-        _setPriceVal(tokenPrice, inAmount, outAmount, UPDATE_RATE_PERMIL);
-        tokenPrice.blockLastUpdated = block.number;
-    }
+        bool forceCurBlock
+    ) public returns (uint256) {
+        TokenPrice storage tokenPrice = tokenPrices[token];
+        if (forceCurBlock) {
+            if (
+                block.number - tokenPrice.blockLastUpdated > priceUpdateWindow
+            ) {
+                return getPriceFromAMM(token, inAmount);
+            } else {
+                return viewCurrentPriceInPeg(token, inAmount);
+            }
+        } else if (tokenPrice.tokenPer1k == 0) {
+            return getPriceFromAMM(token, inAmount);
+        }
 
-    function _setPriceVal(
-        TokenPrice storage tokenPrice,
-        uint256 inAmount,
-        uint256 outAmount,
-        uint256 weightPerMil
-    ) internal {
-        uint256 updatePer1k = (1000 ether * inAmount) / (outAmount + 1);
-        tokenPrice.tokenPer1k =
-            (tokenPrice.tokenPer1k *
-                (1000 - weightPerMil) +
-                updatePer1k *
-                weightPerMil) /
-            1000;
+        if (block.number - tokenPrice.blockLastUpdated > priceUpdateWindow) {
+            getPriceFromAMM(token, inAmount);
+        }
+
+        return (inAmount * 1000 ether) / tokenPrice.tokenPer1k;
     }
 }

@@ -1630,14 +1630,42 @@ class GuardianVerificationEngine:
         Post 검증용 exit 노드 선택:
         - return이 있는 함수 → return_exit_node
         - return이 없는 함수 → exit_node
+
+        ★ 라이브 인터프리테이션에서 명시적 `return`문은 실제로
+        `Interpreter/Engine.py._interpret_return`이 `fn_cfg.get_exit_node().
+        return_vals[line]`에 씀(return_exit이 아니라 일반 exit_node) —
+        `return_exit.return_vals`는 이 프로젝트 다른 static 경로(예:
+        interface 함수 pkl 빌드) 전용이라 라이브 케이스에선 늘 비어있고,
+        사실상 매번 exit_node로 떨어짐. 그래서 named-return 함수가 명시적
+        return 없이 끝나는 경우(web3bugs_5_H_12의 `getAddedAmount` 등),
+        exit_node.return_vals도 아무도 안 채워서 `@Post returnExpression`
+        검증이 "void 함수"로 오판해 None을 리턴하던 버그가 있었음 — 여기서
+        딱 그 빈 슬롯 하나만 채움(named return 변수의 exit 시점 실제 값으로).
         """
         return_exit = fn_cfg.get_return_exit_node()
         if return_exit.return_vals:
             return return_exit
-        else:
-            return fn_cfg.get_exit_node()
 
-    def _preds(self, fn_cfg, *, normal_only: bool = True):
+        exit_node = fn_cfg.get_exit_node()
+        if fn_cfg.return_vars and not exit_node.return_vals:
+            # ★ node=exit_node를 명시해서 _exit_env→_preds가 다시
+            # _get_post_exit_node를 호출하는 무한 재귀를 피함.
+            exit_env = self._exit_env(fn_cfg, normal_only=True, node=exit_node)
+
+            def _rv_value(rv):
+                live = exit_env.get(rv.identifier, rv)
+                if isinstance(live, (StructVariable, ArrayVariable, MappingVariable)):
+                    return live
+                return getattr(live, "value", None)
+
+            if len(fn_cfg.return_vars) == 1:
+                exit_node.return_vals[-1] = _rv_value(fn_cfg.return_vars[0])
+            else:
+                exit_node.return_vals[-1] = [_rv_value(rv) for rv in fn_cfg.return_vars]
+
+        return exit_node
+
+    def _preds(self, fn_cfg, *, normal_only: bool = True, node=None):
         """
         EXIT의 predecessor 중 정상 경로만 뽑아옴.
         (빌더에서 revert/require/assert(false) 엣지에 edge['abnormal']=True 를 붙였다고 가정)
@@ -1648,9 +1676,13 @@ class GuardianVerificationEngine:
         있는데 일반 `get_exit_node()`만 조회하면 predecessor가 0개로 나와서
         (아무도 거기 연결한 적이 없으므로) exit 환경이 통째로 비어버린다 —
         `_get_post_exit_node`가 이미 이 구분을 올바르게 처리하므로 그걸 재사용.
+
+        `node`: 명시하면 `_get_post_exit_node` 재호출 없이 그 노드의
+        predecessor를 바로 조회(`_get_post_exit_node` 자신이 내부에서
+        exit_node 기준 env를 계산할 때 순환 호출을 피하기 위해 씀).
         """
         G = fn_cfg.graph
-        exit_n = self._get_post_exit_node(fn_cfg)
+        exit_n = node if node is not None else self._get_post_exit_node(fn_cfg)
         out = []
         for p in G.predecessors(exit_n):
             ed = G.get_edge_data(p, exit_n, default={})
@@ -1659,12 +1691,12 @@ class GuardianVerificationEngine:
             out.append(p)
         return out
 
-    def _exit_env(self, fn_cfg, *, normal_only: bool = True) -> dict:
+    def _exit_env(self, fn_cfg, *, normal_only: bool = True, node=None) -> dict:
         """
         EXIT 직전의 '변수 환경'을 Helper의 join으로 하나로 만든다.
         ⇒ 이후 expr은 이 env로 한 번만 평가하면 됨.
         """
-        preds = self._preds(fn_cfg, normal_only=normal_only)
+        preds = self._preds(fn_cfg, normal_only=normal_only, node=node)
         if not preds:
             return VariableEnv.copy_variables(getattr(fn_cfg, "related_variables", {}))
 

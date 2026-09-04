@@ -97,10 +97,9 @@ contract VaderPoolV2 {
 
         ISynth synth = synthFactory.synths(foreignAsset);
 
-        if (synth == ISynth(address(0)))
-            synth = synthFactory.createSynth(
-                IERC20Extended(address(foreignAsset))
-            );
+        if (synth == ISynth(address(0))) {
+            synth = synthFactory.createSynth(IERC20Extended(address(foreignAsset)));
+        }
 
         (uint112 reserveNative, uint112 reserveForeign, ) = getReserves(
             foreignAsset

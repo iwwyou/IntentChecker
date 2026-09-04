@@ -1298,9 +1298,21 @@ class EnhancedSolidityVisitor(SolidityVisitor):
     def visitNumLiteral(self, ctx: SolidityParser.NumLiteralContext):
         # signedNumberLiteral
         literal_val = ctx.signedNumberLiteral().getText()
+        # 값의 부호로 int/uint 판정 (GuardianVerificationEngine._evaluate_inline_interval의
+        # `cls = IntegerInterval if lo < 0 else UnsignedIntegerInterval`와 동일 관례).
+        # 예전엔 무조건 'int'로 고정해서, `(uint - uint) << 128`처럼 unsigned 피연산자와
+        # 양의 정수 리터럴을 섞어 쓰는 shift가 Evaluation.py의 shift dispatch에서
+        # "Shift operands must both be int/uint intervals" 예외로 죽었음
+        # (web3bugs_35_H_12, `@Post ... (block.timestamp - lastObservation(Entry)) << 128 ...`).
+        # 부호만 필요하므로 `int(x, 0)`으로 전체를 파싱하지 않음 — 과학적 표기
+        # 리터럴(`1e18` 등, signedNumberLiteral 문법상 허용됨)은 `int(x, 0)`이
+        # ValueError를 던져서 크래시함(web3bugs_79_H_02, `@During tokenAllocated
+        # == wavaxReserve * 1e18 / floorPrice`에서 발견) — signedNumberLiteral은
+        # `'-'? numberLiteral`이라 부호는 항상 맨 앞 '-' 문자 하나로 판정 가능.
+        is_negative = literal_val.lstrip().startswith('-')
         return Expression(
             literal=literal_val,
-            expr_type='int',
+            expr_type='int' if is_negative else 'uint',
             context='NumLiteralContext'
         )
 
@@ -1467,8 +1479,13 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             init_expr = self.visitExpression(ctx.expression()) if ctx.expression() else None
 
             # 튜플 내 변수 정보 수집: [(type_obj, var_name), ...]
+            # ★ tuple_ctx.variableDeclaration()(ANTLR 리스트 accessor)는 빈 슬롯을
+            # None으로 채우지 않고 그냥 빠뜨려서 위치 정보가 깨짐 — _split_tuple_slots로
+            # 콤마 경계 기준 재구성(아래 `else: var_declarations.append(None)` 분기가
+            # 예전엔 이 이유로 죽은 코드였음 — web3bugs_29_H_08의
+            # `(, bytes memory _output) = bento.staticcall(...)`에서 발견).
             var_declarations = []
-            for var_decl in tuple_ctx.variableDeclaration():
+            for var_decl in self._split_tuple_slots(tuple_ctx):
                 if var_decl:
                     type_ctx = var_decl.typeName()
                     var_name = var_decl.identifier().getText()
@@ -2463,10 +2480,49 @@ class EnhancedSolidityVisitor(SolidityVisitor):
             context="LiteralSubDenomination"
         )
 
+    @staticmethod
+    def _split_tuple_slots(ctx):
+        """
+        `'(' slot? (',' slot?)* ')'` 형태의 튜플류 rule context(tupleExpression,
+        variableDeclarationTuple 등)를 콤마 경계로 순회해서, 슬롯 하나당 항목
+        하나씩(빈 슬롯은 None) 있는 리스트를 만든다.
+
+        ANTLR4 Python 런타임의 리스트 accessor(예: `ctx.expression()`,
+        `ctx.variableDeclaration()`)는 옵셔널-in-loop 슬롯 중 매칭 안 된 것은
+        None으로 채우지 않고 그냥 리스트에서 빠뜨린다(직접 테스트로 확인,
+        `(, x)`에서 `ctx.expression()`이 길이 1 리스트를 반환함) — 그래서
+        위치 정보(몇 번째 슬롯이 비었는지)가 사라진다. `elements[i]`/
+        `enumerate(var_declarations)`처럼 위치 기반으로 튜플 원소를 소비하는
+        다운스트림 코드에겐 이게 치명적이라(web3bugs_79_H_02의
+        `(, , lpSupply) = router.addLiquidity(...)`, web3bugs_29_H_08의
+        `(, bytes memory _output) = bento.staticcall(...)`에서 각각 발견),
+        `ctx.children`을 직접 순회해서 콤마 경계로 슬롯을 재구성한다.
+        """
+        slots = []
+        current = None
+        for child in ctx.children:
+            if isinstance(child, TerminalNodeImpl):
+                text = child.getText()
+                if text == '(':
+                    continue
+                if text == ',':
+                    slots.append(current)
+                    current = None
+                    continue
+                if text == ')':
+                    slots.append(current)
+                    continue
+                # 이 두 문법에선 다른 터미널이 나올 일 없음
+                continue
+            else:
+                current = child
+        return slots
+
     def visitTupleExp(self,
                       ctx: SolidityParser.TupleExpContext):
         inner = ctx.tupleExpression()  # ← 먼저 꺼냄
-        elems = [self.visit(e) for e in inner.expression()]
+        elems = [self.visit(s) if s is not None else None
+                 for s in self._split_tuple_slots(inner)]
         return Expression(
             context="TupleExpressionContext",
             elements=elems

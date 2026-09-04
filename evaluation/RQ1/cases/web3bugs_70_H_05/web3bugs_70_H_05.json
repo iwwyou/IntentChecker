@@ -264,13 +264,13 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar twapData[1].nativeTokenPriceAverage._x = [5192296858534827628530496329220096, 5192296858534827628530496329220096]",
+    "code": "// @StateVar twapData[address(usdvPairs[0])].nativeTokenPriceAverage._x = [5192296858534827628530496329220096, 5192296858534827628530496329220096]",
     "startLine": 37,
     "endLine": 37,
     "event": "add"
   },
   {
-    "code": "// @StateVar twapData[1].foreignUnit = [1000000000000000000, 1000000000000000000]",
+    "code": "// @StateVar twapData[address(usdvPairs[0])].foreignUnit = [1000000000000000000, 1000000000000000000]",
     "startLine": 38,
     "endLine": 38,
     "event": "add"

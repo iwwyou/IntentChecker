@@ -480,19 +480,19 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar twapData[1].lastMeasurement = [1000, 1000]",
+    "code": "// @StateVar twapData[address(vaderPairs[0])].lastMeasurement = [1000, 1000]",
     "startLine": 89,
     "endLine": 89,
     "event": "add"
   },
   {
-    "code": "// @StateVar twapData[1].updatePeriod = [604800, 604800]",
+    "code": "// @StateVar twapData[address(vaderPairs[0])].updatePeriod = [604800, 604800]",
     "startLine": 90,
     "endLine": 90,
     "event": "add"
   },
   {
-    "code": "// @StateVar twapData[1].pastLiquidityEvaluation = [500, 500]",
+    "code": "// @StateVar twapData[address(vaderPairs[0])].pastLiquidityEvaluation = [500, 500]",
     "startLine": 91,
     "endLine": 91,
     "event": "add"

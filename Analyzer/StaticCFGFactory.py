@@ -335,24 +335,7 @@ class StaticCFGFactory:
                 scope=scope,
             )
 
-            base_t = sol_type.arrayBaseType
-            if isinstance(base_t, SolType):  # 1-D 배열
-                et = base_t.elementaryTypeName
-                if et and et.startswith("int"):
-                    bits = base_t.intTypeLength or 256
-                    init_val = IntegerInterval(0, 0, bits) if is_return_param else IntegerInterval.top(bits)
-                    arr.initialize_elements(init_val)
-                elif et and et.startswith("uint"):
-                    bits = base_t.intTypeLength or 256
-                    init_val = UnsignedIntegerInterval(0, 0, bits) if is_return_param else UnsignedIntegerInterval.top(bits)
-                    arr.initialize_elements(init_val)
-                elif et == "bool":
-                    init_val = BoolInterval(0, 0) if is_return_param else BoolInterval.top()
-                    arr.initialize_elements(init_val)
-                else:  # address / bytes / string / struct 등
-                    arr.initialize_not_abstracted_type()
-            else:  # 다차원
-                arr.initialize_not_abstracted_type()
+            arr.initialize_default_by_base_type(is_return_param=is_return_param)
 
             an.register_var(arr)
             return arr

@@ -256,7 +256,7 @@ All operands are ordinary in-scope identifiers — a parameter and two state var
 
 Each of L165/166/168/171/173/176 defines a value that appears, directly or through exactly one further same-function definition, inside Member (B)'s relation text.
 
-**Excluded, with reason**: L174 (`swapTokensForEth(toSwapForEth);`) — checked against the Step 1 load-bearing test: Member (B)'s relation treats `fromSwap` as a free, already-in-scope value; it holds for *any* nonzero `fromSwap` the swap happens to produce. **Not load-bearing — excluded entirely, not even as a case note.** L169 (`otherHalf = toLiquify.sub(half)`) similarly excluded — `otherHalf` does not appear anywhere in Member (B)'s relation.
+**Excluded, with reason**: L174 (`swapTokensForEth(toSwapForEth);`) — checked against the Step 1 load-bearing test: Member (B)'s relation treats `fromSwap` as a value defined by its own statement (L176), the same convention this batch applies to any other already-materialized local. **Correction (see "Open issue" section near the end of this document): the original justification here — that this exclusion holds "because `fromSwap` is a free, already-in-scope value that holds for any nonzero `fromSwap` the swap happens to produce" — is not accurate.** No debug-seeded scenario can actually produce a nonzero `fromSwap` under the current engine/tooling (the balance transition `swapTokensForEth` is meant to cause is not modeled at all, and the debug interface cannot compensate with a call-boundary-specific override — see the "Open issue" section for the full derivation). This does not change the RQ2-A exclusion itself (L174 is still correctly excluded as non-load-bearing for the *relation's own arithmetic*, independent of whether a concrete instance of it can be run) — it changes what RQ1-B/RQ2-B will report for Member (B): `Unsupported` (unmodeled external-call state transition), not a genuine `Violated`. L169 (`otherHalf = toLiquify.sub(half)`) remains excluded for an unrelated, uncontested reason — `otherHalf` does not appear anywhere in Member (B)'s relation.
 
 **Unique relevant program values**: **11** — `contractTokenBalance` (parameter), `_marketingFee` (state), `_liquidityFee` (state), `toMarketing` (local), `toLiquify` (local), `half` (local), `toSwapForEth` (local), `initialBalance` (local), `address(this).balance` (EVM global, read at two points, counted once), `fromSwap` (local), `newBalance` (local — the constrained target value itself).
 
@@ -295,7 +295,13 @@ A direction-specific claim asserting one particular party *should* be favored (a
 
 ## RQ1-B / RQ2-B
 
-Deferred per README §8. Not run, not predicted. No case-specific engine-precision caution beyond what R1-4/R1-7 already established (no loop, no call inside either member's relation).
+Deferred per README §8 at the time this section was first written. **Update (later session, see
+"Resolved issue" section near the end of this document): Member (B) has a real, confirmed
+engine-precision caution this original note missed** — the analyzer does not model the implicit
+`address(this).balance` change caused by `swapTokensForEth()`'s external call, forcing
+`fromSwap = 0` regardless of debug seeding, which makes Member (B)'s check vacuous on every run.
+Actual outcome once run: Member (A) `Violated`; Member (B) `Unsupported` (unmodeled external-call
+state transition). See the "Resolved issue" section below for the full derivation.
 
 ---
 
@@ -318,3 +324,98 @@ Deferred per README §8. Not run, not predicted. No case-specific engine-precisi
 ## Review Notes
 
 *(Agent B review pass deliberately skipped this session, per explicit user instruction — proceeding directly to case build instead of a formal review pass. R1-1 through RQ2-A above were independently re-derived by Agent A rather than copied from the superseded pass, and two framing points were already tightened in response to external critique before this file was finalized — see the Summary's closing bullet. If a formal review pass is wanted later, it has not yet been run.)*
+
+---
+
+## Resolved issue (later session) — Member (B)'s "fromSwap is a free value" assumption did not hold; RQ1-B outcome corrected
+
+**Status: resolved.** Member (B)'s **Expressible = Yes** verdict (R1-7 above) is **unchanged and
+confirmed correct** — see resolution below. What changes is the RQ1-B/RQ2-B *validation* outcome for
+Member (B): not `Violated` (as the finding-level Expressible=Yes verdict alone might suggest), but
+**`Unsupported`**, with reason recorded below. This does not affect Member (A) (`toMarketing`),
+which is a clean, genuine `Violated` on the buggy code, or the finding-level Expressible=Yes verdict
+itself (still Yes — R1-7's own text does not make scenario-constructibility a condition of
+Expressibility; see resolution reasoning below).
+
+**One-line reason, for paper use**: *the analyzer's execution model does not model the implicit
+contract-balance change caused by an external call* — `swapTokensForEth()`'s
+`uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(...)` call is the real program
+event that causes `address(this).balance` to increase, but the analyzer has no effect rule for it,
+so `address(this).balance` reads as unchanged across the call, forcing `fromSwap = 0`. This is the
+primary/first-order cause and the only one that needs stating in the paper; the debug-tooling detail
+below is supporting evidence, not a separate independent cause worth its own sentence there.
+
+**What was assumed** (RQ2-A, "Excluded, with reason", above): *"L174 (`swapTokensForEth(toSwapForEth);`)
+— ... Member (B)'s relation treats `fromSwap` as a free, already-in-scope value; it holds for *any*
+nonzero `fromSwap` the swap happens to produce."* This treated `fromSwap` the same way a genuinely
+free parameter or state variable would be treated for debug-seeding purposes — i.e., assumed any
+concrete nonzero value (the R1-3/R1-6 worked example uses `fromSwap=95`) could simply be asserted as
+part of the case's debug scenario.
+
+**What the built case JSON actually does, and why it fails.** `fromSwap` is *not* a parameter or state
+variable — it is a local defined by a real, always-executing statement:
+`uint256 fromSwap = address(this).balance.sub(initialBalance);` (L150 in the case JSON's numbering).
+The only legitimate way to influence its value is by seeding the two operands
+(`initialBalance`'s source, `address(this).balance`, read at L145 and again at L150) — not `fromSwap`
+itself, which would repeat the same unsoundness this project already rejects for any non-parameter
+local seeded via `@LocalVar` (the seed gets overwritten the moment the real assignment statement
+executes).
+
+Reading the engine's `@GlobalVar` handler directly (`Analyzer/ContractAnalyzer.py`,
+`process_global_var_for_debug`) shows a `@GlobalVar` seed sets **one persistent override value for
+the entire function re-interpretation** — `g.value = gv_obj.value`, applied once, then the whole
+function is re-interpreted from entry. There is no "this value before L148, a different value after
+L148" — every read of `address(this).balance` anywhere in the function sees the same fixed value.
+So `initialBalance` (L145) and the second read inside `fromSwap`'s own definition (L150) are
+necessarily identical, forcing `fromSwap = X - X = 0` for *any* chosen `X`.
+
+**Root-cause hierarchy (corrected after a second consultation pass — an earlier draft of this
+section overstated the "no place to hook a seed" framing; corrected here)**:
+1. **First-order cause (analyzer execution model)**: the analyzer has no effect rule for the state
+   change `uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(...)` actually causes —
+   `address(this).balance` increasing as ETH is received. This is a real program event (the external
+   call itself), not an absent event; the analyzer simply does not model what it does to `.balance`.
+   This is the cause worth stating on its own — see the one-line paper version above.
+2. **Second-order cause (debug/scenario model cannot compensate)**: even setting aside (1), the
+   debug interface could in principle work around it with a call-boundary-specific override ("after
+   this statement, treat `address(this).balance` as Y") — but the current `@GlobalVar` mechanism only
+   supports one function-wide constant, not a point-specific one (confirmed by reading
+   `process_global_var_for_debug`, above), so no such workaround is available today either.
+3. **Observed effect**: both reads of `address(this).balance` collapse to the same value regardless
+   of which of (1)/(2) is blamed, giving `fromSwap = 0`.
+
+(1) and (2) are not competing explanations — (2) is a second, independent gap that would *also* need
+fixing even if (1) were somehow fixed by other means (e.g. a call-effect summary for the router
+interface), so both are recorded for completeness, but only (1) belongs in the paper's one-line
+description of this failure mode.
+
+**Observed consequence on the actual built case** (`evaluation/RQ1/cases/numscout_EthereumGod/
+numscout_EthereumGod.json`): with `fromSwap` forced to `0`, `newBalance = floor(0*half/toSwapForEth)
+= 0` on the buggy code, and the selected ceiling target `(0*half + toSwapForEth - 1)/toSwapForEth`
+also evaluates to `0` in this degenerate zero-numerator case — floor and ceiling trivially coincide.
+The engine reports `[INTENT SUCCESS] ... satisfied (risk=0.0)` for Member (B), not `Violated` — the
+exact "vacuous discrimination" failure mode this document's own R1-3/R1-6 explicitly designed the
+`fromSwap=95` scenario to avoid (see "Why not floor" reasoning throughout R1-3/R1-6 above), except
+here the vacuity comes from an unseedable `fromSwap` rather than from picking `floor` as the target.
+
+**Resolution: Member (B) stays Expressible = Yes; this is an RQ1-B (Validation) finding, not an
+R1-7 (Expressibility) blocker.** Checked directly against what R1-7 actually conditions
+Expressibility on (README §4): (1) can the required values be referenced at a legal program point —
+yes, `fromSwap` is a genuine same-function local; (2) can the relation be represented — yes, ordinary
+arithmetic, no call inside `intentValue`; (3) is the required observation point supported — yes,
+`@During` at L151 is an ordinary non-loop statement, so `_process_during_annotations` runs there
+normally. **None of R1-7's three conditions fail.** The `delta` exception (loop-body `@During`) does
+not extend to this case by analogy: `delta` is specifically an exception to condition (3)
+(observation-point support) — it does not license treating *any* confirmed architectural engine fact
+as an R1-7 blocker. What actually fails here — whether a *discriminating input scenario* can be
+constructed — is a question R1-7 explicitly excludes ("do not consider... whether the engine can
+validate it"), and is exactly the kind of gap RQ1-B exists to report honestly.
+
+**Final RQ1-B outcome for Member (B): `Unsupported`** — reason: *unmodeled external-call state
+transition* (see one-line paper version above; full hierarchy in the corrected root-cause section
+above). Member (A) is unaffected (`Violated`, clean). The finding-level Expressible=Yes verdict is
+unaffected (R1-7 was never actually in question). The RQ2-A "Excluded, with reason" line for L174
+above has been corrected accordingly (see that line, above) — "holds for any nonzero `fromSwap` the
+swap happens to produce" was not accurate; no debug-seeded scenario can produce a nonzero `fromSwap`
+at all under the current tooling, but this does not change the RQ2-A count or the Expressibility
+verdict, only what RQ1-B reports.

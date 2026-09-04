@@ -1227,7 +1227,7 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].principal = [1000000000000000001, 1000000000000000001]",
+    "code": "// @StateVar accountBorrows[msg.sender].principal = [1000000000000000001, 1000000000000000001]",
     "startLine": 205,
     "endLine": 205,
     "event": "add"
@@ -1245,19 +1245,19 @@
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].interest = [1, 1]",
+    "code": "// @StateVar accountBorrows[msg.sender].interest = [1, 1]",
     "startLine": 208,
     "endLine": 208,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].interestIndex = [1000000000000000001, 1000000000000000001]",
+    "code": "// @StateVar accountBorrows[msg.sender].interestIndex = [1000000000000000001, 1000000000000000001]",
     "startLine": 209,
     "endLine": 209,
     "event": "add"
   },
   {
-    "code": "// @StateVar accountBorrows[101].lastRepay = [1, 1]",
+    "code": "// @StateVar accountBorrows[msg.sender].lastRepay = [1, 1]",
     "startLine": 210,
     "endLine": 210,
     "event": "add"

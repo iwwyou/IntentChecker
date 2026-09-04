@@ -422,6 +422,26 @@ class Engine:
                         return None
             return base
 
+        def _pred_src(p):
+            """predecessor p의 out-flow로 쓸 env를 계산.
+            p가 loop_nodes 밖에 있고 아직 한 번도 (outer worklist에서) 방문돼
+            `.variables`가 채워진 적 없으면 None을 반환해서 호출자가 이
+            predecessor를 join에서 완전히 제외하게 한다 — 그러지 않고 빈
+            `{}`를 "이 predecessor를 지나면 모든 변수가 사라진다"는 뜻으로
+            잘못 취급하면, 그 predecessor가 condition_node일 때
+            (`require(sumNative...)`처럼) 빈 env로 조건을 refine하려다가
+            크래시하거나(변수를 못 찾음) 값이 조용히 비어버림 — 루프 안팎의
+            require/revert가 하나의 공유 ERROR sink로 수렴하는 구조에서
+            루프 밖 predecessor(함수 뒷부분, 아직 outer worklist가 도달
+            안 함)가 이 경로를 타면서 발생(web3bugs_52_H_04/52_H_34에서 발견).
+            """
+            if p in loop_nodes:
+                return out_vars.get(p) or {}
+            p_vars = getattr(p, "variables", None)
+            if not p_vars:
+                return None
+            return p_vars
+
         loop_nodes: set[CFGNode] = self.traverse_loop_nodes(head)
         from collections import defaultdict
         visit_cnt: defaultdict[CFGNode, int] = defaultdict(int)
@@ -569,7 +589,9 @@ class Engine:
 
             new_in = None
             for p in G.predecessors(node):
-                src = out_vars.get(p) or getattr(p, "variables", {}) or {}
+                src = _pred_src(p)
+                if src is None:
+                    continue  # 아직 계산 안 된 loop 밖 predecessor — join에서 제외
                 flow = _edge_flow_from_node_out(p, node, src)
                 if flow is None:
                     continue
@@ -607,7 +629,9 @@ class Engine:
 
         exit_env = None
         for p in G.predecessors(exit_node):
-            src = out_vars.get(p) or getattr(p, "variables", {}) or {}
+            src = _pred_src(p)
+            if src is None:
+                continue  # 아직 계산 안 된 loop 밖 predecessor — join에서 제외
             flow = _edge_flow_from_node_out(p, exit_node, src)
             if flow is None:
                 continue
@@ -972,9 +996,21 @@ class Engine:
         if len(return_values) == 0:
             if fcfg.return_vars:
                 _log_implicit_return(fcfg.return_vars)
+                # ★ composite(Array/Struct/Mapping) named return은 `.value`가
+                # 아니라 객체 자체를 리턴해야 함 — composite는 실제 데이터가
+                # `.elements`/`.members`/`.mapping`에 있고 `.value`는 기본값
+                # None 그대로임(Variables.__init__ 기본값). 예전엔 무조건
+                # `.value`를 리턴해서 explicit `return`문 없이 named return
+                # var에 값을 채우고 끝나는 함수(예: UniswapStyleLib.getAmountsOut
+                # 의 `amounts = new uint256[](...); ...; // no return`)가
+                # 항상 None을 리턴하던 버그(web3bugs_3_H_05 조사 중 발견).
+                def _rv_value(rv):
+                    if isinstance(rv, (StructVariable, ArrayVariable, MappingVariable)):
+                        return rv
+                    return rv.value
                 if len(fcfg.return_vars) == 1:
-                    return fcfg.return_vars[0].value
-                return [rv.value for rv in fcfg.return_vars]
+                    return _rv_value(fcfg.return_vars[0])
+                return [_rv_value(rv) for rv in fcfg.return_vars]
             else:
                 exit_retvals = list(fcfg.get_return_exit_node().return_vals.values())
                 if exit_retvals:
