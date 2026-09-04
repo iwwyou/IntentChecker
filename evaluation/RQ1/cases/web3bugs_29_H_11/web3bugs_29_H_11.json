@@ -855,24 +855,6 @@
     "event": "add"
   },
   {
-    "code": "// @LocalVar tokenOut = symbolicAddress 3",
-    "startLine": 156,
-    "endLine": 156,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar recipient = symbolicAddress 4",
-    "startLine": 157,
-    "endLine": 157,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar unwrapBento = [0, 0]",
-    "startLine": 158,
-    "endLine": 158,
-    "event": "add"
-  },
-  {
     "code": "// @Debugging END",
     "startLine": 159,
     "endLine": 159,

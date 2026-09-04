@@ -24,7 +24,7 @@
 \captionsetup{justification=raggedright, singlelinecheck=false}% Left-align all captions by default
 \captionsetup[figure]{justification=centering, singlelinecheck=false}% Center-align figure captions
 \usepackage{tikz}%
-\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta,decorations.pathreplacing}%
+\usetikzlibrary{positioning,fit,backgrounds,calc,arrows.meta,decorations.pathreplacing,shapes.multipart}%
 \usepackage{multirow}%
 \usepackage{booktabs}%
 \usepackage{pifont}% For \ding{51} (checkmark) and \ding{55} (cross)
@@ -42,6 +42,8 @@
 \usepackage{xcolor}%
 \usepackage{listings}%
 \usepackage{comment}
+\usepackage{placeins}% For \FloatBarrier to control figure placement
+\usepackage[title]{appendix}%
 \usepackage{natbib}% Options passed via \PassOptionsToPackage to avoid clash with sn-jnl
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
@@ -125,16 +127,7 @@
 
 
 \abstract{
-Smart contract development lacks the mature debugging infrastructure available in traditional software engineering.
-In particular, developer intent has no direct role in the analysis available at development time.
-For this reason, numeric logic errors---where program behavior diverges from developer intent---are particularly difficult to address.
-Existing detection tools instead match completed source code against pre-defined vulnerability patterns in a testing or auditing context.
-As a result, errors outside these patterns have no practical path to early prevention.
-This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity that operates at multi-contract single-transaction scope and shifts the detection target from pre-defined patterns to developer-defined intent.
-At its core is an intent model comprising annotations and a validation engine.
-Two annotation types let developers declare intent: @During for intended relationships at specific program points within a function, and @Post for intended relationships after function execution.
-The validation engine classifies each annotation as Satisfied, Warning, or Violated against the intervals computed by abstract interpretation, and reports each result with a risk score.
-IntentChecker is evaluated on real-world numeric logic errors, where it surfaces a subset of them as Violated judgments at a mean 3.69\,s per case, providing feedback complementary to existing auditing-time detectors.
+Smart contract development lacks the mature debugging infrastructure available in traditional software engineering. In particular, developer intent has little direct role in the analysis available at development time.  This limitation is particularly relevant to numeric logic errors, where execution completes successfully but violates a numerical relationship intended by the developer.Existing detection tools typically evaluate source code against tool-defined vulnerability patterns, rules, or scenarios, limiting their ability to directly address numeric logic errors whose correctness depends on the intended numerical behavior of the specific code rather than on those predefined detection criteria.  This paper presents IntentChecker, a development-time value-level intent validation tool for Solidity that operates at multi-contract, single-transaction scope     and shifts the validation criterion from pre-defined vulnerability patterns to developer-defined numeric intent.  At its core is an intent model that defines the annotation syntax, formal semantics, and validation rules. Two annotation types let developers declare intent: \texttt{@During} for numerical relationships at specific program points and \texttt{@Post} for relationships at function exit. A validation engine applies the model's validation rules to the intervals computed by abstract interpretation, classifying each annotation as Satisfied, Warning, or Violated and deriving auxiliary violated-region information and a heuristic prioritization score. We evaluate IntentChecker retrospectively on real-world numeric logic errors to characterize the expressibility and validatability of reported bug-relevant intent, the associated specification and analysis costs, and its complementary role relative to existing detection tools.
 }
 
 \keywords{Solidity, Numeric Logic Error, Debugging Assistant, Value-level Intent Validation, Intent Model}
@@ -246,51 +239,144 @@ The next subsection examines existing tools for numeric logic errors.
 \subsection{Structural Constraints of Existing Tools}
 
 Several tools target numeric logic errors.
-NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path, Operator Order Issue, Exchange Problem, Precision Loss Trend, Minor Amount Retention---and detects them through LLM-pruned symbolic execution.
-GPTScan~\citep{gptscan} targets logic vulnerabilities including several accounting-related patterns by combining GPT-based scenario matching with lightweight static analysis~\citep{slither}.
-ScType~\citep{sctype} introduces a financial type system over Solidity variables---tuples of $\langle$financial type, scaling factor, token unit, address$\rangle$---and detects accounting errors through type checking.
-These tools represent the current state of the art and have meaningfully advanced the field for auditing and testing workflows.
-However, on numeric logic errors specifically, these tools share two structural constraints, both rooted in the absence of any channel for per-case intent: who authors the detection criteria, and what input the analysis takes.
+NumScout~\citep{numscout} catalogs five numerical defect patterns---Div In Path,
+Operator Order Issue, Exchange Problem, Precision Loss Trend, and Minor Amount
+Retention---and detects them through LLM-pruned symbolic execution.
+GPTScan~\citep{gptscan} targets logic vulnerabilities, including several
+accounting-related patterns, by combining GPT-based scenario matching with
+lightweight static analysis~\citep{slither}.
+ScType~\citep{sctype} introduces a financial type system over Solidity
+variables---tuples of $\langle$financial type, scaling factor, token unit,
+address$\rangle$---and detects accounting errors through type checking.
+
+These tools have meaningfully advanced automated auditing of smart-contract
+logic. However, for numeric logic errors, they operate within a design space in
+which the analysis criteria are primarily defined by the tool and the analyzed
+program is inspected without an explicit, per-case numeric specification
+provided by the developer. This gives rise to two structural constraints.
 
 \smallskip
-\noindent\textbf{(1) Detection criteria: authored by the tool designer, not by the developer.}
-Each tool matches the code against a fixed set of detection criteria authored at design time---pattern catalogs of known buggy shapes~\citep{numscout}, financial type rules~\citep{sctype}, or LLM-driven matching against pre-defined vulnerability scenarios~\citep{gptscan}---derived from prior bugs the tool designer has observed or catalogued.
-These criteria encode shapes of code that have been buggy in prior contracts, not what counts as a violation of the developer's intent for this specific function. A bug is caught only when its surface form matches one of those prior shapes.
+\noindent\textbf{(1) Detection criteria: predefined by the analysis approach.}
+Each tool evaluates code against criteria established before the analyzed case:
+a catalog of known defect patterns~\citep{numscout}, financial-type
+constraints~\citep{sctype}, or vulnerability scenarios used to guide
+LLM-assisted matching~\citep{gptscan}.
+These criteria can capture recurring buggy structures effectively, but they do
+not directly encode what numerical relationship the developer intended for a
+particular program point or function.
+
+For intent-dependent errors, the same surface-level computation may be correct
+in one application and incorrect in another.
+For example, floor division may be intentional when implementing a
+rounding policy, but the same arithmetic form may constitute precision loss
+when the intended relation requires rounding in the opposite direction.
+Without an explicit per-case specification, the analysis must infer intended
+behavior from program structure, surrounding context, or previously defined
+rules and scenarios.
 
 \smallskip
-\noindent\textbf{(2) Analysis phase: audit time, with the developer no longer in the loop.}
-Existing numeric logic error detection tools take source code as their primary input and are positioned within auditing or testing workflows.
-They accept a contract (or a set of contracts), possibly augmented with type annotations or natural-language artifacts, and emit findings as a report.
-Because these tools run downstream of authoring, the developer of the code under analysis is no longer available to be queried for clarification or to supply per-case input. The tool must therefore work entirely with the source code as written, and per-case intent has no channel into the analysis.
+\noindent\textbf{(2) Analysis input: source-centered rather than
+intent-augmented.}
+Existing numeric logic error detection tools take source code as their primary
+analysis input, optionally together with auxiliary information such as type
+annotations or natural-language artifacts.
+Their purpose is to infer whether the program matches a known defect pattern or
+violates a predefined analysis rule.
+
+This source-centered analysis model does not provide a direct channel through
+which the developer can state, for the specific code under analysis, that a
+particular numerical relation must hold at a particular program point.
+Consequently, per-case intent is inferred rather than treated as an explicit
+input to the analysis.
 
 \smallskip
-\noindent\textbf{These two constraints are structural, not tool-specific.}
-The above constraints are not characterized as failures of any specific tool, since the tools cited above are well-engineered within the design space they chose.
-The point is that the design space itself---post-hoc pattern-based detection without explicit intent input---requires intent to be inferred from code shape rather than supplied by the developer, which is a constraint on what can be expressed as input, not on how well the inference is implemented.
-This inference is reliable for vulnerability classes whose buggy form is invariant across contracts: a reentrancy pattern or an unchecked overflow is buggy regardless of what the developer intended, so the catalog's implicit intent assumption holds.
-Numeric logic errors, by contrast, are intent-dependent by definition---the same arithmetic can be the correct formula in one contract (e.g., intentional floor division for fair-share rounding) and a silent bug in another (e.g., precision loss in token minting), distinguishable only by reference to what the developer intended this specific function to compute.
-A design space that excludes per-case intent has no signal on which to base that distinction.
-To step outside this constraint, the input must be enlarged (the developer must supply their intent) and the tool must be moved earlier in time (run during editing, when the developer is still available to supply that intent). These two moves are jointly necessary.
+\noindent\textbf{These constraints characterize a design choice rather than a
+failure of existing tools.}
+The tools above are designed for their respective auditing and testing
+workflows, and their effectiveness should be understood within that scope.
+Our observation is instead that an analysis model based only on
+tool-defined criteria cannot directly validate a developer-supplied numerical
+relation unless such a relation is added to the input language.
+
+This distinction is particularly relevant for numeric logic errors, whose
+correctness often depends on application-specific numerical relationships
+rather than on a universally invalid syntactic pattern.
+Therefore, IntentChecker explores a complementary design point:
+the developer supplies the intended numerical relation explicitly, and the
+analyzer checks whether the abstract execution can establish that relation.
+
 
 \subsection{Proposed Overview}\label{sec:proposed-overview}
 
-IntentChecker addresses each of these constraints with a dedicated component.
+IntentChecker extends this design space by introducing explicit numeric intent
+as an analysis input and validating that intent over an interval-based abstract
+execution.
 
 \smallskip
-\noindent\textbf{(1) Detection criteria: authored by the developer, via intent annotations.}
-IntentChecker introduces an intent model consisting of two annotation types---@During and @Post---that let developers declare numeric relationships at specific program points within a function and at function exit, together with a validation engine grounded in a denotational semantics that classifies each annotation as Satisfied, Warning, or Violated based on the intervals computed by abstract interpretation.
-The engine reports the judgment together with a risk score on a 0--10 scale and, when applicable, the sub-intervals in which the intent may be violated.
-Because the developer authors these annotations per case, the criteria are specific to the function being written rather than fixed to designer-anticipated shapes from prior contracts.
+\noindent\textbf{(1) Explicit numeric intent through developer-authored
+annotations.}
+IntentChecker provides two annotation forms, \texttt{@During} and
+\texttt{@Post}, for expressing numerical relationships at statement-level and
+function-level validation points, respectively.
+These annotations define the property to be checked for the specific code
+under analysis rather than relying exclusively on a tool-defined catalog of
+bug patterns.
+
+A validation engine grounded in the semantics defined in
+\S\ref{sec:intent-semantics} evaluates each annotation over the intervals
+computed by abstract interpretation and returns one of three judgments:
+\emph{Satisfied}, \emph{Violated}, or \emph{Warning}.
+Satisfied and Violated denote definite outcomes under the abstract comparison,
+whereas Warning indicates that the interval abstraction is not precise enough
+to establish either outcome.
+
+In addition to this semantic judgment, the engine derives auxiliary diagnostic
+information.
+It reports violated sub-regions of the represented abstract value space and a
+heuristic prioritization score for Warning diagnostics.
+These auxiliary outputs do not affect the
+Satisfied/Violated/Warning judgment; in particular, the score is not intended
+as an estimate of exploit likelihood, concrete execution probability, or
+application-level severity.
 
 \smallskip
-\noindent\textbf{(2) Analysis phase: development time, with the developer in the loop.}
-For the annotations in (1) to be available at analysis time, IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior work that performs statement-level interval-domain abstract interpretation inside the editor as code is being written. SolQDebug operates on a ``range in, range out'' principle: the developer supplies bounded ranges for entry-point values the function reads (transaction context, storage state, parameters) through debug annotations, and the analyzer reports the intervals each variable reaches at every program point, without itself judging whether those intervals correspond to correct or buggy behavior. To remain responsive as code is being written, it accepts partial code fragments through specialized grammar entry rules and maintains an incremental control-flow graph that resumes analysis from the edit point rather than restarting on every change.
-This places IntentChecker in the same temporal slot as the developer who authors the function under analysis, opening the channel that (1) requires: per-case intent declared in the editor reaches the analysis directly, rather than being guessed from the source code after the fact.
+\noindent\textbf{(2) Incremental analysis during source development.}
+IntentChecker is built on SolQDebug~\citep{solqdebug}, our prior
+interval-based analysis framework for Solidity.
+SolQDebug operates on a ``range in, range out'' principle: bounded abstract
+inputs are supplied for values that cannot otherwise be determined statically,
+and the analyzer propagates the resulting intervals through the program.
+
+To support incomplete source during development, SolQDebug accepts partial
+Solidity fragments through specialized grammar entry rules and incrementally
+updates the control-flow graph and abstract program state.
+When a source fragment is added or modified, analysis resumes from the
+affected source location rather than recomputing the preceding program state.
+
+IntentChecker reuses this infrastructure so that intent annotations can be
+evaluated together with the evolving abstract state of the program.
+The resulting workflow allows the declared relation to participate directly in
+analysis rather than requiring the tool to reconstruct that relation solely
+from the completed source code.
 
 \smallskip
-Together, these two components position IntentChecker as an awareness tool rather than a detector: it does not pronounce ``this is a bug'' but instead brings the developer's attention to the specific program points where the abstract execution cannot confirm the declared intent.
+\smallskip
+Together, these two components position IntentChecker as an
+awareness tool rather than a detector: it does not autonomously infer
+that a particular numerical computation is buggy, but instead checks
+developer-supplied numeric intent and brings attention to program points where
+the abstract execution violates or cannot conclusively establish the declared
+relation.
+
+Accordingly, IntentChecker assumes that the numeric relation to be checked is
+provided explicitly. Discovering which relation should be specified, or
+locating an unknown bug without such a specification, is outside the role
+claimed for the tool. The evaluation in \S\ref{sec:evaluation} therefore
+examines the expressibility and validation of bug-relevant numeric intent
+rather than autonomous bug discovery.
 
 \section{The Design of IntentChecker}\label{sec:design}
+
 \subsection{System Architecture}
 
 Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecker.
@@ -299,20 +385,52 @@ Fig.~\ref{fig:architecture} illustrates the overall architecture of IntentChecke
 \noindent\textbf{Input.}
 IntentChecker receives three types of input:
 \begin{itemize}
-    \item \textbf{Source Fragment}---Solidity source fragments (block or statement) provided incrementally as the developer writes code, supported through SolQDebug's partial-fragment grammar (\S\ref{sec:proposed-overview}).
-    \item \textbf{Intent Annotation}---@During and @Post specifications expressing the developer's intended numerical relationships.
-    \item \textbf{Debug Annotation}---variable initialization directives that supply bounded value ranges at program points where the actual value is unknown to the analyzer. This category includes SolQDebug's original @GlobalVar (transaction and block context values), @StateVar (state variables in contract storage), and @LocalVar (function parameters), as well as the @IReturn annotation introduced in this paper for interface call return values.
+    \item \textbf{Source Fragment}---Solidity source fragments, such as blocks
+    or statements, provided incrementally through source-code events and
+    supported by SolQDebug's partial-fragment grammar
+    (\S\ref{sec:proposed-overview}).
+
+    \item \textbf{Intent Annotation}---\texttt{@During} and \texttt{@Post}
+    specifications expressing intended numerical relationships at statement-
+    and function-level validation points, respectively.
+
+    \item \textbf{Debug Annotation}---analysis-input directives that supply
+    bounded value ranges where the analyzer would otherwise have insufficient
+    information. This category includes SolQDebug's original
+    \texttt{@GlobalVar} for transaction- and block-context values,
+    \texttt{@StateVar} for contract state variables, and
+    \texttt{@LocalVar} for function parameters, as well as the
+    \texttt{@IReturn} annotation introduced in this paper for values returned
+    by interface calls.
 \end{itemize}
-In addition, the Analysis Module loads pre-analyzed Dependency CFGs (\texttt{.pkl} files) for libraries and interfaces referenced from the target source file.
+
+In addition, the Analysis Module loads pre-analyzed dependency CFGs for
+referenced libraries and interfaces.
 
 \smallskip
 \noindent\textbf{Output.}
 For each intent annotation, IntentChecker produces:
 \begin{itemize}
-    \item \textbf{Result}---a validation state of Satisfied, Violated, or Warning.
-    \item \textbf{Risk Score}---a 0--10 scale score: $0.0$ for Satisfied, $10.0$ for Violated, and $0.1$--$9.9$ for Warning reflecting the severity of the potential violation.
-    \item \textbf{Violated Region}---the specific sub-intervals where the intent may be violated, helping developers identify problematic input ranges.
+    \item \textbf{Result}---a semantic validation judgment of
+    \emph{Satisfied}, \emph{Violated}, or \emph{Warning}.
+
+    \item \textbf{Violated Region}---sub-intervals of the represented abstract
+    value space in which the intent is definitely violated or remains
+    comparison-dependent, providing developers with a localized explanation of
+    a Warning result.
+
+    \item \textbf{Risk Score}---a 0--10 heuristic prioritization score:
+    $0.0$ for Satisfied, $10.0$ for Violated, and $0.1$--$9.9$ for Warning.
+    For Warning results, the score is derived from the extent and shape of the
+    abstract violation region and is intended only to help prioritize
+    diagnostics. It does not estimate exploit likelihood, concrete execution
+    probability, or application-level severity.
 \end{itemize}
+
+The Result constitutes the semantic outcome of validation, whereas the
+Violated Region and Risk Score are auxiliary diagnostics derived after that
+judgment has been determined. Their computation and interpretation are
+described in \S\ref{sec:validation-engine}.
 
 \begin{figure}[t]
     \centering
@@ -323,18 +441,73 @@ For each intent annotation, IntentChecker produces:
 
 \smallskip
 \noindent\textbf{Internal Modules.}
-Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate the new @IReturn annotation and the multi-contract deployment-unit scope, while Phase~3 is IntentChecker's core contribution.
+Phases~1 and~2 reuse and extend SolQDebug's analysis pipeline to accommodate
+the new \texttt{@IReturn} annotation and multi-contract analysis scope, while
+Phase~3 implements IntentChecker's intent-validation functionality.
 \begin{itemize}
-    \item \textbf{Phase~1 --- Parsing Module.} Uses ANTLR for syntax analysis of both Solidity source fragments and intent/debug annotation comments, and additionally delegates the Solidity source fragments to the official Solidity compiler for semantic validation.
-    \item \textbf{Phase~2 --- Analysis Module.} Performs incremental abstract interpretation over the interval domain, updating the control-flow graph and variable states as each statement is processed. When a debug annotation is received, the Snapshot Manager (reused unchanged from SolQDebug) preserves the current analysis state, allowing the analyzer to overwrite the targeted variable's interval with the developer-supplied range, re-analyze affected code paths, and restore the pre-annotation state afterwards; the same mechanism handles the new @IReturn annotation, since injecting a range at an interface call return site is mechanically the same as injecting one at a @StateVar declaration. The module additionally supports inline assembly written in Yul for arithmetic computation, leaving non-arithmetic constructs at $\top$.
-    \item \textbf{Phase~3 --- Validation Engine.} Draws on two signals from the earlier phases---parsed intent annotations from the Parsing Module, which encode the relational constraints declared in @During/@Post annotations, and computed variable intervals from the Analysis Module, which represent the abstract state of each variable at the annotated program point. For each annotation, it evaluates whether the declared intent holds by comparing the actual intervals against the specified constraints, producing the three output fields listed above.
+    \item \textbf{Phase~1 --- Parsing Module.}
+    The Parsing Module uses ANTLR to parse Solidity source fragments together
+    with intent and debug annotations. The partial-fragment grammar allows
+    incomplete blocks and statements to be represented before a complete
+    contract is available. Solidity units reconstructed for compiler checking
+    are additionally passed to the official Solidity compiler for semantic
+    validation.
+
+    \item \textbf{Phase~2 --- Analysis Module.}
+    The Analysis Module performs incremental abstract interpretation over an
+    interval domain, updating the control-flow graph and abstract variable
+    states as source-code events are processed. When a debug annotation is
+    applied, the Snapshot Manager preserves the current analysis state,
+    injects the developer-supplied interval at the target program point,
+    re-analyzes the affected portion of the program, and restores the previous
+    state afterward. The same mechanism is reused for \texttt{@IReturn},
+    because both ordinary debug annotations and interface-return annotations
+    replace an otherwise unknown abstract value with a supplied interval.
+
+    The module also analyzes arithmetic computations in inline Yul assembly.
+    Unsupported non-arithmetic assembly effects are conservatively represented
+    by $\top$.
+
+    \item \textbf{Phase~3 --- Validation Engine.}
+    The Validation Engine consumes two forms of information produced by the
+    preceding phases: parsed intent annotations from the Parsing Module and
+    abstract variable values from the Analysis Module. For each annotation, it
+    evaluates the declared numerical relationship at the corresponding
+    validation context and determines a
+    Satisfied/Violated/Warning judgment according to the intent semantics
+    defined in \S\ref{sec:intent-semantics}. It then derives the auxiliary
+    violated-region information and heuristic prioritization score without
+    changing the semantic judgment.
 \end{itemize}
 
 \smallskip
-\noindent\textbf{Analysis scope.}
-IntentChecker analyzes one function at a time within a multi-contract scope, extending SolQDebug's~\citep{solqdebug} original single-contract analysis to cover libraries and inherited parents that share storage with the target contract. External contracts---separately deployed and reached through an address or interface-typed variable---sit outside this scope, because their storage resides at a different address that the target's annotations cannot reach.
-This exclusion creates a problem for analysis: any value derived from an interface call resolves to $\top$ and propagates into every downstream computation, defeating intent validation for functions that read oracles or external token state. To address this, @IReturn extends the same range-injection mechanism the three existing annotations rely on: the developer supplies a bounded range for a value the function reads whose origin lies outside the analyzer's view, and the analyzer proceeds under it. Interface functions split into two cases: those declared view or pure, where Solidity guarantees no state-modifying side effects, and those that may modify state---potentially even re-entering the target function. Injection is restricted to the former, allowing intent validation to proceed under the developer-supplied range rather than being defeated by $\top$ propagation.
+\noindent\textbf{Analysis Scope.}
+IntentChecker analyzes one target function at a time within a multi-contract
+deployment-unit scope, extending SolQDebug's original single-contract analysis
+to include inherited contract code and referenced libraries analyzed in the
+target contract's execution and storage context.
 
+Separately deployed external contracts reached through address- or
+interface-typed variables remain outside this scope. Their internal storage and
+callee-side state transitions are not incorporated into the target contract's
+abstract state unless explicitly modeled by the analyzer. As a consequence,
+values returned from external calls may evaluate to $\top$, and caller-visible
+effects that are not summarized by the analysis may remain unmodeled.
+
+The \texttt{@IReturn} annotation addresses the former problem for interface
+calls whose returned values are required by downstream numerical computations.
+A developer may supply a bounded interval for such a return value, allowing
+analysis to continue under that abstract input instead of propagating $\top$.
+This mechanism constrains the returned value only; it does not summarize
+arbitrary side effects of the external call.
+
+To limit \texttt{@IReturn} to calls for which return-value substitution does
+not omit state-modifying behavior of the declared interface function, injection
+is restricted to functions declared \texttt{view} or \texttt{pure}. Solidity
+disallows state-modifying operations in such declared functions, whereas
+non-\texttt{view}/\texttt{pure} interface calls may modify external state or
+participate in re-entrant interactions and therefore require effects beyond a
+return-value interval.
 \subsection{Examples of Intent Annotation Usage}
 
 This section walks through two examples to illustrate how an annotated function produces a validation judgment.
@@ -409,780 +582,821 @@ The complete intent model supporting these annotations is defined in the followi
 
 The denotational semantics of the intent model is built around a meaning function
 \[
-\mathcal{V}\llbracket \cdot \rrbracket \;\colon\; \mathbb{A} \;\to\; \bigl(\mathbb{C} \rightharpoonup \mathbb{J}\bigr)
+\mathcal{V}\llbracket \cdot \rrbracket
+\;\colon\;
+\mathbb{A}
+\;\to\;
+\bigl(\mathbb{C} \rightharpoonup \mathbb{J}\bigr),
 \]
-that assigns to each intent annotation $a \in \mathbb{A}$ a partial function from validation contexts to tri-valued judgments. The semantics has three components --- the syntactic domain $\mathbb{A}$, the semantic domain $\mathbb{C}$, and the judgment set $\mathbb{J}$ --- defined as follows.
+which assigns to each intent annotation $a \in \mathbb{A}$ a partial function
+from validation contexts to tri-valued judgments.
+The model consists of three components: the syntactic domain $\mathbb{A}$,
+the semantic domain $\mathbb{C}$, and the judgment set $\mathbb{J}$.
 
 \smallskip
 \noindent\textbf{Syntactic domain.}
-$\mathbb{A}$ is the set of intent annotations generated by the grammar of \S\ref{sec:intent-semantics}, with a typical element denoted $a$.
-Each annotation begins with a marker (@During or @Post) followed by a single body drawn from the corresponding grammatical category.
-The grammar partitions bodies into three kinds:
+$\mathbb{A}$ is the set of intent annotations generated by the grammar in
+\S\ref{sec:intent-semantics}, with a typical annotation denoted by $a$.
+Each annotation begins with either \texttt{@During} or \texttt{@Post} and
+contains one atomic intent clause.
+
+The grammar distinguishes three classes of forms:
 \begin{itemize}
-    \item \textbf{@During forms}, attached to an individual statement within the function body, inspect properties at that program point.
-    \item \textbf{@Post forms}, evaluated at function exit, inspect function-level properties.
-    \item \textbf{Common forms} are shared between the two annotation kinds, applicable in both @During and @Post contexts.
+    \item \textbf{@During-specific forms}, attached to an individual program
+    statement and evaluated at the corresponding program point;
+    \item \textbf{@Post forms}, evaluated with respect to the function-exit
+    context; and
+    \item \textbf{Common forms}, which may be used under either
+    \texttt{@During} or \texttt{@Post}, with their reference environment
+    determined by the annotation kind.
 \end{itemize}
-There are no compound connectives at the annotation level, so every annotation is atomic.
+
+Each annotation expresses one atomic numeric obligation.
+When a reported finding requires multiple independently checkable obligations,
+we represent them as separate annotations rather than combining them with
+annotation-level logical connectives.
 
 \smallskip
 \noindent\textbf{Semantic domain.}
 We use two semantic domains:
 \begin{itemize}
-    \item $\Sigma$ --- the space of abstract variable environments produced by the interval-domain interpreter. Each $\sigma \in \Sigma$ maps every program variable to an integer interval, or to a compound value (arrays, mappings, or structs) whose leaf components are intervals.
-    \item $\mathbb{C}$ --- the set of validation contexts. Each $\Gamma \in \mathbb{C}$ is a record whose fields are listed in Table~\ref{tab:validation-context}; these fields hold the program-state snapshots and auxiliary data the interpreter makes available at an annotated program point, and each annotation form reads only the subset relevant to its form.
+    \item $\Sigma$ --- the space of abstract variable environments produced by
+    the interval-domain interpreter. Each $\sigma \in \Sigma$ maps program
+    variables to interval-valued abstract states, including compound values
+    such as arrays, mappings, and structs whose numeric leaves are represented
+    by intervals.
+    \item $\mathbb{C}$ --- the set of validation contexts. Each
+    $\Gamma \in \mathbb{C}$ is a record containing the program-state snapshots
+    and auxiliary data available when an annotation is evaluated.
 \end{itemize}
 
 \begin{table}[t]
 \centering
-\caption{Fields of the validation context $\Gamma \in \mathbb{C}$. Each atomic annotation form reads only a subset of these fields.}
+\caption{Fields of the validation context $\Gamma \in \mathbb{C}$.
+Each annotation form reads only the fields required by its semantics.}
 \label{tab:validation-context}
 \small
 \begin{tabularx}{\linewidth}{@{} l L @{}}
 \toprule
 Field & Meaning \\
 \midrule
-$\sigma_{\text{pt}} \in \Sigma$ & abstract state at the annotated program point \\
-$\sigma_{\text{before}} \in \Sigma$ & state immediately before the statement at the annotated line \\
-$\sigma_{\text{assign}} \in \Sigma$ & state at a variable's first-assignment site within the enclosing function \\
-$\sigma_{\text{entry}} \in \Sigma$ & state at function entry (after parameter binding and debug annotations) \\
-$\sigma_{\text{exit}} \in \Sigma$ & joined state at normal function exit \\
-$R : \text{Line} \rightharpoonup \text{Val}^*$ & partial map from return-statement lines to captured return values \\
-$\mathcal{K}$ & the set of statements at the annotated line (for call-expression and require/assert lookup) \\
-$\Pi \subseteq \Sigma$ & the set of abstract states at reachable program points within the enclosing function body, up to the evaluation point \\
+$\sigma_{\text{pt}} \in \Sigma$
+& abstract state at the annotated program point \\
+
+$\sigma_{\text{before}} \in \Sigma$
+& state immediately before the statement at the annotated line \\
+
+$\sigma_{\text{assign}} \in \Sigma$
+& state at the relevant variable-assignment point within the enclosing function \\
+
+$\sigma_{\text{entry}} \in \Sigma$
+& state at function entry, after parameter binding and supplied analysis inputs \\
+
+$\sigma_{\text{exit}} \in \Sigma$
+& joined state at normal function exit \\
+
+$R : \text{Line} \rightharpoonup \text{Val}^*$
+& partial map from return-statement lines to captured return values \\
+
+$\mathcal{K}$
+& statements associated with the annotated source location,
+used for call-argument and \texttt{require}/\texttt{assert} lookup \\
+
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \smallskip
 \noindent\textbf{Field supply.}
-$\Gamma$ supplies a different subset of fields depending on the annotation kind:
+The fields available in $\Gamma$ depend on the annotation kind:
 \begin{itemize}
-    \item \textbf{@During}: $\sigma_{\text{pt}}$, $\sigma_{\text{before}}$, $\sigma_{\text{assign}}$, $\sigma_{\text{entry}}$, $R$, $\mathcal{K}$, and $\Pi$ (containing every state produced between entry and $\sigma_{\text{pt}}$ along reachable paths);
-    \item \textbf{@Post}: $\sigma_{\text{entry}}$, $\sigma_{\text{exit}}$, $R$, and $\Pi$ (containing every state produced along any reachable path from entry to exit).
+\item \textbf{@During}: $\sigma_{\text{pt}}$, $\sigma_{\text{before}}$,
+$\sigma_{\text{assign}}$, $\sigma_{\text{entry}}$, $R$, and $\mathcal{K}$;
+
+\item \textbf{@Post}: $\sigma_{\text{entry}}$, $\sigma_{\text{exit}}$, and $R$.
 \end{itemize}
+
+This distinction also determines the available snapshot qualifiers:
+\texttt{before}, \texttt{after}, and \texttt{assign} are exposed only under
+\texttt{@During}, whereas \texttt{entry} and \texttt{exit} are exposed only
+under \texttt{@Post}. Unqualified references remain valid in both contexts.
 
 \smallskip
 \noindent\textbf{Judgment set.}
-$\mathbb{J} = \{S, V, W\}$ is the set of tri-valued judgments assigned to each annotation:
+$\mathbb{J} = \{S,V,W\}$ is the set of tri-valued judgments:
 \begin{itemize}
-    \item \textbf{Satisfied} ($S$) --- the abstract state guarantees the annotation holds;
-    \item \textbf{Violated} ($V$) --- the abstract state guarantees it fails;
-    \item \textbf{Warning} ($W$) --- the abstract state admits both satisfying and violating concrete cases.
+    \item \textbf{Satisfied} ($S$) --- every concrete state represented by the
+    abstract state satisfies the annotation;
+    \item \textbf{Violated} ($V$) --- every represented concrete state violates
+    the annotation; and
+    \item \textbf{Warning} ($W$) --- the abstract state is not precise enough to
+    establish either satisfaction or violation.
 \end{itemize}
-Given an annotation $a \in \mathbb{A}$ whose validation context is $\Gamma \in \mathbb{C}$, IntentChecker reports $\mathcal{V}\llbracket a \rrbracket(\Gamma) \in \mathbb{J}$ as its judgment for that annotation; the partiality of the inner arrow captures the fact that $\mathcal{V}\llbracket a \rrbracket$ is defined only on contexts $\Gamma$ that provide every field $a$ references (see well-formedness in \S\ref{sec:intent-semantics}).
 
-The subsection proceeds as follows.
-Section~\ref{sec:intent-semantics} fixes the grammar of $\mathbb{A}$ and defines $\mathcal{V}\llbracket \cdot \rrbracket$ via three set-theoretic primitives.
-Section~\ref{sec:validation-engine} presents the executable procedures that realise it, with an auxiliary risk score.
+For an annotation $a \in \mathbb{A}$ and validation context
+$\Gamma \in \mathbb{C}$,
+IntentChecker reports
+$\mathcal{V}\llbracket a \rrbracket(\Gamma) \in \mathbb{J}$.
+The partiality of
+$\mathcal{V}\llbracket a \rrbracket$
+captures that the meaning function is defined only for well-formed contexts
+that provide all fields required by the selected annotation form.
+
+The remainder of this section proceeds as follows.
+Section~\ref{sec:intent-semantics} defines the syntax of $\mathbb{A}$ and the
+denotational semantics of its annotation forms.
+Section~\ref{sec:validation-engine} then presents the executable validation
+procedures that implement these semantics.
 
 \subsubsection{Syntax and Semantics}\label{sec:intent-semantics}
 
 \begin{figure}[t]
 \small
 \begin{tabular}{@{}r@{\quad}c@{\quad}l@{\qquad}l@{}}
-duringIntent & $\rightarrow$ & // @During duringClause & \\[2pt]
-postIntent   & $\rightarrow$ & // @Post postClause & \\[6pt]
 
-duringClause & $\rightarrow$ & identifier .arg[ $n$ ] relOp intentValue     & $(D_{\text{arg}})$ \\
-             & $|$           & require feasible                              & $(D_{\text{req}})$ \\
-             & $|$           & assert feasible                               & $(D_{\text{asrt}})$ \\
-             & $|$           & commonClause                                  & $(D_{\text{com}})$ \\[6pt]
+duringIntent
+  & $\rightarrow$ & // @During duringClause & \\[2pt]
 
-postClause & $\rightarrow$ & commonClause                                     & $(P_{\text{com}})$ \\[6pt]
+postIntent
+  & $\rightarrow$ & // @Post postClause & \\[6pt]
 
-commonClause & $\rightarrow$ & returnExpression relOp intentValue             & $(C_{\text{ret}})$ \\
-             & $|$           & return[$n$] relOp intentValue                  & $(C_{\text{ret}_n})$ \\
-             & $|$           & intentValue relOp PercentOf( intentValue , $p$ )  & $(C_{\text{pct}})$ \\
-             & $|$           & intentValue relOp ceil( intentValue , $d$ )    & $(C_{\text{ceil}})$ \\
-             & $|$           & intentValue relOp floor( intentValue , $d$ )   & $(C_{\text{flr}})$ \\
-             & $|$           & intentValue relOp intentValue                   & $(C_{\text{cmp}})$ \\
-             & $|$           & intentValue ${=}{>}$ intentValue                & $(C_{\text{impl}})$ \\
-             & $|$           & changed ( intentValue , true $|$ false )        & $(C_{\text{chg}})$ \\[6pt]
+duringClause
+  & $\rightarrow$ & identifier .arg[ $n$ ] relOp intentValue$_D$
+  & $(D_{\text{arg}})$ \\
+  & $|$ & require feasible
+  & $(D_{\text{req}})$ \\
+  & $|$ & assert feasible
+  & $(D_{\text{asrt}})$ \\
+  & $|$ & commonClause$_D$
+  & $(D_{\text{com}})$ \\[6pt]
 
-intentValue & $\rightarrow$ & arithExpr & \\[2pt]
-arithExpr   & $\rightarrow$ & arithExpr ($\ll$ $|$ $\gg$ $|$ $\ggg$) arithAdd $|$ arithAdd & \\
-arithAdd    & $\rightarrow$ & arithAdd (+ $|$ -) arithTerm $|$ arithTerm & \\
-arithTerm   & $\rightarrow$ & arithTerm (* $|$ / $|$ \%) arithExp $|$ arithExp & \\
-arithExp    & $\rightarrow$ & arithFactor ** arithExp $|$ arithFactor & \\
-arithFactor & $\rightarrow$ & number $|$ [ number , number ] $|$ varRef $|$ varRef( snap ) $|$ ( arithExpr ) & \\[2pt]
-snap        & $\rightarrow$ & entry $|$ exit $|$ before $|$ after $|$ assign  & \\
-varRef      & $\rightarrow$ & identifier subAccess* & \\
-subAccess   & $\rightarrow$ & . identifier $|$ [ expr ] & \\[6pt]
+postClause
+  & $\rightarrow$ & commonClause$_P$
+  & $(P_{\text{com}})$ \\[6pt]
 
-relOp & $\rightarrow$ & $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ != $|$ in $|$ not in & \\
+commonClause$_k$
+  & $\rightarrow$ & returnExpression relOp intentValue$_k$
+  & $(C_{\text{ret}})$ \\
+  & $|$ & return[$n$] relOp intentValue$_k$
+  & $(C_{\text{ret}_n})$ \\
+  & $|$ & intentValue$_k$ relOp PercentOf(intentValue$_k$, $p$)
+  & $(C_{\text{pct}})$ \\
+  & $|$ & intentValue$_k$ relOp ceil(intentValue$_k$, $d$)
+  & $(C_{\text{ceil}})$ \\
+  & $|$ & intentValue$_k$ relOp floor(intentValue$_k$, $d$)
+  & $(C_{\text{flr}})$ \\
+  & $|$ & intentValue$_k$ relOp intentValue$_k$
+  & $(C_{\text{cmp}})$ \\
+  & $|$ & intentValue$_k$ ${=}{>}$ intentValue$_k$
+  & $(C_{\text{impl}})$ \\
+  & $|$ & changed(intentValue$_k$, true $|$ false)
+  & $(C_{\text{chg}})$ \\[6pt]
+
+intentValue$_k$
+  & $\rightarrow$ & arithExpr$_k$ & \\[2pt]
+
+arithExpr$_k$
+  & $\rightarrow$ &
+    arithExpr$_k$ ($\ll$ $|$ $\gg$ $|$ $\ggg$) arithAdd$_k$
+    $|$ arithAdd$_k$ & \\
+
+arithAdd$_k$
+  & $\rightarrow$ &
+    arithAdd$_k$ (+ $|$ -) arithTerm$_k$
+    $|$ arithTerm$_k$ & \\
+
+arithTerm$_k$
+  & $\rightarrow$ &
+    arithTerm$_k$ (* $|$ / $|$ \%) arithExp$_k$
+    $|$ arithExp$_k$ & \\
+
+arithExp$_k$
+  & $\rightarrow$ &
+    arithFactor$_k$ ** arithExp$_k$
+    $|$ arithFactor$_k$ & \\[2pt]
+
+arithFactor$_D$
+  & $\rightarrow$ &
+    number
+    $|$ [ number , number ]
+    $|$ varRef
+    $|$ varRef(before)
+    $|$ varRef(after)
+    $|$ varRef(assign)
+    $|$ ( arithExpr$_D$ ) & \\
+
+arithFactor$_P$
+  & $\rightarrow$ &
+    number
+    $|$ [ number , number ]
+    $|$ varRef
+    $|$ varRef(entry)
+    $|$ varRef(exit)
+    $|$ ( arithExpr$_P$ ) & \\[2pt]
+
+varRef
+  & $\rightarrow$ & identifier subAccess* & \\
+
+subAccess
+  & $\rightarrow$ & . identifier $|$ [ expr ] & \\[6pt]
+
+relOp
+  & $\rightarrow$ &
+    $<$ $|$ $>$ $|$ $\leq$ $|$ $\geq$ $|$ == $|$ !=
+    $|$ in $|$ not in & \\
+
 \end{tabular}
-\caption{Grammar of intent annotations. Sub-items of $\mathit{duringClause}$, $\mathit{postClause}$, and $\mathit{commonClause}$ are tagged with rule labels $(D_\bullet)$, $(P_\bullet)$, $(C_\bullet)$ for reference in the text.}
+
+\caption{Grammar of intent annotations.
+Subscripts $D$ and $P$ denote expression contexts under
+\texttt{@During} and \texttt{@Post}, respectively.
+Snapshot-qualified references are context-sensitive:
+\texttt{before}, \texttt{after}, and \texttt{assign} are available only
+under \texttt{@During}, whereas \texttt{entry} and \texttt{exit} are
+available only under \texttt{@Post}.
+Sub-items are tagged with rule labels
+$(D_\bullet)$, $(P_\bullet)$, and $(C_\bullet)$ for reference in the text.}
 \label{fig:intent-grammar}
 \end{figure}
 
 \smallskip
 \noindent\textbf{Grammar overview.}
-Fig.~\ref{fig:intent-grammar} gives the BNF of intent annotations, embedded in single-line comments so they coexist with Solidity code without affecting compilation.
-Intent-value expressions support arithmetic over variable references with member and index access, numeric literals, inline intervals $[a, b]$, and the DSL helpers PercentOf, ceil, and floor.
-A variable reference may additionally be tagged with a snapshot qualifier, $\mathit{varRef}(\mathit{snap})$, to pin it to one of the five state snapshots of Table~\ref{tab:validation-context} rather than the ambient reference point; an unqualified $\mathit{varRef}$ is unchanged and still reads $\mathrm{ref}(\Gamma)$, defined below.
-Relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=, and the membership operators in and not in; the implication operator ${=}{>}$ is a truthiness-based atomic form whose semantics is defined below.
+Fig.~\ref{fig:intent-grammar} gives the syntax of intent annotations,
+which are embedded in single-line comments so that they coexist with Solidity
+code without affecting compilation.
+Intent-value expressions support arithmetic over variable references with member
+and index access, numeric literals, inline intervals $[a,b]$, and the DSL helpers
+\texttt{PercentOf}, \texttt{ceil}, and \texttt{floor}.
+
+Snapshot-qualified references are context-sensitive.
+Within a \texttt{@During} intent, a variable reference may be qualified with
+\texttt{before}, \texttt{after}, or \texttt{assign}, referring to the
+statement-level snapshots defined in Table~\ref{tab:validation-context}.
+Within a \texttt{@Post} intent, a variable reference may instead be qualified
+with \texttt{entry} or \texttt{exit}, referring to the function-entry and
+function-exit snapshots.
+An unqualified variable reference is valid in both contexts and is evaluated
+against the ambient reference environment $\mathrm{ref}(\Gamma)$ defined below.
+Relational operators include $<$, $>$, $\leq$, $\geq$, ==, !=,
+and the membership operators \texttt{in} and \texttt{not in};
+the implication operator ${=}{>}$ is a truthiness-based atomic form whose
+semantics is defined below.
 
 \smallskip
 \noindent\textbf{Well-formedness.}
-We write $\Gamma \vdash a : \mathbf{wf}$ to mean that annotation $a$ is well-formed under $\Gamma$: $a$ parses against Fig.~\ref{fig:intent-grammar}, every variable reference in $a$ resolves in the relevant field of $\Gamma$, and all form-specific auxiliary data required by $a$ is present in $\Gamma$.
-The equations below define $\mathcal{V}\llbracket a \rrbracket(\Gamma)$ only for well-formed inputs; annotation forms whose auxiliary data is missing correspond to error paths in the implementation and lie outside the semantic claim.
-This well-formedness clause is also most of why each snapshot qualifier is confined to one annotation kind: $\mathit{exit}$ requires $\sigma_{\text{exit}}$, and $\mathit{before}$ and $\mathit{assign}$ require $\sigma_{\text{before}}$ and $\sigma_{\text{assign}}$---fields Table~\ref{tab:validation-context}'s field-supply list gives to only @Post or only @During, respectively, so the wrong-kind usage is never well-formed under $\Gamma$, with no separate rule needed. $\mathit{entry}$ is the one exception: $\sigma_{\text{entry}}$ is supplied under \emph{both} kinds (@During needs it internally for the $\mathrm{changed}$ primitive below), so nothing in $\Gamma$ itself rules out $\mathit{varRef}(\mathit{entry})$ inside @During. The grammar (Fig.~\ref{fig:intent-grammar}) restricts it to @Post regardless, as a deliberate design choice: it keeps $\{\mathit{entry}, \mathit{exit}\}$ a self-contained pair symmetric with @During's own self-contained $\{\mathit{before}, \mathit{after}, \mathit{assign}\}$, rather than exposing a snapshot developers would rarely need mid-function once $\mathit{before}$/$\mathit{after}$ already cover the statement-local case.
+We write $\Gamma \vdash a : \mathbf{wf}$ to mean that annotation $a$ is
+well-formed under $\Gamma$: $a$ conforms to Fig.~\ref{fig:intent-grammar},
+every variable reference in $a$ resolves in the relevant field of $\Gamma$,
+and all form-specific auxiliary data required by $a$ is available.
+The equations below define
+$\mathcal{V}\llbracket a \rrbracket(\Gamma)$
+only for well-formed inputs; annotation forms whose required auxiliary data is
+missing correspond to implementation error paths and lie outside the semantic
+claim.
 
-Well-formedness is orthogonal to the informativeness of the input intervals themselves.
-Debug annotations (@StateVar, @LocalVar, @IReturn), inherited from SolQDebug, are the mechanism by which developers supply bounded ranges for otherwise-unknown variables; without them, interval inputs may remain $\top$, and the primitives defined below typically return $W$ even though the semantics is still sound.
+Well-formedness is orthogonal to the informativeness of the abstract inputs.
+Debug annotations inherited from SolQDebug, such as \texttt{@StateVar},
+\texttt{@LocalVar}, and \texttt{@IReturn}, may be used to provide bounded
+intervals for otherwise-unknown values. Without such constraints, some inputs
+may remain $\top$, in which case the primitives defined below may yield
+$W$ even though the annotation itself is well-formed.
 
 \smallskip
 \noindent\textbf{Expression evaluation.}
 Let $\mathcal{I}$ denote the set of integer intervals.
-Intent-value expressions are evaluated against a chosen abstract variable environment $\sigma \in \Sigma$ by a function
+Intent-value expressions are evaluated against an abstract variable environment
+$\sigma \in \Sigma$ by
 \[
-\text{eval} \;:\; \Sigma \times \mathit{intentValue} \;\to\; \mathcal{I},
+\text{eval} \;:\; \Sigma \times \mathit{intentValue} \;\to\; \mathcal{I}.
 \]
-which delegates to the interpreter's expression evaluator for ordinary arithmetic subexpressions---inheriting soundness of interval arithmetic from the base analyzer---and to annotation-specific rules for the DSL helpers (PercentOf, ceil, floor) and inline interval literals $[a, b]$.
-A numeric literal $n$ evaluates to the singleton interval $[n, n]$, so literals never need to live in $\Gamma$.
-By contrast, three rules in Fig.~\ref{fig:intent-grammar} whose left-hand sides are not themselves intent-value expressions are handled outside this function: rule $(D_{\text{arg}})$ is reduced by an auxiliary operator $\text{arg}_n(f, \mathcal{K})$ to the actual argument expression---an intent-value expression---which is then passed to $\text{eval}$, while rules $(C_{\text{ret}})$ and $(C_{\text{ret}_n})$ are resolved directly against the return-summary field $R$ as $R(\ell_{\text{ret}})$ and $R(\ell_{\text{ret}})[n]$, respectively, bypassing $\text{eval}$ because $R$ already stores per-line return intervals.
+The evaluator delegates ordinary arithmetic subexpressions to the underlying
+interpreter and handles annotation-specific constructs such as
+\texttt{PercentOf}, \texttt{ceil}, \texttt{floor}, and inline interval
+literals $[a,b]$.
+A numeric literal $n$ evaluates to the singleton interval $[n,n]$.
+
+Rules whose left-hand sides are not themselves intent-value expressions are
+handled separately.
+For rule $(D_{\text{arg}})$,
+$\text{arg}_n(f,\mathcal{K})$ resolves the $n$-th argument expression of the
+annotated call and passes it to \text{eval}.
+Rules $(C_{\text{ret}})$ and $(C_{\text{ret}_n})$ instead access the
+return-summary field $R$ directly as
+$R(\ell_{\text{ret}})$ and $R(\ell_{\text{ret}})[n]$.
 
 \smallskip
 \noindent\textbf{Snapshot-qualified references.}
-A $\mathit{varRef}$ tagged with a snapshot qualifier evaluates against that snapshot instead of the ambient environment $\sigma$ that $\text{eval}$ was called with:
+A snapshot-qualified reference overrides the ambient environment and is evaluated
+against the corresponding stored snapshot:
 \[
-\text{eval}(\sigma, e(\mathit{entry}))  = \text{eval}(\sigma_{\text{entry}}, e), \qquad
-\text{eval}(\sigma, e(\mathit{exit}))   = \text{eval}(\sigma_{\text{exit}}, e),
+\text{eval}(\sigma, e(\mathit{entry}))
+  = \text{eval}(\sigma_{\text{entry}}, e), \qquad
+\text{eval}(\sigma, e(\mathit{exit}))
+  = \text{eval}(\sigma_{\text{exit}}, e),
 \]
 \[
-\text{eval}(\sigma, e(\mathit{before})) = \text{eval}(\sigma_{\text{before}}, e), \qquad
-\text{eval}(\sigma, e(\mathit{after}))  = \text{eval}(\sigma_{\text{pt}}, e), \qquad
-\text{eval}(\sigma, e(\mathit{assign})) = \text{eval}(\sigma_{\text{assign}}, e).
+\text{eval}(\sigma, e(\mathit{before}))
+  = \text{eval}(\sigma_{\text{before}}, e), \qquad
+\text{eval}(\sigma, e(\mathit{after}))
+  = \text{eval}(\sigma_{\text{pt}}, e),
 \]
-Because these equations substitute the snapshot outright rather than deriving from $\sigma$, a snapshot-qualified reference may occur anywhere inside an arithmetic expression---nested under $+$, $-$, $*$, or any other $\mathit{arithFactor}$ operator of Fig.~\ref{fig:intent-grammar}---not only as one whole side of a dedicated comparison. This is what lets a relation such as $\mathit{debts} == \mathit{debts}(\mathit{entry}) + \mathit{increasingDebt}$ be written directly as a single $(C_{\text{cmp}})$ instance: the bare occurrence of $\mathit{debts}$ reads $\text{ref}(\Gamma)$ as usual, while $\mathit{debts}(\mathit{entry})$ reads $\sigma_{\text{entry}}$, both inside the same comparison. The entry/exit and before/after comparisons of the grammar's earlier revision are consequently no longer distinct clause-level rules: $e(\mathit{entry}) \mathrel{\mathit{op}} e(\mathit{exit})$ and $e(\mathit{before}) \mathrel{\mathit{op}} e(\mathit{after})$ are now ordinary instances of $(C_{\text{cmp}})$, and we state their semantics only once, via these five equations, rather than as separate $\mathcal{V}\llbracket \cdot \rrbracket$ rules.
+\[
+\text{eval}(\sigma, e(\mathit{assign}))
+  = \text{eval}(\sigma_{\text{assign}}, e).
+\]
+
+Because the qualifier selects the snapshot locally for the referenced value,
+snapshot-qualified references may appear anywhere inside an arithmetic expression.
+For example,
+\[
+\mathit{debts}
+  == \mathit{debts}(\mathit{entry}) + \mathit{increasingDebt}
+\]
+is represented as an ordinary relational comparison:
+the unqualified occurrence of \textit{debts} is evaluated in
+$\mathrm{ref}(\Gamma)$, while
+$\mathit{debts}(\mathit{entry})$ is evaluated in
+$\sigma_{\text{entry}}$.
+Consequently, entry/exit and before/after comparisons do not require separate
+clause-level grammar rules; they are ordinary instances of $(C_{\text{cmp}})$.
 
 \smallskip
 \noindent\textbf{Feasibility evaluator.}
-To support the feasibility forms introduced below, we also use the space of abstract boolean intervals $\mathcal{B} = \{\{0\}, \{1\}, \{0, 1\}\}$ and a boolean-expression evaluator
+To support the feasibility forms, we use the space of abstract boolean intervals
 \[
-\text{eval}_{\mathcal{B}} \;:\; \Sigma \times \text{BExpr} \;\to\; \mathcal{B},
+\mathcal{B} = \{\{0\}, \{1\}, \{0,1\}\}
 \]
-where $\text{BExpr}$ is not a non-terminal of Fig.~\ref{fig:intent-grammar} but the base language's (Solidity's) boolean-expression category, from which $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$ extract the boolean condition at the annotated line for rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$, respectively; we inherit the soundness of $\text{eval}_{\mathcal{B}}$ from the underlying analyzer.
+and a boolean-expression evaluator
+\[
+\text{eval}_{\mathcal{B}}
+  \;:\; \Sigma \times \text{BExpr} \;\to\; \mathcal{B},
+\]
+where \text{BExpr} denotes the base Solidity boolean-expression category.
+The operators
+$\text{cond}_{\text{req}}(\mathcal{K})$ and
+$\text{cond}_{\text{asrt}}(\mathcal{K})$
+extract the conditions of the annotated
+\texttt{require} and \texttt{assert} statements, respectively.
 
 \smallskip
 \noindent\textbf{Comparison primitive.}
-Relational annotations are grounded in the set-theoretic comparison primitive
+Relational annotations are grounded in
 \[
-\text{Cmp}^* \;:\; \mathcal{I} \times \text{Op} \times \mathcal{I} \;\to\; \mathbb{J},
+\text{Cmp}^*
+  \;:\; \mathcal{I} \times \text{Op} \times \mathcal{I}
+  \;\to\; \mathbb{J},
 \]
-defined as
+defined by
 \[
-\text{Cmp}^*(L, \mathit{op}, R) \;=\;
+\text{Cmp}^*(L,\mathit{op},R)
+=
 \begin{cases}
-S & \text{if } \forall l \in L,\ \forall r \in R :\ l \mathrel{\mathit{op}} r, \\[2pt]
-V & \text{if } \forall l \in L,\ \forall r \in R :\ \neg(l \mathrel{\mathit{op}} r), \\[2pt]
+S & \text{if } \forall l \in L,\forall r \in R :
+    l \mathrel{\mathit{op}} r, \\[2pt]
+V & \text{if } \forall l \in L,\forall r \in R :
+    \neg(l \mathrel{\mathit{op}} r), \\[2pt]
 W & \text{otherwise.}
 \end{cases}
 \]
-For $\mathit{op} \in \{\text{in}, \text{not\,in}\}$, the set-membership interpretation replaces the pointwise comparison: $l \mathrel{\text{in}} R$ holds iff $l \in R$, and not\,in is its complement.
-$\text{Cmp}^*$ gives an algorithm-independent specification of what a relational annotation must evaluate to under a well-formed context.
+For $\mathit{op}\in\{\text{in},\text{not\,in}\}$, set membership replaces
+the pointwise relation.
 
 \smallskip
 \noindent\textbf{Truthiness implication primitive.}
-The implication operator ${=}{>}$ is an atomic form whose two sides are intent-value expressions rather than full annotations; its meaning is grounded in a truthiness-based set-theoretic primitive
+The implication form ${=}{>}$ is interpreted over the zero/non-zero status of
+the two interval operands:
 \[
-\text{Impl}^* \;:\; \mathcal{I} \times \mathcal{I} \;\to\; \mathbb{J},
+\text{Impl}^*
+  \;:\; \mathcal{I}\times\mathcal{I}\;\to\;\mathbb{J},
 \]
-defined as
+with
 \[
-\text{Impl}^*(L, R) \;=\;
+\text{Impl}^*(L,R)
+=
 \begin{cases}
-S & \text{if } L = \{0\}, \\[2pt]
-S & \text{if } 0 \notin L \text{ and } 0 \notin R, \\[2pt]
-V & \text{if } 0 \notin L \text{ and } R = \{0\}, \\[2pt]
+S & \text{if } L=\{0\}, \\[2pt]
+S & \text{if } 0\notin L \text{ and } 0\notin R, \\[2pt]
+V & \text{if } 0\notin L \text{ and } R=\{0\}, \\[2pt]
 W & \text{otherwise.}
 \end{cases}
 \]
-Intuitively, an interval $X$ is definitely non-zero when $0 \notin X$ and definitely zero when $X = \{0\}$.
-$\text{Impl}^*(L, R)$ returns $S$ when $L$ is definitely zero (so the implication holds vacuously) or when both sides are definitely non-zero, $V$ when $L$ is definitely non-zero while $R$ is definitely zero, and $W$ when the zero/non-zero status of either side cannot be established.
 
 \smallskip
 \noindent\textbf{Feasibility primitive.}
-The feasibility forms are grounded in a two-valued primitive over abstract boolean intervals:
+The feasibility forms use
 \[
-\text{Feasible}^* \;:\; \mathcal{B} \;\to\; \mathbb{J}, \qquad
-\text{Feasible}^*(B) \;=\;
+\text{Feasible}^*
+  \;:\; \mathcal{B}\;\to\;\mathbb{J},
+\qquad
+\text{Feasible}^*(B)
+=
 \begin{cases}
-V & \text{if } B = \{0\}, \\
+V & \text{if } B=\{0\}, \\
 S & \text{otherwise.}
 \end{cases}
 \]
-$\text{Feasible}^*$ answers whether a Solidity boolean condition---as evaluated by $\text{eval}_{\mathcal{B}}$---can ever hold.
-When the abstract interval is $\{0\}$, the condition is provably false on every concrete execution, so the underlying statement is unreachable and rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$ yield $V$.
-In every other case the condition admits a true value for at least one input, so the statement is feasible and both rules yield $S$.
-Unlike $\text{Cmp}^*$ and $\text{Impl}^*$, $\text{Feasible}^*$ is total but two-valued.
-Since the question ``is this condition ever true?'' admits no intermediate answer, the warning case of $\mathbb{J}$ is unused.
+Thus a condition is violated only when it is provably false for every concrete
+state represented by the abstract boolean interval.
 
 \smallskip
 \noindent\textbf{Meaning function.}
-The meaning function $\mathcal{V}\llbracket \cdot \rrbracket$, whose signature was fixed in \S\ref{sec:intent-model}, is defined by case analysis over the annotation grammar, one equation per syntactic form.
-We use $e$ (possibly subscripted) for an intent-value expression (in the state-comparison and change-detection forms, typically a variable reference, possibly with struct member or mapping index access), $f$ for a function identifier, and $\ell_{\text{ret}}$ for the return-statement line selected by the annotation: in @During, the return statement on the annotated line; in @Post, the join over all return-statement lines recorded in $R$.
+The meaning function
+$\mathcal{V}\llbracket\cdot\rrbracket$,
+introduced in \S\ref{sec:intent-model}, is defined by case analysis over the
+annotation forms.
+We use $e$ for an intent-value expression, $f$ for a function identifier,
+and $\ell_{\text{ret}}$ for the return-statement line selected by the annotation.
 
 \smallskip
 \textbf{@During annotations.}
-Neither @During nor @Post has a dedicated state-comparison rule any more: what were previously the atomic clauses $(D_{\text{ba}})$ (before/after) and $(D_{\text{ac}})$ (assign/current) under @During, and $(P_{\text{ee}})$ (entry/exit) under @Post, are now ordinary $(C_{\text{cmp}})$ comparisons built from the snapshot-qualified references defined above, so their semantics is already fully covered by that definition of $\text{eval}$ and needs no separate equation here. What remains specific to @During is rules $(D_{\text{arg}})$, $(D_{\text{req}})$, and $(D_{\text{asrt}})$: $\text{arg}_n(f, \mathcal{K})$---serving rule $(D_{\text{arg}})$---denotes the $n$-th argument expression of the call to $f$ located within the statements $\mathcal{K}$ at the annotated line (both sides of the comparison are evaluated in $\sigma_{\text{before}}$ because argument values are fixed immediately before the call executes), and $\text{cond}_{\text{req}}(\mathcal{K})$ and $\text{cond}_{\text{asrt}}(\mathcal{K})$---serving rules $(D_{\text{req}})$ and $(D_{\text{asrt}})$---denote the boolean condition expression of the statement located within $\mathcal{K}$ at the annotated line.
+The forms specific to \texttt{@During} are argument comparison and feasibility.
+Let $\mathcal{K}$ denote the statements at the annotated source location.
+The $n$-th call argument is evaluated immediately before the call, while
+feasibility is evaluated at the annotated program point:
 \begin{align*}
-\mathcal{V}\llbracket f.\text{arg}[n]\ \mathit{op}\ e \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{before}}, \text{arg}_n(f, \mathcal{K})),\; \mathit{op},\; \text{eval}(\sigma_{\text{before}}, e)\bigr), \\[3pt]
-\mathcal{V}\llbracket \text{require feasible} \rrbracket(\Gamma)
-    &= \text{Feasible}^*\bigl(\text{eval}_{\mathcal{B}}(\sigma_{\text{pt}},\; \text{cond}_{\text{req}}(\mathcal{K}))\bigr), \\[3pt]
-\mathcal{V}\llbracket \text{assert feasible} \rrbracket(\Gamma)
-    &= \text{Feasible}^*\bigl(\text{eval}_{\mathcal{B}}(\sigma_{\text{pt}},\; \text{cond}_{\text{asrt}}(\mathcal{K}))\bigr),
+\mathcal{V}\llbracket
+f.\text{arg}[n]\ \mathit{op}\ e
+\rrbracket(\Gamma)
+&=
+\text{Cmp}^*\bigl(
+\text{eval}(\sigma_{\text{before}},\text{arg}_n(f,\mathcal{K})),
+\mathit{op},
+\text{eval}(\sigma_{\text{before}},e)
+\bigr), \\[3pt]
+%
+\mathcal{V}\llbracket
+\text{require feasible}
+\rrbracket(\Gamma)
+&=
+\text{Feasible}^*\bigl(
+\text{eval}_{\mathcal{B}}
+(\sigma_{\text{pt}},\text{cond}_{\text{req}}(\mathcal{K}))
+\bigr), \\[3pt]
+%
+\mathcal{V}\llbracket
+\text{assert feasible}
+\rrbracket(\Gamma)
+&=
+\text{Feasible}^*\bigl(
+\text{eval}_{\mathcal{B}}
+(\sigma_{\text{pt}},\text{cond}_{\text{asrt}}(\mathcal{K}))
+\bigr).
 \end{align*}
-@Post has no rules of its own at all: every @Post form is a common form, covered below.
+
+All \texttt{@Post} forms are common forms and therefore require no additional
+annotation-specific equations.
 
 \smallskip
 \textbf{Common-form annotations.}
-For common-form annotations that may appear in either annotation kind, we let $\text{ref}(\Gamma)$ denote the reference environment: $\text{ref}(\Gamma) = \sigma_{\text{pt}}$ under @During and $\text{ref}(\Gamma) = \sigma_{\text{exit}}$ under @Post, capturing the rule that a common-form annotation is evaluated at the annotated program point inside @During but at the function exit inside @Post.
-The following equations apply uniformly to annotations of either kind; rules $(C_{\text{pct}})$, $(C_{\text{ceil}})$, and $(C_{\text{flr}})$ are subsumed by rule $(C_{\text{cmp}})$'s general $e_l\ \mathit{op}\ e_r$ equation below, since their right-hand sides are intent-value expressions that $\text{eval}$ handles as DSL-only constructs:
+For forms that may appear under either annotation kind, let
+\[
+\mathrm{ref}(\Gamma)=
+\begin{cases}
+\sigma_{\text{pt}} & \text{under \texttt{@During}},\\
+\sigma_{\text{exit}} & \text{under \texttt{@Post}}.
+\end{cases}
+\]
+The common forms are then defined uniformly as
 \begin{align*}
-\mathcal{V}\llbracket \text{returnExpression}\ \mathit{op}\ e \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(R(\ell_{\text{ret}}),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e)\bigr), \\[3pt]
-\mathcal{V}\llbracket \text{return}[n]\ \mathit{op}\ e \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(R(\ell_{\text{ret}})[n],\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e)\bigr), \\[3pt]
-\mathcal{V}\llbracket e_l\ \mathit{op}\ e_r \rrbracket(\Gamma)
-    &= \text{Cmp}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \mathit{op},\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr), \\[3pt]
-\mathcal{V}\llbracket e_l \Rightarrow e_r \rrbracket(\Gamma)
-    &= \text{Impl}^*\bigl(\text{eval}(\text{ref}(\Gamma), e_l),\; \text{eval}(\text{ref}(\Gamma), e_r)\bigr).
+\mathcal{V}\llbracket
+\text{returnExpression}\ \mathit{op}\ e
+\rrbracket(\Gamma)
+&=
+\text{Cmp}^*\bigl(
+R(\ell_{\text{ret}}),
+\mathit{op},
+\text{eval}(\mathrm{ref}(\Gamma),e)
+\bigr), \\[3pt]
+%
+\mathcal{V}\llbracket
+\text{return}[n]\ \mathit{op}\ e
+\rrbracket(\Gamma)
+&=
+\text{Cmp}^*\bigl(
+R(\ell_{\text{ret}})[n],
+\mathit{op},
+\text{eval}(\mathrm{ref}(\Gamma),e)
+\bigr), \\[3pt]
+%
+\mathcal{V}\llbracket
+e_l\ \mathit{op}\ e_r
+\rrbracket(\Gamma)
+&=
+\text{Cmp}^*\bigl(
+\text{eval}(\mathrm{ref}(\Gamma),e_l),
+\mathit{op},
+\text{eval}(\mathrm{ref}(\Gamma),e_r)
+\bigr), \\[3pt]
+%
+\mathcal{V}\llbracket
+e_l \Rightarrow e_r
+\rrbracket(\Gamma)
+&=
+\text{Impl}^*\bigl(
+\text{eval}(\mathrm{ref}(\Gamma),e_l),
+\text{eval}(\mathrm{ref}(\Gamma),e_r)
+\bigr).
 \end{align*}
 
-The change-detection form $\text{changed}(e, b)$ of rule $(C_{\text{chg}})$ asks whether $e$ has been modified at any reachable program point within the function body relative to its entry value.
-Its meaning is therefore not a single $\text{Cmp}^*$ call between two states but a quantification over $\Pi$, lifting $\text{Cmp}^*$ with operator $=$ to the ``exists-a-witness'' reading:
-\begin{align*}
-\mathcal{V}\llbracket \text{changed}(e, \text{true}) \rrbracket(\Gamma) \;=\;
+\smallskip
+\noindent\textbf{Change detection.}
+The common form $\mathrm{changed}(e,b)$ compares the value of $e$ at
+function entry with its value at the evaluation boundary of the annotation.
+We define the boundary environment as
+\[
+\mathrm{bound}(\Gamma)=
 \begin{cases}
-S & \text{if } \exists \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = V, \\[2pt]
-V & \text{if } \forall \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = S, \\[2pt]
-W & \text{otherwise.}
+\sigma_{\mathrm{pt}} & \text{under \texttt{@During}},\\
+\sigma_{\mathrm{exit}} & \text{under \texttt{@Post}}.
 \end{cases}
-\end{align*}
-The dual form, asking that $e$ be unchanged throughout the function body, is defined by swapping $S$ and $V$:
-\begin{align*}
-\mathcal{V}\llbracket \text{changed}(e, \text{false}) \rrbracket(\Gamma) \;=\;
-\begin{cases}
-S & \text{if } \forall \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = S, \\[2pt]
-V & \text{if } \exists \sigma \in \Pi : \text{Cmp}^*\bigl(\text{eval}(\sigma_{\text{entry}}, e),\; =,\; \text{eval}(\sigma, e)\bigr) = V, \\[2pt]
-W & \text{otherwise.}
-\end{cases}
-\end{align*}
-Because $\Pi$ is populated differently for @During (states from entry up to the annotated point) and @Post (states from entry up to any exit), these two equations cover both annotation kinds with a single pair of cases; no separate equations per kind are needed.
+\]
 
-\subsubsection{Auxiliary Outputs: Violated Region and Risk Score}\label{sec:validation-engine}
+The two forms are then defined by ordinary equality and inequality comparison:
+\begin{align*}
+\mathcal{V}\llbracket
+\mathrm{changed}(e,\mathrm{true})
+\rrbracket(\Gamma)
+&=
+\mathrm{Cmp}^*\!\left(
+    \mathrm{eval}(\sigma_{\mathrm{entry}},e),
+    \neq,
+    \mathrm{eval}(\mathrm{bound}(\Gamma),e)
+\right), \\[3pt]
+%
+\mathcal{V}\llbracket
+\mathrm{changed}(e,\mathrm{false})
+\rrbracket(\Gamma)
+&=
+\mathrm{Cmp}^*\!\left(
+    \mathrm{eval}(\sigma_{\mathrm{entry}},e),
+    =,
+    \mathrm{eval}(\mathrm{bound}(\Gamma),e)
+\right).
+\end{align*}
+
+Thus, \mathrm{changed} describes a state difference between function entry
+and the annotation's evaluation boundary.
+It does not record whether $e$ was modified at an intermediate program point
+and later restored to its entry value.
+Under \texttt{@During}, the boundary is the annotated program point;
+under \texttt{@Post}, it is the joined normal function-exit state.
+
+\subsubsection{Auxiliary Diagnostics and Heuristic Prioritization}
+\label{sec:validation-engine}
 
 \begin{algorithm}[!t]
-\caption{Auxiliary Outputs Computation for $\text{Cmp}^*$-based Annotations}
+\caption{Auxiliary Diagnostics for $\mathrm{Cmp}^*$-based Annotations}
 \label{alg:risk-score}
 \begin{algorithmic}[1]
-\State \textbf{Input:} Intervals $L$, $R$, operator $op$, state $j \in \mathbb{J}$
-\State \textbf{Output:} $(\mathit{risk\_score},\; \mathit{regions})$ with $\mathit{risk\_score} \in [0.0, 10.0]$ and $\mathit{regions} = (L_{\mathit{lower}}, L_{\mathit{upper}}, L_{\mathit{overlap}})$
-\State $(|T_s|, |T_v|, |T_w|) \gets \mathit{RegionSizes}(L, R, op)$
-\State $\mathit{regions} \gets \mathit{ExtractViolatedRegion}(L, R, op)$
-\If{$j = \mathit{satisfied}$}
-    \State \Return $(0.0,\; \mathit{regions})$
-\ElsIf{$j = \mathit{violated}$}
-    \State \Return $(10.0,\; \mathit{regions})$
+\State \textbf{Input:} Intervals $L$, $R$, operator $op$, judgment $j \in \mathbb{J}$
+\State \textbf{Output:} $(\mathit{risk\_score},\mathit{regions})$
+\State $(|T_s|,|T_v|,|T_w|) \gets \mathit{RegionSizes}(L,R,op)$
+\State $\mathit{regions} \gets \mathit{ExtractViolatedRegion}(L,R,op)$
+\If{$j=S$}
+    \State \Return $(0.0,\mathit{regions})$
+\ElsIf{$j=V$}
+    \State \Return $(10.0,\mathit{regions})$
 \EndIf
-\State $p \gets p_{\mathit{true}}(L, R, op)$
-\State $\mathit{risk\_type} \gets \mathit{ClassifyRisk}(\mathit{regions},\, op)$
-\State $(\mathit{base},\, \mathit{span}) \gets \mathit{BandOf}(\mathit{risk\_type})$
-\State $\mathit{risk\_score} \gets \mathit{base} + (1 - p) \times \mathit{span}$
-\State \Return $(\mathit{risk\_score},\; \mathit{regions})$
+\State $\rho_{\mathit{sat}} \gets
+       \mathit{AbstractSatisfactionRatio}(L,R,op)$
+\State $\mathit{shape} \gets
+       \mathit{ClassifyViolationShape}(\mathit{regions},op)$
+\State $(\mathit{base},\mathit{span}) \gets
+       \mathit{BandOf}(\mathit{shape})$
+\State $\mathit{risk\_score}
+       \gets \mathit{base}
+       + (1-\rho_{\mathit{sat}})\times\mathit{span}$
+\State \Return $(\mathit{risk\_score},\mathit{regions})$
 \end{algorithmic}
 \end{algorithm}
 
-This subsection presents the executable procedures that accompany the semantic realisation of \S\ref{sec:intent-semantics}, producing two auxiliary outputs derived from the same interval analysis that drives $\text{Cmp}^*$:
+This subsection describes the diagnostic information produced after the
+semantic judgment of \S\ref{sec:intent-semantics} has been determined.
+The distinction is important: the judgment
+$j\in\{S,V,W\}$ is defined by the semantics of $\mathrm{Cmp}^*$,
+whereas the quantities introduced below are auxiliary outputs used to explain
+and prioritize non-definite results.
+
+For $\mathrm{Cmp}^*$-based annotations, IntentChecker derives two forms of
+diagnostic information:
 \begin{itemize}
-    \item \textbf{violated region} --- sub-intervals of the input range $L$ that witness the failure of the comparison;
-    \item \textbf{risk score} --- a value on a 0--10 scale combining the state, the true probability, and the shape of the violated region.
+    \item \textbf{violated-region information}, which identifies portions of
+    the abstract operand range in which the comparison is definitely false or
+    remains dependent on the other operand; and
+
+    \item a \textbf{heuristic risk score}, which provides an ordering signal
+    among Warning results using the extent and shape of the abstract
+    comparison space.
 \end{itemize}
 
-Both outputs are downstream of the semantic claim and do not refine the judgment $j \in \mathbb{J}$; they support warning ranking and developer feedback.
-An internal probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ --- the chance that the comparison holds under a uniform distribution over $L \times R$ --- mediates the risk-score computation but is not surfaced separately.
-$\text{Impl}^*$ and $\text{Feasible}^*$ are directly computable from their definitions and need no dedicated algorithm, and the change-detection form iterates $\Pi$ directly.
-The remaining auxiliary outputs for $\text{Cmp}^*$-based annotations are computed by Algorithm~\ref{alg:risk-score} in four steps, each elaborated in turn below and cited with its line range in the algorithm.
+Neither output changes the semantic judgment.
+In particular, no cardinality-based or heuristic quantity is used to decide
+whether an annotation is Satisfied, Violated, or Warning.
+The score is therefore not part of the soundness claim of IntentChecker and
+should not be interpreted as an estimate of exploit likelihood or
+application-level severity.
+
 
 \smallskip
-\noindent\textbf{Step 1: Region partitioning (Algorithm~\ref{alg:risk-score}, line 3).}
-Given integer intervals $L = [l_{\min}, l_{\max}]$ and $R = [r_{\min}, r_{\max}]$ with an operator $op$, the interpreter partitions $L$ into three disjoint regions:
+\noindent\textbf{Step 1: Abstract-region partitioning
+(Algorithm~\ref{alg:risk-score}, line 3).}
+Let $L=[l_{\min},l_{\max}]$ and $R=[r_{\min},r_{\max}]$ be finite integer
+intervals.
+For a comparison operator $op$, the interpreter partitions the abstract values
+of $L$ into three regions:
 \begin{itemize}
-    \item $T_s$ (satisfied region): values of $L$ for which $l \mathrel{op} r$ holds for all $r \in R$;
-    \item $T_v$ (violated region): values of $L$ for which $l \mathrel{op} r$ fails for all $r \in R$;
-    \item $T_w$ (warning region): values of $L$ whose truth value depends on the actual value of $R$.
+    \item $T_s$ (\emph{definitely satisfying}):
+    values $l\in L$ for which $l\mathrel{op}r$ holds for every $r\in R$;
+
+    \item $T_v$ (\emph{definitely violating}):
+    values $l\in L$ for which $l\mathrel{op}r$ fails for every $r\in R$; and
+
+    \item $T_w$ (\emph{dependent}):
+    values $l\in L$ for which the outcome depends on the particular
+    value represented by $R$.
 \end{itemize}
 
-Table~\ref{tab:op-formulas} gives the satisfied/violated conditions and region sizes per operator, where $n_L = l_{\max} - l_{\min} + 1$ and $n_R = r_{\max} - r_{\min} + 1$ denote the number of integer values in each interval.
-The state $j$ returned by $\text{Cmp}^*$ follows directly: $j = S$ when the satisfied condition holds, $j = V$ when the violated condition holds, and $j = W$ when neither holds.
-Fig.~\ref{fig:region-partition} illustrates this partition for $op = \text{``$>$''}$ across the spectrum of $L$ vs $R$ relative positions on the integer line: from $L$ entirely below $R$ (Verdict: Violated) through several warning configurations to $L$ entirely above $R$ (Verdict: Satisfied). The same Table~\ref{tab:op-formulas} formulas apply throughout, with $\max(0, \cdot)$ clamping handling the empty regions in each configuration.
-
-\begin{table}[t]
-\centering
-\caption{Per-operator satisfied/violated conditions and region sizes. All sizes are clamped to $\max(0, \cdot)$.}
-\label{tab:op-formulas}
-\small
-\begin{tabular}{cllcc}
-\toprule
-$op$ & Satisfied condition & Violated condition & $|T_s|$ & $|T_v|$ \\
-\midrule
-$>$    & $l_{\min} > r_{\max}$    & $l_{\max} \leq r_{\min}$  & $l_{\max} - r_{\max}$     & $r_{\min} - l_{\min} + 1$ \\
-$\geq$ & $l_{\min} \geq r_{\max}$ & $l_{\max} < r_{\min}$     & $l_{\max} - r_{\max} + 1$ & $r_{\min} - l_{\min}$     \\
-$<$    & $l_{\max} < r_{\min}$    & $l_{\min} \geq r_{\max}$  & $r_{\min} - l_{\min}$     & $l_{\max} - r_{\max} + 1$ \\
-$\leq$ & $l_{\max} \leq r_{\min}$ & $l_{\min} > r_{\max}$     & $r_{\min} - l_{\min} + 1$ & $l_{\max} - r_{\max}$     \\
-\midrule
-$=$    & $L = R$, both singletons  & $L \cap R = \emptyset$  & $|L \cap R|$ & $n_L - |L \cap R|$ \\
-$\neq$ & $L \cap R = \emptyset$  & $L = R$, both singletons  & $n_L - |L \cap R|$ & $|L \cap R|$ \\
-\midrule
-in     & $L \subseteq R$ & $L \cap R = \emptyset$ & $|L \cap R|$       & $n_L - |L \cap R|$ \\
-not\,in & $L \cap R = \emptyset$ & $L \subseteq R$ & $n_L - |L \cap R|$ & $|L \cap R|$       \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[t]
-\centering
-
-% Row 1: (a) L below R, (b) L extends below R
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Tvbox] (2, 3.0) rectangle (6, 4.0);
-\node[Tlbl] at (4, 3.5) {$T_v$};
-\node[Tlbl, anchor=east] at (1.8, 3.5) {$L$};
-\draw[tick] (2, 2.8) -- (2, 4.2);
-\draw[tick] (6, 2.8) -- (6, 4.2);
-\node[txt, anchor=north] at (2, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (6, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ below $R$: $T_v = L$ (Violated).}
-\label{fig:region-fullyv}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
-\fill[Twbox] (8, 3.0) rectangle (10, 4.0);
-\node[Tlbl] at (6, 3.5) {$T_v$};
-\node[Tlbl] at (9, 3.5) {$T_w$};
-\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
-\draw[tick] (4, 2.8) -- (4, 4.2);
-\draw[tick] (10, 2.8) -- (10, 4.2);
-\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (10, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ extends below $R$: $T_s = \emptyset$ (Warning).}
-\label{fig:region-lower}
-\end{subfigure}
-
-\vspace{8pt}
-
-% Row 2: (c) L inside R, (d) L surrounds R (canonical)
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Twbox] (9, 3.0) rectangle (11, 4.0);
-\node[Tlbl] at (10, 3.5) {$T_w$};
-\node[Tlbl, anchor=east] at (8.8, 3.5) {$L$};
-\draw[tick] (9, 2.8) -- (9, 4.2);
-\draw[tick] (11, 2.8) -- (11, 4.2);
-\node[txt, anchor=north] at (9, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (11, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ inside $R$: $T_w = L$ (Warning).}
-\label{fig:region-Rcontains}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Tvbox] (4, 3.0) rectangle (8, 4.0);
-\fill[Twbox] (8, 3.0) rectangle (12, 4.0);
-\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
-\node[Tlbl] at (6, 3.5) {$T_v$};
-\node[Tlbl] at (10, 3.5) {$T_w$};
-\node[Tlbl] at (14, 3.5) {$T_s$};
-\node[Tlbl, anchor=east] at (3.8, 3.5) {$L$};
-\draw[tick] (4, 2.8) -- (4, 4.2);
-\draw[tick] (16, 2.8) -- (16, 4.2);
-\node[txt, anchor=north] at (4, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ surrounds $R$ (canonical): all three regions non-empty (Warning).}
-\label{fig:region-canonical}
-\end{subfigure}
-
-\vspace{8pt}
-
-% Row 3: (e) L extends above R, (f) L above R
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Twbox] (10, 3.0) rectangle (12, 4.0);
-\fill[Tsbox] (12, 3.0) rectangle (16, 4.0);
-\node[Tlbl] at (11, 3.5) {$T_w$};
-\node[Tlbl] at (14, 3.5) {$T_s$};
-\node[Tlbl, anchor=east] at (9.8, 3.5) {$L$};
-\draw[tick] (10, 2.8) -- (10, 4.2);
-\draw[tick] (16, 2.8) -- (16, 4.2);
-\node[txt, anchor=north] at (10, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (16, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ extends above $R$: $T_v = \emptyset$ (Warning).}
-\label{fig:region-upper}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.3cm, y=0.4cm,
-    Rbox/.style={fill=red!30, draw=red!60!black, line width=0.4pt},
-    Tsbox/.style={fill=green!40, draw=green!60!black, line width=0.4pt},
-    Tvbox/.style={fill=red!50, draw=red!65!black, line width=0.4pt},
-    Twbox/.style={fill=yellow!60, draw=orange!65!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    tick/.style={line width=0.3pt, black!70},
-    txt/.style={font=\tiny},
-    Tlbl/.style={font=\scriptsize},
-]
-\fill[Rbox] (8, 5.0) rectangle (12, 6.0);
-\node[Tlbl] at (10, 5.5) {$R$};
-\draw[tick] (8, 4.8) -- (8, 6.2);
-\draw[tick] (12, 4.8) -- (12, 6.2);
-\node[txt, anchor=south] at (8, 6.2) {$r_{\min}$};
-\node[txt, anchor=south] at (12, 6.2) {$r_{\max}$};
-\fill[Tsbox] (14, 3.0) rectangle (18, 4.0);
-\node[Tlbl] at (16, 3.5) {$T_s$};
-\node[Tlbl, anchor=east] at (13.8, 3.5) {$L$};
-\draw[tick] (14, 2.8) -- (14, 4.2);
-\draw[tick] (18, 2.8) -- (18, 4.2);
-\node[txt, anchor=north] at (14, 2.8) {$l_{\min}$};
-\node[txt, anchor=north] at (18, 2.8) {$l_{\max}$};
-\draw[ax] (0, 2.0) -- (20, 2.0);
-\node[txt, anchor=west] at (20, 2.0) {$\mathbb{Z}$};
-\end{tikzpicture}
-\caption{$L$ above $R$: $T_s = L$ (Satisfied).}
-\label{fig:region-fullys}
-\end{subfigure}
-
-\caption{Spectrum of $L$ vs $R$ configurations for $op = \text{``$>$''}$.}
-\label{fig:region-partition}
-\end{figure}
-
-\smallskip
-\noindent\textbf{Step 2: Violated-region extraction (Algorithm~\ref{alg:risk-score}, line 4).}
-The interpreter also extracts the violated region of $L$: sub-intervals of $L$ that witness failure.
-Table~\ref{tab:false-regions} decomposes $L$ into three directional components per operator:
-\begin{itemize}
-    \item $L_{\mathit{lower}}$ --- values of $L$ that fall below the acceptable range of $R$;
-    \item $L_{\mathit{upper}}$ --- values of $L$ that exceed the acceptable range of $R$;
-    \item $L_{\mathit{overlap}}$ --- values of $L$ whose outcome depends on the concrete $R$-value (the warning region for ordering operators; the coincidence zone for equality/membership).
-\end{itemize}
-
-Each component is an integer sub-interval or empty; empty components indicate that no witness exists in that direction.
-For the $=$ operator, when $L$ and $R$ are disjoint, the overlap is empty and $L$ falls entirely into exactly one of $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ depending on which side it lies on.
-The risk-classification step below consumes this decomposition, and the same sub-intervals are surfaced to the developer as the concrete ranges where the annotation may fail.
-
-\begin{table}[t]
-\centering
-\caption{Violated-region extraction formulas. Endpoints are clamped so that $\min > \max$ yields empty; ``---'' denotes no witness in that direction.}
-\label{tab:false-regions}
-\footnotesize
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} c l l l @{}}
-\toprule
-$op$ & $L_{\mathit{lower}}$ & $L_{\mathit{upper}}$ & $L_{\mathit{overlap}}$ \\
-\midrule
-$>$    & $[l_{\min}, \min(l_{\max}, r_{\min})]$         & ---                                             & $[\max(l_{\min}, r_{\min}{+}1), \min(l_{\max}, r_{\max})]$ \\
-$\geq$ & $[l_{\min}, \min(l_{\max}, r_{\min}{-}1)]$     & ---                                             & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max})]$ \\
-$<$    & ---                                            & $[\max(l_{\min}, r_{\max}), l_{\max}]$          & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max}{-}1)]$ \\
-$\leq$ & ---                                            & $[\max(l_{\min}, r_{\max}{+}1), l_{\max}]$      & $[\max(l_{\min}, r_{\min}), \min(l_{\max}, r_{\max})]$ \\
-\midrule
-$=$    & $[l_{\min}, (L \cap R)_{\min}{-}1]$            & $[(L \cap R)_{\max}{+}1, l_{\max}]$             & $L \cap R$ \\
-$\neq$ & ---                                            & ---                                             & $L \cap R$ \\
-\midrule
-\text{in}      & $[l_{\min}, \min(l_{\max}, r_{\min}{-}1)]$ & $[\max(l_{\min}, r_{\max}{+}1), l_{\max}]$  & --- \\
-\text{not\,in} & ---                                    & ---                                             & $L \cap R$ \\
-\bottomrule
-\end{tabular*}
-\end{table}
-
-\smallskip
-\noindent\textbf{Step 3: State-based scoring (Algorithm~\ref{alg:risk-score}, lines 5--9).}
-Lines 5--9 map the state $j$ returned by $\text{Cmp}^*$ directly to extreme scores: $j = \mathit{satisfied}$ returns $0.0$ (fully satisfied condition) and $j = \mathit{violated}$ returns $10.0$ (definite violation).
-The warning case $j = W$ requires further composition and is handled in Step~4.
-
-\smallskip
-\noindent\textbf{Step 4: Warning-case scoring (Algorithm~\ref{alg:risk-score}, lines 10--13).}
-When $j = W$, the risk score is composed from an internal probability $p_{\mathit{true}}$ and a risk-type classification over the violated-region components, then assembled into a value in $(0.0, 10.0)$ by a banded linear formula.
-
-\smallskip
-\textbf{True probability (Algorithm~\ref{alg:risk-score}, line 10).}
-The true probability $p_{\mathit{true}}(L, R, op) \in [0, 1]$ that the comparison holds under a uniform distribution over $L \times R$ is defined in closed form using the region sizes from Step~1:
+Table~\ref{tab:op-formulas} gives the corresponding conditions and
+cardinalities, where
 \[
-p_{\mathit{true}}(L, R, op) \;=\;
-\begin{cases}
-|T_s| / n_L & \text{if } op \in \{\text{in}, \text{not\,in}\}, \\[3pt]
-|T_s| / (n_L \cdot n_R) & \text{if } op = \text{``=''} \text{ and } n_R > 1, \\[3pt]
-1 - |T_v| / (n_L \cdot n_R) & \text{if } op = \text{``$\neq$''} \text{ and } n_R > 1, \\[3pt]
-\bigl(|T_s| + E_w\bigr) / n_L & \text{otherwise.}
-\end{cases}
+n_L=l_{\max}-l_{\min}+1,
+\qquad
+n_R=r_{\max}-r_{\min}+1.
+\]
+These regions are properties of the abstract intervals.
+They do not describe the frequency with which individual values occur in
+concrete executions.
+
+The definite judgment follows independently of any quantitative weighting:
+$j=S$ when the comparison holds over the entire represented operand space,
+$j=V$ when it fails over the entire represented operand space, and
+$j=W$ otherwise.
+
+
+% Keep the existing Table~\ref{tab:op-formulas} here.
+
+
+\smallskip
+\noindent\textbf{Step 2: Violated-region extraction
+(Algorithm~\ref{alg:risk-score}, line 4).}
+To provide a more concrete explanation of a Warning, the interpreter decomposes
+the left-operand interval into directional components:
+\begin{itemize}
+    \item $L_{\mathit{lower}}$ contains values of $L$ that lie below the
+    comparison boundary represented by $R$;
+
+    \item $L_{\mathit{upper}}$ contains values of $L$ that lie above the
+    comparison boundary represented by $R$; and
+
+    \item $L_{\mathit{overlap}}$ contains values whose comparison outcome
+    depends on the particular value represented by $R$.
+\end{itemize}
+
+Each component is an integer sub-interval or empty.
+These regions are surfaced as diagnostic witnesses for the Warning result:
+they identify where the abstract analysis finds definite or potential failure,
+rather than assigning a concrete-execution probability to those failures.
+
+% Keep the existing Table~\ref{tab:false-regions} here.
+
+
+\smallskip
+\noindent\textbf{Step 3: Abstract satisfaction ratio
+(Algorithm~\ref{alg:risk-score}, line 10).}
+For a Warning judgment, the implementation additionally computes
+$\rho_{\mathit{sat}}\in[0,1]$, an \emph{abstract satisfaction ratio}.
+Conceptually, for ordinary binary comparisons this quantity measures the
+fraction of integer operand combinations represented by the abstract intervals
+for which the comparison holds:
+\[
+\rho_{\mathit{sat}}(L,R,op)
+=
+\frac{
+\left|
+\{(l,r)\in L\times R \mid l\mathrel{op}r\}
+\right|
+}{
+|L\times R|
+}.
 \]
 
-\begin{figure}[t]
-\centering
-
-% Row 1: (a) L extends below R, (b) L inside R
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.4cm, y=0.3cm,
-    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    pair/.style={dashed, blue!60!black, line width=0.5pt},
-    rRef/.style={dotted, black!50, line width=0.4pt},
-    txt/.style={font=\tiny},
-]
-\draw[rRef] (0, -0.3) -- (0, 8);
-\draw[rRef] (6, -0.3) -- (6, 8);
-\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
-\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
-\foreach \x/\h in {1/1, 2/2, 3/3, 4/4} {
-  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
-}
-\draw[pair, <->] (1, 1.2) to[bend left=30] (4, 4.2);
-\draw[pair, <->] (2, 2.2) to[bend left=20] (3, 3.2);
-\node[txt, blue!60!black] at (2.5, 5.8) {$a+b=5$};
-\draw[ax] (-0.5, 0) -- (7.5, 0);
-\node[txt, anchor=west] at (7.5, 0) {$l$};
-\node[txt, anchor=east] at (0.6, 1) {$a$};
-\node[txt, anchor=east] at (0.6, 4) {$b$};
-\end{tikzpicture}
-\caption{$L$ extends below $R$: $|T_w|=4$, $a{=}1$, $b{=}4$.}
-\label{fig:arith-lower}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.4cm, y=0.3cm,
-    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    pair/.style={dashed, blue!60!black, line width=0.5pt},
-    rRef/.style={dotted, black!50, line width=0.4pt},
-    txt/.style={font=\tiny},
-]
-\draw[rRef] (0, -0.3) -- (0, 8);
-\draw[rRef] (6, -0.3) -- (6, 8);
-\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
-\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
-\foreach \x/\h in {2/2, 3/3, 4/4, 5/5} {
-  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
-}
-\draw[pair, <->] (2, 2.2) to[bend left=30] (5, 5.2);
-\draw[pair, <->] (3, 3.2) to[bend left=20] (4, 4.2);
-\node[txt, blue!60!black] at (3.5, 6.8) {$a+b=7$};
-\draw[ax] (-0.5, 0) -- (7.5, 0);
-\node[txt, anchor=west] at (7.5, 0) {$l$};
-\node[txt, anchor=east] at (1.6, 2) {$a$};
-\node[txt, anchor=east] at (1.6, 5) {$b$};
-\end{tikzpicture}
-\caption{$L$ inside $R$: $|T_w|=4$, $a{=}2$, $b{=}5$.}
-\label{fig:arith-inside}
-\end{subfigure}
-
-\vspace{8pt}
-
-% Row 2: (c) L surrounds R (canonical), (d) L extends above R
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.4cm, y=0.3cm,
-    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    pair/.style={dashed, blue!60!black, line width=0.5pt},
-    rRef/.style={dotted, black!50, line width=0.4pt},
-    txt/.style={font=\tiny},
-]
-\draw[rRef] (0, -0.3) -- (0, 8);
-\draw[rRef] (6, -0.3) -- (6, 8);
-\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
-\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
-\foreach \x/\h in {1/1, 2/2, 3/3, 4/4, 5/5, 6/6} {
-  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
-}
-\draw[pair, <->] (1, 1.2) to[bend left=35] (6, 6.2);
-\draw[pair, <->] (2, 2.2) to[bend left=25] (5, 5.2);
-\draw[pair, <->] (3, 3.2) to[bend left=15] (4, 4.2);
-\node[txt, blue!60!black] at (3.5, 8.5) {$a+b=7$};
-\draw[ax] (-0.5, 0) -- (7.5, 0);
-\node[txt, anchor=west] at (7.5, 0) {$l$};
-\node[txt, anchor=east] at (0.6, 1) {$a$};
-\node[txt, anchor=east] at (0.6, 6) {$b$};
-\end{tikzpicture}
-\caption{$L$ surrounds $R$ (canonical): $|T_w|=6$, $a{=}1$, $b{=}6$.}
-\label{fig:arith-canonical}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\linewidth}
-\centering
-\begin{tikzpicture}[
-    x=0.4cm, y=0.3cm,
-    bar/.style={fill=orange!55, draw=orange!75!black, line width=0.4pt},
-    ax/.style={->, line width=0.4pt, black!70},
-    pair/.style={dashed, blue!60!black, line width=0.5pt},
-    rRef/.style={dotted, black!50, line width=0.4pt},
-    txt/.style={font=\tiny},
-]
-\draw[rRef] (0, -0.3) -- (0, 8);
-\draw[rRef] (6, -0.3) -- (6, 8);
-\node[txt, anchor=north] at (0, -0.3) {$r_{\min}$};
-\node[txt, anchor=north] at (6, -0.3) {$r_{\max}$};
-\foreach \x/\h in {3/3, 4/4, 5/5, 6/6} {
-  \fill[bar] (\x-0.3, 0) rectangle (\x+0.3, \h);
-}
-\draw[pair, <->] (3, 3.2) to[bend left=30] (6, 6.2);
-\draw[pair, <->] (4, 4.2) to[bend left=20] (5, 5.2);
-\node[txt, blue!60!black] at (4.5, 8) {$a+b=9$};
-\draw[ax] (-0.5, 0) -- (7.5, 0);
-\node[txt, anchor=west] at (7.5, 0) {$l$};
-\node[txt, anchor=east] at (2.6, 3) {$a$};
-\node[txt, anchor=east] at (2.6, 6) {$b$};
-\end{tikzpicture}
-\caption{$L$ extends above $R$: $|T_w|=4$, $a{=}3$, $b{=}6$.}
-\label{fig:arith-upper}
-\end{subfigure}
-
-\caption{Arithmetic-sequence visualization of $E_w$ across warning configurations for $op = \text{``$>$''}$ with $n_R = 7$.}
-\label{fig:arithmetic-series}
-\end{figure}
-
-\begin{itemize}
-\item For $op \in \{\text{in}, \text{not\,in}\}$, $|T_s|$ already counts the $L$-values inside $R$, yielding $|T_s|/n_L$ directly.
-\item For $op = \text{``=''}$ or $\text{``$\neq$''}$ with $n_R > 1$, each overlapping $L$-value has a $1/n_R$ probability of matching any particular $R$-value, so satisfying pairs are counted over the product space and divided by $n_L \cdot n_R$ (all pairs).
-\item Otherwise (when $op \in \{>, \geq, <, \leq\}$, or $=$/$\neq$ with $n_R = 1$), the warning region $T_w$ is the range of $L$-values whose outcome depends on $R$.
-Since Solidity operates on integers, for each $l \in T_w$ the number of $R$-values satisfying $l \mathrel{op} r$ forms an arithmetic sequence across $T_w$. Fig.~\ref{fig:arithmetic-series} visualizes this sequence across the four warning configurations identified in Fig.~\ref{fig:region-partition}; in each panel, pairing symmetric terms (first with last, second with second-to-last, and so on) yields a constant pair-sum equal to $a + b$, so the $|T_w|$ counts sum to $(a+b)|T_w|/2$, and dividing by $n_R$ gives
+The implementation evaluates this ratio in closed form rather than enumerating
+all integer pairs.
+For membership operators, where $R$ denotes the membership range itself,
+the ratio is computed over the represented values of $L$:
 \[
-E_w \;=\; \frac{(a + b) \, |T_w|}{2 \, n_R},
+\rho_{\mathit{sat}}(L,R,\mathrm{in})
+=
+\frac{|L\cap R|}{|L|},
+\qquad
+\rho_{\mathit{sat}}(L,R,\mathrm{not\ in})
+=
+1-\frac{|L\cap R|}{|L|}.
 \]
-where $a$ and $b$ are the numbers of satisfying $R$-values at the smallest and largest elements of $T_w$, respectively.
-When $n_R = 1$ for $=$ or $\neq$, $E_w = 0$ and the formula degenerates to pointwise evaluation.
-\end{itemize}
+
+For ordering operators, the values in $T_s$ contribute fully,
+the values in $T_v$ contribute nothing, and the contribution of $T_w$
+is obtained by counting the satisfying integer pairs associated with each
+$l\in T_w$.
+Because the number of satisfying $R$-values changes arithmetically across
+the contiguous warning region, this count is computed as
+\[
+E_w
+=
+\frac{(a+b)|T_w|}{2n_R},
+\]
+where $a$ and $b$ are the numbers of satisfying $R$-values at the two
+endpoints of $T_w$.
+Hence,
+\[
+\rho_{\mathit{sat}}
+=
+\frac{|T_s|+E_w}{n_L}
+\]
+for the corresponding ordering cases.
+
+Importantly, $\rho_{\mathit{sat}}$ is a cardinality measure over the
+\emph{abstract} operand space.
+It is not a probability model for concrete executions.
+The interval abstraction may contain values or operand combinations that are
+not jointly reachable because correlations between program variables are not
+represented.
+Likewise, concrete executions need not visit the represented integer values
+with equal frequency.
+The ratio is therefore used only as a relative indication of how much of the
+represented abstract comparison space satisfies the relation.
+
 
 \smallskip
-\textbf{Risk type classification (Algorithm~\ref{alg:risk-score}, line 11).}
-For warning results, the engine classifies the violation pattern into three risk types based on which components of Table~\ref{tab:false-regions} are non-empty:
+\noindent\textbf{Step 4: Violation-shape classification
+(Algorithm~\ref{alg:risk-score}, line 11).}
+The engine also characterizes the shape of a Warning using the directional
+regions of Table~\ref{tab:false-regions}:
 \begin{itemize}
-    \item \textbf{Type 1} --- no directional witness in $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ (only an overlap zone, representing a mild uncertainty);
-    \item \textbf{Type 2} --- exactly one of $L_{\mathit{lower}}$ or $L_{\mathit{upper}}$ is non-empty (a single-direction violation);
-    \item \textbf{Type 3} --- both $L_{\mathit{lower}}$ and $L_{\mathit{upper}}$ are non-empty, or the operator is $=$/$\neq$ (whose interval semantics is inherently imprecise and is assigned the highest band by convention).
+    \item \textbf{Type 1} --- neither $L_{\mathit{lower}}$ nor
+    $L_{\mathit{upper}}$ contains a directional violation witness;
+    the uncertainty is confined to the overlap component;
+
+    \item \textbf{Type 2} --- exactly one of
+    $L_{\mathit{lower}}$ and $L_{\mathit{upper}}$ is non-empty,
+    indicating a one-sided deviation; and
+
+    \item \textbf{Type 3} --- both directional components are non-empty,
+    indicating deviations on both sides.
 \end{itemize}
 
-\smallskip
-\textbf{Banded scoring (Algorithm~\ref{alg:risk-score}, lines 12--13).}
-Each type maps to a fixed $(\mathit{base}, \mathit{span})$ band --- $(0.1, 3.3)$ for type~1, $(3.4, 6.6)$ for type~2, $(6.7, 9.9)$ for type~3 --- and the final score within the band is $\mathit{base} + (1 - p_{\mathit{true}}) \times \mathit{span}$, so that a lower $p_{\mathit{true}}$ (a more probable violation) yields a higher score.
+This classification describes the \emph{shape} of the abstract violation,
+not its application-level severity.
+For example, a two-sided deviation is not assumed to be intrinsically more
+harmful than a one-sided deviation: the consequences of under- and
+over-approximation depend on the application semantics.
+
+The implementation treats Warning results for equality and inequality
+comparisons as the highest priority class by convention because non-singleton
+intervals provide particularly weak information for proving equality.
+This convention is a heuristic prioritization policy rather than a property of
+the denotational semantics.
+
 
 \smallskip
-This banded structure is designed for at-a-glance interpretability: $0$ marks safe execution, $10$ a certain violation, and the three bands group warnings by structural severity---mild overlap-only ambiguity (Type~1), single-direction violation (Type~2), and full bilateral or imprecise comparison (Type~3). Developers can therefore prioritize reviews directly by score without inspecting the underlying probability or region structure.
+\noindent\textbf{Step 5: Heuristic warning prioritization
+(Algorithm~\ref{alg:risk-score}, lines 12--13).}
+Satisfied and Violated judgments are mapped to the endpoints $0.0$ and $10.0$,
+respectively.
+For Warning judgments, the implementation maps the violation-shape class to
+one of three fixed score bands and uses
+$1-\rho_{\mathit{sat}}$ to place the result within that band:
+\[
+\mathit{risk\_score}
+=
+\mathit{base}
++
+(1-\rho_{\mathit{sat}})\times\mathit{span}.
+\]
 
-This completes the design of IntentChecker's intent model and validation engine. The full implementation, together with the evaluation benchmark and scripts used in the following section, is publicly available~\citep{intentchecker}.
+In the current implementation, the three bands are
+$0.1$--$3.3$, $3.4$--$6.6$, and $6.7$--$9.9$.
+These numerical boundaries and the ordering of the shape classes are manually
+chosen heuristics.
+They are not mathematically implied by the interval semantics and have not
+been calibrated as probabilities or measurements of vulnerability severity.
 
+The score is instead intended as a lightweight presentation aid for
+\emph{prioritizing Warning diagnostics}.
+A larger value indicates that, under this heuristic, the Warning deserves
+earlier inspection because the represented abstract space contains a larger
+violation component and/or a structurally broader deviation pattern.
+Developers may inspect the underlying judgment and violated regions directly;
+the score does not replace either diagnostic.
+
+Accordingly, the semantic and heuristic claims of IntentChecker are separated:
+the Satisfied/Violated/Warning judgment is determined solely by the abstract
+comparison semantics, the violated regions and
+$\rho_{\mathit{sat}}$ are deterministic properties of the represented abstract
+space, and the final 0--10 score is a heuristic ranking of Warning results.
 \section{Evaluation}\label{sec:evaluation}
 
-We evaluate IntentChecker as an intent-based approach to supporting developers in addressing numeric logic errors through three research questions that examine its capabilities, associated costs, and position within the broader design space of numeric error analysis:
+We evaluate IntentChecker as an intent-based approach for expressing and validating numeric intent associated with numeric logic errors through three research questions examining its capabilities, associated costs, and position within the broader design space of numeric error analysis.
 
 \begin{itemize}
     \item \textbf{RQ1 (Expressibility and Validatability)}:
@@ -1203,9 +1417,12 @@ We first describe the implementation environment and benchmark dataset shared ac
 The evaluation environment consists of an 11th Gen Intel\textregistered{} Core\texttrademark{}
 i7-11390H CPU at 3.40\,GHz with 16.0\,GB RAM, running Windows 10 (64-bit).
 
-\smallskip
 \noindent\textbf{Implementation and Execution.}
-IntentChecker is implemented in Python~3.10 and operates directly on Solidity source code without requiring compilation or deployment. For the evaluation, IntentChecker is executed in a controlled scripting environment that supplies source-code and annotation events to the interpreter in sequence. Source-code events incrementally construct the program representation, while intent annotations register the properties to be validated at their corresponding source locations. To provide the symbolic inputs required for analysis, IntentChecker uses the batch-annotation mechanism introduced in SolQDebug~\citep{solqdebug}. Once a complete batch annotation is provided, the analyzer evaluates the registered intents under the specified abstract state.
+IntentChecker is implemented in Python~3.10 and operates directly on Solidity source code without requiring compilation or deployment.
+
+For the evaluation, IntentChecker is executed in a controlled scripting environment that supplies source-code and annotation events to the interpreter in sequence. Source-code events incrementally update the program representation, and when a source fragment is added or modified, analysis is resumed from the affected source location rather than recomputing the preceding program state. Intent annotations register the properties to be validated at their corresponding source locations.
+
+To provide the symbolic inputs required for analysis, IntentChecker uses the batch-annotation mechanism introduced in SolQDebug~\citep{solqdebug}. Once a complete batch annotation is provided, the analyzer evaluates the registered intents under the specified abstract state.
 
 \smallskip
 \noindent\textbf{Dataset Collection.}
@@ -1217,13 +1434,18 @@ NumScout~\citep{numscout} provides a curated collection of numeric logic errors 
 From the 95-sample subset distributed in NumScout's official repository~\citep{numscout_dataset},
 we primarily restrict the selection to contracts targeting Solidity $\geq$0.6, the version range supported by IntentChecker's front-end.
 We retain one contract declaring a 0.4.x pragma because the constructs exercised by the evaluated case are nevertheless supported by the current front-end without modification.
-Among the compatible cases, we select seven instances covering all five numerical defect patterns enumerated in NumScout: one Div In Path, two Exchange Problem, one Operator Order Issue, two Precision Loss Trend, and one Minor Amount Retention instance. One of the Exchange Problem instances is labeled Profit Opportunity in the repository.
+Among the compatible cases, we select seven instances covering all five numerical defect patterns enumerated in NumScout: 
+one Div In Path, two Exchange Problem, one Operator Order Issue, two Precision Loss Trend, and one Minor Amount Retention instance. 
+One of the Exchange Problem instances is labeled Profit Opportunity in the repository.
 
 \smallskip\noindent\textbf{Flyinointment (1 instance).}
-\citet{flyinointment} define a Logic Weaknesses category comprising four weakness types. Among them, we include the concrete Greedy Contract example presented in the paper, which falls within the numeric logic error scope of our evaluation.
+From Flyinointment~\citep{flyinointment}, we include the concrete Greedy Contract example categorized as a logic weakness, as it falls within our numeric logic error scope.
 
 \smallskip\noindent\textbf{Web3Bugs (81 instances).}
-Web3Bugs~\citep{exploitablebugs} systematically collected and classified vulnerabilities reported in Code4rena audit contests. We select cases that fall within IntentChecker's multi-contract, single-transaction analysis scope from (i) categories S6-1 through S6-4 (Erroneous Accounting) and (ii) category S3-1 (Inconsistent State Updates). For S3-1, we retain only cases whose root cause involves a numeric computation with a missing or stale state-variable update. The resulting Web3Bugs subset contains 81 instances: 72 Erroneous Accounting cases and 9 Inconsistent State Updates cases.
+Web3Bugs~\citep{exploitablebugs} systematically collected and classified vulnerabilities reported in Code4rena audit contests.
+We select cases that fall within IntentChecker's multi-contract, single-transaction analysis scope from (i) categories S6-1 through S6-4 (Erroneous Accounting) and (ii) category S3-1 (Inconsistent State Updates). 
+For S3-1, we retain only cases whose root cause involves a numeric computation with a missing or stale state-variable update. 
+The resulting Web3Bugs subset contains 81 instances: 72 Erroneous Accounting cases and 9 Inconsistent State Updates cases.
 
 \begin{table}[t]
 \centering
@@ -1254,52 +1476,76 @@ Excluded (see below)        & & $-15$ \\
 \end{table}
 
 \smallskip\noindent\textbf{Exclusions.}
-Of the 89 collected instances, 15 are excluded after manual inspection because they either do not satisfy Definition 1 or fall outside the single-transaction study scope established in Section 2, or cannot serve as distinct reproducible evaluation instances.
+Of the 89 collected instances, 15 are excluded after manual inspection because they do not satisfy our numeric-logic-error definition, fall outside the study scope, or cannot serve as distinct and reproducible benchmark instances.
 The exclusion categories are:
 \begin{itemize}
-  \item \textbf{E1 (Source already patched, 3).} The provided source code corresponds to a post-fix version and therefore does not contain the reported bug. One instance in this category was identified only during the revised RQ1/RQ2 analysis pass: extended provenance checking against the underlying issue-tracker discussion (rather than the compiled audit report alone) revealed that the target source already implements the reported fix.
+  \item \textbf{E1 (Source already patched, 3).} The provided source code corresponds to a post-fix version and therefore does not contain the reported bug. During provenance verification, we also inspected underlying issue-tracker records when the compiled audit report was insufficient to establish the status of the benchmark source.
   \item \textbf{E2 (Integer overflow/underflow, 2).} Under Solidity~$\geq$0.8 checked arithmetic, the reported operation causes the transaction to revert rather than producing an incorrect numeric value; we therefore exclude these cases from the numeric logic errors considered in this study.
   \item \textbf{E3 (Duplicate, 2).} Multiple audit findings refer to the same buggy code location.
-  \item \textbf{E4 (Disputed finding, 1).} The project sponsor disputed the reported issue as intended behavior.
+  \item \textbf{E4 (Not a bug, 1).} The reported behavior was determined to be intentional rather than a valid defect based on the audit discussion and final adjudication.
   \item \textbf{E5 (Missing dependency, 2).} Required external libraries are unavailable in the audit package, preventing reconstruction of the code required for analysis.
   \item \textbf{E6 (Multi-transaction, 3).} The reported bug requires state changes across separate transactions and therefore falls outside IntentChecker's single-transaction analysis scope.
-  \item \textbf{E7 (Language semantics, 1).} The reported behavior results from Solidity's truncating integer-division semantics rather than from an erroneous numeric implementation, and is therefore outside our definition of a numeric logic error.
-  \item \textbf{E8 (Bug not in target contract, 1).} The bug actually resides in a different contract than the one documented in the audit report.
+  \item \textbf{E7 (Language semantics, 1).} TThe reported behavior follows directly from Solidity's specified integer-division semantics, without an erroneous numeric implementation that violates a distinct intended relation; we therefore do not treat it as a numeric logic error under Definition 1.
+  \item \textbf{E8 (Misidentified target, 1).} Provenance inspection showed that the reported defect resides in a different contract than the benchmark target, so the provided target does not contain the reported bug and cannot serve as a reproducible instance.
 \end{itemize}
 
 The remaining \textbf{74 instances} constitute the effective evaluation set.
 
 \subsection{RQ1: Expressibility and Validatability}\label{sec:rq1}
 
-% Replaces the old "Mitigation Capability" framing: the retrospective design does not establish that
-% bug-unaware developers would independently discover unknown bugs.
-% RQ: To what extent can the numeric intent associated with reported numeric logic errors be expressed
-% and validated by IntentChecker? Two conceptual parts: intent expressibility, then validation outcomes.
+RQ1 examines two distinct capabilities of IntentChecker. First, we ask whether the
+bug-relevant numeric intent associated with a reported numeric logic error can be
+represented in IntentChecker's current intent model. Second, for the cases whose
+intent is expressible, we evaluate whether the analyzer can actually validate the
+specified relation against the buggy implementation. Separating these two questions
+is important because a relation may be representable in the annotation language even
+when abstract interpretation lacks sufficient precision to establish its violation.
 
-\subsubsection{Intent Expressibility}\label{sec:rq1:expressibility}
+The evaluation is retrospective. For each benchmark instance, we reconstruct the
+bug-relevant intended numeric behavior using the audit report, the buggy source code,
+and, where available, the recommended or implemented fix. These sources serve only
+to establish the behavior to be specified; the fix is not mechanically translated into
+an annotation. Instead, we derive the least implementation-specific numeric relation
+that is supported by the reported intended behavior and is sufficient to distinguish
+the buggy behavior from the intended one. Accordingly, RQ1 evaluates the
+representational and validation capabilities of IntentChecker given an appropriate
+numeric intent specification; it does not establish that developers who are unaware
+of the reported bug would independently formulate the same specification.
 
-% Question: given the bug-relevant intended numeric behavior identified from a reported defect, can it
-% be represented in IntentChecker's current intent model? Retrospective/oracle-style capability analysis.
-% Audit reports and recommended fixes may inform reconstruction of the expected behavior, but the patch
-% itself must NOT be mechanically translated into the annotation.
-% Synthesis principle: use the least implementation-specific numeric relation supported by the reported
-% intended behavior that still suffices to distinguish buggy from intended behavior --
-%   e.g. exact patch `weiRaised -= amount` -> abstract intent `weiRaised(Entry > Exit)`;
-%        exact accumulation patch -> abstract intent `totalCredit(Entry <= Exit)`.
-% Possible annotation forms: exact equality; inequality/upper-lower bound; Entry/Exit; Before/After;
-% changed/unchanged; return-value relation; call-argument relation; implication/feasibility.
-% @During vs. @Post chosen by the natural observation point.
-% IMPORTANT: expressibility $\neq$ engine success. A case is expressible if the grammar can represent the
-% relation, regardless of whether abstract interpretation later returns Warning.
 
-Of the 74 eligible benchmark instances, IntentChecker's intent model can represent the bug-relevant numeric relation for \textbf{46 (62.2\%)}; the remaining \textbf{28 (37.8\%)} are inexpressible. Table~\ref{tab:rq1-expressibility} breaks this down by whether the underlying defect is Value-level (a wrong operand, operator, or missing assignment within an otherwise-complete expression) or Algorithm-level (a missing procedure call, absent state update, or incorrect operation ordering).
+\subsubsection{Expressibility of Numeric Intent}\label{sec:rq1:expressibility}
+
+We first determine whether the reconstructed numeric intent can be represented using
+IntentChecker's current annotation model. A finding is considered expressible when
+all independently required bug-relevant numeric obligations can be represented using
+values available at supported observation points. The selected relation may take the
+form of an equality, inequality or bound, an Entry/Exit or Before/After relation, a
+state-change property, a return-value relation, or a relation over call arguments.
+We use \texttt{@During} when the intended property concerns an intermediate program
+state or statement-level effect, and \texttt{@Post} when it concerns the function's
+entry/exit relationship or final state.
+
+Expressibility is assessed independently of the subsequent abstract-interpretation
+result. In particular, a relation remains expressible even if the analyzer later
+returns \textit{Warning} because the abstract state is too imprecise to establish
+whether the relation is satisfied or violated.
+
+Of the 74 eligible benchmark instances, the bug-relevant numeric intent is
+expressible for \textbf{46 (62.2\%)} and inexpressible for
+\textbf{28 (37.8\%)}. Table~\ref{tab:rq1-expressibility} provides the
+breakdown by defect type. We classify a defect as \emph{Value-level} when the
+intended computation is structurally present but contains an incorrect operand,
+operator, scaling term, or scalar assignment. A defect is \emph{Algorithm-level}
+when the error involves a missing or additional operation, a missing state update,
+or an incorrect ordering of operations.
 
 \begin{table}[t]
 \centering
-\caption{Expressibility of the bug-relevant numeric relation, by defect type (74 eligible instances).}
+\caption{Expressibility of bug-relevant numeric intent by defect type
+(74 eligible instances).}
 \label{tab:rq1-expressibility}
 \small
-\begin{tabular}{l r r r}
+\begin{tabular}{lrrr}
 \toprule
 \textbf{Error type} & \textbf{Expressible} & \textbf{Inexpressible} & \textbf{Total} \\
 \midrule
@@ -1311,63 +1557,142 @@ Algorithm & 17 & 16 & 33 \\
 \end{tabular}
 \end{table}
 
-For the 28 inexpressible instances, Table~\ref{tab:rq1-blockers} reports the specific grammar limitation that blocks representation, using the four-way taxonomy from \S\ref{sec:design}: $\alpha$ (a required value is reachable only through a function call inside \texttt{intentValue}, with no known-bound or exact-formula rescue), $\beta$ (no in-scope reference to the required value exists at all), $\gamma$ (the required relation is inherently multi-point or structural, exceeding what a single relation form can capture), and $\delta$ (the only viable observation point is architecturally never evaluated by the engine, e.g., a \texttt{@During} clause whose sole attachment point lies inside a loop body).
+
+\subsubsection{Characterizing the Expressibility Boundary}\label{sec:rq1:boundary}
+
+The results in Table~\ref{tab:rq1-expressibility} indicate that expressibility is
+not limited to errors in individual arithmetic expressions. Value-level defects are
+expressible in 29 of 41 cases (70.7\%), while 17 of 33 Algorithm-level defects
+(51.5\%) are also expressible. Thus, missing or misordered operations can still be
+captured when their intended effect can be reduced to an observable numeric relation,
+such as a required state transition or an ordering-sensitive property over values
+available at the relevant program point.
+
+To identify what prevents representation in the remaining cases, we classify the
+28 inexpressible findings according to four blockers. The categories describe the
+specific representational obstacle rather than the developer knowledge required to
+discover the bug or the precision of the subsequent analysis.
+
+\begin{itemize}
+    \item $\alpha$: a required value is obtainable only through a function call
+    inside \texttt{intentValue}, and neither a known-bound substitution nor exact
+    formula inlining can recover it;
+    \item $\beta$: no in-scope reference to a required bug-relevant value exists;
+    \item $\gamma$: the intended property is inherently structural or multi-point
+    and cannot be reduced to the supported numeric relation forms; and
+    \item $\delta$: the only viable observation point is architecturally unavailable
+    to intent evaluation, such as a \texttt{@During} annotation whose required
+    attachment point lies inside a loop body that the current engine never evaluates
+    for intents.
+\end{itemize}
+
+Table~\ref{tab:rq1-blockers} summarizes the observed blockers. A finding may contain
+more than one independently applicable blocker; therefore, the counts are not
+mutually exclusive and sum to more than 28.
 
 \begin{table}[t]
 \centering
-\caption{Reasons for inexpressibility (28 inexpressible instances). A single instance may carry more than one blocker tag, so the Findings column sums to more than 28.}
+\caption{Reasons for inexpressibility among the 28 inexpressible findings.
+Blocker counts may overlap.}
 \label{tab:rq1-blockers}
 \small
-\begin{tabular}{c p{5.6cm} r}
+\begin{tabular}{c p{6.5cm} r}
 \toprule
 \textbf{Blocker} & \textbf{Description} & \textbf{Findings} \\
 \midrule
-$\alpha$ & Required value reachable only via a function call inside \texttt{intentValue}, with no rescue & 17 \\
-$\beta$  & Required value has no in-scope reference at all & 9 \\
-$\gamma$ & Required relation is inherently multi-point/structural & 5 \\
-$\delta$ & Required observation point is architecturally never evaluated & 2 \\
+$\alpha$ &
+Required value is available only through a function call in
+\texttt{intentValue}, with no applicable rescue
+& 17 \\
+
+$\beta$ &
+No in-scope reference to a required value exists
+& 9 \\
+
+$\gamma$ &
+Required relation is inherently structural or multi-point
+& 5 \\
+
+$\delta$ &
+Required observation point is architecturally unavailable
+& 2 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsubsection{Expressibility by Value/Algorithm and Usable/Unusable}\label{sec:rq1:axes}
+These results suggest that the main boundary of IntentChecker's current intent model
+is not simply whether the underlying defect is Value- or Algorithm-level. Rather,
+expressibility depends on whether the reported intended behavior can be reduced to
+numeric relations over program-observable values at supported observation points.
+Algorithm-level defects remain representable when their missing or misordered behavior
+has an observable numeric consequence, whereas even comparatively simple Value-level
+defects may become inexpressible when a load-bearing value is unavailable to the
+annotation model.
 
-% Retain both existing explanatory axes from the prior submission:
-% - Value-level vs. Algorithm-level: still useful for explaining the representational boundary of the
-%   intent model.
-% - Usable vs. Unusable: retain -- Reviewer 2 explicitly found the earlier result interesting (former L5
-%   cases were all Usable; all Unusable cases fell into L4).
-% Reinterpret carefully: Usable/Unusable explains representational AVAILABILITY of the values/relations
-% the intent model needs, not whether a developer would know about the bug.
-% DROP "Bug Awareness Required" as an empirical RQ1 classification -- do not claim a bug-unaware
-% developer would independently formulate the same annotation.
-
-\subsubsection{Validation Outcomes}\label{sec:rq1:validation}
-
-% For expressible cases, evaluate the actual analyzer via real execution (not static prediction from
-% engine source code). Outcomes: Violated / Warning / Unsupported.
-% Key distinctions to preserve:
-% - expressible + Warning is still expressible;
-% - expressible + Unsupported is still not necessarily a grammar limitation;
-% - loops are not automatically unsupported -- only the specific required observation granularity may be.
-% Report aggregate results before detailed breakdowns. Avoid the old narrative ("20 succeed, 55 fail for
-% five reasons"); use instead: "X of 75 bug-relevant numeric relations are expressible. Among the
-% expressible cases, Y produce definite Violated results, while the remaining cases produce Warning or
-% are unsupported because of analysis precision or granularity limitations." Exact numbers TBD after
-% re-analysis.
-% Retrospective-design limitation (state explicitly): RQ1 evaluates the intent model's representational
-% capacity and the analyzer's behavior given an appropriate intent specification; it does NOT establish
-% that bug-unaware developers would independently formulate the same intent. Do not replace this with a
-% new "bug-awareness" taxonomy -- that would require a controlled annotation/developer study.
-
-Each of the 46 expressible instances was given its constructed target annotation, supplied with debug annotations for a concrete discriminating scenario, and actually executed against the buggy implementation (not predicted from engine source). Table~\ref{tab:rq1-validation} reports the resulting distribution. \textbf{32 of 46 (69.6\%)} produce a definite Violated judgment; \textbf{13 (28.3\%)} produce Warning, where the relation is representable but abstract-interpretation precision is insufficient to resolve it against the buggy execution; and \textbf{1 (2.2\%)} is Unsupported.
+We additionally classify every eligible finding, expressible or not, as \emph{Usable}
+when every value the intended relation depends on is directly referenceable at a
+supported program point, and \emph{Unusable} otherwise---a purely representational
+question about value availability, independent of the relation's form. Of the 74
+eligible findings, \textbf{50 are Usable and 24 are Unusable}
+(Table~\ref{tab:rq1-usable}).
 
 \begin{table}[t]
 \centering
-\caption{Validation outcomes for the 46 expressible instances.}
+\caption{Value/Algorithm defect type against Usable/Unusable, across all 74 eligible findings.}
+\label{tab:rq1-usable}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Error type} & \textbf{Usable} & \textbf{Unusable} & \textbf{Total} \\
+\midrule
+Value     & 31 & 10 & 41 \\
+Algorithm & 19 & 14 & 33 \\
+\midrule
+\textbf{Total} & \textbf{50} & \textbf{24} & \textbf{74} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Usable and Expressible coincide almost exactly, but not quite: all 46 expressible
+findings are Usable, and all 24 Unusable findings are inexpressible, yet 4 of the 28
+inexpressible findings are still Usable---every required value is referenceable, but
+the relation cannot be represented for another reason. These 4 findings are tagged
+exclusively $\gamma$ or $\delta$, never $\alpha$ or $\beta$. This is consistent with
+how the blockers are defined: $\alpha$ and $\beta$ are, by construction, failures of
+value availability and therefore always coincide with Unusable, whereas $\gamma$ and
+$\delta$ concern the supported relation forms and observation points rather than
+which values are in scope, and so can leave a finding Usable even when it remains
+inexpressible.
+
+
+\subsubsection{Validation of Expressible Intent}\label{sec:rq1:validation}
+
+We next evaluate whether the 46 expressible specifications can be validated by the
+actual analyzer. For each finding, we insert the constructed target annotation into
+the buggy implementation and provide batch annotations that instantiate a
+bug-discriminating abstract state. We then execute IntentChecker and record the
+result of the target intent check. These outcomes are obtained from actual executions
+of the analyzer rather than inferred from its implementation.
+
+We classify the validation results into three outcomes. \textit{Violated} indicates
+that IntentChecker establishes that the buggy execution violates the specified
+numeric intent. \textit{Warning} indicates that the intent is expressible but the
+abstract state is insufficiently precise to establish either satisfaction or
+violation. \textit{Unsupported} is used when the relation itself is expressible and
+the observation point is valid, but the current execution model cannot represent a
+state transition required to perform a discriminating validation.
+
+As shown in Table~\ref{tab:rq1-validation}, \textbf{32 of the 46 expressible
+findings (69.6\%)} produce a definite \textit{Violated} result.
+A further \textbf{13 (28.3\%)} produce \textit{Warning}, while
+\textbf{1 (2.2\%)} is \textit{Unsupported}.
+
+\begin{table}[t]
+\centering
+\caption{Validation outcomes for the 46 expressible findings.}
 \label{tab:rq1-validation}
 \small
-\begin{tabular}{l r r}
+\begin{tabular}{lrr}
 \toprule
 \textbf{Validation outcome} & \textbf{Findings} & \textbf{\% of expressible} \\
 \midrule
@@ -1375,122 +1700,177 @@ Violated    & 32 & 69.6\% \\
 Warning     & 13 & 28.3\% \\
 Unsupported &  1 &  2.2\% \\
 \midrule
-\textbf{Total} & \textbf{46} & \textbf{100\%} \\
+\textbf{Total} & \textbf{46} & \textbf{100.0\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The single Unsupported instance illustrates a case that requires the finding-level completeness treatment: its reported defect has two independently-checkable mechanisms, and while the first validates cleanly to Violated, the second cannot be assigned any outcome other than Unsupported---the corrective quantity depends on an implicit contract-balance change produced by an external call, and IntentChecker's execution model does not track balance effects of calls it does not itself model. Because the finding as a whole cannot be said to validate cleanly when one of its required mechanisms is Unsupported, it is reported as Unsupported rather than Violated.
+The single Unsupported finding depends on two independently required numeric
+mechanisms. One mechanism can be validated and produces \textit{Violated}, whereas
+the other depends on an implicit change to the contract's ETH balance caused by an
+external call. IntentChecker's execution model does not model this external-call-
+induced balance update and therefore cannot construct the state transition required
+to distinguish the buggy computation from the intended relation. Under our
+finding-level completeness rule, we consequently classify the finding as
+\textit{Unsupported} overall rather than counting the successfully validated
+mechanism alone as a finding-level \textit{Violated} result.
 
-Breaking the validation outcome down by defect type (Table~\ref{tab:rq1-validation-by-type}) shows Algorithm-level instances resolving to Violated somewhat more often than Value-level ones (82.4\% vs.\ 65.5\%); the difference is directional rather than sharp, and both defect types validate cleanly in the majority of cases.
+Table~\ref{tab:rq1-validation-by-type} further breaks down the validation outcomes by
+defect type. Algorithm-level findings produce a definite violation in 14 of 17 cases
+(82.4\%), whereas Value-level findings do so in 18 of 29 cases (62.1\%).
+Both groups therefore contain a majority of definite violations, although the
+observed difference is descriptive and should not be interpreted as evidence of a
+general statistical difference between the two defect classes.
 
 \begin{table}[t]
 \centering
-\caption{Validation outcome by defect type, among the 46 expressible instances (excludes the single Unsupported instance).}
+\caption{Validation outcomes by defect type among the 46 expressible findings.}
 \label{tab:rq1-validation-by-type}
 \small
-\begin{tabular}{l r r r r}
+\begin{tabular}{lrrrrr}
 \toprule
-\textbf{Error type} & \textbf{Violated} & \textbf{Warning} & \textbf{Total} & \textbf{\% Violated} \\
+\textbf{Error type} &
+\textbf{Violated} &
+\textbf{Warning} &
+\textbf{Unsupported} &
+\textbf{Total} &
+\textbf{\% Violated} \\
 \midrule
-Value     & 19 & 10 & 29 & 65.5\% \\
-Algorithm & 14 &  3 & 17 & 82.4\% \\
+Value     & 18 & 10 & 1 & 29 & 62.1\% \\
+Algorithm & 14 &  3 & 0 & 17 & 82.4\% \\
+\midrule
+\textbf{Total} & \textbf{32} & \textbf{13} & \textbf{1} &
+\textbf{46} & \textbf{69.6\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+Overall, RQ1 shows that IntentChecker can represent the bug-relevant numeric intent
+for 46 of the 74 eligible findings. Among these expressible findings, 32 yield a
+definite violation when analyzed against the buggy implementation. The remaining
+cases expose a separate boundary of the approach: even when an intended relation can
+be stated in the intent language, abstract-interpretation precision or unmodeled
+execution semantics may prevent a definite validation result. These results therefore
+distinguish the representational capacity of the intent model from the validation
+capability of the analyzer itself.
 
 \subsection{RQ2: Specification Requirements and Analysis Costs}\label{sec:rq2}
 
-% RQ: What specification requirements and analysis costs are associated with numeric intent validation?
-% Preferred over "annotation effort" since the study does not directly measure developer time or
-% cognitive effort. Two subsections: Specification Requirements, then Analysis Cost.
+RQ2 characterizes the requirements of specifying numeric intent and the computational
+cost of validating it. We intentionally separate these two aspects. The first concerns
+the amount and scope of program or domain information required to formulate a
+bug-relevant intent specification. The second concerns the runtime cost of validating
+that specification once the required analysis inputs have been supplied.
+
+We do not interpret the structural metrics reported below as direct measurements of
+developer effort. Instead, they characterize the specification profile of each finding:
+how many program elements are load-bearing to the selected relation, how far the
+required context extends beyond the target statement, and whether additional
+protocol-specific semantics are needed. These dimensions are reported separately
+rather than collapsed into a single weighted effort score.
+
 
 \subsubsection{Specification Requirements}\label{sec:rq2:spec}
 
-% Combines two dimensions -- do NOT collapse into one artificial weighted score:
-% (a) program context required to formulate the target intent;
-% (b) additional analyzer inputs required to instantiate the validation context.
-% Goal: characterize a specification PROFILE, not a human-effort score.
-%
-% Program-context metrics (candidates):
-% - number of intent-relevant statements; number of unique relevant program values;
-% - number of additional functions that must be inspected;
-% - number of additional contracts/libraries/interfaces; context breadth;
-% - whether external protocol/domain specification is required.
-% Avoid raw LOC-before-the-buggy-line; prefer an intent-relevant backward slice or other dependency-based
-% notion of relevant context. Possible ordinal context-breadth scale (not an effort score):
-%   Level 0: target statement/expression only
-%   Level 1: same-function context
-%   Level 2: additional function(s) in same contract/library
-%   Level 3: cross-contract/library context
-%   Level 4: external protocol/domain specification
-%
-% Analyzer-input metrics (candidates):
-% - batch annotation count; number of constrained variables;
-% - number of externally constrained return values / @IReturn assumptions;
-% - exact-value vs. range constraints, if the distinction proves meaningful.
-% Do NOT sum statements+variables+functions+annotations into one total (different semantics/units) --
-% report separately, and state explicitly that these are structural proxies for specification
-% requirements, not measurements of human annotation effort.
-%
-% Relationship to the old L5 analysis: the old "bug awareness required?" classification is REMOVED. Its
-% underlying question is retained but reformulated as "what information/context is required to support
-% the target specification?" -- applied to ALL expressible cases, not only former L5 cases. Do not claim
-% "a developer could have derived this annotation"; instead characterize objectively how much local
-% context is involved, whether other functions/contracts are involved, whether external semantics are
-% required, and how many analysis inputs must be supplied.
+For each of the 46 expressible findings, we identify the program context that is
+load-bearing to the derivation or justification of the selected numeric intent.
+Following the dependency rules described in Section~\ref{sec:design}, we count:
+(i) relevant statements,
+(ii) unique relevant program values,
+(iii) additional functions whose semantics must be inspected, and
+(iv) additional protocol- or application-specific contracts or libraries whose
+behavior is required to justify the relation.
 
-Table~\ref{tab:rq2-profile} reports, for the 46 expressible instances, the distribution of four structural metrics: the number of relevant statements and unique program values that the target relation's derivation depends on (\S\ref{sec:design}), and the number of additional functions or protocol-specific contracts/libraries whose behavior is load-bearing to that derivation. Because a small number of instances draw on substantially more context than the rest, we report the median and interquartile range (IQR) rather than the mean.
+A called function is counted once as an additional function rather than recursively
+expanding its internal statements into the target function's statement count.
+Likewise, generic language or library semantics are recorded as supporting context
+when necessary but do not increase the protocol-specific contract/library count.
+Because a small number of findings require substantially broader context than the
+rest, we report medians and interquartile ranges (IQRs) rather than means.
+
+Table~\ref{tab:rq2-profile} summarizes the resulting specification profile.
+The median expressible finding depends on four relevant statements and six unique
+program values. Most findings require no additional function beyond the target
+function itself, and the median number of additional protocol-specific
+contracts or libraries is zero.
 
 \begin{table}[t]
 \centering
-\caption{Specification profile summary across the 46 expressible instances.}
+\caption{Specification profile across the 46 expressible findings.}
 \label{tab:rq2-profile}
 \small
-\begin{tabular}{l r r r}
+\begin{tabular}{lrrr}
 \toprule
 \textbf{Metric} & \textbf{Median} & \textbf{IQR} & \textbf{Min--Max} \\
 \midrule
-Relevant statements                                   & 4 & 2--6 & 1--20 \\
-Unique relevant values                                & 6 & 4--9 & 1--16 \\
-Additional functions required                         & 0 & 0--1 & 0--3 \\
-Additional protocol-specific contracts/libraries      & 0 & 0--0 & 0--2 \\
+Relevant statements                              & 4 & 2--6 & 1--20 \\
+Unique relevant values                           & 6 & 4--9 & 1--16 \\
+Additional functions required                    & 0 & 0--1 & 0--3 \\
+Additional protocol-specific contracts/libraries & 0 & 0--0 & 0--2 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Context breadth (Table~\ref{tab:rq2-breadth}) captures how far from the target statement a developer must look to formulate the specification, on the five-level ordinal scale defined above. Half of the expressible instances (50.0\%) require no more than same-function context (levels 0--1); a further 34.8\% require inspecting another function within the same contract or library (level 2); and the remaining 15.2\% require crossing a contract/library boundary or consulting external protocol- or domain-specific knowledge (levels 3--4).
+To capture not only how much context is required but also how far that context
+extends from the target statement, we use the five-level context-breadth scale
+defined in Section~\ref{sec:design}. Level~0 requires only the target
+statement or expression; Level~1 requires additional context within the same
+function; Level~2 requires another function in the same contract or library;
+Level~3 requires cross-contract or cross-library context; and Level~4 requires
+external protocol- or domain-specific semantics.
+
+As shown in Table~\ref{tab:rq2-breadth}, 23 of 46 findings (50.0\%) can be
+specified using only target-statement or same-function context (Levels~0--1).
+A further 16 findings (34.8\%) require another function within the same
+contract or library (Level~2). Only 7 findings (15.2\%) require
+cross-boundary context, i.e., another contract/library or external
+protocol/domain semantics (Levels~3--4).
 
 \begin{table}[t]
 \centering
-\caption{Context breadth across the 46 expressible instances.}
+\caption{Context breadth across the 46 expressible findings.}
 \label{tab:rq2-breadth}
 \small
-\begin{tabular}{c p{4.6cm} r r}
+\begin{tabular}{c p{5.2cm} rr}
 \toprule
 \textbf{Breadth} & \textbf{Meaning} & \textbf{Findings} & \textbf{\%} \\
 \midrule
-0 & Target statement/expression only     &  2 &  4.3\% \\
-1 & Same-function context                & 21 & 45.7\% \\
-2 & Other function, same contract/library& 16 & 34.8\% \\
-3 & Cross-contract/library context       &  6 & 13.0\% \\
-4 & External protocol/domain specification&  1 &  2.2\% \\
+0 & Target statement/expression only      &  2 &  4.3\% \\
+1 & Same-function context                 & 21 & 45.7\% \\
+2 & Other function in same contract/library & 16 & 34.8\% \\
+3 & Cross-contract/library context        &  6 & 13.0\% \\
+4 & External protocol/domain specification &  1 &  2.2\% \\
 \midrule
-\multicolumn{2}{l}{Local (0--1)}        & 23 & 50.0\% \\
-\multicolumn{2}{l}{Intra-contract (2)}  & 16 & 34.8\% \\
-\multicolumn{2}{l}{Cross-boundary (3--4)}& 7 & 15.2\% \\
+\multicolumn{2}{l}{Local (0--1)}          & 23 & 50.0\% \\
+\multicolumn{2}{l}{Intra-contract (2)}    & 16 & 34.8\% \\
+\multicolumn{2}{l}{Cross-boundary (3--4)} &  7 & 15.2\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-External protocol- or domain-specific specification is needed to justify the selected relation in only \textbf{5 of 46 instances (10.9\%)}; the remaining \textbf{41 (89.1\%)} require nothing beyond the source code itself and ordinary language/library semantics (Table~\ref{tab:rq2-extspec}). Consistent with \S\ref{sec:design}, generic protocol-independent facts (e.g., a fixed-point library's rounding convention, a safe-cast helper's revert-on-overflow behavior) do not by themselves count as external specification here.
+The context-breadth score and the external-specification indicator capture
+related but distinct properties. Context breadth records the widest category of
+context required by the specification, whereas the external-specification
+indicator records whether any load-bearing protocol- or domain-specific semantic
+fact is required to justify the selected relation. Consequently, a finding may
+depend on external protocol semantics without necessarily receiving the maximum
+breadth score if its program context is otherwise narrower.
+
+External protocol- or domain-specific semantics are required in only
+\textbf{5 of 46 findings (10.9\%)}. The remaining
+\textbf{41 findings (89.1\%)} can be justified from the program source together
+with ordinary Solidity and generic library semantics. The audit report itself is
+not counted merely because it is consulted during retrospective intent
+reconstruction; however, a protocol-specific semantic fact that is load-bearing
+to the selected relation and unavailable from the local source is counted as
+external specification.
 
 \begin{table}[t]
 \centering
-\caption{External specification dependence across the 46 expressible instances.}
+\caption{External-specification dependence across the 46 expressible findings.}
 \label{tab:rq2-extspec}
 \small
-\begin{tabular}{l r r}
+\begin{tabular}{lrr}
 \toprule
 \textbf{External specification required} & \textbf{Findings} & \textbf{\%} \\
 \midrule
@@ -1500,52 +1880,86 @@ Yes &  5 & 10.9\% \\
 \end{tabular}
 \end{table}
 
-Finally, Table~\ref{tab:rq2-complexity} reports annotation multiplicity: \textbf{37 of 46 instances (80.4\%)} are captured by a single \texttt{@During}/\texttt{@Post} clause, while the remaining \textbf{9 (19.6\%)} require a multi-annotation set because the reported defect has more than one independently-checkable mechanism (\S\ref{sec:design}).
+We also record how many intent clauses are required at the finding level.
+A single annotation suffices for \textbf{37 of 46 findings (80.4\%)}, while
+\textbf{9 findings (19.6\%)} require a multi-annotation set. Multiple annotations
+are used only when the reported behavior contains independently checkable numeric
+obligations that cannot be captured completely by a single relation, including
+cases where the same bug-relevant mechanism applies independently to multiple
+program values.
 
 \begin{table}[t]
 \centering
-\caption{Annotation multiplicity across the 46 expressible instances.}
+\caption{Annotation multiplicity across the 46 expressible findings.}
 \label{tab:rq2-complexity}
 \small
-\begin{tabular}{l r r}
+\begin{tabular}{lrr}
 \toprule
 \textbf{Annotation form} & \textbf{Findings} & \textbf{\%} \\
 \midrule
-Single annotation    & 37 & 80.4\% \\
+Single annotation     & 37 & 80.4\% \\
 Multi-annotation set  &  9 & 19.6\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsubsection{Analysis Cost}\label{sec:rq2:cost}
+Taken together, these results show that numeric-intent specification is usually
+supported by relatively local program context. Half of the expressible findings
+require no context beyond the target function, and fewer than one in six require
+cross-contract, cross-library, or external-domain context. At the same time, the
+upper ranges in Table~\ref{tab:rq2-profile} show that a smaller subset requires
+substantially broader program dependencies, indicating that specification
+requirements vary considerably across findings even when the final intent
+annotation itself is syntactically compact.
 
-% Measures actual runtime after the specification and analysis context are supplied.
-% Question: what is the computational cost of validating numeric intent?
-% Changes from the original 3-run experiment: more than 3 runs; report median (not just mean); report
-% dispersion (e.g. IQR); confidence intervals if appropriate; include executable Warning paths as well as
-% Violated paths; avoid overclaiming linear relationships from a small sample; reconsider or remove the
-% original Pearson-correlation analysis unless a statistically defensible new design is established.
-% Do not equate low runtime with demonstrated developer practicality.
 
-Each of the 46 expressible instances was run 10 times (single thread, dependency pre-analysis excluded, both Violated and Warning outcomes included), and the per-case median is used as the representative value rather than the mean, since analysis time is sensitive to transient system load and a small number of outlier runs. Across the 46 case-level medians, the overall median analysis time is \textbf{2.11\,s} (IQR 0.99--4.30\,s; min 0.39\,s; max 12.99\,s), summarized in Table~\ref{tab:rq2-latency}. Full per-case medians and IQRs, together with the cumulative-median stability check across 1/3/6/10 runs that motivated the choice of 10 repetitions, are reported in the supplementary material.
+\subsubsection{Validation Cost}\label{sec:rq2:cost}
+
+We next measure the runtime cost of validating the 46 expressible findings after
+their target intents and analysis inputs have been supplied. Each finding is
+executed 10 times using a single thread. Dependency pre-analysis is excluded from
+the measured interval, and both definite-\textit{Violated} and
+\textit{Warning} executions are included. We use the per-case median as the
+representative latency because runtime measurements may be affected by transient
+system load and occasional outlier runs.
+
+Across the 46 per-case medians, the overall median validation latency is
+\textbf{2.11\,s}, with an IQR of \textbf{0.99--4.30\,s}.
+The minimum per-case median is \textbf{0.39\,s}, while the maximum is
+\textbf{12.99\,s}, as summarized in Table~\ref{tab:rq2-latency}.
 
 \begin{table}[t]
 \centering
-\caption{IntentChecker analysis latency across the 46 expressible, executed instances (median of 10 runs per case; single thread).}
+\caption{IntentChecker validation latency across the 46 expressible findings
+(10 runs per finding; single thread).}
 \label{tab:rq2-latency}
 \small
-\begin{tabular}{l r}
+\begin{tabular}{lr}
 \toprule
 \textbf{Metric} & \textbf{Value} \\
 \midrule
-Median latency across cases & 2.11\,s \\
-IQR                          & 0.99--4.30\,s \\
-Min                          & 0.39\,s \\
-Max                          & 12.99\,s \\
+Median latency across findings & 2.11\,s \\
+IQR                            & 0.99--4.30\,s \\
+Min                            & 0.39\,s \\
+Max                            & 12.99\,s \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+The full per-finding distributions are provided in the supplementary material.
+To assess whether 10 repetitions provide a stable representative latency, we also
+compare cumulative medians obtained after 1, 3, 6, and 10 runs. This analysis is
+used only as a stability check for the repetition protocol and is not treated as
+an additional performance metric.
+
+These measurements characterize the computational cost of validating an already
+specified numeric intent; they do not measure the time or cognitive effort required
+for a developer to formulate the specification itself. RQ2 therefore distinguishes
+between structural specification requirements and analyzer runtime rather than
+combining them into a single notion of ``annotation effort.'' Overall, the results
+indicate that most expressible findings require relatively local specification
+context, while the subsequent validation typically completes within a few seconds
+under the evaluated environment.
 \subsection{RQ3: Comparison with Existing Detection Tools}\label{sec:rq3}
 
 % Title retained from the original submission -- still a comparison, but the content changes
@@ -1919,5 +2333,175 @@ Zhou, L., et al.: Sok: Decentralized finance (defi) attacks. In: Proceedings of 
 
 \end{thebibliography}
 
+\FloatBarrier
+\newpage
+\appendix
+
+\section{Validation Engine: Class and Sequence Diagrams}
+\label{appendix:validation-engine}
+
+This appendix details the internal structure of Phase~3, the Validation Engine (\S\ref{sec:design}), which is this paper's core contribution. Figure~\ref{fig:appendix-class} shows the classes involved and their relationships; Figure~\ref{fig:appendix-sequence} traces the message flow for a single analysis run, from the point the Parsing and Analysis Modules (Phases~1--2, reused from SolQDebug~\citep{solqdebug}) hand off a control-flow graph and computed intervals to the point a line-level \texttt{Result}/\texttt{Risk Score}/\texttt{Violated Region} is produced. To keep the diagrams readable and consistent with this paper's own terminology, class and method names below are abstracted rather than copied verbatim from the source; Table~\ref{tab:appendix-mapping} (\S\ref{appendix:validation-engine-mapping}) gives the exact correspondence to the public implementation~\citep{intentchecker}.
+
+\subsection{Class Diagram}
+\label{appendix:validation-engine-class}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >=Stealth,
+  uml/.style={rectangle split, rectangle split parts=3, draw, thick,
+              rounded corners=2pt, align=left, font=\scriptsize,
+              text width=4.6cm, inner sep=3pt,
+              rectangle split part align=left},
+  hdr/.style={rectangle split part fill=black!10},
+  agg/.style={-{Diamond[open,length=6pt,width=5pt]}, thick},
+  assoc/.style={-{Stealth[length=6pt]}, thick},
+]
+
+\node[uml, hdr] (CA) at (0,0) {
+  {\bfseries AnnotationDispatcher}
+  \nodepart{second} -- cfg : FunctionCFG \\ -- current\_node : CFGNode
+  \nodepart{third} + dispatchDuring() \\ + dispatchPost() \\ + checkDuringClause() \\ + checkPostClause()
+};
+
+\node[uml, hdr] (EN) at (5.7,0) {
+  {\bfseries FixpointEngine}
+  \nodepart{second} -- worklist : Queue[CFGNode] \\ -- env : Environment
+  \nodepart{third} + runFixpoint(head) \\ + computeAbstractState(node,in) \\ + checkDuring(node) \\ + checkPost(node) \\ + combineResults()
+};
+
+\node[uml, hdr] (GV) at (5.7,-4.35) {
+  {\bfseries RelationVerifier}
+  \nodepart{second} -- dispatcher : AnnotationDispatcher
+  \nodepart{third} + checkBeforeAfter() \\ + checkDirectComparison() \\ + checkEntryExit() \\ + checkChanged() \\ + \ldots\ (13 relation forms)
+};
+
+\node[uml, hdr] (RM) at (0,-4.35) {
+  {\bfseries ResultRecorder}
+  \nodepart{second} -- records : List[LineRecord]
+  \nodepart{third} + recordResult(line, \\ \phantom{+ }result, risk, region)
+};
+
+\draw[agg] (CA.east) -- (EN.west) node[midway, above, font=\tiny] {drives 1};
+\draw[assoc] (EN.south) -- (GV.north) node[midway, right, font=\tiny] {delegates};
+\draw[assoc] (EN.west) -- (RM.east) node[midway, above, font=\tiny] {writes};
+
+\end{tikzpicture}
+\caption{Class diagram of the Validation Engine (Phase~3). \textsc{AnnotationDispatcher} (Phases~1--2) drives one \textsc{FixpointEngine} instance per function analysis; \textsc{FixpointEngine} performs the interval-domain fixpoint computation and, at each eligible CFG node, delegates the actual per-relation-form check to \textsc{RelationVerifier}, then writes the combined outcome through \textsc{ResultRecorder}. Names here are paper-facing abstractions --- see Table~\ref{tab:appendix-mapping} for the exact implementation identifiers.}
+\label{fig:appendix-class}
+\end{figure}
+
+\textbf{AnnotationDispatcher} owns the function's control-flow graph and dispatches each parsed \texttt{@During}/\texttt{@Post} clause to the Validation Engine. \textbf{FixpointEngine} is the interval-domain abstract interpreter: \texttt{runFixpoint} drives a worklist over the CFG, and \texttt{computeAbstractState} computes each node's abstract state. At every CFG node the fixpoint computation actually visits, \texttt{checkDuring}/\texttt{checkPost} invoke \textbf{RelationVerifier}, which implements one method per relation form from \S\ref{sec:rq1:expressibility} (e.g., \texttt{checkBeforeAfter} for Before-After relations, \texttt{checkEntryExit} for Entry-Exit relations, and ten further methods covering the remaining During/Post relation forms). Each call returns a three-valued outcome (Satisfied/Violated/Warning) plus, when applicable, the sub-interval responsible for a Warning. When a clause is a compound \texttt{\&\&}/\texttt{||} expression, \texttt{FixpointEngine.combineResults} combines the member outcomes; the result is then handed to \textbf{ResultRecorder}, which stores the final per-line \texttt{Result}, \texttt{Risk Score}, and \texttt{Violated Region}.
+
+\subsection{Sequence Diagram}
+\label{appendix:validation-engine-sequence}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >=Stealth,
+  actor/.style={draw, thick, rounded corners=2pt, fill=black!6, minimum width=2.6cm, align=center, font=\scriptsize\bfseries},
+  lifeline/.style={dashed, thick, black!50},
+  call/.style={-{Stealth[length=6pt]}, thick},
+  ret/.style={-{Stealth[length=6pt]}, thick, dashed},
+  frame/.style={draw, dashed, rounded corners=2pt, inner sep=0pt},
+  selfcall/.style={-{Stealth[length=5pt]}, thick},
+]
+
+\node[actor] (A0) at (0,0)   {AnnotationDispatcher};
+\node[actor] (A1) at (3.9,0) {FixpointEngine};
+\node[actor] (A2) at (7.6,0) {RelationVerifier};
+\node[actor] (A3) at (11.0,0){ResultRecorder};
+
+\coordinate (A0b) at (0,-13.6);
+\coordinate (A1b) at (3.9,-13.6);
+\coordinate (A2b) at (7.6,-13.6);
+\coordinate (A3b) at (11.0,-13.6);
+\draw[lifeline] (A0.south) -- (A0b);
+\draw[lifeline] (A1.south) -- (A1b);
+\draw[lifeline] (A2.south) -- (A2b);
+\draw[lifeline] (A3.south) -- (A3b);
+
+\draw[call] (0,-0.8) -- node[above, font=\tiny] {runFixpoint(entry)} (3.9,-0.8);
+
+\begin{scope}[on background layer]
+\node[frame, fit={(0,-1.3) (7.6,-11.9)}] (LOOP) {};
+\node[font=\tiny\itshape, anchor=north west] at (LOOP.north west) {loop: worklist not empty};
+\end{scope}
+
+\draw[selfcall] (3.9,-2.3) -- ++(0.6,0) -- ++(0,-0.4) -- ++(-0.6,0);
+\node[font=\tiny, anchor=west, align=left] at (4.65,-2.5) {computeAbstractState(node)\\ {\itshape [compute abstract state]}};
+
+\begin{scope}[on background layer]
+\node[frame, fit={(3.7,-3.3) (7.6,-10.7)}] (OPT) {};
+\node[font=\scriptsize\itshape, anchor=north west] at (OPT.north west) {opt: node $\notin$ loop\_nodes};
+\end{scope}
+
+\draw[selfcall] (3.9,-4.1) -- ++(0.6,0) -- ++(0,-0.4) -- ++(-0.6,0);
+\node[font=\tiny, anchor=west] at (4.65,-4.3) {checkDuring(node)};
+
+\draw[call] (3.9,-5.1) -- node[above, font=\tiny] {checkRelation(clause)} (7.6,-5.1);
+\draw[ret]  (7.6,-5.7) -- node[below, font=\tiny] {\{status, sub\_interval\}} (3.9,-5.7);
+
+\draw[selfcall] (3.9,-6.5) -- ++(0.6,0) -- ++(0,-0.4) -- ++(-0.6,0);
+\node[font=\tiny, anchor=west] at (4.65,-6.7) {checkPost(node)};
+
+\draw[call] (3.9,-7.5) -- node[above, font=\tiny] {checkRelation(clause)} (7.6,-7.5);
+\draw[ret]  (7.6,-8.1) -- node[below, font=\tiny] {\{status, sub\_interval\}} (3.9,-8.1);
+
+\draw[selfcall] (3.9,-8.9) -- ++(0.6,0) -- ++(0,-0.4) -- ++(-0.6,0);
+\node[font=\tiny, anchor=west] at (4.65,-9.1) {combineResults()};
+
+\node[font=\tiny, align=left, red!60!black] at (3.9,-11.2) {[node $\in$ loop\_nodes: skipped entirely --- never reached; see delta blocker tag, \S\ref{sec:rq1:boundary}]};
+
+\draw[call] (3.9,-12.6) -- node[above, font=\tiny] {recordResult(line, result, risk, region)} (11.0,-12.6);
+\draw[ret]  (3.9,-13.2) -- node[above, font=\tiny] {Result / Risk Score / Violated Region} (0,-13.2);
+
+\end{tikzpicture}
+\caption{Sequence diagram of one Validation Engine analysis run. The outer loop is the fixpoint worklist iteration; the inner \texttt{opt} frame fires only for CFG nodes the engine's per-node checking machinery actually visits. Nodes inside a loop body (\texttt{loop\_nodes}) never enter this frame at all --- \texttt{computeAbstractState} computes their abstract state but \texttt{checkDuring}/\texttt{checkPost} are never invoked for them, which is the architectural fact underlying the \emph{delta} blocker tag (\S\ref{sec:rq1:boundary}).}
+\label{fig:appendix-sequence}
+\end{figure}
+
+Figure~\ref{fig:appendix-sequence} makes explicit a fact that is otherwise only visible by reading the implementation directly (Table~\ref{tab:appendix-mapping}): the per-node intent-checking step (the inner \texttt{opt} frame) is conditioned on the node not being a loop-interior node. The fixpoint worklist still computes an abstract state for every node, loop-interior or not (\texttt{computeAbstractState} always runs), but \texttt{checkDuring}/\texttt{checkPost} --- and therefore every downstream call into \textsc{RelationVerifier} --- are simply never invoked for a loop-interior node. Consequently, an annotation whose only viable attachment point is inside a loop body is not merely analyzed imprecisely; it is never evaluated at all, independent of the annotation's own content. This is the source of the \emph{delta} category in \S\ref{sec:rq1:boundary}'s expressibility-boundary taxonomy, and is otherwise easy to conflate with an ordinary precision limitation (widening, $\top$-propagation) rather than the architectural non-invocation it actually is.
+
+\subsection{Correspondence with the Public Implementation}
+\label{appendix:validation-engine-mapping}
+
+Table~\ref{tab:appendix-mapping} maps every paper-facing name in Figures~\ref{fig:appendix-class}--\ref{fig:appendix-sequence}, and the Phase~1--3 terminology used in \S\ref{sec:design}, to the corresponding file and identifier in the public repository~\citep{intentchecker}. The implementation predates this paper's IntentChecker naming and retains its original project name, \textsc{SolidityGuardian}, in some internal identifiers (e.g., the \texttt{Guardian} prefix below); this does not reflect a different or additional tool.
+
+\begin{table}[t]
+\centering
+\caption{Paper terminology to implementation correspondence. All paths are relative to the repository root~\citep{intentchecker}.}
+\label{tab:appendix-mapping}
+\small
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Paper term} & \textbf{Implementation} \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Phases}} \\
+Parsing Module (Phase~1) & \texttt{Parser/}, \texttt{Analyzer/ContractParser.py} \\
+Analysis Module (Phase~2) & \texttt{Interpreter/Engine.py}, \texttt{Analyzer/DynamicCFGBuilder.py}, \texttt{Analyzer/StaticCFGFactory.py} \\
+Validation Engine (Phase~3) & \texttt{Analyzer/ContractAnalyzer.py}, \texttt{Interpreter/Engine.py}, \texttt{Analyzer/GuardianVerificationEngine.py}, \texttt{Analyzer/RecordManager.py} \\
+\addlinespace
+\multicolumn{2}{@{}l}{\emph{Classes}} \\
+\textsc{AnnotationDispatcher} & \texttt{Analyzer/ContractAnalyzer.py} :: \texttt{ContractAnalyzer} \\
+\textsc{FixpointEngine} & \texttt{Interpreter/Engine.py} :: \texttt{Engine} \\
+\textsc{RelationVerifier} & \texttt{Analyzer/GuardianVerificationEngine.py} :: \texttt{GuardianVerificationEngine} \\
+\textsc{ResultRecorder} & \texttt{Analyzer/RecordManager.py} :: \texttt{RecordManager} \\
+\addlinespace
+\multicolumn{2}{@{}l}{\emph{Methods}} \\
+\texttt{dispatchDuring()} / \texttt{dispatchPost()} & \texttt{ContractAnalyzer.process\_during} / \texttt{.process\_post} \\
+\texttt{checkDuringClause()} / \texttt{checkPostClause()} & \texttt{ContractAnalyzer.\_verify\_during\_clause} / \texttt{.\_verify\_post\_clause} \\
+\texttt{runFixpoint(head)} & \texttt{Engine.fixpoint(head)} \\
+\texttt{computeAbstractState(node,in)} & \texttt{Engine.transfer\_function(node, in\_vars)} \\
+\texttt{checkDuring(node)} / \texttt{checkPost(node)} & \texttt{Engine.\_process\_during\_annotations} / \texttt{.\_process\_post\_annotations} \\
+\texttt{checkRelation(clause)} & \texttt{GuardianVerificationEngine.verify\_during\_*} / \texttt{.verify\_post\_*} (13 methods, e.g.\ \texttt{verify\_during\_before\_after}, \texttt{verify\_post\_entry\_exit}, \texttt{verify\_post\_changed}) \\
+\texttt{combineResults()} & \texttt{Engine.\_combine\_logic\_results} \\
+\texttt{recordResult(\ldots)} & \texttt{RecordManager.record\_result} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \end{document}

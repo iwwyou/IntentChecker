@@ -857,36 +857,6 @@
     "event": "add"
   },
   {
-    "code": "// @LocalVar lower = [0, 0]",
-    "startLine": 146,
-    "endLine": 146,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar upper = [100, 100]",
-    "startLine": 147,
-    "endLine": 147,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar amount = [1000000, 1000000]",
-    "startLine": 148,
-    "endLine": 148,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar recipient = symbolicAddress 4",
-    "startLine": 149,
-    "endLine": 149,
-    "event": "add"
-  },
-  {
-    "code": "// @LocalVar unwrapBento = [0, 0]",
-    "startLine": 150,
-    "endLine": 150,
-    "event": "add"
-  },
-  {
     "code": "// @Debugging END",
     "startLine": 151,
     "endLine": 151,

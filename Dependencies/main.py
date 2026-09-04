@@ -340,7 +340,16 @@ def analyze_file(sol_path: pathlib.Path, mode: str) -> str | None:
         close_before = rec.get("closeBefore", False)
         try:
             sa.update_code(s, e, code, ev, close_before)
-        except Exception:
+        except Exception as ex:
+            # 진단용 마커 -- 예전엔 여기서 완전히 조용히 삼켰음(원인: 이 실패가
+            # 누적되면 해당 함수의 CFG 노드에 statement가 하나도 안 들어간 채
+            # pkl로 저장되고, 나중에 그 함수를 호출하면 크래시도 경고도 없이
+            # 선언된 리턴변수의 기본값(예: uint160이면 0)을 조용히 반환함 --
+            # web3bugs_35_H_10 케이스 빌드 중 TickMath.getSqrtRatioAtTick/
+            # DyDxMath.getDx/getDy에서 발견). 동작은 그대로 무시(pass)하되
+            # 원인 라인을 보이게 만 한다 -- 전수조사용, 아직 아무 pkl도
+            # 이걸로 재생성하지 않았음.
+            print(f"  [UPDATE_CODE ERR] L{s}: {ex}")
             pass  # context 분석 실패 시 무시
 
         stripped = code.strip()

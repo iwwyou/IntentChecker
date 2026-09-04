@@ -1498,9 +1498,16 @@ class GuardianVerificationEngine:
         if not hasattr(left, "min_value") and hasattr(right, "min_value"):
             if op in {"in", "not in"}:
                 if right.min_value is None or right.max_value is None:
-                    return {"satisfied": False, "violated": True,
-                            "warning": True, "prob_true": 0.0,
-                            "risk_score": 10.0, "risk_type": 2,
+                    # Bounds genuinely unknown (⊤) -- neither satisfied nor
+                    # violated is provable, so this is a Warning (j = W when
+                    # neither holds, per Cmp*'s formal definition), not a
+                    # Violation. Mirrors the established convention in
+                    # _compare_intervals_prob's own min/max-None branch.
+                    risk_type = self._compute_risk_type("warning", {}, op)
+                    risk_score = self._compute_risk_score("warning", 0.5, {}, op)
+                    return {"satisfied": False, "violated": False,
+                            "warning": True, "prob_true": 0.5,
+                            "risk_score": risk_score, "risk_type": risk_type,
                             "message": "interval unknown"}
                 inside = right.min_value <= left <= right.max_value
                 satisfied = inside if op == "in" else not inside
@@ -1543,9 +1550,14 @@ class GuardianVerificationEngine:
                 "message": f"{left} {op} {right} = {satisfied}"
             }
         except Exception as e:
-            return {"satisfied": False, "violated": True,
-                    "warning": True, "prob_true": 0.0,
-                    "risk_score": 10.0, "risk_type": 2,
+            # Comparison could not be evaluated at all -- neither satisfied
+            # nor violated is provable, so this is a Warning (j = W when
+            # neither holds, per Cmp*'s formal definition), not a Violation.
+            risk_type = self._compute_risk_type("warning", {}, op)
+            risk_score = self._compute_risk_score("warning", 0.5, {}, op)
+            return {"satisfied": False, "violated": False,
+                    "warning": True, "prob_true": 0.5,
+                    "risk_score": risk_score, "risk_type": risk_type,
                     "message": f"comparison error: {e}"}
 
     def _expr_to_str(self, e):  # 간단 문자열 직렬화 helper
